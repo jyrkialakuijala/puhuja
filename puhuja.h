@@ -227,6 +227,7 @@ struct Keyframe {
   Params p;
   double t;  // time in samples
   bool vowel = false;  // a vowel's target
+  bool edge = false;   // a held target's edge: not a formant point (see splineAt)
   float f0Mod = 1;     // micro-intonation on top of the pitch line
 };
 
@@ -295,6 +296,7 @@ struct Voice {
   float noiseScale = 1;  // frequency scale of the fricative noise shapes (shorter front cavity)
   float shGain = 1;      // ʃ ʒ noise multiplier
   float glottalGap = 0;  // posterior glottal gap kept open while voicing (cm^2)
+  float f4 = 3500, f5 = 4500;  // F4, F5 (Hz) at a neutral F3 and the base pitch
 };
 
 class Synth {
@@ -440,6 +442,7 @@ class Synth {
   float nextVowelF(Ph next, int k) const;
   void emitAffricate(const Token& tok, const Ph* next);
   void addKeyframe(const Params& p, double t, bool vowel = false);
+  void addHeld(const Params& p, double t0, double dur, double a, double b, bool vowel = false);
   void addEvent(const Event& e);
   void addEventAt(const Event& e);
   bool startSegment();
@@ -484,6 +487,7 @@ class Synth {
   float nextPitchEnd_ = kNoPitch;  // setPitchEnd() value
   Shape nextShape_;   // shapeNext() value waiting for the next phoneme
   Shape nextShape2_;  // the shape of the sound after the one being emitted
+  bool nextWordStart_ = false;  // the sound after the one being emitted starts a word
 
   // Prosody / context state.
   int syllable_ = 0;
@@ -541,6 +545,7 @@ class Synth {
   float prevFlow_ = 0;    // glottal flow one sample ago
   Biquad physTilt_;       // treble tilt of the physical source
   Biquad physUpperCut_;   // cut around F3 (physical source)
+  Biquad physMidLift_;    // lift between F1 and F2 (physical source)
   float physTiltGain_ = 0;
   float flowMean_ = 0, physVib_ = 0;  // flow mean and fluctuation (~10 ms)
   float kVibTrack_ = 0;

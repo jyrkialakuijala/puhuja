@@ -427,7 +427,9 @@ struct Sound {
 
 // End of the aʊ and oʊ glides: back and rounded, kept out of the tuning (the
 // tuned ʊ of "good" is fronted, and a fronted glide makes "bow" sound "bli").
-constexpr float kBackGlide[3] = {420, 1050, 2400};  // (380 900: too far back, voice-over 1030-1390)
+// F3 2700 (was 2400): goog.wav keeps F3 level through oʊ and l ("holds":
+// ~3100-3200 female); at 2400 it sagged in the glide and jumped 400 Hz up at the l.
+constexpr float kBackGlide[3] = {420, 1050, 2700};  // (380 900: too far back, voice-over 1030-1390)
 constexpr float kAwGlide[3] = {450, 1300, 2400};  // the end of aʊ
 constexpr float kGlideFallShare = 0.5f;  // a final diphthong's fall done by its glide's centre
 // Start of ɔɪ ("boy"): open, back and rounded, so the two vowels stay distinct
@@ -439,7 +441,9 @@ constexpr float kOpenCentralStart[3] = {730, 1400, 2500};
 // oʊ starts mid and a little central (Hillenbrand o: F1 ~500), so it glides
 // clearly into ʊ: from the tuned o (F1 400, F2 1040), next to the glide's
 // end, "holds" sounded like "hoolds".
-constexpr float kMidBackStart[3] = {520, 1150, 2500};
+// oʊ starts a little more open and back (goog.wav "holds": F1 falls steadily
+// from ~800 female; from 520 F1 sat flat and then dropped in steps).
+constexpr float kMidBackStart[3] = {560, 1100, 2650};
 
 Sound soundOf(const char* tok) {
   std::string t(tok);
@@ -645,6 +649,7 @@ struct KlattDur {
   const char* name;
   float inh, min;
 };
+constexpr float kHBeforeJ = 2.5f;
 constexpr KlattDur kKlatt[] = {
     {"AA", 240, 100}, {"AE", 230, 80}, {"AH", 140, 60}, {"AO", 240, 100}, {"AW", 260, 100},
     {"AY", 250, 150}, {"EH", 150, 70}, {"ER", 180, 80}, {"EY", 190, 100}, {"IH", 135, 40},
@@ -749,6 +754,9 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
         const char* vn = v < tok.size() ? kEnglishTokens[tok[v] - 0x80] : nullptr;
         const bool onsetOfStressed = vn && phrase_[w].accent && vn[strlen(vn) - 1] == '1';
         prc *= onsetOfStressed ? kStressedOnset : kUnstressedConsonant;
+        // h before j is one sound, the palatal hiss [ç] ("human"): not
+        // shortened as a cluster, and long (goog.wav ~120 ms; here it was 51).
+        if (b == "HH" && i + 1 < tok.size() && baseName(tok[i + 1]) == "Y") prc *= kHBeforeJ;
       }
       // Final lengthening by the strength of the boundary.
       if (phraseFinal)

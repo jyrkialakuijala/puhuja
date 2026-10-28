@@ -132,7 +132,9 @@ constexpr float kLowCutHz = 90;
 constexpr float kRoomTone = 0.038f, kRoomToneHz = 1500;  // room-tone floor: level, darkness  // 2nd-order output cut (male boom)
 constexpr float kBreathiness = 0.08f;
 // High breath noise in voicing (see the glottal mix): gain, corner, pulsed share.
-constexpr float kHighBreathGain = 2.0f, kHighBreathHz = 5000, kHighBreathPulse = 0.6f;
+// (2.0: 4-8 kHz 2 dB above goog.wav and the voice-overs, between-harmonic
+// noise 2 dB over goog's.)
+constexpr float kHighBreathGain = 1.2f, kHighBreathHz = 5000, kHighBreathPulse = 0.6f;
 // Breath noise comes in puffs while the folds are open (none while shut)
 // and is kept below kBreathLowPassHz, so that the voice's highs are clean
 // harmonics instead of hiss.
@@ -242,6 +244,9 @@ constexpr float kPhysTiltDb = -2;
 constexpr bool kPhysMidCut = false;  // the low-mid cut around F1 (kMidCut*); off: it was tuned around the clipped flow (fixes/01)
 // Cut of the physical source around F3 (all three references: Piper, the
 // CSS10 reader and the voice-over, have 6-10 dB less at 2-3 kHz).
+// Source lift between F1 and F2: the vowels and l w r were 3-5 dB weaker
+// than goog's at 0.9-1.3 kHz (both voices), a gap under F2 in the sonograms.
+constexpr float kPhysMidLiftHz = 1000, kPhysMidLiftBw = 500, kPhysMidLiftDb = 4;
 constexpr float kPhysUpperCutHz = 3000, kPhysUpperCutBw = 1500, kPhysUpperCutDb = -1.5;  // (2.5-3.5 kHz was 3-5 dB hot; -7 at 2600 was tuned around the clipped flow)
 // High breath (off): an added hiss above ~4 kHz sounded bad either way:
 // pulsed fully by the glottal cycles it buzzed, steady it sounded like
@@ -321,7 +326,15 @@ constexpr float kTensionMs = 40;
 constexpr float kBoundaryMs = 20;    // between continuant sounds
 constexpr float kGlottalMs = 15;     // glottis opening/closing
 // h before a vowel: the vowel's formants are reached this far into the h.
+// Formant targets are points (one per phoneme, at its centre) on a
+// continuous Catmull-Rom path, not held plateaus (see addHeld).
+constexpr bool kFormantPointTargets = true;
 constexpr float kHVowelAt = 0.3f;
+constexpr float kHPalatalNoise = 1.0f;  // h before j: noise gain (1.4: 3 dB louder than goog's, against the vowel)
+// English u after j ("human", "few", "use"): fronted, most of the way to the
+// j's F2 (goog.wav: F2 ~2.5 kHz through the u of "human", falling only in the
+// m; with a back u the bright hj did not belong to the dark "uman").
+constexpr float kUAfterJ = 0.8f;
 // Closing into a plosive: a fast approach to a nearly closed opening, then
 // a slower final seal, as lips and tongue decelerate on contact. The sound
 // fades out during the seal.
@@ -396,9 +409,14 @@ constexpr float kOnsetRiseVoiceless = 1.047f, kOnsetDipVoiced = 0.971f;  // +0.8
 constexpr float kPhraseOnsetDrop = 0.944f;  // a phrase starts 1 semitone below its first target
 // Micro-variation of the folds (relative sizes; the low-passed noise has an
 // RMS of ~0.08, so these are ~10x the resulting RMS variation).
-constexpr float kMicro2Gain = 2.0f;  // the second stage, its strength (1.4 kept the RMS; HNR was then 2.7 dB too clean)
+constexpr float kMicro2Gain = 3.0f;  // the second stage, its strength (1.4 kept the RMS; HNR was then 2.7 dB too clean)
 constexpr float kTensionJitter = 0.4f, kRestJitter = 0.12f, kPressureShimmer = 1.6f;
-constexpr float kMicroHz = 30;
+// Below ~10 Hz the variation is heard as a natural, slow unsteadiness; at
+// 30 Hz it was roughness (graininess): harmonics above 1.5 kHz broke into
+// noise, vowel HNR 1-2 kHz 13 dB (goog.wav 19), shimmer 0.20 dB (0.11),
+// and the pitch wobbled 15 cents within a vowel (6). At 8 Hz with gain 3:
+// 23 dB, 0.06 dB, 7 cents.
+constexpr float kMicroHz = 8;
 constexpr int kFoldOversample = 4;
 constexpr float kFoldAntiAliasHz = 18000;  // width of the soft floor of the mouth opening (cm^2)
 
@@ -439,8 +457,12 @@ constexpr Voice kMaleVoice = {92, {1.0f, 1.0f, 1.0f}, 1.0f, 1.0f, 1.7f, 1.0f, 1.
 // more energy into the formants, so its output level is turned down.
 // Treble and high breath from the female voice-over (demo-female.wav): it is
 // brighter than the male one, 6 dB above 2.5 kHz and 9-10 dB above 5 kHz.
-constexpr Voice kFemaleVoice = {188, {1.2f, 1.1f, 1.15f}, 1.15f, 0.92f, 1.8f, 1.5f, 0.85f, 7, 1.0f,
-                                {1.5f, 1.4f, 1.3f}, 1.12f, 1.41f, 0.03f};
+constexpr Voice kFemaleVoice = {188, {1.2f, 1.1f, 1.10f}, 1.15f, 0.92f, 1.8f, 1.5f, 0.85f, 7, 1.0f,
+                                {1.5f, 1.4f, 1.3f}, 1.12f, 1.41f, 0.03f,
+                                // F4, F5: goog and the female voice-over have F4 at ~3.98 kHz (LPC of
+                                // the vowel middles). F3 x1.15 (2960 Hz vs 2770-2840) with F4 3850
+                                // crowded F3 and F4 into one bump: vowels 5-8 dB hot at 3-4 kHz.
+                                4000, 4500};
 constexpr float kTrebleShelfHz = 5000;  // (2500: the female voice was shrill at 2-4.5 kHz without air above)
 // Bandwidth scale of consonant targets (see setTargets in emit).
 constexpr float kConsonantBw = 1.5f;
@@ -564,6 +586,8 @@ struct PlosiveInfo {
 constexpr float kDentalDClosure = 0.5f, kDentalDRelease = 0.25f;
 constexpr float kDentalReleaseMs = 30;  // t d into ð θ: the opening
 constexpr float kUnreleasedClosure = 0.6f;  // a plosive before another: closure share
+constexpr float kLinkedDRelease = 2.5f;  // word-final d before a vowel-initial word: burst and pop
+constexpr float kLinkedDReleaseSlow = 2.0f;  // and its opening this much slower (a longer burst)
 constexpr float kVoicedAfterConsonantRelease = 0.4f;  // b d g after a consonant: burst and pop
 // English b after a pause or consonant: glottal opening during the closure
 // (share of voice -> open), burst noise and pop multiplier.
@@ -876,6 +900,7 @@ Synth::Synth(float sampleRate, float baseF0) : fs_(sampleRate), baseF0_(baseF0 >
   setFixedResonances();
   chestLp_.lowPass(kChestHz, fs_);
   physUpperCut_.peaking(kPhysUpperCutHz, kPhysUpperCutBw, kPhysUpperCutDb, fs_);
+  physMidLift_.peaking(kPhysMidLiftHz, kPhysMidLiftBw, kPhysMidLiftDb, fs_);
   trebleShelf_.highShelf(kTrebleShelfHz, voice_.treble, fs_);  // (only setVoice set it: the male shelf was never on)
   for (int i = 0; i < kNumCavities; ++i) {
     cavPole_[i].set(kCavities[i].pole, kCavities[i].bw, fs_);
@@ -887,13 +912,26 @@ Synth::Synth(float sampleRate, float baseF0) : fs_(sampleRate), baseF0_(baseF0 >
   for (int i = 0; i < 3; ++i) polesHigh_[i].highShelf(kPolesHigh[i][0] * voice_.highFormants, kPolesHigh[i][1], fs_);
 }
 
+// F4 and F5 travel a little. They are set mostly by the tract's length and
+// the tube just above the folds, not by the tongue: lip rounding lengthens
+// the tract and lowers them, F3 drags F4 along (up in i, down in ɹ and
+// "world"), and the larynx rises a little with pitch. F3 carries the
+// rounding too (u w ʃ ɹ lower it), so they follow (F3 / kF3Neutral)^k and
+// (pitch)^kHighFormantPitch: about +-5-10 % over a sentence, as in goog.
+constexpr float kF3Neutral = 2500;  // the reading's average voiced F3
+constexpr float kF4FollowF3 = 0.3f, kF5FollowF3 = 0.2f;
+constexpr float kHighFormantPitch = 0.05f;  // +3.5 % an octave up
+// F4, F5 bandwidths (Hz). (330, 450: vowels 2-5 dB over the voice-overs at
+// 3-5 kHz.)
+constexpr float kF4Bw = 500, kF5Bw = 700;
+
 void Synth::setFixedResonances() {
   const float s = voice_.highFormants;
   // F4/F5 bandwidths from the losses at those frequencies (Fant: ~300 and
   // ~450 Hz); narrower they ring at a constant pitch (the voice-overs' LPC B4
   // is 220-290 Hz, puhuja's was 121-140).
-  r4_.set(3500 * s, 330 * s, fs_);
-  r5_.set(4500 * s, 450 * s, fs_);
+  r4_.set(voice_.f4, kF4Bw * s, fs_);
+  r5_.set(voice_.f5, kF5Bw * s, fs_);
   for (int i = 0; i < kNumTubePoles; ++i)
     // Poles that would fall above 0.42 fs are left out (identity), not clamped:
     // clamped, several stacked at the same frequency (female voice: three at
@@ -911,6 +949,7 @@ void Synth::setVoice(VoicePreset preset) {
   // The F3-region source cut follows the voice's F3 (higher for a woman).
   physUpperCut_.peaking(kPhysUpperCutHz * voice_.formant[2], kPhysUpperCutBw * voice_.formant[2],
                         kPhysUpperCutDb, fs_);
+  physMidLift_.peaking(kPhysMidLiftHz * voice_.formant[1], kPhysMidLiftBw * voice_.formant[1], kPhysMidLiftDb, fs_);
   setFixedResonances();
 }
 
@@ -1050,6 +1089,7 @@ void Synth::push(Ph ph, bool wordStart) {
       }
       if (!spellingRules_) {
         nextShape2_ = shape;  // the next sound's own formants (an English vowel)
+        nextWordStart_ = wordStart;
         emit(p, &ph);
         pending_ = Token{ph, false, wordStart, stress, false, kNoPitch, Shape()};
         pending_.pitch = pitch;
@@ -1071,6 +1111,7 @@ void Synth::push(Ph ph, bool wordStart) {
       if (p.ph == Ph::N && (ph == Ph::P || ph == Ph::B)) p.ph = Ph::M;
     }
     nextShape2_ = shape;
+    nextWordStart_ = wordStart;
     emit(p, &ph);
   }
   pending_ = Token{ph, false, wordStart, stress, false, kNoPitch, Shape()};
@@ -1103,6 +1144,7 @@ void Synth::lengthen() {
 void Synth::finish() {
   if (hasPending_) {
     nextShape2_ = Shape();
+    nextWordStart_ = false;
     emit(pending_, nullptr);
     hasPending_ = false;
   }
@@ -1149,6 +1191,32 @@ void Synth::addKeyframe(const Params& p, double t, bool vowel) {
   // The very first keyframe is doubled so the first segment has a predecessor.
   if (k_.empty()) k_.push_back({p, t, vowel});
   k_.push_back({p, t, vowel});
+}
+
+// A target held from a to b (shares of the phoneme's duration): the edge
+// keyframes hold the voicing level, pitch and the rest, while the formants
+// pass through one point at the centre (splineAt skips the edges for them),
+// so they never stand still: holding them made each phoneme a plateau and
+// the paths a staircase of plateaus and quick moves.
+// Each target gets two points, this share of the held span apart: through
+// one point the formants turned before reaching the targets (open vowels'
+// F1 7-11 % low, i's F2 6 %, consonants likewise; female Whisper WER
+// 10 -> 15 %; vowel points only: 12.6 %, both: 9.9 %). Between two equal
+// points the spline still bends (it rises past them and turns), no plateau.
+constexpr double kVowelPointSpread = 0.7, kConsonantPointSpread = 1.0;
+void Synth::addHeld(const Params& p, double t0, double dur, double a, double b, bool vowel) {
+  addKeyframe(p, t0 + a * dur, vowel);
+  k_.back().edge = kFormantPointTargets;
+  const double c = 0.5 * (a + b),
+               w = 0.5 * (b - a) * (vowel ? kVowelPointSpread : kConsonantPointSpread);
+  if (kFormantPointTargets) {
+    addKeyframe(p, t0 + (c - w) * dur, vowel);
+    addKeyframe(p, t0 + (c + w) * dur, vowel);
+  } else {
+    addKeyframe(p, t0 + c * dur, vowel);
+  }
+  addKeyframe(p, t0 + b * dur, vowel);
+  k_.back().edge = kFormantPointTargets;
 }
 
 // An event that only changes the breath pressure goes into the queue at its
@@ -1381,6 +1449,8 @@ void Synth::emit(const Token& tok, const Ph* next) {
         };
         if (!prevWasVowel_) pull(lastPh_);
         if (next) pull(*next);
+        if (lastPh_ == Ph::J && (tok.ph == Ph::U || tok.ph == Ph::UH))
+          p[kF2] += kUAfterJ * (info(Ph::J).f2 - p[kF2]);
       }
       // The consonants since the last vowel: on the line to this one.
       {
@@ -1473,6 +1543,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
           onset[kF0Mul] = p[kF0Mul] * (voicelessBefore ? kOnsetRiseVoiceless : kOnsetDipVoiced);
           addKeyframe(onset, t0 + 0.05 * dur, true);
           k_.back().f0Mod = onset[kF0Mul] / p[kF0Mul];
+          k_.back().edge = kFormantPointTargets;  // pitch only: not a formant point
         }
       }
       // After a nasal, l, r or a glide the voicing level is at the vowel's
@@ -1488,11 +1559,11 @@ void Synth::emit(const Token& tok, const Ph* next) {
           for (int i = 0; i < kNumParams; ++i) q[i] = last_[i] + s * (p[i] - last_[i]);
           q[kAV] = p[kAV];
           addKeyframe(q, t0 + rise, true);
+          k_.back().edge = kFormantPointTargets;  // the voicing level only
         }
       }
-      // Hold targets over the middle half; glide in the outer quarters.
-      addKeyframe(p, t0 + 0.25 * dur, true);
-      addKeyframe(p, t0 + 0.75 * dur, true);
+      // Targets over the middle half (formants: a point at the centre).
+      addHeld(p, t0, dur, 0.25, 0.75, true);
       f1Prev_ = p[kF1];
       f1PrevT_ = t0 + 0.75 * dur;
       for (int k = 0; k < 3; ++k) rangePrevF_[k] = p[kF1 + k];
@@ -1538,15 +1609,13 @@ void Synth::emit(const Token& tok, const Ph* next) {
     case Cls::Trill:
       setTargets();
       coarticulate(p, tok.ph, next);
-      addKeyframe(p, t0 + 0.2 * dur);
-      addKeyframe(p, t0 + 0.8 * dur);
+      addHeld(p, t0, dur, 0.2, 0.8);
       break;
     case Cls::Glide:
       setTargets();
       if (tok.ph == Ph::RR) {  // English ɹ: the r colour is held, not passed through
         coarticulate(p, tok.ph, next);  // F3 (the r colour) stays low
-        addKeyframe(p, t0 + 0.3 * dur);
-        addKeyframe(p, t0 + 0.8 * dur);
+        addHeld(p, t0, dur, 0.3, 0.8);
       } else {
         coarticulate(p, tok.ph, next);
         addKeyframe(p, t0 + 0.5 * dur);
@@ -1585,8 +1654,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
         e.setNoise = false;
         hasPendingNoise_ = true;
       }
-      addKeyframe(p, t0 + 0.2 * dur);
-      addKeyframe(p, t0 + 0.8 * dur);
+      addHeld(p, t0, dur, 0.2, 0.8);
       break;
     case Cls::H: {
       // Breath noise through the vocal tract. Before a vowel the mouth takes
@@ -1607,7 +1675,22 @@ void Synth::emit(const Token& tok, const Ph* next) {
         // are known only when it comes: it redraws this keyframe then.
         hKeyframeT_ = t0 + kHVowelAt * dur;
       }
-      bool voicedH = prevVoiced_ && next && isSonorant(*next);
+      // h before j ("human", "huge"): the tongue is already up for the j,
+      // so the breath is a palatal hiss [ç], voiceless even after a voiced
+      // sound (goog.wav "of human": ~120 ms of noise at 1-5.5 kHz, no voice;
+      // voiced and shapeless it was heard as "ovuman").
+      const bool beforeJ = hTakesVowel_ && next && *next == Ph::J;
+      if (beforeJ) {
+        Params hp = last_;
+        hp[kF1] = nextVowelF(*next, 0);
+        hp[kF2] = nextVowelF(*next, 1);
+        hp[kF3] = nextVowelF(*next, 2);
+        hp[kAV] *= tok.shape.level;
+        addKeyframe(hp, t0 + kHVowelAt * dur);
+        for (int k = 0; k < 3; ++k) p[kF1 + k] = hp[kF1 + k];
+        e.aspGain *= kHPalatalNoise;
+      }
+      bool voicedH = prevVoiced_ && next && isSonorant(*next) && !beforeJ;
       if (voicedH) {
         e.ag = voicedHAg_;
         e.aspGain *= voicedHNoise_;
@@ -1791,6 +1874,10 @@ float Synth::nextVowelF(Ph next, int k) const {
 
 void Synth::coarticulate(Params& p, Ph ph, const Ph* next) const {
   const Coart c = ph == Ph::L && darkL_ ? kDarkL : coartOf(ph);
+  // English l with no vowel after it ("world", "all", "ill"): dark, the
+  // tongue back raised; F2 ~1000 (goog: F2 ~1100 in "world", nothing above
+  // 1.4 kHz; at the shared 1300 it had a peak at 1.6 kHz).
+  if (ph == Ph::L && darkL_ && !(next && isVowel(*next))) p[kF2] = kPullF2DarkL;
   for (int k = 0; k < 3; ++k) {
     float f = p[kF1 + k];
     if (next && isVowel(*next)) {
@@ -1824,6 +1911,9 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // English ʧ: the release opens fast, so the hiss starts abruptly (built
   // up over 25 ms it sounded like a fricative: "choose" -> "sure").
   if (aspirate_ && tok.ph == Ph::CH) pi.releaseMs = kEnglishChReleaseMs;
+  // English word-final d into a vowel-initial word: released fully (see below).
+  const bool linkedD = aspirate_ && tok.ph == Ph::D && nextWordStart_ && next && isVowel(*next);
+  if (linkedD) pi.releaseMs *= kLinkedDReleaseSlow;
   if (aspirate_ && tok.ph == Ph::K) {
     pi.noiseGain *= kEnglishKBurst;
     pi.releaseMs = kEnglishKReleaseMs;  // a longer, compact velar burst ("cow", "carrot")
@@ -1923,6 +2013,14 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // comes out of the shared closure, and a full burst after the silent
   // closure snapped. After a nasal ("undoing", "can do") the release is
   // kept: there it is what makes the d heard.
+  // English word-final d released into a vowel-initial word ("world is",
+  // "and all"): a full burst, the transient that starts the next word
+  // (goog.wav: flat noise ~12 dB below the vowel; here it was ~20 dB down,
+  // a voiced tap, and "is" had no onset).
+  if (linkedD && !unreleased) {
+    close.noiseGain *= kLinkedDRelease;
+    close.pop *= kLinkedDRelease;
+  }
   if (pi.voiced && afterUnreleased && !dentalD) {
     close.pop *= kVoicedAfterConsonantRelease;
     close.noiseGain *= kVoicedAfterConsonantRelease;
@@ -2069,6 +2167,53 @@ bool Synth::startSegment() {
 float Synth::splineAt(int i, double t) const {
   const size_t n = k_.size();
   if (n == 0) return 0;
+  if (i >= kF1 && i <= kF3) {
+    // Formants: Catmull-Rom through the keyframes that are not held
+    // targets' edges (see addHeld).
+    size_t idx[4];
+    int m = 0;
+    size_t j = n;  // the last point at or before t
+    for (size_t q = 0; q < n; ++q) {
+      if (k_[q].edge) continue;
+      if (k_[q].t <= t) j = q;
+      else break;
+    }
+    auto prevPoint = [&](size_t q) {
+      while (q > 0) {
+        --q;
+        if (!k_[q].edge) return q;
+      }
+      return n;
+    };
+    auto nextPoint = [&](size_t q) {
+      for (++q; q < n; ++q)
+        if (!k_[q].edge) return q;
+      return n;
+    };
+    if (j == n) {  // before the first point
+      const size_t f = nextPoint(static_cast<size_t>(-1));
+      return f < n ? k_[f].p[i] : k_[0].p[i];
+    }
+    const size_t j2 = nextPoint(j);
+    if (j2 == n) return k_[j].p[i];  // past the last point: hold it
+    const size_t j0 = prevPoint(j), j3 = nextPoint(j2);
+    idx[0] = j0 < n ? j0 : j;
+    idx[1] = j;
+    idx[2] = j2;
+    idx[3] = j3 < n ? j3 : j2;
+    (void)m;
+    const Keyframe& k0 = k_[idx[0]];
+    const Keyframe& k1 = k_[idx[1]];
+    const Keyframe& k2 = k_[idx[2]];
+    const Keyframe& k3 = k_[idx[3]];
+    const double h = std::max(k2.t - k1.t, 1.0);
+    const float s = static_cast<float>((t - k1.t) / h);
+    const float p1 = k1.p[i], p2 = k2.p[i];
+    const float m1 = static_cast<float>((k2.p[i] - k0.p[i]) / std::max(k2.t - k0.t, 1.0) * h);
+    const float m2 = static_cast<float>((k3.p[i] - k1.p[i]) / std::max(k3.t - k1.t, 1.0) * h);
+    const float c2 = -3 * p1 + 3 * p2 - 2 * m1 - m2, c3 = 2 * p1 - 2 * p2 + m1 + m2;
+    return p1 + s * (m1 + s * (c2 + s * c3));
+  }
   if (t <= k_[0].t) return k_[0].p[i];
   size_t j = 0;
   while (j + 1 < n && k_[j + 1].t <= t) ++j;
@@ -2283,9 +2428,12 @@ float Synth::tick() {
       const char* f = std::getenv("PUHUJA_FTRACE");
       return f ? std::fopen(f, "w") : nullptr;
     }();
+    // Further columns: pitch (Hz, the command after its lag), the glottal
+    // and oral openings (cm^2), the speech envelope and the noise level.
     if (trace && static_cast<long long>(t_) % static_cast<long long>(fs_ / 200) == 0)
-      std::fprintf(trace, "%.4f\t%.1f\t%.1f\t%.1f\t%.3f\n",
-                   (t_ - std::max(outputStart_, 0.0)) / fs_, p[kF1], p[kF2], p[kF3], p[kAV]);
+      std::fprintf(trace, "%.4f\t%.1f\t%.1f\t%.1f\t%.3f\t%.2f\t%.4f\t%.4f\t%.3f\t%.4f\t%.1f\n",
+                   (t_ - std::max(outputStart_, 0.0)) / fs_, p[kF1], p[kF2], p[kF3], p[kAV],
+                   baseF0_ * pitch2_, ag, ac, speechEnv_, nLevel_, p[kB1]);
   }
 
   // Splines may overshoot a little; keep values physically sensible.
@@ -2304,6 +2452,17 @@ float Synth::tick() {
   r3_.set(std::clamp(p[kF3] * voice_.formant[2], 100.0f, nyq),
           std::max(p[kB3] * voice_.bw[2], 20.0f) + kGlottalB23[1] * openB1, fs_);
   nz_.set(std::clamp(p[kFNZ], 100.0f, nyq), kNasalBw, fs_);
+  {
+    // F4 and F5 follow F3 and the pitch (see kF4FollowF3), kept above F3.
+    const float f3 = std::clamp(p[kF3] / kF3Neutral, 0.6f, 1.4f);
+    const float up = std::pow(std::max(pitch2_, 0.25f), kHighFormantPitch);
+    const float f3Hz = p[kF3] * voice_.formant[2];
+    const float f4 = std::max(voice_.f4 * std::pow(f3, kF4FollowF3) * up, f3Hz + 250.0f);
+    const float f5 = std::max(voice_.f5 * std::pow(f3, kF5FollowF3) * up, f4 + 300.0f);
+    const float s = voice_.highFormants;
+    r4_.set(std::min(f4, nyq), kF4Bw * s, fs_);
+    r5_.set(std::min(f5, nyq), kF5Bw * s, fs_);
+  }
 
   // Trill (Finnish r): the airflow past the tongue tip makes it tap ~26 times
   // a second, interrupting the voice. It needs enough flow: as the flow
@@ -2539,6 +2698,7 @@ float Synth::tick() {
     g += physTiltGain_ * physTilt_.process(g);
     if (kPhysMidCut) g = midCut_.process(g);
     g = physUpperCut_.process(g);
+    g = physMidLift_.process(g);
   }
   if (carrier_ != Carrier::Physical || kPhysicalShaping) {
     g += shelfGain_ * shelf_.process(g);  // source treble shelf: + (gain-1) * high-pass
