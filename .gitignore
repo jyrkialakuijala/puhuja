@@ -1,0 +1,11 @@
+# Allow-list: only the sources needed to build puhuja.
+/*
+!/.gitignore
+!/README.md
+!/LICENSE
+!/LICENSE-CMUDICT
+!/Makefile
+!/*.cc
+!/*.h
+!/*.inc
+!/kennedy.txt
