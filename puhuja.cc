@@ -352,6 +352,12 @@ constexpr float kFormantTauMs[3] = {16, 12, 9};
 // follower lags ~2 tau). The target glides every sample; aiming at each
 // keyframe's value in turn moved the formants in steps.
 constexpr float kFormantLookAhead = 2.0f;
+// Read 2 tau ahead, the critically damped follower returns the path plus
+// tau^2 times its curvature: every vowel peak came out lowered and flat
+// (F1 peak curvature half a real speaker's), and only a held plateau let
+// it reach the target. The target is pre-emphasised by the opposite term,
+// so the follower reaches the path's peaks (1: exact to second order).
+constexpr float kFormantPreemphasis = 1.0f;
 constexpr float kVowelSharpen = 0.05f;
 // English vowels next to w, dark l, r: share of the consonant's F2 per side.
 constexpr float kVowelContextPull = 0.15f;
@@ -363,6 +369,12 @@ constexpr float kPullF2W = 750, kPullF2DarkL = 1000, kPullF2R = 1300;
 constexpr float kRInitialF1 = 0.8f, kRInitialF2 = 0.0f;
 // ...and after a vowel ("the rights"): share of that vowel's F1 it keeps.
 constexpr float kRAfterVowelF1 = 0.9f;
+// Nasals on the F1 line between the vowels: dipped by this many octaves at
+// their keyframes. Real m n ŋ sit 0.2-0.45 octave under the vowels around
+// them (thirteen speakers), but 0.3 cost the male 1.4 points on the 200-
+// statement round trip ("won" -> "in", "miles" -> "models"); off for now.
+constexpr float kNasalF1DipOctaves = 0.0f;
+const float kNasalF1Dip = std::exp2(-kNasalF1DipOctaves);
 // r takes this share of the following / preceding vowel's formants.
 // k/g burst resonance: share from the preceding vowel (the rest: next).
 constexpr float kBurstPrevVowel = 0.25f;  // vowel chains: overshoot away from neighbours
@@ -1176,7 +1188,11 @@ void Synth::resolveF1(float target, double tTarget) {
       else
         s = f1Prev_ > 0 ? 1.0f - kRAfterVowelF1 : f1Pending_[j].second;
       if (tTarget < 0) s = 0;  // no vowel follows: hold
-      const float f = from + s * (target - from);
+      float f = from + s * (target - from);
+      // The nasal murmur's own low formant: real m n ŋ sit 0.2-0.45 octave
+      // under the vowels around them at their centre (thirteen speakers);
+      // on the bare line the trough fell at the nasal's end, not its middle.
+      if (line) f *= kNasalF1Dip;
       kf.p[kF1] = f;
       last = f;
     }
@@ -1204,6 +1220,13 @@ void Synth::addKeyframe(const Params& p, double t, bool vowel) {
 // 10 -> 15 %; vowel points only: 12.6 %, both: 9.9 %). Between two equal
 // points the spline still bends (it rises past them and turns), no plateau.
 constexpr double kVowelPointSpread = 0.7, kConsonantPointSpread = 1.0;
+// A consonant's formant targets are held from this share of its duration to
+// that: reached as it starts and left inside it, as in the recordings (the
+// transition into a nasal happens in the vowel's last 60 ms; with 0.2-0.8 it
+// came 60 ms late and the F2 rise out of a consonant ran 2.4x faster than the
+// fall into it; 0-0.6: 1.3x, real speakers 0.6-1.3; round trip unchanged).
+constexpr double kConsonantHeldA = 0.0, kConsonantHeldB = 0.6;
+constexpr double kRHeldA = 0.3;  // English ɹ: its colour needs a moment to settle
 void Synth::addHeld(const Params& p, double t0, double dur, double a, double b, bool vowel) {
   addKeyframe(p, t0 + a * dur, vowel);
   k_.back().edge = kFormantPointTargets;
@@ -1609,13 +1632,13 @@ void Synth::emit(const Token& tok, const Ph* next) {
     case Cls::Trill:
       setTargets();
       coarticulate(p, tok.ph, next);
-      addHeld(p, t0, dur, 0.2, 0.8);
+      addHeld(p, t0, dur, kConsonantHeldA, kConsonantHeldB);
       break;
     case Cls::Glide:
       setTargets();
       if (tok.ph == Ph::RR) {  // English ɹ: the r colour is held, not passed through
         coarticulate(p, tok.ph, next);  // F3 (the r colour) stays low
-        addHeld(p, t0, dur, 0.3, 0.8);
+        addHeld(p, t0, dur, kRHeldA, kConsonantHeldB);
       } else {
         coarticulate(p, tok.ph, next);
         addKeyframe(p, t0 + 0.5 * dur);
@@ -1654,7 +1677,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
         e.setNoise = false;
         hasPendingNoise_ = true;
       }
-      addHeld(p, t0, dur, 0.2, 0.8);
+      addHeld(p, t0, dur, kConsonantHeldA, kConsonantHeldB);
       break;
     case Cls::H: {
       // Breath noise through the vocal tract. Before a vowel the mouth takes
@@ -2415,7 +2438,10 @@ float Synth::tick() {
     for (int k = 0; k < 3; ++k) {
       const float w = 1000.0f / kFormantTauMs[k];
       if (!formInit_) formPos_[k] = p[kF1 + k];
-      const float target = splineAt(kF1 + k, t_ + kFormantLookAhead * kFormantTauMs[k] * 0.001 * fs_);
+      const double tauS = kFormantTauMs[k] * 0.001 * fs_;
+      const double ahead = t_ + kFormantLookAhead * tauS;
+      float target = splineAt(kF1 + k, ahead);
+      target -= kFormantPreemphasis * (splineAt(kF1 + k, ahead + tauS) - 2.0f * target + splineAt(kF1 + k, ahead - tauS));
       formVel_[k] += dt * (w * w * (target - formPos_[k]) - 2.0f * w * formVel_[k]);
       formPos_[k] += dt * formVel_[k];
       p[kF1 + k] = formPos_[k];
