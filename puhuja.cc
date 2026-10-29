@@ -498,6 +498,10 @@ constexpr float kChestDirect = 0.005f;
 constexpr float kChestHz = 500;
 
 // ʤ's frication is stronger than a plain ʒ's (measured against Piper).
+// ... and its heard level, after the ceiling: at 1 the ʧ was 5 dB under the
+// vowel before it (1-8 kHz), the readers 0 to +18 (median +4); a final ʧ in
+// a recording of "rich." is loud and 230 ms.
+constexpr float kChFricationLevel = 2.5f;
 constexpr float kChFricationBoost = 1.78f;  // ʧ's +5 dB (it was ~11 dB under the voice-over's)
 constexpr float kJhFricationBoost = 1.94f;  // (1.6, +10 % by ear for "pledge", +10 % for "generosity")
 // Its noise band: lower and wider than ʒ's {1800, 7000, 2800, 1200, 3}.
@@ -506,7 +510,7 @@ constexpr FricShape kJhNoiseShape = {1000, 7000, 2500, 1500, 3.0f};
 constexpr float kAffricateFricationLength = 0.55f;
 constexpr float kJhFricationLength = 1.1f;
 // English ʧ: frication x1.3 (53 ms was heard as a stop, 77 ms as ʃ) and a fast release.
-constexpr float kEnglishChFricationLength = 1.3f, kEnglishChReleaseMs = 8;  // ... and ʤ's 10 % longer (by ear)
+constexpr float kEnglishChFricationLength = 1.6f, kEnglishChReleaseMs = 8;  // (1.3: ʧ 124 ms, the readers 120-190, a final one in a recording 230)  // ... and ʤ's 10 % longer (by ear)
 
 enum class Cls { Vowel, Plosive, Nasal, Liquid, Trill, Glide, Fricative, H, Stop };
 
@@ -625,7 +629,7 @@ constexpr float kVoicedAfterConsonantRelease = 0.4f;  // b d g after a consonant
 constexpr float kEnglishBOpening = 0.35f, kEnglishBNoise = 0.063f, kEnglishBPop = 1.5f;
 constexpr float kDevoiceBeforeFric = 0.6f;  // b d g before f θ s ʃ: closure glottis share
 constexpr float kFlapRelease = 0.2f;  // a flap's burst and pop
-constexpr float kEnglishKBurst = 5.0f;  // English k burst (+14 dB; +8 left cow -> power)
+constexpr float kEnglishKBurst = 11.0f;  // English k burst (5: +14 dB, +8 left cow -> power; 11: at 5 its burst peak was 5.5 dB under the recordings' against the vowel; "cannot" as "(k)annot")
 constexpr float kEnglishKReleaseMs = 40;  // English k release (25)
 constexpr float kAspiratedAdductMs = 90, kAspiratedUnstressedMs = 55;
 // Finnish plosives are unaspirated: the glottis closes again quickly.
@@ -2177,6 +2181,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     if (tok.ph == Ph::JH) fr.shape = kJhNoiseShape;
     fr.noiseGain = info(*next).noise * fricationGain_ *
                    (tok.ph == Ph::JH ? kJhFricationBoost : tok.ph == Ph::CH ? kChFricationBoost : 1.0f);
+    if (tok.ph == Ph::CH) fr.noisePost = kChFricationLevel;  // after the turbulence ceiling
     addEvent(fr);
   }
   phonemeStart_ = timeline_;
