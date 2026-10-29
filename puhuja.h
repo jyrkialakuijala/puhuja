@@ -61,8 +61,9 @@ enum class Ph : uint8_t {
   M, N, NG,
   // Liquids and glides (RR: English approximant ɹ; R is the trilled r).
   L, R, J, V, RR, W,
-  // Fricatives (Z, TH, DH: English z θ ð).
-  S, SH, ZH, F, Z, TH, DH, H,
+  // Fricatives (Z, TH, DH, VV: English z θ ð v; V above is the Finnish
+  // approximant ʋ).
+  S, SH, ZH, F, Z, TH, DH, VV, H,
   // Silence.
   Stop,
   Count

@@ -330,7 +330,18 @@ constexpr float kGlottalMs = 15;     // glottis opening/closing
 // continuous Catmull-Rom path, not held plateaus (see addHeld).
 constexpr bool kFormantPointTargets = true;
 constexpr float kHVowelAt = 0.3f;
-constexpr float kHPalatalNoise = 1.0f;  // h before j: noise gain (1.4: 3 dB louder than goog's, against the vowel)
+// A vowel falling to a second pitch (a statement's last accented vowel):
+// its pitch is anchored this far into it and the fall ends there.
+constexpr double kFallAnchorAt = 0.25, kFallEndAt = 0.9;
+// h before j ("human", "huge"): a palatal fricative [ç], frication at a
+// narrow palatal constriction (cm^2) rather than breath at the glottis.
+// Its noise peaks around 4 kHz (goog.wav "human": 3-6 kHz within 2 dB of
+// each other, 2-3 kHz 5-8 dB under; as glottal breath through the j shape
+// it peaked at 2-3 kHz and was 7 dB too loud, -4 dB against the vowel where
+// goog's is -11 to -15).
+constexpr FricShape kPalatalHShape = {2500, 8000, 4000, 3000, 2.0f};
+constexpr float kPalatalHAc = 0.15f;
+constexpr float kPalatalHLevel = 0.4f;  // on top of the h's level, after the turbulence ceiling
 // English u after j ("human", "few", "use"): fronted, most of the way to the
 // j's F2 (goog.wav: F2 ~2.5 kHz through the u of "human", falling only in the
 // m; with a back u the bright hj did not belong to the dark "uman").
@@ -389,6 +400,7 @@ constexpr float kLungRest = 1000;        // before the first breath
 constexpr float kCommaBreathBelow = 1600; // breathe at a comma below this (1000: breaths fell at phrase splits)
 constexpr float kInhaleRate = 2500;      // cm^3/s while breathing in
 constexpr float kInhaleMinMs = 180, kInhaleMaxMs = 600;
+constexpr float kCatchInhaleMaxMs = 300;  // within a sentence (at a comma or a seam): a quick catch breath
 constexpr int kBreathHoldStops = 0;  // silence between the inhale and the first sound
 constexpr float kInhaleNoise = 0.09f;  // breathing-in noise: ~-30 dB below speech
 // Breathing in: turbulence at the lips, nose and glottis, heard as a broad
@@ -562,6 +574,13 @@ const Info kInfo[] = {
     // ð: tongue against the teeth: weakened voicing and dental turbulence
     // (flat: nothing in front of the teeth resonates), pulsed by the voice.
     {Cls::Fricative, 380, 1500, 2600, 100, 100, 150, 270, 0.55f,  60, 0.8f},      // DH ð (more voice, less hiss: nearly an approximant)
+    // English v: the lower lip against the teeth, a real constriction with
+    // frication (the Finnish ʋ above is an open approximant: as that, with
+    // its level, "revolutionary" dipped 5 dB where goog.wav dips 18 and the
+    // references 3-10; no hiss). Formants and bandwidths as f. With full
+    // voicing the constriction alone dips it 7 dB before a consonant and 9
+    // before a vowel over kennedy.txt (goog 8; at 0.6 it was 11 and 13).
+    {Cls::Fricative, 350, 1000, 2300, 200, 200, 300, 270, 1.0f,  60, 0.6f},      // VV v
     {Cls::H,          0,    0,    0,   0,   0,   0, 270, 1.0f,  80, 0},    // H
     {Cls::Stop,       0,    0,    0,   0,   0,   0, 270, 0.0f,  15, 0},     // Stop
 };
@@ -669,7 +688,7 @@ void plosiveLocus(Ph ph, float vowelF2, float* f2, float* f3) {
 FricShape fricShape(Ph ph) {
   switch (ph) {
     case Ph::SH: case Ph::ZH: return {1800, 7000, 2800, 1200, 3.0f};
-    case Ph::F: return {1000, 6500, 3500, 5000, 0.0f};  // (to 9-11 kHz it was too bright, "forget")
+    case Ph::F: case Ph::VV: return {1000, 6500, 3500, 5000, 0.0f};  // (to 9-11 kHz it was too bright, "forget")
     case Ph::TH: case Ph::DH: return {1200, 11000, 6000, 6000, 0.0f};
     default:                  return {3000, 10000, 6000, 2500, 2.5f};  // S (low edge 4500: a thin s)
   }
@@ -717,6 +736,7 @@ Aero aeroOf(Ph ph) {
         case Ph::ZH: return {0.08f, kAgVoice, 0};  // voiced: less pressure drop
         case Ph::Z: return {0.05f, kAgVoice, 0};
         case Ph::DH: return {0.14f, kAgVoice, 0};
+        case Ph::VV: return {0.08f, kAgVoice, 0};
         default: return {0.1f, kAgOpen, 0};        // F
       }
     case Cls::H: return {1.5f, kAgOpen, 0};
@@ -1138,7 +1158,8 @@ void Synth::breathPoint(bool sentence) {
   if (hasSpoken_ && !spokeSinceBreath_) return;  // "...": one breath is enough
   spokeSinceBreath_ = false;
   const float deficit = std::max(kLungMax - planVolume_, 0.0f);
-  const float ms = std::clamp(deficit / kInhaleRate * 1000.0f, kInhaleMinMs, kInhaleMaxMs);
+  const float ms = std::clamp(deficit / kInhaleRate * 1000.0f, kInhaleMinMs,
+                              sentence ? kInhaleMaxMs : kCatchInhaleMaxMs);
   nextInhaleMs_ = ms;
   // ... and a short silent hold after it before the first sound (the inhale
   // ran up to it: its noise just before a vowel was heard as ð, "a" -> "the").
@@ -1265,7 +1286,7 @@ const char* symbolOf(Ph ph) {
       "a", "e", "i", "o", "u", "y", "æ", "ø", "ə", "ɪ", "ɛ", "ʊ", "ɔ", "ʌ", "ɑ", "ɒ", "ɜ",
       "p", "t", "k", "b", "d", "g",
       "ʧ", "ʤ", "m", "n", "ŋ", "l", "r", "j", "ʋ", "ɹ", "w", "s", "ʃ", "ʒ", "f", "z", "θ", "ð",
-      "h", "_"};
+      "v", "h", "_"};
   static_assert(sizeof(kSymbols) / sizeof(kSymbols[0]) == static_cast<size_t>(Ph::Count));
   return kSymbols[static_cast<int>(ph)];
 }
@@ -1365,12 +1386,15 @@ void Synth::emit(const Token& tok, const Ph* next) {
   // lengthening rules (the English reader computes its own durations).
   const double dur = (tok.shape.ms > 0 ? tok.shape.ms * voice_.rate : in.ms * lengthMul) * 0.001 * fs_;
   {
-    // Air this sound will use (rough flow estimates), for breath planning.
-    // (Matched to the simulated drain, ~210 cm^3/s in running speech.)
+    // Air this sound will use, for breath planning: the simulated drain per
+    // class over 40 s of kennedy.txt (cm^3/s). With vowels planned at 210
+    // the plan ended a 7-second sentence at 420 cm^3 while the lungs were at
+    // 50: no breath was taken at its "and", and its last words faded.
     const float flow = in.cls == Cls::Stop ? 0.0f
-                       : in.cls == Cls::H ? 450.0f
-                       : in.cls == Cls::Fricative ? (aeroOf(tok.ph).ag > kAgVoice ? 450.0f : 230.0f)
-                                                  : 210.0f;
+                       : in.cls == Cls::H ? 550.0f
+                       : in.cls == Cls::Fricative ? (aeroOf(tok.ph).ag > kAgVoice ? 170.0f : 280.0f)
+                       : in.cls == Cls::Plosive ? (aeroOf(tok.ph).ag > kAgVoice ? 90.0f : 180.0f)
+                                                : 310.0f;
     planVolume_ -= flow * static_cast<float>(dur / fs_);
   }
   Params p = last_;
@@ -1556,7 +1580,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
                                      lastPh_ == Ph::CH || lastPh_ == Ph::S || lastPh_ == Ph::SH ||
                                      lastPh_ == Ph::F || lastPh_ == Ph::TH;  // (not h: often voiced, "who" jumped)
         const bool voicedBefore = lastPh_ == Ph::B || lastPh_ == Ph::D || lastPh_ == Ph::G ||
-                                  lastPh_ == Ph::JH || lastPh_ == Ph::Z || lastPh_ == Ph::ZH ||
+                                  lastPh_ == Ph::JH || lastPh_ == Ph::Z || lastPh_ == Ph::ZH || lastPh_ == Ph::VV ||
                                   lastPh_ == Ph::DH;
         if (voicelessBefore || voicedBefore) {
           // Only the pitch differs: the rest is where the transition from
@@ -1597,7 +1621,9 @@ void Synth::emit(const Token& tok, const Ph* next) {
       // several syllables a staircase. Keyframes after this vowel's centre
       // take its pitch until the next vowel redraws them.
       if (pitched) {
-        const double tc = t0 + 0.5 * dur;
+        // A vowel that falls to a second pitch anchors its first early, so
+        // the fall spans most of it (see below).
+        const double tc = t0 + (tok.pitchEnd != kNoPitch ? kFallAnchorAt : 0.5) * dur;
         const float target = p[kF0Mul];
         for (Keyframe& kf : k_) {
           if (pitchAnchorT_ < 0 || kf.t <= pitchAnchorT_) {
@@ -1610,13 +1636,20 @@ void Synth::emit(const Token& tok, const Ph* next) {
         last_[kF0Mul] = target;
         pitchAnchorT_ = tc;
         pitchAnchor_ = target;
-        // A second pitch (a final accented word falling): from the vowel's
-        // 3/4 on, and the next pitch line starts there.
+        // A second pitch (a final accented word falling): a steady fall from
+        // the anchor to kFallEndAt of the vowel, and the next pitch line
+        // starts there. (Set only from the vowel's 3/4 on, the whole fall
+        // happened between the keyframes at 0.675 and 0.75: a 4 st drop in
+        // 13 ms, smoothed by the pitch lag into 80 ms, heard pulse by pulse
+        // as steps at a male voice's 70-85 Hz: "now" as "o-o-o-w-w-w-w".)
         if (tok.pitchEnd != kNoPitch) {
           const float end = std::exp2(tok.pitchEnd / 12.0f);
-          const double te = t0 + 0.75 * dur;
-          for (Keyframe& kf : k_)
-            if (kf.t >= te - 1) kf.p[kF0Mul] = end * kf.f0Mod;
+          const double te = t0 + kFallEndAt * dur;
+          for (Keyframe& kf : k_) {
+            if (kf.t <= tc) continue;
+            const float f = kf.t >= te ? 1.0f : static_cast<float>((kf.t - tc) / (te - tc));
+            kf.p[kF0Mul] = (target + f * (end - target)) * kf.f0Mod;
+          }
           last_[kF0Mul] = end;
           p[kF0Mul] = end;  // what the next sound (a pause) starts from: last_ = p below
           pitchAnchorT_ = te;
@@ -1651,7 +1684,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
       coarticulate(p, tok.ph, next);
       e.setNoise = true;
       e.shape = fricShape(tok.ph);
-      if (tok.ph == Ph::DH || tok.ph == Ph::TH || tok.ph == Ph::F || tok.ph == Ph::V)
+      if (tok.ph == Ph::DH || tok.ph == Ph::TH || tok.ph == Ph::F || tok.ph == Ph::VV)
         e.noiseFadeMs = kSoftNoiseOnsetMs;
       e.noiseGain = in.noise * fricationGain_;
       // The per-phoneme level scales the heard noise, after the turbulence
@@ -1663,7 +1696,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
       // stronger noise gain (the voiced constriction has little pressure
       // behind it) comes in once the glottis has closed. Together with the
       // voiceless sound's full pressure it burst out (x4 in 4 ms, a snap).
-      if ((tok.ph == Ph::DH || tok.ph == Ph::Z || tok.ph == Ph::ZH || tok.ph == Ph::V) &&
+      if ((tok.ph == Ph::DH || tok.ph == Ph::Z || tok.ph == Ph::ZH || tok.ph == Ph::VV) &&
           !prevVoiced_ && !prevWasPause_ && !prevWasPlosive_) {
         pendingNoise_ = e;
         pendingNoise_.t = std::max(e.t, t0 + kGlottalMs * ms);
@@ -1699,9 +1732,9 @@ void Synth::emit(const Token& tok, const Ph* next) {
         hKeyframeT_ = t0 + kHVowelAt * dur;
       }
       // h before j ("human", "huge"): the tongue is already up for the j,
-      // so the breath is a palatal hiss [ç], voiceless even after a voiced
-      // sound (goog.wav "of human": ~120 ms of noise at 1-5.5 kHz, no voice;
-      // voiced and shapeless it was heard as "ovuman").
+      // so the breath is a palatal hiss [ç] (kPalatalHShape), voiceless
+      // even after a voiced sound (goog.wav "of human": ~120 ms of noise,
+      // no voice; voiced and shapeless it was heard as "ovuman").
       const bool beforeJ = hTakesVowel_ && next && *next == Ph::J;
       if (beforeJ) {
         Params hp = last_;
@@ -1711,7 +1744,13 @@ void Synth::emit(const Token& tok, const Ph* next) {
         hp[kAV] *= tok.shape.level;
         addKeyframe(hp, t0 + kHVowelAt * dur);
         for (int k = 0; k < 3; ++k) p[kF1 + k] = hp[kF1 + k];
-        e.aspGain *= kHPalatalNoise;
+        e.ac = kPalatalHAc;
+        e.setNoise = true;
+        e.shape = kPalatalHShape;
+        e.noiseGain = fricationGain_;
+        e.noisePost = tok.shape.level * kPalatalHLevel;
+        e.noiseTract = fricTract(Ph::SH).share;
+        e.noiseTractGain = kBurstTractNorm[fricTract(Ph::SH).place];
       }
       bool voicedH = prevVoiced_ && next && isSonorant(*next) && !beforeJ;
       if (voicedH) {
@@ -1808,6 +1847,7 @@ Coart coartOf(Ph ph) {
     // Lips and teeth only: the whole tongue is free (F2, F3 follow); the
     // jaw stays fairly closed for the lip-teeth contact (F1 less).
     case Ph::V:
+    case Ph::VV:
     case Ph::F:  return {{0.2f, 0.7f, 0.5f}, {0.2f, 0.4f, 0.3f}};
     // Tongue tip between the teeth: the body is partly free, the tip (F3)
     // and the jaw (F1) are not.
@@ -2007,6 +2047,14 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     addEvent(approach);
   }
   Event close{timeline_ - sealMs * ms};
+  // Speaking again after a pause: full breath pressure (as emit() does for
+  // the other classes; a plosive returns before that, so every phrase that
+  // began with b d g p t k after a pause kept the ending's eased pressure,
+  // 4-6 dB under: "..., but from the hand of God").
+  if (prevWasPause_) {
+    close.press = 1.0f;
+    close.pressMs = kPressResumeMs;
+  }
   close.speech = 1;  // speaking again (after a pause the level had faded)
   close.ac = 0;
   close.acMs = sealMs;
@@ -2121,7 +2169,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     fr.setNoise = true;
     // Into ð θ f v the noise grows in slowly (from t's or d's closure into
     // "the" it snapped).
-    if (*next == Ph::DH || *next == Ph::TH || *next == Ph::F || *next == Ph::V)
+    if (*next == Ph::DH || *next == Ph::TH || *next == Ph::F || *next == Ph::VV)
       fr.noiseFadeMs = kPlosiveToSoftNoiseMs;
     fr.shape = fricShape(*next);
     // ʤ: its noise reaches lower than a plain ʒ's (more of the ~1-2 kHz

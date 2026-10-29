@@ -45,7 +45,7 @@ class EnglishReader {
   void endWord();
   void closeQuote();
   void addWord(const std::string& word);
-  bool expandAbbreviation();
+  bool expandAbbreviation(bool bare);
   int phraseSyllables() const;
   bool symmetricAt(size_t j) const;  // parallel halves split at word j
   float phraseHash() const;  // after a '.': true if it was not a sentence end

@@ -474,7 +474,7 @@ Sound soundOf(const char* tok) {
   } kCons[] = {{"B", Ph::B},   {"CH", Ph::CH}, {"D", Ph::D},   {"DH", Ph::DH}, {"F", Ph::F},
                {"G", Ph::G},   {"HH", Ph::H},  {"JH", Ph::JH}, {"K", Ph::K},   {"L", Ph::L},
                {"M", Ph::M},   {"N", Ph::N},   {"NG", Ph::NG}, {"P", Ph::P},   {"R", Ph::RR},
-               {"S", Ph::S},   {"SH", Ph::SH}, {"T", Ph::T},   {"TH", Ph::TH}, {"V", Ph::V},
+               {"S", Ph::S},   {"SH", Ph::SH}, {"T", Ph::T},   {"TH", Ph::TH}, {"V", Ph::VV},
                {"W", Ph::W},   {"Y", Ph::J},   {"Z", Ph::Z},   {"ZH", Ph::ZH}};
   for (const auto& c : kCons)
     if (t == c.name) return {{c.ph}, 1, false};
@@ -613,6 +613,9 @@ constexpr float kFirstAccent = 11.0f;      // first accent above the baseline
 constexpr float kDownstep = 0.85f;         // each further accent: this much of the last
 constexpr float kMinAccent = 5.5f;
 constexpr float kPostAccent = 0.2f;       // syllable after an accent keeps this share
+// Unaccented syllables between two accents: a single quick one sits on the
+// line, a longer run sags into a valley (st per syllable of the run, capped).
+constexpr float kInterAccentSagPerSyl = 2.0f, kInterAccentSagMax = 5.0f;
 constexpr float kSecondary = 1.0f;        // secondary stress in a content word
 constexpr float kFinalLow = -7.0f;        // end of a long or exclaimed statement
 constexpr float kFinalLowShort = -5.0f;   // end of a short statement
@@ -779,6 +782,10 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
 // Splitting long phrases (see addWord).
 // Planned lung volume (cm^3) below which a breath is taken between words.
 constexpr float kEmergencyBreathAir = 450;
+// ... and at a seam (a split before "and", a relative word, a preposition)
+// below this: a natural place to breathe, before the air would run out in
+// the middle of the next phrase (~3 s of speech).
+constexpr float kSeamBreathAir = 900;
 constexpr int kSplitSyllables = 22;  // (12, 16: orators hold longer phrases)
 constexpr size_t kForceSplitWords = 25;
 constexpr int kLightBreakStops = 4;  // ~60 ms
@@ -842,22 +849,46 @@ void EnglishReader::addWord(const std::string& raw) {
       phrase_.resize(j);
       sayPhrase(',');
       pause(sym ? kSymmetryPauseStops : kLightBreakStops);
-      if (!sym && synth_.plannedAir() < kEmergencyBreathAir) synth_.breathPoint(false);
+      if (synth_.plannedAir() < kSeamBreathAir) synth_.breathPoint(false);
       phrase_ = std::move(tail);
       syllables = 0;
       for (const Word& pw : phrase_)
         for (uint8_t tok : pw.tokens) syllables += isVowelToken(tok);
     }
     const bool andOr = w == "and" || w == "or";
+    // A contrast ("come not from the generosity of the state | but from the
+    // hand of God"): a light break before the "but" that answers a "not",
+    // whatever the length. (The references pause before an unpunctuated
+    // "but" only when it is written with a comma; this is the rhetorical
+    // reading the user asked for.)
+    bool contrast = false;
+    size_t negation = 0;  // the "not" the "but" answers (the last one)
+    if (w == "but" && seam && phrase_.size() >= 4)
+      for (size_t i = 0; i < phrase_.size(); ++i)
+        if (phrase_[i].text == "not" || phrase_[i].text == "never" || phrase_[i].text == "neither") {
+          contrast = true;
+          negation = i;
+        }
     if (andOr && deferredSplit_ == 0 && seam && syllables >= kSplitSyllables && phrase_.size() >= 4) {
       deferredSplit_ = phrase_.size();
     } else if (deferredSplit_ == 0 && ((seam && syllables >= kSplitSyllables && phrase_.size() >= 4) ||
-                                       phrase_.size() >= kForceSplitWords)) {
+                                       contrast || phrase_.size() >= kForceSplitWords)) {
+      // ... and the "not X" of "not X but Y" is set off before as well
+      // ("come | not from the generosity of the state | but ..."), unless
+      // it opens the phrase.
+      if (contrast && negation >= 2) {
+        std::vector<Word> rest(phrase_.begin() + static_cast<long>(negation), phrase_.end());
+        phrase_.resize(negation);
+        sayPhrase(',');
+        pause(kLightBreakStops);
+        phrase_ = std::move(rest);
+      }
       sayPhrase(',');
       pause(kLightBreakStops);
-      // A breath here only when the air is nearly out: they belong at the
+      // A breath here only when the air is getting low: they belong at the
       // punctuation ("the survival | (breath) and the success").
-      if (synth_.plannedAir() < kEmergencyBreathAir) synth_.breathPoint(false);
+      // (not at a contrast: the user asked for a small pause there)
+      if (!contrast && synth_.plannedAir() < kSeamBreathAir) synth_.breathPoint(false);
     }
   }
   const std::string prev = phrase_.empty() ? lastWord_ : phrase_.back().text;
@@ -910,6 +941,7 @@ constexpr size_t kMaxDigits = 20;
 struct Abbreviation {
   const char* abbr;
   const char* full;
+  bool bare = false;  // read in full even without a period ("mr smith")
 };
 
 void EnglishReader::addNumber(const std::string& digits) {
@@ -1325,6 +1357,27 @@ void EnglishReader::sayPhrase(char end) {
     syl[lastAccent].pitch = std::max(syl[lastAccent].pitch, sentenceMaxAccent_ + kClosingNucleusBelow);
   for (const Syl& s : syl)
     if (s.accent) sentenceMaxAccent_ = std::max(sentenceMaxAccent_, s.pitch);
+  // Between two accents the unaccented syllables stay up on the line from
+  // one accent to the next, sagging a little (the hat pattern), instead of
+  // dropping to the baseline and climbing back for every content word.
+  // Nine human readers: a function word between two accents sits 0 to
+  // 0.3 st below the mean of its neighbours (p75 0.6-2.9), a vowel 3 st or
+  // more below both neighbours in 5-15 % of cases; puhuja's was in 27 %, a
+  // singsong on "that", "are", "the". With this (2 st per syllable of the
+  // run, capped at 5): 2 %, steps between vowels median 1.4 st (humans
+  // 1.2-2.2).
+  for (size_t ka = 0; ka < syl.size(); ++ka) {
+    if (!syl[ka].accent) continue;
+    size_t kb = ka + 1;
+    while (kb < syl.size() && !syl[kb].accent) ++kb;
+    if (kb >= syl.size() || kb == ka + 1) continue;
+    const float sag = std::min(kInterAccentSagPerSyl * static_cast<float>(kb - ka - 1), kInterAccentSagMax);
+    for (size_t k = ka + 1; k < kb; ++k) {
+      const float f = static_cast<float>(k - ka) / static_cast<float>(kb - ka);
+      const float line = syl[ka].pitch + f * (syl[kb].pitch - syl[ka].pitch);
+      syl[k].pitch = line - sag * std::sin(static_cast<float>(M_PI) * f);
+    }
+  }
   // Phrase ending: from the last accent the pitch moves to the end target.
   if (!syl.empty() && end != ' ') {
     // Endings: wh-questions fall like statements; a statement falls fully
@@ -1469,6 +1522,15 @@ void EnglishReader::sayPhrase(char end) {
       const float pitchEnd = vowel && si < syl.size() ? syl[si].end : Synth::kNoPitch;
       if (vowel) ++si;
       Sound s = soundOf(kEnglishTokens[tokens[i] - 0x80]);
+      // ɜ + ɹ before a consonant or a pause ("word", "first", "for the"):
+      // one r-coloured vowel (its low F3 is the colour, /wɝːd/), no ɹ
+      // segment: the separate ɹ, at twice the vowel's level, was heard as
+      // a consonant r. Before a vowel it stays and links ("her eyes").
+      if (s.ph[0] == Ph::ER && s.n == 2) {
+        const uint8_t nt = i + 1 < tokens.size() ? tokens[i + 1]
+                           : w + 1 < phrase_.size() && !phrase_[w + 1].tokens.empty() ? phrase_[w + 1].tokens[0] : 0;
+        if (!(nt && isVowelToken(nt))) s.n = 1;
+      }
       for (int k = 0; k < s.n; ++k) {
         // The second pitch on the sound's last vowel part (a diphthong's glide).
         const int lastPart = s.n > 1 && s.ph[s.n - 1] != Ph::RR ? s.n - 1 : 0;
@@ -1677,17 +1739,19 @@ void EnglishReader::flush() {
 }
 
 // Abbreviations read in full; single letters (initials, U.S.) stay letters.
+// Those marked are read in full without the period too (the others are
+// words or ambiguous: st street, gen, rep, mt).
 const Abbreviation kAbbreviations[] = {
-    {"mr", "mister"}, {"mrs", "missus"}, {"ms", "miz"}, {"dr", "doctor"}, {"prof", "professor"},
-    {"st", "saint"}, {"jr", "junior"}, {"sr", "senior"}, {"vs", "versus"}, {"gen", "general"},
+    {"mr", "mister", true}, {"mrs", "missus", true}, {"ms", "miz"}, {"dr", "doctor"}, {"prof", "professor"},
+    {"st", "saint"}, {"jr", "junior", true}, {"sr", "senior", true}, {"vs", "versus", true}, {"gen", "general"},
     {"gov", "governor"}, {"sen", "senator"}, {"rep", "representative"}, {"mt", "mount"},
-    {"etc", "et cetera"}, {"approx", "approximately"}, {"dept", "department"}};
+    {"etc", "et cetera", true}, {"approx", "approximately", true}, {"dept", "department", true}};
 
-bool EnglishReader::expandAbbreviation() {
+bool EnglishReader::expandAbbreviation(bool bare) {
   Word& last = phrase_.back();
   if (last.text.size() == 1) return true;  // an initial: keep reading
   for (const Abbreviation& a : kAbbreviations) {
-    if (last.text != a.abbr) continue;
+    if (last.text != a.abbr || (bare && !a.bare)) continue;
     phrase_.pop_back();
     std::string full = a.full;
     size_t p = 0;
@@ -1931,7 +1995,8 @@ void EnglishReader::push(std::string_view input) {
     if (c == '$') dollarNext_ = 1;
     // A full stop right after an abbreviation or a single letter ("Mr.",
     // "U.S.", "John F. Kennedy") does not end the sentence.
-    if (c == '.' && afterWord && !phrase_.empty() && expandAbbreviation()) continue;
+    if (c == '.' && afterWord && !phrase_.empty() && expandAbbreviation(false)) continue;
+    if (c != '.' && afterWord && !phrase_.empty()) expandAbbreviation(true);
     // Repeated punctuation ("?!", "...", ",,") is one break: after a break
     // with nothing said since, further marks are ignored.
     const bool words = !phrase_.empty();
