@@ -692,6 +692,7 @@ constexpr float kUnstressedVowel = 0.42f;      // Klatt: 0.5
 constexpr float kAccentedVowelTiming = 1.2f, kUnstressedVowelTiming = 0.85f;  // stress timing
 constexpr float kStressedOnset = 1.2f;         // consonants starting a stressed syllable
 constexpr float kUnstressedConsonant = 0.85f;  // other consonants
+constexpr float kUnaccentedCodaAffricate = 0.35f;  // ʧ ʤ closing an unaccented word
 
 std::vector<std::vector<float>> EnglishReader::durations() const {
   std::vector<std::vector<float>> out(phrase_.size());
@@ -722,6 +723,7 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
       const bool inLastSyllable = static_cast<int>(i) >= lastVowel;
       const bool phraseFinal = static_cast<int>(w) == lastWordWithVowel && inLastSyllable;
       float prc = 1, mn = k.min;
+      float whole = 1.0f;  // a factor on the whole duration, minimum included
       if (vowel) {
         const char* name = kEnglishTokens[tok[i] - 0x80];
         // A function word ending the phrase is said in full ("little we can
@@ -757,6 +759,11 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
         const char* vn = v < tok.size() ? kEnglishTokens[tok[v] - 0x80] : nullptr;
         const bool onsetOfStressed = vn && phrase_[w].accent && vn[strlen(vn) - 1] == '1';
         prc *= onsetOfStressed ? kStressedOnset : kUnstressedConsonant;
+        // A coda affricate of an unaccented word ("which our"): quick, a
+        // tap of hiss (goog.wav "for which our": ʧ 50 ms; here 142, as long
+        // and loud as a stressed one, a hiss bump in a run of function words).
+        if (!phrase_[w].accent && !phraseFinal && v >= tok.size() && (b == "CH" || b == "JH"))
+          whole *= kUnaccentedCodaAffricate;  // (below the Klatt minimum, which prc cannot reach)
         // h before j is one sound, the palatal hiss [ç] ("human"): not
         // shortened as a cluster, and long (goog.wav ~120 ms; here it was 51).
         if (b == "HH" && i + 1 < tok.size() && baseName(tok[i + 1]) == "Y") prc *= kHBeforeJ;
@@ -773,7 +780,7 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
       // consonants crisp); relative to the default rate, which stays as fitted.
       const float r = rate_ / kDefaultRate;
       const float rateDiv = kDefaultRate * (vowel ? r : std::sqrt(r));
-      out[w][i] = (mn + (k.inh - mn) * prc) * kEnglishTempo * structure / rateDiv;
+      out[w][i] = (mn + (k.inh - mn) * prc) * whole * kEnglishTempo * structure / rateDiv;
     }
   }
   return out;
@@ -1185,6 +1192,10 @@ void EnglishReader::sayPhrase(char end) {
   // ("where are you from?") it keeps its full form.
   // (Not the phrase's first word: it leans on nothing before it, "His car",
   // "Are you" -> with ɪz, ɜɹ it was heard as "is", "or".)
+  // "And" opening a phrase is said in full (CMUdict's first reading is the
+  // weak ənd): "And yet the same" with ənd came back as "In the end",
+  // "Then we have".
+  if (!phrase_.empty() && phrase_[0].text == "and") phrase_[0].tokens = arpaTokens("AE1 N D");
   for (size_t w = 1; w + 1 < phrase_.size(); ++w) {
     if (phrase_[w].accent) continue;
     // have/has/had are weak only as auxiliaries ("have been", "has made");
@@ -1192,6 +1203,10 @@ void EnglishReader::sayPhrase(char end) {
     // heard as "gonna be").
     const std::string& t = phrase_[w].text;
     if ((t == "have" || t == "has" || t == "had") && !isAuxiliaryUse(phrase_[w + 1].text)) continue;
+    // "are" after a word ending in a vowel ("who are", "they are"): the
+    // weak ɚ fused with the linking glide into a contraction, and Whisper
+    // heard "who were rich", "we're right". The full form keeps the words.
+    if (t == "are" && !phrase_[w - 1].tokens.empty() && isVowelToken(phrase_[w - 1].tokens.back())) continue;
     for (const WeakForm& f : kWeakForms)
       if (t == f.word) phrase_[w].tokens = arpaTokens(f.weak);
   }
@@ -1489,7 +1504,7 @@ void EnglishReader::sayPhrase(char end) {
     // and a breath between words, before the voice would fade out.
     if (w > 0 && synth_.plannedAir() < kEmergencyBreathAir) {
       pause(4);
-      synth_.breathPoint(false);
+      synth_.breathPoint(false, false, true);  // snatched: the quick breath
     }
     const std::vector<uint8_t>& tokens = phrase_[w].tokens;
     // Primary stress mark (content words only) before the stressed onset.
@@ -2078,7 +2093,7 @@ void EnglishReader::push(std::string_view input) {
         if (newlines_ == 2) {
           sentenceInParagraph_ = 0;
           pause(kParagraphPauseStops - kParagraphPauseStops / 2);
-          synth_.breathPoint(true);
+          synth_.breathPoint(true, true);  // a paragraph: the longest breath
         }
         break;
       default:

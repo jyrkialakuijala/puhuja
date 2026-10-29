@@ -262,6 +262,7 @@ struct Event {
   float expand = -1, expandMs = 0;
   // Breathe in over this many ms (lungs refill, inhaling noise); 0: no.
   float inhaleMs = 0;
+  bool inhaleSnatched = false;  // the quick between-words breath (see breathPoint)
   // Speech level target: 0 at a pause (fades out exponentially), 1 when
   // speaking; < 0: no change.
   float speech = -1;
@@ -399,7 +400,8 @@ class Synth {
   // (sentence = true), at a comma only when the lungs are running low. The
   // inhalation (longer the more air was used) is added as a pause with a soft
   // breathing-in noise. The first sentence gets one automatically.
-  void breathPoint(bool sentence);
+  // snatched: between words, with no good place for it (a quick, sharper breath).
+  void breathPoint(bool sentence, bool paragraph = false, bool snatched = false);
   float plannedAir() const { return planVolume_; }  // lung volume planned so far (cm^3)
   // The next vowel starts with a glottal onset (folds pressed, then released).
   void glottalOnset() { glottalOnsetNext_ = true; }
@@ -502,8 +504,10 @@ class Synth {
   bool hasSpoken_ = false;     // the first sentence's breath has been taken
   bool spokeSinceBreath_ = false;
   float nextInhaleMs_ = 0;     // inhalation for the next emitted pause
+  bool nextInhaleSnatched_ = false, inhaleSnatched_ = false;
   float inhaleLeft_ = 0, inhaleLen_ = 0, inhaleRate_ = 0;  // samples, cm^3/sample
   FricationFilter inhaleFilter_;  // airy breath-in noise (bypasses the tract)
+  FricationFilter inhaleSnatchFilter_;  // the quick breath's brighter noise
   float speechEnv_ = 1, speechTarget_ = 1;  // fade-out at pauses
   float speechAttackNow_ = 0;  // rise rate in use (per sample)
   float aspBurst_ = 1, kAspBurstDecay_ = 1;  // p t k puff: x aspirationGain_, back to 1

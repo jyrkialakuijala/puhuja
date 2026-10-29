@@ -401,11 +401,24 @@ constexpr float kCommaBreathBelow = 1600; // breathe at a comma below this (1000
 constexpr float kInhaleRate = 2500;      // cm^3/s while breathing in
 constexpr float kInhaleMinMs = 180, kInhaleMaxMs = 600;
 constexpr float kCatchInhaleMaxMs = 300;  // within a sentence (at a comma or a seam): a quick catch breath
+// The breath's length by its place: a catch breath inside a sentence shorter,
+// between sentences longer, after an empty line (a paragraph) longer still.
+constexpr float kCatchBreathScale = 0.85f, kSentenceBreathScale = 1.10f, kParagraphBreathScale = 1.30f;
 constexpr int kBreathHoldStops = 0;  // silence between the inhale and the first sound
 constexpr float kInhaleNoise = 0.09f;  // breathing-in noise: ~-30 dB below speech
 // Breathing in: turbulence at the lips, nose and glottis, heard as a broad
 // airy hiss (not shaped by the vocal tract, which would make it a nasal hum).
-constexpr FricShape kInhaleShape = {700, 6500, 2500, 3000, 1.0f};
+// Darker and flatter than it was ({700, 6500, 2500, 3000}): a reader's
+// 400 ms breath has its energy at 1-3 kHz, 3-4 kHz 10 dB under and 4-6 kHz
+// 16 under; puhuja's reached 6 kHz within 8 dB, a "niiuf".
+constexpr FricShape kInhaleShape = {600, 4500, 1800, 2500, 1.0f};
+// Its envelope: a quick rise, a flat run and a gentle fall (a half sine over
+// the whole breath swelled up and down; the reader's stays within 5 dB).
+constexpr float kInhaleRiseMs = 70, kInhaleFallMs = 120;
+// A breath snatched between words (the air ran out with no comma or seam
+// near): the old quick breath, brighter and swelling (the user: a "niiuf"
+// is right there, the calm "hhhh" at the proper places).
+constexpr FricShape kInhaleSnatchShape = {700, 6500, 2500, 3000, 1.0f};
 // Lung pressure eases off as the breath is used up (loudness declination)
 // and falls steeply near empty.
 constexpr float kLungPressureSpent = 0.85f;  // relative pressure at kLungRest and below
@@ -501,7 +514,7 @@ constexpr float kChestHz = 500;
 // ... and its heard level, after the ceiling: at 1 the ʧ was 5 dB under the
 // vowel before it (1-8 kHz), the readers 0 to +18 (median +4); a final ʧ in
 // a recording of "rich." is loud and 230 ms.
-constexpr float kChFricationLevel = 2.5f;
+constexpr float kChFricationLevel = 3.0f;
 constexpr float kChFricationBoost = 1.78f;  // ʧ's +5 dB (it was ~11 dB under the voice-over's)
 constexpr float kJhFricationBoost = 1.94f;  // (1.6, +10 % by ear for "pledge", +10 % for "generosity")
 // Its noise band: lower and wider than ʒ's {1800, 7000, 2800, 1200, 3}.
@@ -510,7 +523,10 @@ constexpr FricShape kJhNoiseShape = {1000, 7000, 2500, 1500, 3.0f};
 constexpr float kAffricateFricationLength = 0.55f;
 constexpr float kJhFricationLength = 1.1f;
 // English ʧ: frication x1.3 (53 ms was heard as a stop, 77 ms as ʃ) and a fast release.
-constexpr float kEnglishChFricationLength = 1.6f, kEnglishChReleaseMs = 8;  // (1.3: ʧ 124 ms, the readers 120-190, a final one in a recording 230)  // ... and ʤ's 10 % longer (by ear)
+constexpr float kEnglishChFricationLength = 1.6f, kEnglishChReleaseMs = 8;
+// English affricates: frication length as a multiple of the reader's closure
+// (1.8: a stressed ʧ's 50 ms closure + 90 ms frication, as before).
+constexpr float kAffricateFricationPerClosure = 2.2f;  // (1.8: a final "rich" came back from Whisper as "right"; a recording's final ʧ has 230 ms of hiss)  // (1.3: ʧ 124 ms, the readers 120-190, a final one in a recording 230)  // ... and ʤ's 10 % longer (by ear)
 
 enum class Cls { Vowel, Plosive, Nasal, Liquid, Trill, Glide, Fricative, H, Stop };
 
@@ -567,7 +583,9 @@ const Info kInfo[] = {
     {Cls::Glide,    360, 2050, 2750, 120, 90, 120, 270, 0.79f,  90, 0},    // J
     {Cls::Glide,    420, 1200, 2300, 120, 90, 120, 270, 0.355f,  80, 0},    // V
     // English ɹ: low F3 gives the r colour. w: like u with rounded lips.
-    {Cls::Glide,    350, 1100, 1650, 120, 100, 120, 270, 1.0f,  70, 0},     // RR ɹ
+    // F3 1780 (1650: LPC on a male reader gives ɹ 1830, ɜ 1745; puhuja's 1650
+    // and 1550 made "who are rich" one long r, "where").
+    {Cls::Glide,    350, 1100, 1780, 120, 100, 120, 270, 1.0f,  70, 0},     // RR ɹ
     {Cls::Glide,    320,  680, 2200, 120,  90, 120, 270, 0.9f,  70, 0},     // W
     {Cls::Fricative, 350, 1700, 2700, 200, 200, 300, 270, 1.0f,  90, 0.118f},    // S
     {Cls::Fricative, 300, 1800, 2400, 200, 200, 300, 270, 1.0f, 110, 0.06f},   // SH
@@ -887,6 +905,7 @@ Synth::Synth(float sampleRate, float baseF0) : fs_(sampleRate), baseF0_(baseF0 >
     folds_.step(1.0f / fs_, {kLungPressure, 0, 0.7f, kFoldRestPressed});
   prevFlow_ = folds_.flow();
   inhaleFilter_.set(kInhaleShape, fs_);
+  inhaleSnatchFilter_.set(kInhaleSnatchShape, fs_);
   ag_.set(0);
   an_.set(0);
   np_.set(kNasalPoleHz, kNasalBw, fs_);
@@ -1157,14 +1176,16 @@ void Synth::push(Ph ph, bool wordStart) {
   hasPending_ = true;
 }
 
-void Synth::breathPoint(bool sentence) {
+void Synth::breathPoint(bool sentence, bool paragraph, bool snatched) {
   if (!sentence && planVolume_ > kCommaBreathBelow) return;
   if (hasSpoken_ && !spokeSinceBreath_) return;  // "...": one breath is enough
   spokeSinceBreath_ = false;
   const float deficit = std::max(kLungMax - planVolume_, 0.0f);
   const float ms = std::clamp(deficit / kInhaleRate * 1000.0f, kInhaleMinMs,
-                              sentence ? kInhaleMaxMs : kCatchInhaleMaxMs);
+                              sentence ? kInhaleMaxMs : kCatchInhaleMaxMs) *
+                   (paragraph ? kParagraphBreathScale : sentence ? kSentenceBreathScale : kCatchBreathScale);
   nextInhaleMs_ = ms;
+  nextInhaleSnatched_ = snatched;
   // ... and a short silent hold after it before the first sound (the inhale
   // ran up to it: its noise just before a vowel was heard as ð, "a" -> "the").
   const int stops = static_cast<int>(std::ceil(ms / 15.0f)) + kBreathHoldStops;
@@ -1677,6 +1698,9 @@ void Synth::emit(const Token& tok, const Ph* next) {
         coarticulate(p, tok.ph, next);  // F3 (the r colour) stays low
         addHeld(p, t0, dur, kRHeldA, kConsonantHeldB);
       } else {
+        // (Holding a post-consonantal glide's targets from its start, as
+        // the consonants are, put the j's F2 top at the release like a
+        // reader's, but cost 3 WER points on both voices: not done.)
         coarticulate(p, tok.ph, next);
         addKeyframe(p, t0 + 0.5 * dur);
       }
@@ -1776,7 +1800,9 @@ void Synth::emit(const Token& tok, const Ph* next) {
       }
       e.ac = -1;
       e.inhaleMs = nextInhaleMs_;
+      e.inhaleSnatched = nextInhaleSnatched_;
       nextInhaleMs_ = 0;
+      nextInhaleSnatched_ = false;
       e.agMs = kStopGlottalMs;
       syllable_ = 0;
       resolveRanges(nullptr, -1);  // no vowel follows: they hold the last one's
@@ -1826,7 +1852,13 @@ void Synth::emitAffricate(const Token& tok, const Ph* next) {
   emitPlosive(tok, &fric);  // a fricative next: no aspiration, no voice onset
   prevWasPlosive_ = true;
   inAffricate_ = true;
-  emit(Token{fric, false, false, 0, false, kNoPitch, Shape()}, next);
+  // The English reader times the closure (tok.shape.ms); the frication
+  // follows it in proportion, so a shortened affricate (an unaccented
+  // "which") shortens as a whole. (With the table's length the frication
+  // stayed 92 ms whatever the reader asked for.)
+  Shape fs;
+  if (tok.shape.ms > 0) fs.ms = tok.shape.ms * kAffricateFricationPerClosure;
+  emit(Token{fric, false, false, 0, false, kNoPitch, fs}, next);
   inAffricate_ = false;
 }
 
@@ -2365,6 +2397,7 @@ float Synth::tick() {
     }
     if (e.inhaleMs > 0) {
       inhaleLen_ = inhaleLeft_ = msToSamples(e.inhaleMs, fs_);
+      inhaleSnatched_ = e.inhaleSnatched;
       inhaleRate_ = std::max(kLungMax - lungVolume_, 0.0f) / inhaleLen_;
     }
     if (e.setNoise) {
@@ -2734,8 +2767,16 @@ float Synth::tick() {
   float inhale = 0;
   if (inhaleLeft_ > 0) {
     lungVolume_ = std::min(lungVolume_ + inhaleRate_, kLungMax);
-    const float w = std::sin(kPi * (1.0f - inhaleLeft_ / inhaleLen_));
-    inhale = inhaleFilter_.process(noise()) * kInhaleNoise * w * w;
+    const float done = inhaleLen_ - inhaleLeft_;
+    const float rise = std::min(msToSamples(kInhaleRiseMs, fs_), 0.3f * inhaleLen_);
+    const float fall = std::min(msToSamples(kInhaleFallMs, fs_), 0.4f * inhaleLen_);
+    if (inhaleSnatched_) {
+      const float ws = std::sin(kPi * (1.0f - inhaleLeft_ / inhaleLen_));
+      inhale = inhaleSnatchFilter_.process(noise()) * kInhaleNoise * ws * ws;
+    } else {
+      const float w = std::min(smoothstep(0.0f, rise, done), smoothstep(0.0f, fall, inhaleLeft_));
+      inhale = inhaleFilter_.process(noise()) * kInhaleNoise * w;
+    }
     inhaleLeft_ -= 1.0f;
   }
 
