@@ -49,19 +49,28 @@ constexpr float kSeg = kLength / S, kLayer = kThickness / L;
 // muscle (~6 mm deep), the superior edge is the thin cover (lamina propria
 // 1-2 mm, epithelium 0.1-0.2 mm) over the ligament with little body behind.
 constexpr float kLayerMass[L] = {0.050f, 0.045f, 0.033f, 0.022f};
+// Row and column multipliers on the masses (Jyrki, 2026-10-30: "4 + 8
+// parameters that get multiplied together to control the mass of each row and
+// column, use mirror copies for the two folds"): the mass of cell (layer j,
+// segment i) is scaled by GRID_ROW<j> x GRID_COL<i> on both folds alike. Row 0
+// is the body layer, row 3 the cover; column 0 the anterior end. Searched
+// by tools/word_opt.py --set gridmass; 1 = the structured default.
+const float kRowMass[L] = {knob("GRID_ROW0", 1.0f), knob("GRID_ROW1", 1.0f), knob("GRID_ROW2", 1.0f), knob("GRID_ROW3", 1.0f)};
+const float kColMass[S] = {knob("GRID_COL0", 1.0f), knob("GRID_COL1", 1.0f), knob("GRID_COL2", 1.0f), knob("GRID_COL3", 1.0f),
+                           knob("GRID_COL4", 1.0f), knob("GRID_COL5", 1.0f), knob("GRID_COL6", 1.0f), knob("GRID_COL7", 1.0f)};
 // Along the cord the cross-section tapers toward the anterior commissure
 // (quadratically; the depth at the anterior end ~0.77 of the middle) and the
 // cover is thickest mid-membranous: mass per segment 1 - kTaper at the ends,
 // 1 in the middle (half-sine). The posterior end sits on the vocal process
 // of the arytenoid (cartilage) and the ligament is thickest there: stiffer
 // by kPosteriorStiff at the last segment.
-const float kTaper = knob("GRID_TAPER", 0.25f), kPosteriorStiff = knob("GRID_POSTSTIFF", 0.0f);  // (0.5: the fold's mode rose ~15 %, the pitch controller fell short (92.7 Hz for 82.8) and the voicing weakened; the posterior segments hardly vibrate anyway, their rest gap is widest)
+const float kTaper = param("GRID_TAPER", 0.1684f) /* cost 0.0440772362313503 grid-c300-mf */, kPosteriorStiff = knob("GRID_POSTSTIFF", 0.0f);  // (0.5: the fold's mode rose ~15 %, the pitch controller fell short (92.7 Hz for 82.8) and the voicing weakened; the posterior segments hardly vibrate anyway, their rest gap is widest)
 // Tissue is not uniform: a fixed +-kInhom pattern on the masses (a hash of
 // the position, the same every run) and the right fold kAsym heavier than
 // the left. Jyrki (2026-10-30): "less microfluctuations, perhaps some mass
 // inhomogeneity": the irregularity of the voice comes from the structure
 // instead of from random modulation.
-const float kInhom = knob("GRID_INHOM", 0.08f), kAsym = knob("GRID_ASYM", 0.03f);
+const float kInhom = param("GRID_INHOM", 0.08373f) /* cost 0.0440772362313503 grid-c300-mf */, kAsym = param("GRID_ASYM", 0.05808f) /* cost 0.0440772362313503 grid-c300-mf */;
 // The coordinate is the vertical displacement (Jyrki, 2026-10-30: "up and
 // down is the right one to be modeled, and when sufficiently high up there
 // is an opening between the two folds"). The medial surface's wedge slope
@@ -69,45 +78,45 @@ const float kInhom = knob("GRID_INHOM", 0.08f), kAsym = knob("GRID_ASYM", 0.03f)
 // inferior surface pushes the tissue up (its normal has an upward component,
 // and its lateral component does work through the slope), with kKappa the
 // effective share of the pressure force that drives z.
-const float kSlope = knob("GRID_SLOPE", 1.0f), kKappa = knob("GRID_KAPPA", 1.0f);  // (slope 0.5 and 0.3: weak, intermittent voicing; 1.0 phonates in both voices, 2026-10-30)
+const float kSlope = param("GRID_SLOPE", 0.9114f) /* cost 0.0440772362313503 grid-c300-mf */, kKappa = param("GRID_KAPPA", 1.258f) /* cost 0.0440772362313503 grid-c300-mf */;  // (slope 0.5 and 0.3: weak, intermittent voicing; 1.0 phonates in both voices, 2026-10-30)
 // The cords' own sound (Jyrki): the moving surface pushes air, a volume
 // velocity of the surface area times the vertical velocity, summed over the
 // masses, heard with the flow (also while the glottis is shut); 1 is the
 // geometric value for the medial surface's footprint.
-const float kSurface = knob("GRID_SURFACE", 1.0f);
+const float kSurface = param("GRID_SURFACE", 2.821f) /* cost 0.0440772362313503 grid-c300-mf */;
 // The abduction rest area scaled for the grid (its own amplitude differs
 // from the two-mass model's; the glottis was open 95 % of the cycle at 1).
-const float kRestScale = knob("GRID_REST", 1.0f);
-const float kAssist = knob("GRID_ASSIST", 0.6f);  // see gapEff (0: level -39/-42 dB m/f, 0.3: -36/-40, 1.0: -32/-36 but the male pitch 89 for 83 and fewer voiced frames; 2026-10-30)
+const float kRestScale = param("GRID_REST", 0.3581f) /* cost 0.0440772362313503 grid-c300-mf */;
+const float kAssist = param("GRID_ASSIST", 0.3101f) /* cost 0.0440772362313503 grid-c300-mf */;  // see gapEff (0: level -39/-42 dB m/f, 0.3: -36/-40, 1.0: -32/-36 but the male pitch 89 for 83 and fewer voiced frames; 2026-10-30)
 // The body springs' natural frequency at tension 1 (the couplings raise the
 // fold's lowest mode above it; the driver's pitch controller takes up the
 // rest, as it does for the two-mass folds).
-const float kNaturalF0 = knob("GRID_F0", 140);
+const float kNaturalF0 = param("GRID_F0", 147.5) /* cost 0.0440772362313503 grid-c300-mf */;
 // Body stiffness per layer relative to the mass's share: the upper edge is
 // softer than the body-like lower layers (Ishizaka-Flanagan: the upper mass's
 // own frequency 90 Hz against the lower's 127), which gives the layers their
 // phase lag and the fold its energy transfer from the flow. Linear from
 // kBottomStiff at the inferior layer to kTopStiff at the superior.
-const float kTopStiff = knob("GRID_TOPSTIFF", 0.7f), kBottomStiff = knob("GRID_BOTSTIFF", 1.2f);  // (sweep 2026-10-30: 0.7 and shear 1.5 gave the right pitch in both voices, 62 % voiced frames like the two-mass, level -2.7 dB male, -8 dB female)
+const float kTopStiff = param("GRID_TOPSTIFF", 0.6463f) /* cost 0.0440772362313503 grid-c300-mf */, kBottomStiff = param("GRID_BOTSTIFF", 1.294f) /* cost 0.0440772362313503 grid-c300-mf */;  // (sweep 2026-10-30: 0.7 and shear 1.5 gave the right pitch in both voices, 62 % voiced frames like the two-mass, level -2.7 dB male, -8 dB female)
 // Couplings relative to the body spring of the same mass: along the cord
 // (string tension; ends anchored) and between layers (shear).
-const float kLongRel = knob("GRID_LONG", 1.0f), kShearRel = knob("GRID_SHEAR", 1.5f);
+const float kLongRel = param("GRID_LONG", 0.9279f) /* cost 0.0440772362313503 grid-c300-mf */, kShearRel = param("GRID_SHEAR", 0.5464f) /* cost 0.0440772362313503 grid-c300-mf */;
 // Damping ratios while open, per layer (the upper edge damps most, as
 // Ishizaka-Flanagan's upper mass), and the extra while touching.
 constexpr float kZeta[L] = {0.1f, 0.1f, 0.2f, 0.6f};
-const float kZetaClosed = knob("GRID_ZCLOSED", 1.0f);
+const float kZetaClosed = param("GRID_ZCLOSED", 0.4337f) /* cost 0.0440772362313503 grid-c300-mf */;
 constexpr float kCollision = 3.0f;  // collision stiffness / body stiffness
 // Friction between the cords in a pressed contact, as the grid sees it: the
 // layers of a contact slide against the other cord with the mucosal wave;
 // a Coulomb-viscous force mu F_n tanh(dv / v0) between adjacent layers that
 // are both in contact resists their relative lateral motion there.
-const float kFrictionMu = knob("GRID_MU", 0.2f), kFrictionV0 = knob("GRID_V0", 5.0f);  // (cm/s)
+const float kFrictionMu = param("GRID_MU", 0.2637f) /* cost 0.0440772362313503 grid-c300-mf */, kFrictionV0 = param("GRID_V0", 6.884f) /* cost 0.0440772362313503 grid-c300-mf */;  // (cm/s)
 constexpr float kRho = 0.00113f;    // air density (g/cm^3)
 constexpr float kInertance = 0.005f;  // as folds.cc
 constexpr float kRound = 0.002f;    // rounding of the heard area (cm^2)
 // Rest width along the cord relative to the mean: wider toward the
 // arytenoid (posterior), where the folds part first.
-const float kRestFront = knob("GRID_RESTFRONT", 0.6f), kRestBack = 2.0f - kRestFront;
+const float kRestFront = param("GRID_RESTFRONT", 0.7605f) /* cost 0.0440772362313503 grid-c300-mf */, kRestBack = 2.0f - kRestFront;
 // The membranous part whose closure counts as the glottal closure (a
 // posterior chink may stay open).
 constexpr int kMembranous = 6;
@@ -172,7 +181,8 @@ float GridFolds::step(float h, const VocalFolds::Input& in) {
         hsh ^= hsh >> 13;
         hsh *= 0x5bd1e995u;
         const float pattern = static_cast<float>((hsh >> 8) & 0xffff) / 32767.5f - 1.0f;  // -1..1
-        mass[f][j][i] = kLayerMass[j] / S * taper * (1.0f + kInhom * pattern) * (f == 1 ? 1.0f + kAsym : 1.0f) * massMul('M', f, j, i);
+        mass[f][j][i] = kLayerMass[j] / S * taper * (1.0f + kInhom * pattern) * (f == 1 ? 1.0f + kAsym : 1.0f) * massMul('M', f, j, i) *
+                        kRowMass[j] * kColMass[i];
         const float w0 = 2 * kPi * kNaturalF0;
         const float layerStiff = kBottomStiff + (kTopStiff - kBottomStiff) * j / (L - 1.0f);
         const float post = (i + 0.5f) / S;

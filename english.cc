@@ -691,6 +691,8 @@ bool isVoicelessPlosive(const std::string& b) { return b == "P" || b == "T" || b
 bool isVoicedPlosive(const std::string& b) { return b == "B" || b == "D" || b == "G" || b == "JH"; }
 bool isVoicedFricative(const std::string& b) { return b == "V" || b == "DH" || b == "Z" || b == "ZH"; }
 bool isNasal(const std::string& b) { return b == "M" || b == "N" || b == "NG"; }
+bool isApproximant(const std::string& b) { return b == "L" || b == "R" || b == "W" || b == "Y"; }
+bool isSonorantCoda(const std::string& b) { return isNasal(b) || b == "L" || b == "R"; }
 
 }  // namespace
 
@@ -709,6 +711,15 @@ constexpr float kUnstressedConsonant = 0.85f;  // other consonants
 // 58 vs 70 ms, s 86 vs 121, n 51 vs 65, t 45 vs 60), the vowels not (105 vs
 // 99): function words, mostly consonants, ran at 137 ms against 240.
 const float kEnglishConsonantLength = param("kEnglishConsonantLength", 1.2f);
+// A sonorant cluster across a word boundary ("human life", "in love", "all
+// right"): the readers hold the first consonant as the coda of its word and
+// make the second a short glide into the vowel (ElevenLabs and Kokoro "human
+// life": n 109-120 ms, l 10-40; puhuja had n 72, l 110; Jyrki: "l in the
+// space of i, while n remains in the space of a", 2026-10-30).
+constexpr float kClusterCodaLength = 1.5f, kClusterOnsetLength = 0.3f;
+// l by position: word-initial before a vowel it ran 98 ms against the
+// readers' 44-110 (median ~70), word-final after a vowel 77 against 80-115.
+constexpr float kOnsetLLength = 0.75f, kCodaLLength = 1.2f;
 constexpr float kUnaccentedCodaAffricate = 0.35f;  // ʧ ʤ closing an unaccented word
 constexpr float kVoicedHLength = 0.65f;  // h between voiced sounds
 
@@ -778,6 +789,26 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
         const bool onsetOfStressed = vn && phrase_[w].accent && vn[strlen(vn) - 1] == '1';
         prc *= onsetOfStressed ? kStressedOnset : kUnstressedConsonant;
         whole *= kEnglishConsonantLength;
+        // Across the word boundary: a sonorant coda before an approximant
+        // onset is held, the onset becomes a glide into its vowel
+        // (kClusterCodaLength, kClusterOnsetLength).
+        const bool wordInitial = i == 0, wordFinal = i + 1 == tok.size();
+        const bool vowelAfter = i + 1 < tok.size() && isVowelToken(tok[i + 1]);
+        const bool vowelBefore = i > 0 && isVowelToken(tok[i - 1]);
+        bool clusterOnset = false;
+        if (wordFinal && (isNasal(b) || b == "R") && w + 1 < phrase_.size()) {  // (l: kCodaLLength below is enough)
+          const auto& nt = phrase_[w + 1].tokens;
+          if (nt.size() >= 2 && isApproximant(baseName(nt[0])) && isVowelToken(nt[1])) whole *= kClusterCodaLength;
+        }
+        if (wordInitial && vowelAfter && isApproximant(b) && w > 0 && !phrase_[w - 1].tokens.empty() &&
+            isSonorantCoda(baseName(phrase_[w - 1].tokens.back()))) {
+          whole *= kClusterOnsetLength;
+          clusterOnset = true;
+        }
+        if (b == "L" && !clusterOnset) {
+          if (wordInitial && vowelAfter) whole *= kOnsetLLength;
+          else if (wordFinal && vowelBefore && !phraseFinal) whole *= kCodaLLength;
+        }
         // A coda affricate of an unaccented word ("which our"): quick, a
         // tap of hiss (goog.wav "for which our": ʧ 50 ms; here 142, as long
         // and loud as a stressed one, a hiss bump in a run of function words).
@@ -971,7 +1002,9 @@ void EnglishReader::addWord(const std::string& raw) {
   // ("because": Kokoro and most speakers say bɪˈkʌz; CMUdict's first is -ɔːz,
   // and the word scored 0.046 against the Kokoro voices where a human
   // reading scored 0.032, 2026-10-30.)
-  static const Homograph kReadings[] = {{"because", "B IH0 K AH1 Z"}};
+  // ("every": the dictionary's first reading has three syllables, ɛvəri;
+  // speakers say ɛvri, its second reading. Jyrki, 2026-10-30: "I hear ɛvɛri".)
+  static const Homograph kReadings[] = {{"because", "B IH0 K AH1 Z"}, {"every", "EH1 V R IY0"}};
   for (const Homograph& r : kReadings)
     if (w == r.word) t = arpaTokens(r.verb);
   lastWord_ = w;
@@ -1199,7 +1232,7 @@ const float kInitialRF3 = param("kInitialRF3", 1550), kInitialRLevel = param("kI
 // ElevenLabs, oʊ 201 against 110-169, eɪ 178 against 130-150; "alike" was
 // heard as "too much effort, too active" (2026-10-30). 0.85: a quarter of
 // the way, as with the other durations.
-const float kDiphthongLength = param("kDiphthongLength", 0.85f);  // see sayPhrase (0.8: "generosity" ʤɛ 264 ms against 130-160 in the references, 2026-10-30)
+const float kDiphthongLength = param("kDiphthongLength", 0.8216f) /* cost 0.0449972567973282 speaker3-c300-mf */;  // see sayPhrase (0.8: "generosity" ʤɛ 264 ms against 130-160 in the references, 2026-10-30)
 constexpr float kSyllabicNLength = 1.6f;
 constexpr float kSyllabicLLength = 1.8f;
 constexpr float kLinkGlideMs = 40, kLinkGlideLevel = 0.7f;  // w / j linking a vowel to the next word's
