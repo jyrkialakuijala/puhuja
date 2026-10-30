@@ -108,7 +108,7 @@ void usage(FILE* f) {
       "  -o file       output WAV file (default out.wav)\n"
       "  -r            raw float32 samples to stdout instead of a WAV file\n"
       "  -female       female voice\n"
-      "  -f0 Hz        base pitch (default 92 Hz male, 188 Hz female)\n"
+      "  -f0 Hz        base pitch (default 101.5 Hz male, 168 Hz female)\n"
       "  -rate x       English speaking rate, 0.9 = 10 % slower (default 0.95)\n"
       "  -room         a small room: early reflections and a short tail\n"
       "  -l file       write phoneme timings (start, end, symbol)\n"
