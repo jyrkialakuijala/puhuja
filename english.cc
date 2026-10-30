@@ -430,7 +430,12 @@ struct Sound {
 // F3 2700 (was 2400): goog.wav keeps F3 level through oʊ and l ("holds":
 // ~3100-3200 female); at 2400 it sagged in the glide and jumped 400 Hz up at the l.
 constexpr float kBackGlide[3] = {420, 1050, 2700};  // (380 900: too far back, voice-over 1030-1390)
-constexpr float kAwGlide[3] = {450, 1300, 2400};  // the end of aʊ
+constexpr float kAwGlide[3] = {470, 1120, 2400};  // the end of aʊ (450 1300: the references' aʊ offglide in "power", "around", "proud" has F2 820-1310, median ~1050, F1 ~480; puhuja sat at 1290 and "around" had no F2 travel, 2026-10-30)
+// An unstressed ɜ+ɹ before a stressed back or open vowel ("around",
+// "generosity", "generation") is the r itself: the references' ɜ there has
+// F2 930-1230 and F3 1440-1650 (puhuja 1380/1690, with the ɹ only 20 ms);
+// before i or ɪ ("century", "every") it stays schwa-like (F2 1240-1600).
+constexpr float kErOnsetShare = 0.5f, kErOnsetPull = 0.5f, kErOnsetFrontF2 = 1900.0f;
 constexpr float kGlideFallShare = 0.5f;  // a final diphthong's fall done by its glide's centre
 // Start of ɔɪ ("boy"): open, back and rounded, so the two vowels stay distinct
 // (a close start sounds like "bees").
@@ -961,6 +966,13 @@ void EnglishReader::addWord(const std::string& raw) {
     // the noun ("the wind blew").
     else if (w == "wind") t = arpaTokens("W IH1 N D");
   }
+  // Readings where CMUdict's first variant is not the usual American one.
+  // ("because": Kokoro and most speakers say bɪˈkʌz; CMUdict's first is -ɔːz,
+  // and the word scored 0.046 against the Kokoro voices where a human
+  // reading scored 0.032, 2026-10-30.)
+  static const Homograph kReadings[] = {{"because", "B IH0 K AH1 Z"}};
+  for (const Homograph& r : kReadings)
+    if (w == r.word) t = arpaTokens(r.verb);
   lastWord_ = w;
   // Spelled letter by letter: words without a vowel ("bg", "zh") and short
   // all-capital words that are not in the dictionary (acronyms: "NSA").
@@ -1170,7 +1182,7 @@ constexpr float kArcStartDb = 1.0f, kArcEndDb = -2.0f;  // (-3: with the end rel
 constexpr float kCreakBelow = -6.5f;  // st: statement endings this low get creaky voice (-5: nearly all)
 constexpr float kPressedAccent = 0.9f, kLaxUnstressed = 1.08f, kLaxFinal = 1.12f;  // glottal opening
 constexpr float kAccentDb = 1.5f, kFunctionWordDb = -1.5f;
-constexpr float kSecondaryVowelLength = 0.8f, kInitialRLength = 1.0f;  // see sayPhrase
+constexpr float kSecondaryVowelLength = 0.7f, kInitialRLength = 1.0f;  // see sayPhrase (0.8: "generosity" ʤɛ 264 ms against 130-160 in the references, 2026-10-30)
 constexpr float kSyllabicNLength = 1.6f;
 constexpr float kSyllabicLLength = 1.8f;
 constexpr float kLinkGlideMs = 40, kLinkGlideLevel = 0.7f;  // w / j linking a vowel to the next word's
@@ -1705,6 +1717,21 @@ void EnglishReader::sayPhrase(char end) {
         shape.f1 = glide ? glideEnd[0] : start ? start[0] : v.f1;
         shape.f2 = glide ? glideEnd[1] : start ? start[1] : v.f2;
         shape.f3 = glide ? glideEnd[2] : start ? start[2] : v.f3;
+        // Unstressed ɜ+ɹ as the onset of the next syllable (see kErOnsetShare).
+        bool erOnset = false;
+        if (s.ph[0] == Ph::ER && s.n == 2) {
+          const char* tname = kEnglishTokens[tokens[i] - 0x80];
+          const uint8_t ntok = i + 1 < tokens.size() ? tokens[i + 1]
+                               : w + 1 < phrase_.size() && !phrase_[w + 1].tokens.empty() ? phrase_[w + 1].tokens[0] : 0;
+          if (tname[strlen(tname) - 1] == '0' && ntok && isVowelToken(ntok)) {
+            const Sound ns = soundOf(kEnglishTokens[ntok - 0x80]);
+            const auto& nv = kEnglishShape[static_cast<int>(ns.ph[0])];
+            const float nf2 = ns.start ? ns.start[1] : nv.f2 > 0 ? nv.f2 : Synth::tableFormant(ns.ph[0], 1);
+            erOnset = nf2 < kErOnsetFrontF2;
+          }
+          // (F2 only: the ɹ's F3 is not below the ɜ's own.)
+          if (erOnset && k == 0) shape.f2 += kErOnsetPull * (Synth::tableFormant(Ph::RR, 1) - shape.f2);
+        }
         // A diphthong's glide right before a vowel ("loyalty" ɔɪ-ə) falls
         // short, toward that vowel: reaching the full ɪ (F2 ~2000) between
         // ɔ and ə made the formants swing up and down again.
@@ -1725,7 +1752,7 @@ void EnglishReader::sayPhrase(char end) {
         }
         // Duration (Klatt rules); diphthongs share it 60/40, ɜ+ɹ 80/20 (the
         // vowel is r-coloured itself; the ɹ is only its tail).
-        const float firstShare = s.ph[0] == Ph::ER ? 0.8f : 0.6f;
+        const float firstShare = s.ph[0] == Ph::ER ? (erOnset ? kErOnsetShare : 0.8f) : 0.6f;
         const float share = s.n == 1 ? 1.0f : k == 0 ? firstShare : 1.0f - firstShare;
         shape.ms = dur[w][i] * share * v.length;
         // Vowels as long as in the Google reading of kennedy.txt (goog.wav):
@@ -1826,6 +1853,7 @@ void EnglishReader::sayPhrase(char end) {
     ++phraseInSentence_;
   }
   phrase_.clear();
+  synth_.planSentence();  // the formant and pitch paths of the phrase, as a whole
 }
 
 void EnglishReader::pause(int stops) {

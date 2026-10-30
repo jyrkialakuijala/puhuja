@@ -112,7 +112,8 @@ void usage(FILE* f) {
       "  -rate x       English speaking rate, 0.9 = 10 % slower (default 0.95)\n"
       "  -room         a small room: early reflections and a short tail\n"
       "  -l file       write phoneme timings (start, end, symbol)\n"
-      "  -w source     voice source: physical (default), shaped, glottal, triangle, square\n"
+      "  -words file   write word timings (start, end, word number from 1)\n"
+      "  -w source     voice source: physical (default), grid (4x8 multi-mass folds), shaped, glottal, triangle, square\n"
       "  -m motion     formant motion: damped/dampen (default) or spline\n"
       "  -leak x       part of the source that bypasses the formants (default 0.03)\n"
       "  -g2p          print English pronunciations of the words on stdin\n"
@@ -158,6 +159,7 @@ int main(int argc, char** argv) {
   float f0 = 0;  // -f0 Hz: overrides the voice's base pitch
   bool female = false;  // -female: female voice preset
   const char* labelPath = nullptr;  // -l file: phoneme timings (start end symbol)
+  const char* wordsPath = nullptr;  // -words file: word timings (start end number)
   float leak = 0.03f;    // -leak x: part of the source bypassing the formants
   // -w physical|triangle|square|glottal: voice source (default physical).
   puhuja::Carrier carrier = puhuja::Carrier::Physical;
@@ -177,7 +179,7 @@ int main(int argc, char** argv) {
     }
     if (argv[i][0] == '-' && argv[i][1] && !(argv[i][1] >= '0' && argv[i][1] <= '9') &&
         strcmp(argv[i], "-o") && strcmp(argv[i], "-r") && strcmp(argv[i], "-w") &&
-        strcmp(argv[i], "-l") && strcmp(argv[i], "-leak") && strcmp(argv[i], "-m") &&
+        strcmp(argv[i], "-l") && strcmp(argv[i], "-words") && strcmp(argv[i], "-leak") && strcmp(argv[i], "-m") &&
         strcmp(argv[i], "-room") && strcmp(argv[i], "-rate") && strcmp(argv[i], "-en") &&
         strcmp(argv[i], "-g2p") && strcmp(argv[i], "-g2p-raw") && strcmp(argv[i], "-female") &&
         strcmp(argv[i], "-f0") && strcmp(argv[i], "-chunk")) {
@@ -194,15 +196,19 @@ int main(int argc, char** argv) {
       carrier = !strcmp(argv[i], "physical") ? puhuja::Carrier::Physical
                 : !strcmp(argv[i], "glottal") ? puhuja::Carrier::Glottal
                 : !strcmp(argv[i], "shaped") ? puhuja::Carrier::Shaped
+                : !strcmp(argv[i], "grid") ? puhuja::Carrier::Grid
                 : !strcmp(argv[i], "square") ? puhuja::Carrier::Square
                                              : puhuja::Carrier::Triangle;
+    } else if (!strcmp(argv[i], "-words") && i + 1 < argc) {
+      wordsPath = argv[++i];
     } else if (!strcmp(argv[i], "-l") && i + 1 < argc) {
       labelPath = argv[++i];
     } else if (!strcmp(argv[i], "-leak") && i + 1 < argc) {
       leak = atof(argv[++i]);
     } else if (!strcmp(argv[i], "-m") && i + 1 < argc) {
       // -m damped|spline: how the formants move between targets.
-      motion = !strcmp(argv[++i], "spline") ? puhuja::FormantMotion::Spline
+      motion = !strcmp(argv[++i], "spline")    ? puhuja::FormantMotion::Spline
+               : !strcmp(argv[i], "planned") ? puhuja::FormantMotion::Planned
                                             : puhuja::FormantMotion::Damped;
     } else if (!strcmp(argv[i], "-room")) {
       useRoom = true;
@@ -320,6 +326,26 @@ int main(int argc, char** argv) {
     for (const auto& l : synth.labels())
       fprintf(lf, "%.4f\t%.4f\t%s\n", l.start, l.end, l.symbol.c_str());
     fclose(lf);
+  }
+  if (wordsPath) {
+    FILE* wf = fopen(wordsPath, "w");
+    if (!wf) {
+      perror(wordsPath);
+      return 1;
+    }
+    // A word runs from its first phoneme to the next word's first phoneme or
+    // the next pause, whichever comes first; a consonant shared across the
+    // boundary ("this century") is split in the middle.
+    const auto labels = synth.labels();
+    auto startOf = [&](size_t i) { return labels[i].wordJoin ? 0.5 * (labels[i].start + labels[i].end) : labels[i].start; };
+    int n = 0;
+    for (size_t i = 0; i < labels.size(); ++i) {
+      if (!labels[i].wordStart) continue;
+      size_t j = i + 1;
+      while (j < labels.size() && !labels[j].wordStart && labels[j].symbol != "_") ++j;
+      fprintf(wf, "%.4f\t%.4f\t%d\n", startOf(i), j < labels.size() ? startOf(j) : labels[i].end, ++n);
+    }
+    fclose(wf);
   }
 
   if (!raw && fseek(out, 0, SEEK_SET) == 0)

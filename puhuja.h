@@ -42,11 +42,13 @@
 #include <cstddef>
 #include <cstdint>
 #include <deque>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <vector>
 
-#include "folds.h"
+#include "filters.h"
+#include "larynx.h"
 
 namespace puhuja {
 
@@ -67,144 +69,6 @@ enum class Ph : uint8_t {
   // Silence.
   Stop,
   Count
-};
-
-// Second-order resonator (Klatt 1980 form), unity gain at DC.
-class Resonator {
- public:
-  void set(float freq, float bw, float fs);
-  float process(float x) {
-    double y = a_ * x + b_ * y1_ + c_ * y2_;
-    y2_ = y1_;
-    y1_ = y;
-    return static_cast<float>(y);
-  }
-
- private:
-  friend class AntiResonator;
-  // Double: the cascade's resonators have large gains that cancel each
-  // other, and float round-off there is heard as hiss.
-  double a_ = 1, b_ = 0, c_ = 0, y1_ = 0, y2_ = 0;
-};
-
-// Second-order zero (inverse of Resonator), for the nasal anti-formant.
-class AntiResonator {
- public:
-  void set(float freq, float bw, float fs);
-  float process(float x) {
-    double y = a_ * x + b_ * x1_ + c_ * x2_;
-    x2_ = x1_;
-    x1_ = x;
-    return static_cast<float>(y);
-  }
-
- private:
-  double a_ = 1, b_ = 0, c_ = 0, x1_ = 0, x2_ = 0;
-};
-
-// Band-pass biquad with 0 dB peak gain (RBJ cookbook), for noise sources.
-class BandPass {
- public:
-  void set(float freq, float bw, float fs);
-  void reset() { x1_ = x2_ = y1_ = y2_ = 0; }
-  float process(float x) {
-    double y = b0_ * x + b2_ * x2_ - a1_ * y1_ - a2_ * y2_;
-    x2_ = x1_;
-    x1_ = x;
-    y2_ = y1_;
-    y1_ = y;
-    return static_cast<float>(y);
-  }
-
- private:
-  double b0_ = 0, b2_ = 0, a1_ = 0, a2_ = 0;
-  double x1_ = 0, x2_ = 0, y1_ = 0, y2_ = 0;
-};
-
-// General biquad (RBJ cookbook) with Butterworth Q.
-class Biquad {
- public:
-  void lowPass(float freq, float fs, float q = 0.7071f);
-  void highPass(float freq, float fs);
-  void highPass1(float freq, float fs);  // first order: -6 dB/octave
-  void highShelf(float freq, float gainDb, float fs);  // RBJ, slope 1
-  void peaking(float freq, float bw, float gainDb, float fs);  // RBJ bell
-  void reset() { x1_ = x2_ = y1_ = y2_ = 0; }
-  float process(float x) {
-    double y = b0_ * x + b1_ * x1_ + b2_ * x2_ - a1_ * y1_ - a2_ * y2_;
-    x2_ = x1_;
-    x1_ = x;
-    y2_ = y1_;
-    y1_ = y;
-    return y;
-  }
-
- private:
-  double b0_ = 1, b1_ = 0, b2_ = 0, a1_ = 0, a2_ = 0;
-  double x1_ = 0, x2_ = 0, y1_ = 0, y2_ = 0;
-};
-
-// Spectral shape of a noise source: a band from lo to hi with steep
-// (24 dB/octave) edges, plus a resonance from the cavity in front of the
-// constriction (peakGain = how far it rises above the band).
-struct FricShape {
-  float lo, hi;          // band edges (Hz)
-  float peakF, peakBw;   // front-cavity resonance (Hz)
-  float peakGain;        // 0 = flat band
-};
-
-class FricationFilter {
- public:
-  void set(const FricShape& s, float fs);
-  // Clears the filter memory. Needed when a filter that has been idle is
-  // reconfigured: old state under new coefficients can ring up a large spike.
-  void reset() {
-    hp1_.reset();
-    hp2_.reset();
-    lp1_.reset();
-    lp2_.reset();
-    peak_.reset();
-  }
-  float process(float x) {
-    x = hp1_.process(x);
-    x = hp2_.process(x);
-    x = lp1_.process(x);
-    x = lp2_.process(x);
-    return x + peakGain_ * peak_.process(x);
-  }
-
- private:
-  Biquad hp1_, hp2_, lp1_, lp2_;
-  BandPass peak_;
-  float peakGain_ = 0;
-};
-
-// An articulator: a value that moves to each new target along an S-curve
-// (raised cosine) of a given length, like a tongue or lips moving.
-class Gesture {
- public:
-  void set(float v) {
-    v_ = v;
-    left_ = 0;
-    vel_ = m0_ = 0;
-  }
-  void start(float to, float samples) {
-    if (left_ >= 1.0f && to == to_) return;  // already moving there
-    from_ = v_;
-    to_ = to;
-    len_ = left_ = samples;
-    // A restart in mid-movement keeps the current speed (it decays over the
-    // new movement): a jump in speed is a step in the airflow's change,
-    // heard as a soft thump through the release transient.
-    m0_ = vel_ * samples;
-    if (samples < 1) set(to);
-  }
-  float tick();
-  float value() const { return v_; }
-
- private:
-  float v_ = 0, from_ = 0, to_ = 0, len_ = 1, left_ = 0;
-  float vel_ = 0, m0_ = 0;  // speed per sample; initial slope of a movement
 };
 
 // Indices into the parameter vector that the splines interpolate.
@@ -230,6 +94,7 @@ struct Keyframe {
   bool vowel = false;  // a vowel's target
   bool edge = false;   // a held target's edge: not a formant point (see splineAt)
   float f0Mod = 1;     // micro-intonation on top of the pitch line
+  Ph ph = Ph::Stop;    // the phoneme it belongs to (the sentence planner's demands)
 };
 
 // Articulatory event: starts movements of the airway openings at time t,
@@ -270,34 +135,14 @@ struct Event {
   float speechAttackMs = -1;  // with speech: its rise time (< 0: the default)
 };
 
-// Voice source: Physical is the two-mass vocal fold model coupled to the
-// tract (folds.h); the others are fixed waveforms shaped by the airflow
-// model's vibration amplitude.
-enum class Carrier { Physical, Triangle, Square, Glottal, Shaped };
-
-// A piecewise-linear glottal flow pulse for Carrier::Shaped: n segments, each
-// a share of the period at the voice's base pitch, each ending at the given
-// flow height (the last at 0, the closed phase). The excitation is the flow's
-// slope. With pitch the shares scale as (f0 / base f0)^pitchExp: 0 keeps the
-// shape, 1 keeps the segment's length in milliseconds (the fast opening of
-// real folds is such a fixed-time event); the last, closed segment takes what
-// is left (at least kMinClosed), so the open quotient grows with pitch, as it
-// does in voices (H1-H2 rises 6-14 dB per octave of pitch in the references).
-struct PulseShape {
-  static constexpr int kMaxN = 10;
-  static constexpr float kMinClosed = 0.05f;
-  int n;
-  float share[kMaxN];
-  float height[kMaxN];
-  float pitchExp[kMaxN];
-  float trebleDb;  // a treble shelf on the pulse (it has little above 4 kHz of its own)
-};
-
 // How the formants move between the phonemes' targets: a Catmull-Rom spline
 // through the keyframes (each target reached on time), or a critically
 // damped follower (a spring and damper chasing the current target, as
 // articulators do: short sounds undershoot, nothing overshoots).
-enum class FormantMotion { Spline, Damped };
+// Spline: the keyframe spline as it is. Damped: through a critically damped
+// follower per formant. Planned: a sentence-level iterative planner (see
+// planSentence) replaces the formant and pitch paths by optimised ones.
+enum class FormantMotion { Spline, Damped, Planned };
 
 // Speaker presets. Male is calibrated to a Finnish male reader (CSS10);
 // female to the female speakers of FLEURS Finnish.
@@ -329,6 +174,9 @@ class Synth {
 
   void setCarrier(Carrier c);  // (the shaped pulse gets its own treble shelf)
   void setFormantMotion(FormantMotion m) { motion_ = m; }
+  // Plans the formant and pitch paths of the keyframes queued since the last
+  // call (one sentence; the English reader calls it at each sentence end).
+  void planSentence();
 
   // Select a speaker preset (pitch, formant scaling, tempo, breathiness).
   // Call before pushing text; setBaseF0 afterwards overrides the pitch.
@@ -445,6 +293,8 @@ class Synth {
   struct Label {
     double start, end;
     std::string symbol;
+    bool wordStart = false;  // the first phoneme of a word
+    bool wordJoin = false;   // ... shared with the previous word: a long consonant across the boundary
   };
   std::vector<Label> labels() const;
 
@@ -458,6 +308,7 @@ class Synth {
     float pitch = kNoPitch;  // semitones from the base pitch (vowels; set by setPitch)
     Shape shape;             // per-phoneme adjustment (shapeNext)
     float pitchEnd = kNoPitch;  // a vowel's second pitch, reached at 3/4 of it (setPitchEnd)
+    bool wordJoin = false;  // a word boundary falls inside this long consonant ("this century")
   };
 
   void pushCodepoint(uint32_t cp);
@@ -500,6 +351,7 @@ class Synth {
   bool finished_ = false;
   double outputStart_ = -1;  // timeline position of the first output sample
   std::vector<std::pair<double, std::string>> labelStarts_;  // (samples, symbol)
+  std::vector<char> labelWordStarts_;  // parallel to labelStarts_: 0, 1 word start, 2 shared consonant
 
   // Input state.
   uint32_t utf8Cp_ = 0;
@@ -527,7 +379,6 @@ class Synth {
   bool spokeSinceBreath_ = false;
   float nextInhaleMs_ = 0;     // inhalation for the next emitted pause
   bool nextInhaleSnatched_ = false, inhaleSnatched_ = false;
-  float cycleJ_ = 0, cycleS_ = 0;  // this glottal cycle's random tension and pressure deviation (drawn at each closure)
   float inhaleLeft_ = 0, inhaleLen_ = 0, inhaleRate_ = 0;  // samples, cm^3/sample
   FricationFilter inhaleFilter_;  // airy breath-in noise (bypasses the tract)
   FricationFilter inhaleSnatchFilter_;  // the quick breath's brighter noise
@@ -552,9 +403,6 @@ class Synth {
   float po_ = 0;          // mouth pressure relative to the lungs (0..1)
   float flowGain_;        // pressure change per sample per unit flow
   float prevOralFlow_ = 0;
-  Biquad foldAa_[3];  // anti-alias low-pass of the oversampled glottal flow
-  float microLp_[3] = {0, 0, 0}, kMicroSmooth_ = 0.004f;  // fold micro-variation
-  float microLp2_[3] = {0, 0, 0};                         // ... its second stage
   float popScale_ = 1, popTarget_ = 1;
   double pauseStartT_ = -1;  // time of the last pause not yet followed by a pitched vowel
   Ph lastPh_ = Ph::Stop;  // the previous phoneme (micro-intonation)
@@ -567,20 +415,10 @@ class Synth {
   float tension_ = 0;     // slow trace of glottal abduction (raises pitch)
   float kTension_;
   float vibAmp_ = 0;      // current vocal fold vibration amplitude (0..1)
-  VocalFolds folds_;      // physical source
-  BandPass tractMode_[3];  // formant modes of the tract input impedance
-  float p1_ = 0;          // acoustic pressure above the folds (feedback)
-  float prevFlow_ = 0;    // glottal flow one sample ago
   Biquad physTilt_;       // treble tilt of the physical source
   Biquad physUpperCut_;   // cut around F3 (physical source)
   Biquad physMidLift_;    // lift between F1 and F2 (physical source)
   float physTiltGain_ = 0;
-  float flowMean_ = 0, physVib_ = 0;  // flow mean and fluctuation (~10 ms)
-  float kVibTrack_ = 0;
-  float kPitchRelax_ = 0;  // pitch correction eases back to 1 when not voicing
-  float pitchCorr_ = 1;   // pitch controller: tension correction (smoothed)
-  float pitchCorrTarget_ = 1;  // its per-cycle estimate
-  double lastCloseTime_ = 0;   // last fold closure (samples, sub-sample)
   float kVibGrowth_, kVibDecay_;
 
   // Constriction noise: two filter slots, crossfaded when the shape changes.
@@ -601,23 +439,19 @@ class Synth {
 
   // Voicing source state.
   Carrier carrier_ = Carrier::Physical;
-  const PulseShape* pulse_ = nullptr;  // the voice's pulse (set with the voice)
-  Biquad shapedTreble_;                // the shaped pulse's own treble shelf
-  float prevTri_ = 0;                  // the shaped pulse's flow a sample ago
-  float foldAc_ = 0;                   // the folds' radiated-sound envelope
-  Biquad foldAcHp2_;                   // the folds' sound above 250 Hz, for its envelope
-  float foldCycleMax_ = 0, foldCycleAmp_ = 0;  // the folds' peak this cycle / last cycle
-  int sinceClose_ = 0;                 // samples since the folds last closed
-  float sPhase_ = 1.0f, sDt_ = 0;      // the drawn pulse's phase (1 = closed, waiting) and step
-  float foldFast_ = 0;                 // the folds' sound, quarter-period envelope
-  float pulseAt_[PulseShape::kMaxN + 1] = {0}, pulseSlope_[PulseShape::kMaxN] = {0}, pulseMean_ = 0;
-  void setPulse(const PulseShape& p);
-  void pulseAtPitch(float f0);  // the segment ends and slopes for this cycle
+  std::unique_ptr<Larynx> larynx_;     // the voice source (larynx.h)
+  const PulseShape* pulse_ = nullptr;  // the voice's drawn pulse (set with the voice)
   FormantMotion motion_ = FormantMotion::Damped;
+  // Sentence planner state: dense log2 F1, F2, F3 and the pitch multiplier
+  // per plan frame from planStartT_; keyframes from planFromT_ on are not yet
+  // planned. curPh_ tags the keyframes with their phoneme.
+  Ph curPh_ = Ph::Stop;
+  double planFromT_ = 0, planStartT_ = -1;
+  float planHop_ = 240;
+  std::vector<float> plan_[4];
+  bool planAt(double t, float out[4]) const;
   float formPos_[3] = {0, 0, 0}, formVel_[3] = {0, 0, 0};
   bool formInit_ = false;
-  float tri_ = 0;      // triangle: integrated slope (glottal flow)
-  float kTriLeak_;     // keeps the integrator from drifting
   float leak_ = 0.03f;
   float phase_ = 0;
   bool spellingRules_ = true;
@@ -643,7 +477,6 @@ class Synth {
   float aspGainTarget_ = 1, aspGainNow_ = 1;  // smoothed toward the target
   float kAspGainFollow_ = 0;
   double kLookAheadSamples_ = 0;  // how far ahead the targets are read
-  float breathyComp_ = 0, kBreathyCompFollow_ = 0;  // fold tension for a held-open glottis
   float creakTarget_ = 0, creakNow_ = 0, kCreakFollow_ = 0;  // creaky irregularity
   bool aspirating_ = false;  // the last plosive's release is closing the glottis
   Event pendingNoise_{0};  // a voiced fricative's noise, after the glottis closed

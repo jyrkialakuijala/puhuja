@@ -14,7 +14,6 @@ namespace puhuja {
 
 namespace {
 
-constexpr float kPi = 3.14159265358979f;
 
 // Finnish-like prosody: the first syllable of a word is a bit higher.
 constexpr float kFirstSyllableF0 = 1.15f;
@@ -26,15 +25,7 @@ constexpr float kSecondaryStressLength = 1.1f;
 // Extra pause that ˌ inserts before its syllable, in 15 ms stops.
 constexpr int kSecondaryStressPauseStops = 4;
 
-// Open quotient of the glottal pulse: fraction of the period the glottis is open.
-constexpr float kOpenQuotient = 0.6f;
-
-// The square wave carries much more low-frequency energy than the glottal
-// pulse; this brings its vowels to about the same level.
-constexpr float kSquareGain = 0.37f;
-// The triangle's harmonics fall off at -12 dB/octave (square: -6), so it
-// needs more gain for the same vowel level.
-constexpr float kTriangleGain = 2.48f;
+// (The waveforms' own constants: larynx.cc.)
 // Duty cycle of the square wave. At 0.5 it has only odd harmonics.
 constexpr float kSquareDuty = 0.5f;
 // Duty of the triangle: like real vocal folds it rises (opens) slowly and
@@ -47,9 +38,6 @@ constexpr float kSquareDuty = 0.5f;
 // only 13 dB above it below 1 kHz (25 dB without; the CSS10 reader 18 dB).
 constexpr float kTriangleDuty = 0.85f;
 constexpr float kTriangleDutyJitter = 0.0f;
-// Fraction of the period the folds are open in the triangle pulse; for the
-// rest they are shut and the flow stays flat at zero, as in a real voice.
-constexpr float kTriangleOpenQuotient = 0.8f;
 // Shaped glottal pulse (Jyrki's loop, 2026-10-30): "before the vocal cords
 // separate they move a bit, a small slope before they open; then it rises
 // fast because the cords opened fast; closes at moderate speed, perhaps a
@@ -71,16 +59,7 @@ constexpr PulseShape kMalePulse = {6, {0.1505f, 0.1818f, 0.1569f, 0.1913f, 0.021
 constexpr PulseShape kFemalePulse = {6, {0.1195f, 0.0876f, 0.2684f, 0.1897f, 0.1167f, 0.2180f},
                                      {0.276f, 1.0f, 0.925f, 0.445f, 0.388f, 0.0f},
                                      {1.23f, 0.79f, 1.45f, 0.52f, 1.05f, 0.0f}, 12.3f};
-constexpr float kShapedGain = 10.0f;  // the vowels at the physical source's level (the pulse rides on the folds: see runFolds)
-// The folds' loudness (the peak |flow change per sample| of a cycle, cm^3/s)
-// of a plain vowel: the shaped pulse takes the folds' loudness cycle by cycle,
-// so it starts, stops, weakens under a constriction and follows the pressure
-// as they do; this only sets its scale.
-constexpr float kShapedAcFull = 7.63f;
-// The fast envelope's share of the cycle peak under which the folds count as
-// gone quiet (in a steady vowel it stays above this through the open phase).
-constexpr float kShapedFastFloor = 0.15f;
-constexpr float kShapedPeriodShare = 0.95f;  // (1.3: the vowels were 10 dB under the physical source's; the fricatives then dominated the relative spectrum)
+// (The pulse's gains and its coupling to the folds: larynx.cc.)
 // Treble shelf on the voice source (not on noise): with the -12 dB/octave
 // triangle, the voice otherwise lacks the energy a real voice has above
 // ~1 kHz. Set against both Piper and the CSS10 reader's long-term spectrum.
@@ -104,7 +83,6 @@ constexpr float kMasterGain = 0.028f;
 
 // Lip radiation (see tick()).
 constexpr bool kLipRadiation = true;
-constexpr float kLipRadiationHz = 1500;
 // Head diffraction (physical source): high shelf.
 constexpr float kHeadShelfHz = 1500, kHeadShelfDb = 5;
 // Higher-pole correction: three high shelves (Hz, dB).
@@ -209,20 +187,6 @@ constexpr int kNumBodyResonances = sizeof(kBodyResonances) / sizeof(kBodyResonan
 // speech (tools/artifacts.py contrast).
 constexpr float kBodyFollow = 0.75f;
 
-// PolyBLEP correction: smooths a unit step at phase 0 over one sample on
-// each side, which removes most of the aliasing of a naive square wave.
-float polyBlep(float t, float dt) {
-  if (t < dt) {
-    t /= dt;
-    return t + t - t * t - 1.0f;
-  }
-  if (t > 1.0f - dt) {
-    t = (t - 1.0f) / dt;
-    return t * t + t + t + 1.0f;
-  }
-  return 0.0f;
-}
-
 // Fixed output gains so vowels peak at roughly +-0.5. No clipping is applied.
 constexpr float kOutGain = 0.25f;
 constexpr float kAspirationGain = 0.032f;  // glottal breath noise into the tract
@@ -238,35 +202,17 @@ constexpr float kPopGain = 120.0f;        // release transient into the tract
 
 // --- Aerodynamics ---------------------------------------------------------
 // Areas in cm^2. Pressures are relative to the lung pressure (8 cmH2O).
-constexpr float kAgVoice = 0.05f;    // glottis adducted, vibrating
-constexpr float kAgBreathy = 0.125f;  // half open: breathy voice (voiced h)
-constexpr float kAgOpen = 0.3f;      // abducted: voiceless sounds
 constexpr float kAcOpen = 2.0f;      // open vocal tract (vowels)
 constexpr float kAnNasal = 0.25f;    // open velum (nasals)
 // Lung pressure and the compliance of the mouth cavity (air plus yielding
 // walls) set how fast pressure builds behind a closure: ~30 ms with a
 // vibrating glottis, a few ms with an open one.
-constexpr float kLungPressure = 7840.0f;    // dyn/cm^2 (8 cmH2O)
 constexpr float kAirDensity = 0.00114f;     // g/cm^3
 constexpr float kCavityCompliance = 7e-4f;  // cm^5/dyn
 // The vocal folds vibrate when the pressure drop across them exceeds this
 // fraction of the lung pressure (~2 cmH2O).
 constexpr float kPhonationThreshold = 0.25f;
-// Physical source (Carrier::Physical).
-constexpr float kFoldRestPerAg = 0.8f;    // rest slit area (cm^2) per unit ag ...
-constexpr float kFoldRestOffset = -0.02f; // ... plus this: ag 0.05 -> 0.02 cm^2
-constexpr float kFoldRestPressed = -0.15f; // ag 0: pressed shut (vibration stops below ~-0.12)
-constexpr float kFoldNaturalF0 = 155;     // f0 of the fold model at tension 1
-constexpr float kPitchControl = 0.3f;     // per cycle: share of pitch error corrected
-constexpr float kPitchLearnVib = 100;     // flow fluctuation (cm^3/s) needed to learn
-// Tract input impedance at the formants (dyn s/cm^5) per unit flow: the
-// pressure the tract builds above the folds, fed back to them.
-// Tract feedback pressure on the folds per formant mode. Physically the
-// tract's input impedance is 30-100x larger. With the clipped flow 9/4.5/2.4
-// was the limit before the highs buzzed; unclipped, 3x that keeps buzz in
-// range and brings HNR nearer the voice-overs (review3 fix 30).
-constexpr float kTractCoupling[3] = {27.0f, 13.5f, 7.2f};
-constexpr float kPhysicalGain = 0.5460f;     // flow change per sample to source level
+// Physical source (Carrier::Physical; the fold driving itself: larynx.cc).
 constexpr bool kPhysicalShaping = false;  // the triangle's treble shaping
 constexpr float kGlottalB1 = 150;         // F1 widening (Hz) at 0.1 cm^2 glottal opening
 constexpr float kGlottalB23[2] = {0.6f, 0.4f};  // F2, F3 widening relative to F1's
@@ -290,7 +236,6 @@ constexpr float kPhysUpperCutHz = 3000, kPhysUpperCutBw = 1500, kPhysUpperCutDb 
 // 3 kHz; added after the vocal tract (above F5 it is nearly flat anyway).
 constexpr float kAirHz = 3500, kAirTopHz = 8000;
 constexpr float kAirGain = 0.0f;
-constexpr float kAirPulse = 0.25f;  // share of the high breath pulsed by the flow
 constexpr float kPhysBreath = 1.0f;
 constexpr float kNoisePulse = 0.8f;       // share of fricative noise pulsed by the glottal flow       // breath noise level (physical source)
 // Mouth pressure (relative to the lungs) needed for audible turbulence.
@@ -349,9 +294,6 @@ constexpr float kOnsetSeed = 0.03f;
 constexpr float kF0Pressure = 0.15f;  // see kMicro2Gain
 constexpr float kF0Tension = 0.05f;
 // Fold tension added when the glottis is held open (see the fold input).
-constexpr float kBreathyPitchComp = 0.2f;
-constexpr float kBreathyCompMaxAg = 0.18f;
-constexpr float kPressedPitchComp = 0.0f;  // tension eased when pressed shut (off: the upturn was the pause's pitch)  // cm^2: above it (voiceless opening) no compensation
 constexpr float kTensionMs = 40;
 // Articulator movement times (ms).
 constexpr float kBoundaryMs = 20;    // between continuant sounds
@@ -390,6 +332,9 @@ constexpr float kPreposeMs = 40;     // after a pause, articulators move this ea
 // mostly moves it. F1 follows the jaw (the largest mass: slowest), F2 the
 // tongue body, F3 the tongue tip and the lips (light: fastest).
 constexpr float kFormantTauMs[3] = {16, 12, 9};
+// With a planned path (FormantMotion::Planned) the follower only smooths the
+// plan's grid: a short constant.
+constexpr float kPlanTauMs = 3;
 // Damped motion: the follower aims at the smooth spline through the
 // keyframes, read this many time constants ahead (a critically damped
 // follower lags ~2 tau). The target glides every sample; aiming at each
@@ -489,23 +434,17 @@ constexpr float kPhraseOnsetDrop = 0.944f;  // a phrase starts 1 semitone below 
 // with each fold change (steps 19-24: 8.1 -> 10.0 % male), and Jyrki chose
 // to return to the step 15 values (3.0, 0.012, 0.15; readings
 // ref/kennedy/steps/15-onyx-{m,f}.wav).
-constexpr float kMicro2Gain = 3.0f;
-constexpr float kTensionJitter = 0.4f, kRestJitter = 0.12f, kPressureShimmer = 1.6f;
 // Cycle-to-cycle jitter and shimmer: a new random deviation of the fold
 // tension and the lung pressure at every closure, held through the next
 // cycle (relative, for a unit-variance draw). The slow 8 Hz stage above
 // cannot give this: raised, it became a tremor. Male readers: jitter
 // 0.9-1.4 %, shimmer 0.44-0.81 dB, HNR 5-9 dB; puhuja had 0.6 %, 0.22 dB,
 // 13 dB.
-constexpr float kCycleJitter = 0.0f, kCycleShimmer = 0.0f;  // off: at 0.012/0.07 and 0.024/0.14 the HNR, jitter and shimmer matched a male reader, but it was heard as rasp. The readers' "noise" in those measures is largely their sharp, well-placed transients, not roughness.
 // Below ~10 Hz the variation is heard as a natural, slow unsteadiness; at
 // 30 Hz it was roughness (graininess): harmonics above 1.5 kHz broke into
 // noise, vowel HNR 1-2 kHz 13 dB (goog.wav 19), shimmer 0.20 dB (0.11),
 // and the pitch wobbled 15 cents within a vowel (6). At 8 Hz with gain 3:
 // 23 dB, 0.06 dB, 7 cents.
-constexpr float kMicroHz = 8;
-constexpr int kFoldOversample = 4;
-constexpr float kFoldAntiAliasHz = 18000;  // width of the soft floor of the mouth opening (cm^2)
 
 constexpr float kNasalPoleHz = 270;
 // Level given back for the nasal zero: (zero / pole)^this (1: the highs
@@ -574,7 +513,6 @@ constexpr Voice kFemaleVoice = {200, {1.12f, 1.15f, 1.06f}, 1.15f, 0.92f, 1.8f, 
                                 // the vowel middles). F3 x1.15 (2960 Hz vs 2770-2840) with F4 3850
                                 // crowded F3 and F4 into one bump: vowels 5-8 dB hot at 3-4 kHz.
                                 4000, 4500, 3.0f};  // (micro 5 matched goog's jitter but as an 8 Hz wobble of +-24 cents: an old woman's tremor, "now" wobbly)
-constexpr float kTrebleShelfHz = 5000;  // (2500: the female voice was shrill at 2-4.5 kHz without air above)
 // Bandwidth scale of consonant targets (see setTargets in emit).
 constexpr float kConsonantBw = 1.5f;
 // Voice heard through the chest wall and neck, without the mouth's
@@ -600,7 +538,7 @@ constexpr float kJhFricationLength = 1.1f;
 constexpr float kEnglishChFricationLength = 1.6f, kEnglishChReleaseMs = 8;
 // English affricates: frication length as a multiple of the reader's closure
 // (1.8: a stressed ʧ's 50 ms closure + 90 ms frication, as before).
-constexpr float kAffricateFricationPerClosure = 1.9f;  // (2.2: ʧ ʤ 145-168 ms against 90-120 in am_onyx and ElevenLabs; a quarter of the way back, 2026-10-30)  // (1.8: a final "rich" came back from Whisper as "right"; a recording's final ʧ has 230 ms of hiss)  // (1.3: ʧ 124 ms, the readers 120-190, a final one in a recording 230)  // ... and ʤ's 10 % longer (by ear)
+constexpr float kAffricateFricationPerClosure = 1.6f;  // (1.9: onset and medial ʤ ʧ 137-182 ms in kennedy.txt against 70-150, median ~115, in six references; "generosity" 163 vs 100-150, "torch" 137 vs 70-80, 2026-10-30)  // (2.2: ʧ ʤ 145-168 ms against 90-120 in am_onyx and ElevenLabs; a quarter of the way back, 2026-10-30)  // (1.8: a final "rich" came back from Whisper as "right"; a recording's final ʧ has 230 ms of hiss)  // (1.3: ʧ 124 ms, the readers 120-190, a final one in a recording 230)  // ... and ʤ's 10 % longer (by ear)
 
 enum class Cls { Vowel, Plosive, Nasal, Liquid, Trill, Glide, Fricative, H, Stop };
 
@@ -843,13 +781,6 @@ Aero aeroOf(Ph ph) {
   return {kAcOpen, kAgVoice, 0};
 }
 
-float smoothstep(float a, float b, float x) {
-  float t = std::clamp((x - a) / (b - a), 0.0f, 1.0f);
-  return t * t * (3.0f - 2.0f * t);
-}
-
-float msToSamples(float ms, float fs) { return ms * 0.001f * fs; }
-
 }  // namespace
 
 float Gesture::tick() {
@@ -973,12 +904,6 @@ Synth::Synth(float sampleRate, float baseF0) : fs_(sampleRate), baseF0_(baseF0 >
   ac_.set(kAcOpen);
   expand_.set(1);
   planVolume_ = lungVolume_ = kLungRest;
-  // Let the folds settle, pressed together, before the first sample (from
-  // the neutral position they would spring open with a click).
-  folds_.reset();
-  for (int i = 0; i < static_cast<int>(0.05f * fs_); ++i)
-    folds_.step(1.0f / fs_, {kLungPressure, 0, 0.7f, kFoldRestPressed});
-  prevFlow_ = folds_.flow();
   inhaleFilter_.set(kInhaleShape, fs_);
   inhaleSnatchFilter_.set(kInhaleSnatchShape, fs_);
   ag_.set(0);
@@ -998,12 +923,10 @@ Synth::Synth(float sampleRate, float baseF0) : fs_(sampleRate), baseF0_(baseF0 >
   kAspLp_ = 1.0f - std::exp(-2.0f * kPi * kAspirationTiltHz / fs_);
   kAspHp_ = 1.0f - std::exp(-2.0f * kPi * kAspirationLowCutHz / fs_);
   presence_.peaking(kPresenceHz, kPresenceBw, kPresenceDb, fs_);
-  kTriLeak_ = 2.0f * kPi * 5.0f / fs_;  // ~5 Hz: removes drift, keeps the shape
   kPitchLag_ = 1.0f - std::exp(-1.0f / msToSamples(kPitchLagMs, fs_));
   kAspGainFollow_ = 1.0f - std::exp(-1.0f / msToSamples(3.0f, fs_));
   kLookAheadSamples_ = std::max(kPitchLookAheadMs, kFormantLookAhead * kFormantTauMs[0]) * 0.001 * fs_;
   kCreakFollow_ = 1.0f - std::exp(-1.0f / msToSamples(20.0f, fs_));
-  kBreathyCompFollow_ = 1.0f - std::exp(-1.0f / msToSamples(8.0f, fs_));
   kAspBurstDecay_ = std::exp(-1.0f / msToSamples(kAspiratedAdductMs / 3.0f, fs_));
   shelfGain_ = std::pow(10.0f, kShelfDb / 20.0f) - 1.0f;
   physTilt_.highPass1(kPhysTiltHz, fs_);
@@ -1011,23 +934,18 @@ Synth::Synth(float sampleRate, float baseF0) : fs_(sampleRate), baseF0_(baseF0 >
   airHp1_.highPass(kAirHz, fs_);
   airHp2_.highPass(kAirHz, fs_);
   airLp_.lowPass(kAirTopHz, fs_);
-  kVibTrack_ = 1.0f - std::exp(-1.0f / msToSamples(10, fs_));
-  foldAcHp2_.highPass(250.0f, fs_);
-  kPitchRelax_ = 1.0f - std::exp(-1.0f / msToSamples(200, fs_));
   kTrillDecay_ = 1.0f - std::exp(-1.0f / msToSamples(kTrillDecayMs, fs_));
   kTrillAttack_ = 1.0f - std::exp(-1.0f / msToSamples(kTrillAttackMs, fs_));
   kSpeechDecay_ = 1.0f - std::exp(-1.0f / msToSamples(kSpeechFadeMs, fs_));
   kPopSmooth_ = 1.0f - std::exp(-1.0f / msToSamples(2.0f, fs_));
-  kMicroSmooth_ = 1.0f - std::exp(-2.0f * kPi * kMicroHz / fs_);
-  // A 6th-order Butterworth (three identical Q 0.707 sections drooped
-  // 3.7 dB at 12-16 kHz).
-  const float aaQ[3] = {0.5176f, 0.7071f, 1.9319f};
-  for (int k = 0; k < 3; ++k) foldAa_[k].lowPass(kFoldAntiAliasHz, kFoldOversample * fs_, aaQ[k]);
   kSpeechAttack_ = 1.0f - std::exp(-1.0f / msToSamples(kSpeechAttackMs, fs_));
   speechAttackNow_ = kSpeechAttack_;
   voice_ = kMaleVoice;
-  setPulse(kMalePulse);
+  pulse_ = &kMalePulse;
   voice_.f0 = baseF0_;
+  larynx_ = makeLarynx(Carrier::Physical);
+  larynx_->init(fs_, voice_.f0, &rng_);
+  larynx_->setPulse(*pulse_);
   press_.set(1.0f);
   setFixedResonances();
   chestLp_.lowPass(kChestHz, fs_);
@@ -1074,49 +992,20 @@ void Synth::setFixedResonances() {
                    : Resonator();
 }
 
-void Synth::setPulse(const PulseShape& p) {
-  pulse_ = &p;
-  // On the source only: bursts, frication and aspiration are made in the
-  // mouth and must not depend on how the cords work (Jyrki).
-  shapedTreble_.highShelf(kTrebleShelfHz, p.trebleDb, fs_);
-  pulseAtPitch(voice_.f0);
+void Synth::setCarrier(Carrier c) {
+  carrier_ = c;
+  larynx_ = makeLarynx(c);
+  larynx_->init(fs_, voice_.f0, &rng_);
+  larynx_->setBaseF0(voice_.f0);
+  larynx_->setPulse(*pulse_);
 }
-
-void Synth::pulseAtPitch(float f0) {
-  const PulseShape& p = *pulse_;
-  const float ratio = std::max(f0, 1.0f) / voice_.f0;
-  float share[PulseShape::kMaxN];
-  float open = 0;
-  for (int i = 0; i + 1 < p.n; ++i) {
-    share[i] = p.share[i] * std::pow(ratio, p.pitchExp[i]);
-    open += share[i];
-  }
-  // The closed phase takes the rest; if the open segments would overflow the
-  // period, they shrink together to leave the minimum closed phase.
-  const float maxOpen = 1.0f - PulseShape::kMinClosed;
-  if (open > maxOpen) {
-    for (int i = 0; i + 1 < p.n; ++i) share[i] *= maxOpen / open;
-    open = maxOpen;
-  }
-  share[p.n - 1] = 1.0f - open;
-  pulseAt_[0] = 0;
-  float mean = 0, prev = 0;
-  for (int i = 0; i < p.n; ++i) {
-    pulseAt_[i + 1] = pulseAt_[i] + share[i];
-    pulseSlope_[i] = (p.height[i] - prev) / std::max(share[i], 1e-4f);
-    mean += 0.5f * (prev + p.height[i]) * share[i];
-    prev = p.height[i];
-  }
-  pulseAt_[p.n] = 1.0f;
-  pulseMean_ = mean;
-}
-
-void Synth::setCarrier(Carrier c) { carrier_ = c; }
 
 void Synth::setVoice(VoicePreset preset) {
   voice_ = preset == VoicePreset::Female ? kFemaleVoice : kMaleVoice;
-  setPulse(preset == VoicePreset::Female ? kFemalePulse : kMalePulse);
+  pulse_ = preset == VoicePreset::Female ? &kFemalePulse : &kMalePulse;
   baseF0_ = voice_.f0;
+  larynx_->setBaseF0(voice_.f0);
+  larynx_->setPulse(*pulse_);
   trebleShelf_.highShelf(kTrebleShelfHz, voice_.treble, fs_);
   // The F3-region source cut follows the voice's F3 (higher for a woman).
   physUpperCut_.peaking(kPhysUpperCutHz * voice_.formant[2], kPhysUpperCutBw * voice_.formant[2],
@@ -1261,6 +1150,7 @@ void Synth::push(Ph ph, bool wordStart) {
       if (ph == p.ph && !p.isLong) {
         p.isLong = true;  // "kk", "aa": one long phoneme
         p.doubled = true;
+        if (sameAcross) p.wordJoin = true;
         p.stress = std::max(p.stress, stress);
         return;
       }
@@ -1328,6 +1218,7 @@ void Synth::finish() {
     emit(pending_, nullptr);
     hasPending_ = false;
   }
+  planSentence();
   finished_ = true;
 }
 
@@ -1375,6 +1266,8 @@ void Synth::addKeyframe(const Params& p, double t, bool vowel) {
   // The very first keyframe is doubled so the first segment has a predecessor.
   if (k_.empty()) k_.push_back({p, t, vowel});
   k_.push_back({p, t, vowel});
+  k_.back().ph = curPh_;
+  if (k_.size() == 2) k_.front().ph = curPh_;
 }
 
 // A target held from a to b (shares of the phoneme's duration): the edge
@@ -1454,6 +1347,7 @@ void Synth::addLabel(const Token& tok) {
   // Consecutive pauses form one pause.
   if (tok.ph == Ph::Stop && !labelStarts_.empty() && labelStarts_.back().second == "_") return;
   labelStarts_.push_back({timeline_, s});
+  labelWordStarts_.push_back(tok.ph == Ph::Stop ? 0 : tok.wordJoin ? 2 : tok.wordStart ? 1 : 0);
 }
 
 std::vector<Synth::Label> Synth::labels() const {
@@ -1463,7 +1357,7 @@ std::vector<Synth::Label> Synth::labels() const {
     double a = labelStarts_[i].first;
     double b = i + 1 < labelStarts_.size() ? labelStarts_[i + 1].first : timeline_;
     out.push_back({std::max(a - start, 0.0) / fs_, std::max(b - start, 0.0) / fs_,
-                   labelStarts_[i].second});
+                   labelStarts_[i].second, labelWordStarts_[i] != 0, labelWordStarts_[i] == 2});
   }
   return out;
 }
@@ -1471,6 +1365,7 @@ std::vector<Synth::Label> Synth::labels() const {
 
 void Synth::emit(const Token& tok, const Ph* next) {
   Info in = info(tok.ph);
+  curPh_ = tok.ph;
   {
     const Cls cl = in.cls;
     rangeTok_ = formantRanges_ && (cl == Cls::Nasal || cl == Cls::Liquid || cl == Cls::Trill ||
@@ -2544,15 +2439,7 @@ size_t Synth::pull(float* out, size_t n) {
   return i;
 }
 
-float Synth::noise() {
-  // 64-bit: a multiply by a large odd constant (carries the low bits up),
-  // then xorshifts to the right (carry the high bits back down). Each step
-  // is a bijection, so the state never reaches 0. The top 24 bits are used.
-  rng_ *= 0x9e3779b97f4a7c15ull;
-  rng_ ^= rng_ >> 32;
-  rng_ ^= rng_ >> 29;
-  return static_cast<float>(rng_ >> 40) * (1.0f / 8388608.0f) - 1.0f;
-}
+float Synth::noise() { return nextNoise(rng_); }
 
 float Synth::tick() {
   // Start the articulator movements and noise changes that are due.
@@ -2676,14 +2563,14 @@ float Synth::tick() {
   // of the vibration, its weakening under a constriction and the breath
   // noise all come from the folds, so the stops and fricatives are the same
   // under either source (Jyrki: t k p d g b s z sh are made in the mouth).
-  const bool runFolds = carrier_ == Carrier::Physical || carrier_ == Carrier::Shaped;
+  const bool runFolds = larynx_->physical();
   if (runFolds) {
     // The turbulence follows the airflow: with vibrating folds it comes in
     // puffs with each glottal pulse (the buzzy noise of ð z ʒ v), weighted
     // by how strongly the folds vibrate. (A hard gate on the mean flow
     // switched the pulsing on and off within a sample, x2.2 steps.)
-    const float pulse = std::clamp(folds_.flow() / std::max(flowMean_, 20.0f), 0.0f, 2.5f);
-    const float w = std::min(physVib_ / kNoisePulseVib, 1.0f);
+    const float pulse = std::clamp(larynx_->flow() / std::max(larynx_->flowMean(), 20.0f), 0.0f, 2.5f);
+    const float w = std::min(larynx_->vib() / kNoisePulseVib, 1.0f);
     fricAmp *= 1.0f + kNoisePulse * w * (pulse - 1.0f);
   }
   const float openness = std::sqrt(std::max(ag - kAgVoice, 0.0f) / (kAgOpen - kAgVoice));
@@ -2701,16 +2588,26 @@ float Synth::tick() {
   Params p;
   for (int i = 0; i < kNumParams; ++i)
     p[i] = c_[0][i] + s * (c_[1][i] + s * (c_[2][i] + s * c_[3][i]));
-  if (motion_ == FormantMotion::Damped) {
-    // Critically damped: x'' = w^2 (target - x) - 2 w x'.
+  float planned[4];
+  const bool usePlan = motion_ == FormantMotion::Planned && planAt(t_ + kPlanTauMs * 0.001 * fs_, planned);
+  if (motion_ != FormantMotion::Spline) {
+    // Critically damped: x'' = w^2 (target - x) - 2 w x'. With a plan the
+    // target is the planned path (read one time constant ahead) and the
+    // follower only smooths the plan's 5 ms grid.
     const float dt = 1.0f / fs_;
     for (int k = 0; k < 3; ++k) {
-      const float w = 1000.0f / kFormantTauMs[k];
+      const float tauMs = usePlan ? kPlanTauMs : kFormantTauMs[k];
+      const float w = 1000.0f / tauMs;
       if (!formInit_) formPos_[k] = p[kF1 + k];
-      const double tauS = kFormantTauMs[k] * 0.001 * fs_;
+      const double tauS = tauMs * 0.001 * fs_;
       const double ahead = t_ + kFormantLookAhead * tauS;
-      float target = splineAt(kF1 + k, ahead);
-      target -= kFormantPreemphasis * (splineAt(kF1 + k, ahead + tauS) - 2.0f * target + splineAt(kF1 + k, ahead - tauS));
+      float target;
+      if (usePlan) {
+        target = std::exp2(planned[k]);
+      } else {
+        target = splineAt(kF1 + k, ahead);
+        target -= kFormantPreemphasis * (splineAt(kF1 + k, ahead + tauS) - 2.0f * target + splineAt(kF1 + k, ahead - tauS));
+      }
       formVel_[k] += dt * (w * w * (target - formPos_[k]) - 2.0f * w * formVel_[k]);
       formPos_[k] += dt * formVel_[k];
       p[kF1 + k] = formPos_[k];
@@ -2730,7 +2627,7 @@ float Synth::tick() {
     if (trace && static_cast<long long>(t_) % static_cast<long long>(fs_ / 200) == 0)
       std::fprintf(trace, "%.4f\t%.1f\t%.1f\t%.1f\t%.3f\t%.2f\t%.4f\t%.4f\t%.3f\t%.4f\t%.1f\t%.3f\t%.3f\t%.0f\t%.2f\t%.2f\t%.2f\n",
                    (t_ - std::max(outputStart_, 0.0)) / fs_, p[kF1], p[kF2], p[kF3], p[kAV],
-                   baseF0_ * pitch2_, ag, ac, speechEnv_, nLevel_, p[kB1], po_, drop, lungVolume_, foldAc_, foldCycleAmp_, sPhase_);
+                   baseF0_ * pitch2_, ag, ac, speechEnv_, nLevel_, p[kB1], po_, drop, lungVolume_, larynx_->loudness(), larynx_->cyclePeak(), larynx_->pulsePhase());
   }
 
   // Splines may overshoot a little; keep values physically sensible.
@@ -2739,7 +2636,7 @@ float Synth::tick() {
   // Glottal damping: while the folds are open, air escapes downward and F1
   // widens (physical source only).
   const float openB1 = runFolds
-                           ? kGlottalB1 * std::min(folds_.area() / 0.1f, 1.5f) : 0.0f;
+                           ? kGlottalB1 * std::min(larynx_->area() / 0.1f, 1.5f) : 0.0f;
   r1_.set(std::clamp(p[kF1] * voice_.formant[0], 100.0f, nyq),
           std::max(p[kB1] * voice_.bw[0], 20.0f) + openB1, fs_);
   // The open glottis damps every mode (each has its pressure maximum at the
@@ -2766,7 +2663,7 @@ float Synth::tick() {
   // weakens the taps slow down and die away exponentially.
   const float trillDrive =
       runFolds
-          ? std::clamp((flowMean_ - kTrillFlowMin) / (kTrillFlowFull - kTrillFlowMin), 0.0f, 1.0f)
+          ? std::clamp((larynx_->flowMean() - kTrillFlowMin) / (kTrillFlowFull - kTrillFlowMin), 0.0f, 1.0f)
           : vibAmp_;
   const float trillTarget = std::clamp(p[kTrill], 0.0f, 1.0f) * trillDrive;
   trillAmp_ += (trillTarget - trillAmp_) * (trillTarget > trillAmp_ ? kTrillAttack_ : kTrillDecay_);
@@ -2781,7 +2678,12 @@ float Synth::tick() {
   if (pitch1_ <= 0) pitch1_ = pitch2_ = p[kF0Mul];
   // The pitch command is read a little ahead (like the formants), so the
   // laryngeal lag delays the melody less.
-  pitch1_ += kPitchLag_ * (splineAt(kF0Mul, t_ + kPitchLookAheadMs * 0.001 * fs_) - pitch1_);
+  {
+    float pl[4];
+    const double tp = t_ + kPitchLookAheadMs * 0.001 * fs_;
+    const float cmd = motion_ == FormantMotion::Planned && planAt(tp, pl) ? std::exp2(pl[3]) : splineAt(kF0Mul, tp);
+    pitch1_ += kPitchLag_ * (cmd - pitch1_);
+  }
   pitch2_ += kPitchLag_ * (pitch1_ - pitch2_);
   float f0 = baseF0_ * pitch2_ * f0Aero * jitter_;
   float dt = f0 / fs_;
@@ -2793,243 +2695,40 @@ float Synth::tick() {
     duty_ = carrier_ == Carrier::Triangle ? kTriangleDuty + kTriangleDutyJitter * noise()
                                           : kSquareDuty;
   }
-  float g = 0;
-  // Air leaving the lungs (cm^3/s); the physical source replaces this estimate.
+  // Air leaving the lungs (cm^3/s); the fold models replace this estimate.
   float glottalFlow = 4000.0f * ag * std::sqrt(drop) * lungFactor;
-  float physPuff = 0;  // breath noise follows the flow (physical source)
-  float airPuff = 0;   // the same, capped at the level of a vowel
-  if (runFolds) {
-    // Pitch is set by fold tension; a slow controller steers the measured
-    // f0 toward the target (as a speaker does), leaving fast effects of
-    // pressure and coupling in place.
-    const float target = baseF0_ * pitch2_ * jitter_ * (1.0f + kF0Tension * tension_);
-    VocalFolds::Input in;
+  // The larynx: the speaker's commands in, the voice source out.
+  LarynxOutput lo;
+  {
+    LarynxControl lc;
+    lc.t = t_;
+    // The folds' pitch target: the melody with the slow tension that
+    // abduction adds; the fast aerodynamic effects are the folds' own.
+    lc.f0 = baseF0_ * pitch2_ * jitter_ * (1.0f + kF0Tension * tension_);
+    lc.f0Wave = f0;
+    lc.phase = phase_;
+    lc.phaseStep = dt;
+    lc.duty = duty_;
     // With the glottis fully closed (a pause) the speaker also stops pushing
     // air from the lungs, which ends any remaining vibration.
-    in.ps = kLungPressure * lungFactor * drop * smoothstep(0.0f, 0.5f * kAgVoice, ag) * press_.tick();
-    in.p1 = p1_;
-    in.q = target / kFoldNaturalF0 * pitchCorr_;
-    // A half-open glottis (breathy h between vowels) lets the folds sag in
-    // pitch (-2.4 st in "few who"), faster than the pitch control learns:
-    // the tension makes up for it, following the opening over ~8 ms (at
-    // once it dropped a semitone at the vowel; over 40 ms it lagged).
-    // Only in the breathy range (an h between vowels): opening further, for
-    // a voiceless sound, the folds stop anyway, and the added tension raised
-    // the pitch at the end of a vowel before it ("God." -> t).
-    // Pressing together (a pause's closing, creak) raises the folds' pitch:
-    // the phrase ended with a small upturn; the tension eases off for it.
-    const float pressed = ag < kAgVoice ? -kPressedPitchComp / kBreathyPitchComp * (kAgVoice - ag) / kAgVoice : 0.0f;
-    // (Tapered out between 0.15 and 0.21 cm^2: cut off at 0.18 the tension
-    // dropped up to 6 % within 8 ms at vowel -> s/f offsets.)
-    const float breathy = (std::clamp((ag - kAgVoice) / (kAgOpen - kAgVoice), 0.0f, 1.0f) + pressed) *
-                          (1.0f - smoothstep(kBreathyCompMaxAg - 0.03f, kBreathyCompMaxAg + 0.03f, ag));
-    breathyComp_ += (breathy - breathyComp_) * kBreathyCompFollow_;
-    in.q *= 1.0f + kBreathyPitchComp * breathyComp_;
-    // Micro-variation that the pitch controller does not follow (it learns
-    // only slowly): tension, rest gap and lung pressure fluctuate a little,
-    // low-passed to ~30 Hz. Real voices: jitter ~1 %, shimmer ~0.6 dB. It
-    // also keeps the highest harmonics from being perfectly periodic, which
-    // buzzes when the highs are brought up.
-    // Two one-pole stages (one let the variation's slope through as noise
-    // in the highs: -6 dB/oct only); x1.4 keeps its RMS.
-    float micro[3];
-    for (int k = 0; k < 3; ++k) {
-      microLp_[k] += (noise() - microLp_[k]) * kMicroSmooth_;
-      microLp2_[k] += (microLp_[k] - microLp2_[k]) * kMicroSmooth_;
-      micro[k] = kMicro2Gain * voice_.microGain / 3.0f * microLp2_[k];
-    }
+    lc.ps = runFolds ? kLungPressure * lungFactor * drop * smoothstep(0.0f, 0.5f * kAgVoice, ag) * press_.tick() : 0.0f;
+    lc.ag = ag;
     creakNow_ += (creakTarget_ - creakNow_) * kCreakFollow_;
-    const float irregular = 1.0f + kCreakJitter * creakNow_;
-    in.q *= 1.0f + kTensionJitter * irregular * micro[0];
-    in.ps *= 1.0f + kPressureShimmer * micro[2];
-    in.q *= 1.0f + kCycleJitter * voice_.cycleJitter * cycleJ_;
-    in.ps *= 1.0f + kCycleShimmer * voice_.cycleShimmer * cycleS_;
-    // Fold rest position from the glottal opening: above the voicing
-    // position the folds move apart; below it they press together, firmly
-    // enough at ag = 0 (a pause, a glottal stop) to stop the vibration.
-    const float restVoice = kFoldRestPerAg * kAgVoice + kFoldRestOffset;
-    in.rest = ag >= kAgVoice ? kFoldRestPerAg * ag + kFoldRestOffset
-                             : kFoldRestPressed + (restVoice - kFoldRestPressed) * ag / kAgVoice;
-    // Its micro-variation: added after the rest position is set (before
-    // it, the assignment overwrote it, and the jitter never acted).
-    in.rest += kRestJitter * irregular * micro[1];
-    // A posterior gap (female voices): softer closure, stronger fundamental.
-    in.rest += voice_.glottalGap * smoothstep(0.0f, kAgVoice, ag);
-    // The folds run kFoldOversample times faster than the output, and their
-    // flow is low-passed before it is taken once per sample: the flow drops
-    // to zero within a sample at each closure, and sampled directly that
-    // corner aliases (inharmonic hiss 13-20 dB under the harmonics above
-    // 8 kHz).
-    float u = 0;
-    bool closed = false;
-    double closeAt = 0;  // closure time within this sample (0..1)
-    for (int k = 0; k < kFoldOversample; ++k) {
-      const float raw = folds_.step(1.0f / (kFoldOversample * fs_), in);
-      u = foldAa_[2].process(foldAa_[1].process(foldAa_[0].process(raw)));
-      if (folds_.closedNow()) {
-        closed = true;
-        closeAt = (k + folds_.closeFraction()) / kFoldOversample;
-      }
-    }
-    glottalFlow = u;
-    if (physVib_ < kPitchLearnVib) pitchCorrTarget_ += (1.0f - pitchCorrTarget_) * kPitchRelax_;
-    if (closed) {
-      // Period from closure to closure, timed to a small fraction of a
-      // sample (the zero crossing of the opening between the folds'
-      // substeps; whole samples were only good to ~3 cents at 92 Hz).
-      const double closeTime = t_ + closeAt;
-      const double period = closeTime - lastCloseTime_;
-      // The next cycle's deviations (a rough gaussian from two draws).
-      cycleJ_ = std::clamp(0.87f * (noise() + noise()), -2.5f, 2.5f);
-      cycleS_ = std::clamp(0.87f * (noise() + noise()), -2.5f, 2.5f);
-      lastCloseTime_ = closeTime;
-      const float measured = static_cast<float>(fs_ / std::max(period, 1.0));
-      // Learn only from steady, strong vibration: during onsets and offsets
-      // the closures are irregular and would detune the folds.
-      if (physVib_ > kPitchLearnVib && measured > 0.7f * target && measured < 1.4f * target)
-        pitchCorrTarget_ = std::clamp(
-            pitchCorrTarget_ * static_cast<float>(std::pow(static_cast<double>(target) / measured, kPitchControl)),
-            0.7f, 1.4f);
-    }
-    // The correction glides over about a cycle instead of jumping at each
-    // closure.
-    pitchCorr_ += (pitchCorrTarget_ - pitchCorr_) * std::min(1.0f, target / fs_);
-    // Tract feedback: each formant mode turns the flow into pressure.
-    const float fm[3] = {p[kF1] * voice_.formant[0], p[kF2] * voice_.formant[1],
-                         p[kF3] * voice_.formant[2]};
-    const float bm[3] = {p[kB1], p[kB2], p[kB3]};
-    p1_ = 0;
-    for (int k = 0; k < 3; ++k) {
-      tractMode_[k].set(std::clamp(fm[k], 100.0f, nyq), std::max(bm[k], 20.0f), fs_);
-      p1_ += kTractCoupling[k] * tractMode_[k].process(u);
-    }
-    // Radiated sound ~ rate of change of the flow (lip radiation).
-    g = (u - prevFlow_) * kPhysicalGain;
-    // The folds' loudness: their radiated sound's envelope (~10 ms). The
-    // flow's slow changes as the glottis opens or closes do not count, so
-    // under an aspiration or an f it is ~0, unlike physVib_.
-    // Measured above 250 Hz: soft phonation (the folds barely touching,
-    // as a stop closes or voicing starts) is nearly sinusoidal and has almost
-    // nothing there, and the drawn pulse, which keeps its harmonics at any
-    // level, must go as quiet as the folds' sound does. The flow's slow
-    // wander (the glottis opening, the micro-variation) goes with it.
-    const float dflow = u - prevFlow_;
-    const float dflowHp = foldAcHp2_.process(dflow);
-    foldAc_ += (std::fabs(dflowHp) - foldAc_) * kVibTrack_;
-    // A fast envelope too: within a steady cycle it swings between
-    // the closure spike and the open phase, so it is not a level, but when
-    // it falls under kShapedFastFloor of the last cycle's peak the folds have
-    // gone quiet mid-cycle (a stop closing, voicing dying) and the drawn
-    // pulse follows within a quarter cycle instead of a whole one.
-    // Its time constant is a quarter of the current period (a fixed 2 ms
-    // let it sag through a low voice's long open phase, and the floor then
-    // modulated the pulse within the cycle: crest 11 dB again).
-    foldFast_ += (std::fabs(dflowHp) - foldFast_) * std::min(4.0f * dt, 1.0f);
-    // Per cycle: the loudest sample of the folds' sound in the current cycle
-    // of the shaped pulse; the shaped pulse plays the previous cycle's. The
-    // folds stop within a cycle when pressed shut or drawn apart (a 10 ms
-    // envelope let the drawn pulse ring 20 dB into every stop's closure).
-    foldCycleMax_ = std::max(foldCycleMax_, std::fabs(dflowHp));
-    // Samples since the folds last closed (the drawn pulse's period).
-    if (closed && carrier_ == Carrier::Shaped) {
-      // The drawn pulse is locked to the folds, cycle for cycle: at each
-      // closure it restarts, with the period the folds just made, and takes
-      // the loudness of the cycle that just ended. (Run at the commanded pitch
-      // it beat against the folds' own, slightly different one, and the
-      // per-cycle loudness flickered with the beat.) If the folds do not
-      // close again the pulse finishes its cycle and stays in its closed
-      // phase: it stops when they stop.
-      const float period = std::clamp(static_cast<float>(sinceClose_ + 1), fs_ / 500.0f, fs_ / 40.0f);
-      sPhase_ = 0;
-      // Run a little fast (kShapedPeriodShare of the period just measured):
-      // the folds' cycles vary by a few per cent, and a pulse still falling
-      // when the next closure restarts it would end in a click; finishing
-      // early it rests at zero flow until the folds close again.
-      sDt_ = 1.0f / (kShapedPeriodShare * period);
-      pulseAtPitch(fs_ / period);
-      foldCycleAmp_ = foldCycleMax_;
-      foldCycleMax_ = 0;
-    }
-    sinceClose_ = closed ? 0 : sinceClose_ + 1;
-    prevFlow_ = u;
-    // Vibration strength: the flow's fluctuation around its mean, which
-    // gates the breath noise (none while the folds are apart and still).
-    flowMean_ += (u - flowMean_) * kVibTrack_;
-    physVib_ += (std::fabs(u - flowMean_) - physVib_) * kVibTrack_;
-    physPuff = std::min(physVib_ / 150.0f, 1.5f) * std::min(u / 400.0f, 1.5f);
-    // High breath: mostly steady while the folds vibrate; only kAirPulse of
-    // it follows the flow. Switched fully on and off by each glottal cycle
-    // it is heard as a buzzing hiss. No stronger in h than in vowels.
-    airPuff = std::min(physVib_ / 150.0f, 1.0f) *
-              (1.0f - kAirPulse + kAirPulse * std::min(u / 400.0f, 1.0f));
-  } else if (carrier_ == Carrier::Square) {
-    // Band-limited pulse wave: high for the first duty_ of the period,
-    // low for the rest, shifted to zero mean, with PolyBLEP-smoothed edges.
-    float fall = phase_ + 1.0f - duty_;
-    if (fall >= 1.0f) fall -= 1.0f;
-    float sq = (phase_ < duty_ ? 1.0f : -1.0f) - (2.0f * duty_ - 1.0f) +
-               polyBlep(phase_, dt) - polyBlep(fall, dt);
-    g = sq * kSquareGain;
-  } else if (carrier_ == Carrier::Triangle) {
-    // Triangle pulse of glottal flow: rises 0 -> 1 while the folds open
-    // (duty_ of the open phase), falls back to 0 as they close, and stays 0
-    // while closed. Built by integrating its slope; each slope step is
-    // smoothed with PolyBLEP, which keeps the triangle band-limited.
-    const float rise = duty_ * kTriangleOpenQuotient;
-    const float fallLen = kTriangleOpenQuotient - rise;
-    float slope = phase_ < rise ? 1.0f / rise : phase_ < kTriangleOpenQuotient ? -1.0f / fallLen : 0.0f;
-    auto edge = [&](float at, float height) {
-      float t = phase_ - at;
-      if (t < 0) t += 1.0f;
-      slope += 0.5f * height * polyBlep(t, dt);
-    };
-    edge(0, 1.0f / rise);
-    edge(rise, -1.0f / rise - 1.0f / fallLen);
-    edge(kTriangleOpenQuotient, 1.0f / fallLen);
-    tri_ += slope * dt;
-    tri_ -= tri_ * kTriLeak_;
-    g = (tri_ - 0.5f * kTriangleOpenQuotient) * kTriangleGain;  // zero mean
-  } else if (phase_ < kOpenQuotient) {
-    // Glottal pulse: derivative of the flow pulse U = x^2 - x^3 during the
-    // open phase (x in [0,1)), zero while closed. The sharp drop at closure
-    // is the main excitation, as in real voicing.
-    float x = phase_ / kOpenQuotient;
-    g = 2.0f * x - 3.0f * x * x;
+    lc.irregular = 1.0f + kCreakJitter * creakNow_;
+    lc.gap = voice_.glottalGap;
+    lc.microGain = voice_.microGain;
+    lc.cycleJitter = voice_.cycleJitter;
+    lc.cycleShimmer = voice_.cycleShimmer;
+    for (int k = 0; k < 3; ++k) lc.formant[k] = p[kF1 + k] * voice_.formant[k];
+    lc.bw[0] = p[kB1];
+    lc.bw[1] = p[kB2];
+    lc.bw[2] = p[kB3];
+    lc.vibDrive = vibAmp_;
+    larynx_->step(lc, lo);
   }
-  if (carrier_ == Carrier::Shaped) {
-    // The shaped pulse: a piecewise-linear flow integrated from its slope,
-    // each slope step smoothed with PolyBLEP (band-limited), like the
-    // triangle above. Segment ends, slopes and the mean come from
-    // pulseAtPitch. It replaces the folds' sound, locked to their cycles and
-    // scaled by their loudness, so it starts, stops and weakens exactly when
-    // the folds do.
-    const int n = pulse_->n;
-    const bool running = sPhase_ < 1.0f;
-    float slope = 0;
-    if (running)
-      for (int i = 0; i < n; ++i)
-        if (sPhase_ >= pulseAt_[i] && sPhase_ < pulseAt_[i + 1]) slope = pulseSlope_[i];
-    // Each slope step is smoothed over the sample before and after it (the
-    // one at the restart has no "before": the folds decide when it comes).
-    for (int i = 0; i < n; ++i) {
-      const float t = sPhase_ - pulseAt_[i];
-      if (t >= 0 && t < sDt_)
-        slope += 0.5f * (pulseSlope_[i] - pulseSlope_[(i + n - 1) % n]) * polyBlep(t, sDt_);
-      else if (t < 0 && t > -sDt_)
-        slope += 0.5f * (pulseSlope_[i] - pulseSlope_[(i + n - 1) % n]) * polyBlep(1.0f + t, sDt_);
-    }
-    tri_ += slope * sDt_;
-    tri_ -= tri_ * kTriLeak_;
-    sPhase_ = std::min(sPhase_ + sDt_, 1.0f);
-    // The folds' loudness, cycle by cycle, with the fast guard (see
-    // kShapedFastFloor).
-    const float vib = std::min(foldCycleAmp_, foldFast_ / kShapedFastFloor) / kShapedAcFull;
-    // The flow plus its rate of change (the lip radiation the other drawn
-    // carriers get at the output), applied here at the source so that the
-    // output stage is the folds' and the mouth's sounds pass it unchanged.
-    g = shapedTreble_.process(((tri_ - pulseMean_) + lipGain_ * (tri_ - prevTri_)) * kShapedGain) * vib;
-    prevTri_ = tri_;
-  }
+  if (runFolds) glottalFlow = lo.flow;
+  float g = lo.source;
+  const float physPuff = lo.puff, airPuff = lo.airPuff;
 
   // Lungs: speaking uses up air; breathing in refills it, with a soft noise
   // swelling and fading over the inhalation.
@@ -3086,7 +2785,7 @@ float Synth::tick() {
   // labial noise through the nasal pole/zero pair and the formant cascade.
   // The shaped pulse takes the physical source's spectral shaping (the
   // voice's tilt, 3 kHz cut and 1 kHz lift), not the triangle's shelf.
-  const bool physLike = carrier_ == Carrier::Physical || carrier_ == Carrier::Shaped;
+  const bool physLike = runFolds;
   if (physLike) {
     g += physTiltGain_ * physTilt_.process(g);
     if (kPhysMidCut) g = midCut_.process(g);
@@ -3100,11 +2799,7 @@ float Synth::tick() {
   }
   const float voiced = g * av;
   // Breath noise swelling and fading smoothly with each glottal cycle.
-  float puff = physPuff;
-  if (!runFolds && phase_ < kTriangleOpenQuotient) {
-    const float w = std::sin(kPi * phase_ / kTriangleOpenQuotient);
-    puff = w * w;
-  }
+  const float puff = physPuff;
   // Physical source: breath follows the folds' own vibration and flow, not
   // the per-phoneme voicing levels (which calibrate the voiced sound).
   const float breathAmp = runFolds ? kPhysBreath * trillMod : av;
@@ -3125,7 +2820,7 @@ float Synth::tick() {
   // steady (fully pulsed it buzzed), by how strongly the folds vibrate.
   if (runFolds) {
     const float hb = hbHp2_.process(hbHp1_.process(noise()));
-    glottal += hb * kHighBreathGain * voice_.breathiness * std::min(physVib_ / kNoisePulseVib, 1.0f) *
+    glottal += hb * kHighBreathGain * voice_.breathiness * std::min(larynx_->vib() / kNoisePulseVib, 1.0f) *
                (1.0f - kHighBreathPulse + kHighBreathPulse * std::min(puff, 2.0f));
   }
   // Aspiration (h, the puff after p t k): turbulence at the glottis, a
@@ -3173,7 +2868,7 @@ float Synth::tick() {
   // Chest: part of the voice is heard straight through the chest wall and
   // the neck, without the mouth's resonances (mostly lows).
   if (carrier_ == Carrier::Physical)
-    y -= kChestDirect * chestLp_.process((glottalFlow - flowMean_) * av * speechEnv_);
+    y -= kChestDirect * chestLp_.process((glottalFlow - larynx_->flowMean()) * av * speechEnv_);
   // Body resonance (see kBodyResonances): voiced sound only. The tract output
   // is gated by the vibration strength, which is ~0 during bursts and hiss.
   {
@@ -3213,6 +2908,354 @@ float Synth::tick() {
   roomLp2_ += kRoomLp_ * (roomLp1_ - roomLp2_);
   out += kRoomTone * roomLp2_;
   return kMasterGain * voice_.gain * out;
+}
+
+
+// ---------------------------------------------------------------------------
+// Sentence planner (FormantMotion::Planned; DESIGN_formant_planning.md).
+//
+// The keyframes of a sentence are turned into demands: for each phoneme and
+// each formant it defines, a target, a tolerance (a dead zone), a time window
+// and a weight. Formants a phoneme does not define are free. Then, per
+// channel (F1, F2, F3, pitch), an iteratively reweighted least-squares solve
+// over 5 ms frames minimises
+//   reach/dwell: w (|x - target| - tol)+^2 inside each window
+//   speed:       mu (|dx| - vmax)+^2          (the articulator's speed limit)
+//   relaxation:  rel (x - r)^2 on free frames (r: the line between the
+//                neighbouring demands, else the spline)
+//   smoothness:  eps (second difference)^2    (anti-jaggedness only).
+// A vowel's target moves through its window toward its neighbours' targets
+// by kPlanCoart (the recordings' formants keep moving inside vowels).
+// Everything is in log2 units (a semitone costs the same everywhere).
+
+namespace {
+
+float planKnob(const char* name, float d) {
+  const char* v = std::getenv(name);
+  return v ? static_cast<float>(std::atof(v)) : d;
+}
+
+struct PlanWeights {
+  float hopMs = planKnob("PLAN_HOP", 5);
+  float w = planKnob("PLAN_W", 1.0f);          // reach/dwell weight of a full demand
+  float tol = planKnob("PLAN_TOL", 0.3f);      // tolerance as a share of kRangeTolerance
+  float vmax[4] = {planKnob("PLAN_VMAX1", 8), planKnob("PLAN_VMAX2", 5), planKnob("PLAN_VMAX3", 5), planKnob("PLAN_F0VMAX", 3.3f)};  // oct/s
+  float mu = planKnob("PLAN_MU", 2.0f);
+  float rel = planKnob("PLAN_REL", 0.02f);
+  float eps = planKnob("PLAN_EPS", 0.05f);
+  // How far a vowel's start and end lean toward the neighbours' targets, per
+  // formant. (0.5 on all three: the female round trip 13 %, 6.2 % with 0:
+  // the jaw must not lean half-way to a stop's closed F1.)
+  float coart[3] = {planKnob("PLAN_COART1", 0.15f), planKnob("PLAN_COART2", 0.3f), planKnob("PLAN_COART3", 0.2f)};
+  float f0w = planKnob("PLAN_F0W", 1.0f);
+  int rounds = static_cast<int>(planKnob("PLAN_ROUNDS", 10));
+};
+
+struct Demand {
+  int ch;        // 0-2 formant, 3 pitch
+  int i0, i1;    // frame window, inclusive
+  float t0, t1;  // target (log2) at i0 and at i1, linear between
+  float tol, w;
+  bool followSpline = false;  // the target is the keyframe spline itself (the pitch line)
+};
+
+// Symmetric pentadiagonal solve (LDL^T): d diagonal, e first off-diagonal
+// (i, i+1), f second (i, i+2); rhs in b, solution returned in b.
+void solvePenta(std::vector<double>& d, std::vector<double>& e, std::vector<double>& f, std::vector<double>& b) {
+  const int n = static_cast<int>(d.size());
+  // Factor: L unit lower with bands l1 (i, i-1), l2 (i, i-2); D in d.
+  std::vector<double> l1(n, 0), l2(n, 0);
+  for (int i = 0; i < n; ++i) {
+    if (i >= 2) {
+      l2[i] = f[i - 2] / d[i - 2];
+    }
+    if (i >= 1) {
+      double v = e[i - 1];
+      if (i >= 2) v -= l2[i] * d[i - 2] * l1[i - 1];
+      l1[i] = v / d[i - 1];
+    }
+    double dd = d[i];
+    if (i >= 1) dd -= l1[i] * l1[i] * d[i - 1];
+    if (i >= 2) dd -= l2[i] * l2[i] * d[i - 2];
+    d[i] = std::max(dd, 1e-12);
+  }
+  // Forward: L y = b.
+  for (int i = 0; i < n; ++i) {
+    if (i >= 1) b[i] -= l1[i] * b[i - 1];
+    if (i >= 2) b[i] -= l2[i] * b[i - 2];
+  }
+  // Diagonal, then back: L^T x = y.
+  for (int i = 0; i < n; ++i) b[i] /= d[i];
+  for (int i = n - 1; i >= 0; --i) {
+    if (i + 1 < n) b[i] -= l1[i + 1] * b[i + 1];
+    if (i + 2 < n) b[i] -= l2[i + 2] * b[i + 2];
+  }
+}
+
+}  // namespace
+
+bool Synth::planAt(double t, float out[4]) const {
+  const size_t n = plan_[0].size();
+  if (n < 2 || planStartT_ < 0) return false;
+  const double x = (t - planStartT_) / planHop_;
+  if (x < 0 || x >= static_cast<double>(n - 1)) return false;
+  const size_t i = static_cast<size_t>(x);
+  const float s = static_cast<float>(x - static_cast<double>(i));
+  for (int c = 0; c < 4; ++c) {
+    const std::vector<float>& v = plan_[c];
+    const float p0 = v[i > 0 ? i - 1 : 0], p1 = v[i], p2 = v[i + 1], p3 = v[std::min(i + 2, n - 1)];
+    // Catmull-Rom over the grid: C1 across frames.
+    const float m1 = 0.5f * (p2 - p0), m2 = 0.5f * (p3 - p1);
+    out[c] = p1 + s * (m1 + s * (-3 * p1 + 3 * p2 - 2 * m1 - m2 + s * (2 * p1 - 2 * p2 + m1 + m2)));
+  }
+  return true;
+}
+
+void Synth::planSentence() {
+  if (motion_ != FormantMotion::Planned) return;
+  static const PlanWeights W;
+  planHop_ = msToSamples(W.hopMs, fs_);
+  // The keyframes not planned yet, grouped into phoneme spans: a run of
+  // keyframes with the same phoneme and the same formant targets (addHeld
+  // makes four per target: two edges and two inner points).
+  struct Span {
+    Ph ph; Cls cls; bool vowel;
+    double tA, tB, tI0, tI1;  // extent and inner window (samples)
+    float f[3], f0;           // targets (Hz, multiplier)
+  };
+  std::vector<Span> spans;
+  double tEnd = planFromT_;
+  for (size_t q = 0; q < k_.size(); ++q) {
+    const Keyframe& kf = k_[q];
+    if (kf.t < planFromT_ - 0.5) continue;
+    tEnd = std::max(tEnd, kf.t);
+    // One span per phoneme: its onset keyframe (a coarticulated start) and
+    // the held group together; the targets are the last keyframe's.
+    const bool same = !spans.empty() && spans.back().ph == kf.ph;
+    if (same) {
+      Span& sp = spans.back();
+      // Inner window: the keyframes that are not edges.
+      if (!kf.edge) {
+        if (sp.tI0 < 0) sp.tI0 = kf.t;
+        sp.tI1 = kf.t;
+      }
+      sp.tB = kf.t;
+      sp.f[0] = kf.p[kF1]; sp.f[1] = kf.p[kF2]; sp.f[2] = kf.p[kF3];
+      sp.f0 = kf.p[kF0Mul];
+    } else {
+      Span sp;
+      sp.ph = kf.ph;
+      sp.cls = info(kf.ph).cls;
+      sp.vowel = kf.vowel;
+      sp.tA = sp.tB = kf.t;
+      sp.tI0 = sp.tI1 = kf.edge ? -1 : kf.t;
+      sp.f[0] = kf.p[kF1]; sp.f[1] = kf.p[kF2]; sp.f[2] = kf.p[kF3];
+      sp.f0 = kf.p[kF0Mul];
+      spans.push_back(sp);
+    }
+  }
+  if (spans.empty() || tEnd <= planFromT_ + planHop_) {
+    planFromT_ = std::max(planFromT_, tEnd);
+    return;
+  }
+  for (Span& sp : spans)
+    if (sp.tI0 < 0) { sp.tI0 = sp.tA; sp.tI1 = sp.tB; }
+
+  // The frame grid continues the existing plan.
+  if (planStartT_ < 0) planStartT_ = planFromT_;
+  const size_t first = plan_[0].size();
+  const double gridStart = planStartT_ + static_cast<double>(first) * planHop_;
+  const int n = std::max(2, static_cast<int>((tEnd - gridStart) / planHop_) + 1);
+  if (n > 200000) return;  // a sentence of over 15 minutes: leave it to the spline
+  auto frameOf = [&](double t) { return std::clamp(static_cast<int>(std::lround((t - gridStart) / planHop_)), 0, n - 1); };
+
+  // Demands. Per class: which formants the phoneme defines, with weights
+  // (share of W.w) and tolerance factors.
+  std::vector<Demand> demands;
+  auto defineAt = [&](int ch, int i0, int i1, float wShare, float tolFactor, float tgtA, float tgtB) {
+    Demand d;
+    d.ch = ch;
+    d.i0 = i0;
+    d.i1 = std::max(i1, i0);
+    d.t0 = tgtA;
+    d.t1 = tgtB;
+    const float tolShare = ch < 3 ? kRangeTolerance[ch] : 0.0175f;  // pitch: 0.3 st
+    d.tol = std::log2(1.0f + tolShare) * (ch < 3 ? W.tol : 1.0f) * tolFactor;
+    d.w = (ch < 3 ? W.w : W.f0w) * wShare;
+    demands.push_back(d);
+  };
+  auto define = [&](const Span& sp, int ch, float wShare, float tolFactor, float tgtA, float tgtB) {
+    defineAt(ch, frameOf(sp.tI0), frameOf(sp.tI1), wShare, tolFactor, tgtA, tgtB);
+  };
+  auto shares = [&](const Span& sp, float out[3], float tolF[3]) {
+    for (int c = 0; c < 3; ++c) { out[c] = 0; tolF[c] = 1; }
+    switch (sp.cls) {
+      case Cls::Vowel: out[0] = out[1] = out[2] = 1; break;
+      case Cls::Glide: out[0] = out[1] = out[2] = 0.8f; break;
+      case Cls::Liquid:
+      case Cls::Trill:
+        if (sp.ph == Ph::L) { out[1] = 0.6f; out[2] = 0.8f; }
+        else { out[1] = 0.3f; out[2] = 1.0f; }  // ɹ, r: the F3 colour
+        break;
+      // Obstruents and nasals close the jaw: their low F1 is a demand too
+      // (the recordings' F1 dips at every consonant; that is where most of
+      // their in-vowel F1 motion comes from). Liquids leave F1 to the vowel.
+      case Cls::Nasal: out[0] = 0.8f; out[1] = 0.4f; out[2] = 0.2f; tolF[1] = 2; break;
+      case Cls::Plosive: out[0] = 0.5f; out[1] = 0.3f; out[2] = 0.2f; tolF[0] = tolF[1] = tolF[2] = 2; break;
+      case Cls::Fricative: out[0] = 0.5f; out[1] = 0.3f; out[2] = 0.3f; tolF[0] = tolF[1] = tolF[2] = 2; break;
+      case Cls::H:
+      case Cls::Stop: break;
+    }
+  };
+  for (size_t s = 0; s < spans.size(); ++s) {
+    const Span& sp = spans[s];
+    float sh[3], tf[3];
+    shares(sp, sh, tf);
+    for (int c = 0; c < 3; ++c) {
+      if (sh[c] <= 0 || sp.f[c] <= 0) continue;
+      const float T = std::log2(sp.f[c]);
+      float ta = T, tb = T;
+      if (sp.vowel && W.coart[c] > 0) {
+        // Toward the neighbours that define this formant.
+        for (size_t q = s; q-- > 0;) {
+          float sh2[3], tf2[3]; shares(spans[q], sh2, tf2);
+          if (spans[q].cls == Cls::Stop || spans[q].cls == Cls::H) break;
+          if (sh2[c] > 0 && spans[q].f[c] > 0) { ta = T + W.coart[c] * (std::log2(spans[q].f[c]) - T); break; }
+        }
+        for (size_t q = s + 1; q < spans.size(); ++q) {
+          float sh2[3], tf2[3]; shares(spans[q], sh2, tf2);
+          if (spans[q].cls == Cls::Stop || spans[q].cls == Cls::H) break;
+          if (sh2[c] > 0 && spans[q].f[c] > 0) { tb = T + W.coart[c] * (std::log2(spans[q].f[c]) - T); break; }
+        }
+      }
+      if (sp.vowel && (ta != T || tb != T)) {
+        // A vowel's path: from the neighbour-biased start, through the full
+        // target at the centre, to the neighbour-biased end, over the whole
+        // vowel (the recordings' formants keep moving inside vowels, and the
+        // target is reached, not skirted).
+        const int ia = frameOf(sp.tA), ib = frameOf(sp.tB);
+        const int ic = frameOf(0.5 * (sp.tI0 + sp.tI1));
+        defineAt(c, ia, ic, sh[c], tf[c], ta, T);
+        defineAt(c, std::min(ic + 1, ib), ib, sh[c], tf[c], T, tb);
+      } else {
+        define(sp, c, sh[c], tf[c], ta, tb);
+      }
+    }
+    if (sp.cls != Cls::Stop && sp.cls != Cls::H && sp.f0 > 0) {
+      // Pitch: the keyframe pitch line (accents, falls, micro-intonation) is
+      // the demand, frame by frame, over the whole phoneme; the planner
+      // smooths it and limits its speed.
+      const float T = std::log2(sp.f0);
+      defineAt(3, frameOf(sp.tA), frameOf(sp.tB), sp.vowel ? 1.0f : 0.3f, 1, T, T);
+      demands.back().followSpline = true;
+    }
+  }
+
+  if (std::getenv("PLAN_DEBUG")) {
+    std::fprintf(stderr, "plan: %zu spans, %zu demands, %d frames from %.3f s\n", spans.size(), demands.size(), n, gridStart / fs_);
+    for (const Span& sp : spans)
+      std::fprintf(stderr, "  span ph%d cls%d v%d  %.3f-%.3f win %.3f-%.3f  F %.0f %.0f %.0f f0 %.3f\n", static_cast<int>(sp.ph), static_cast<int>(sp.cls), sp.vowel,
+                   sp.tA / fs_, sp.tB / fs_, sp.tI0 / fs_, sp.tI1 / fs_, sp.f[0], sp.f[1], sp.f[2], sp.f0);
+    for (const Demand& d : demands)
+      std::fprintf(stderr, "  demand ch%d frames %d-%d target %.0f -> %.0f tol %.3f w %.2f\n", d.ch, d.i0, d.i1, std::exp2(d.t0), std::exp2(d.t1), d.tol, d.w);
+  }
+  // Solve each channel.
+  const float h = W.hopMs * 0.001f;  // seconds per frame
+  for (int c = 0; c < 4; ++c) {
+    const int param = c < 3 ? kF1 + c : kF0Mul;
+    std::vector<double> x(n), spline(n);
+    for (int i = 0; i < n; ++i) {
+      const float v = splineAt(param, gridStart + static_cast<double>(i) * planHop_);
+      spline[i] = std::log2(std::max(v, 1e-3f));
+      x[i] = spline[i];
+    }
+    // Demand coverage and the relaxation line between demands.
+    std::vector<char> covered(n, 0);
+    std::vector<double> r(spline);
+    std::vector<int> lastDemandEnd(n, -1);
+    for (const Demand& d : demands) {
+      if (d.ch != c) continue;
+      for (int i = d.i0; i <= d.i1; ++i) covered[i] = 1;
+    }
+    {
+      // r on free frames: the line from the previous demand's end value to
+      // the next demand's start value; before the first / after the last,
+      // the spline.
+      std::vector<std::pair<int, double>> ends, starts;  // (frame, target)
+      for (const Demand& d : demands) {
+        if (d.ch != c) continue;
+        if (d.followSpline) continue;  // (the spline is the line already)
+        starts.push_back({d.i0, d.t0});
+        ends.push_back({d.i1, d.t1});
+      }
+      std::sort(starts.begin(), starts.end());
+      std::sort(ends.begin(), ends.end());
+      for (int i = 0; i < n; ++i) {
+        if (covered[i]) continue;
+        // previous end <= i, next start >= i
+        auto ne = std::lower_bound(ends.begin(), ends.end(), std::make_pair(i, -1e9));
+        auto ns = std::lower_bound(starts.begin(), starts.end(), std::make_pair(i, -1e9));
+        const bool havePrev = ne != ends.begin(), haveNext = ns != starts.end();
+        if (havePrev && haveNext) {
+          const auto& pe = *(ne - 1);
+          const auto& nx = *ns;
+          const double f = nx.first > pe.first ? static_cast<double>(i - pe.first) / (nx.first - pe.first) : 0.0;
+          r[i] = pe.second + f * (nx.second - pe.second);
+        } else if (havePrev) {
+          r[i] = (ne - 1)->second;
+        } else if (haveNext) {
+          r[i] = ns->second;
+        }
+      }
+    }
+    const double vmaxF = W.vmax[c] * h;  // oct per frame
+    for (int round = 0; round < W.rounds; ++round) {
+      std::vector<double> d(n, 0), e(n, 0), f(n, 0), b(n, 0);
+      // Smoothness, everywhere.
+      for (int i = 1; i + 1 < n; ++i) {
+        d[i - 1] += W.eps; d[i] += 4 * W.eps; d[i + 1] += W.eps;
+        e[i - 1] += -2 * W.eps; e[i] += -2 * W.eps;
+        f[i - 1] += W.eps;
+      }
+      // Relaxation on free frames (and a tiny anchor everywhere, so the
+      // system is never singular).
+      for (int i = 0; i < n; ++i) {
+        const double wr = covered[i] ? 1e-6 : W.rel;
+        d[i] += wr; b[i] += wr * r[i];
+      }
+      // Demands: the dead zone's nearest edge pulls once outside it.
+      for (const Demand& dm : demands) {
+        if (dm.ch != c) continue;
+        for (int i = dm.i0; i <= dm.i1; ++i) {
+          const double fr = dm.i1 > dm.i0 ? static_cast<double>(i - dm.i0) / (dm.i1 - dm.i0) : 0.0;
+          const double tgt = dm.followSpline ? spline[i] : dm.t0 + fr * (dm.t1 - dm.t0);
+          const double dev = x[i] - tgt;
+          if (std::fabs(dev) <= dm.tol) continue;
+          const double edge = tgt + (dev > 0 ? dm.tol : -dm.tol);
+          d[i] += dm.w; b[i] += dm.w * edge;
+        }
+      }
+      // Speed limit: on frames moving faster than vmax, the IRLS weight
+      // mu (1 - vmax / |dx|) on dx^2 approximates mu (|dx| - vmax)^2.
+      for (int i = 1; i < n; ++i) {
+        const double dx = std::fabs(x[i] - x[i - 1]);
+        if (dx <= vmaxF) continue;
+        const double wm = W.mu * (1.0 - vmaxF / dx);
+        d[i] += wm; d[i - 1] += wm; e[i - 1] -= wm;
+      }
+      solvePenta(d, e, f, b);
+      x.swap(b);
+    }
+    if (std::getenv("PLAN_DEBUG") && c < 3)
+      for (const Demand& dm : demands)
+        if (dm.ch == c && dm.i1 > dm.i0)
+          std::fprintf(stderr, "  ch%d frames %d-%d: target %.0f -> %.0f, spline %.0f -> %.0f, planned %.0f -> %.0f (mid %.0f)\n", c, dm.i0, dm.i1,
+                       std::exp2(dm.t0), std::exp2(dm.t1), std::exp2(spline[dm.i0]), std::exp2(spline[dm.i1]), std::exp2(x[dm.i0]), std::exp2(x[dm.i1]), std::exp2(x[(dm.i0 + dm.i1) / 2]));
+    // Append (overwriting nothing: the grid continues the previous plan).
+    plan_[c].resize(first + static_cast<size_t>(n));
+    for (int i = 0; i < n; ++i) plan_[c][first + static_cast<size_t>(i)] = static_cast<float>(x[i]);
+  }
+  planFromT_ = gridStart + static_cast<double>(n - 1) * planHop_;
 }
 
 }  // namespace puhuja

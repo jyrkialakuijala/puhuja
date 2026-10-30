@@ -19,11 +19,13 @@ namespace puhuja {
 
 class VocalFolds {
  public:
+  static constexpr bool kOwnChink = false;
   struct Input {
     float ps;       // pressure below the glottis minus above it (static part)
     float p1;       // acoustic pressure just above the folds (tract feedback)
     float q;        // tension: scales all oscillation frequencies (1 = rest)
     float rest;     // rest area of each slit (cm^2); <= 0 pressed together
+    float gap = 0;  // posterior chink (cm^2), for models that place it (the two-mass has it in rest)
   };
 
   void reset();
