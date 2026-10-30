@@ -1,4 +1,5 @@
 #include "english.h"
+#include "params.h"
 
 #include <cstdlib>
 #include <algorithm>
@@ -643,7 +644,7 @@ constexpr int kShortPhraseSyllables = 4; // a phrase this short gets the short p
 constexpr int kShortCommaPauseStops = 8; // 120 ms
 constexpr int kClausePauseStops = 18;    // after ; and : at least 270 ms
 constexpr float kPauseVariation = 0.15f; // +- share
-constexpr float kFinalLengthSentence = 1.4f, kFinalLengthPhrase = 1.15f;  // final lengthening
+const float kFinalLengthSentence = param("kFinalLengthSentence", 1.4f), kFinalLengthPhrase = 1.15f;  // final lengthening
 constexpr float kFinalLengthClause = 1.25f;  // before ; or :
 constexpr float kFinalCodaSonorant = 3.5f;  // a phrase-final l m n ŋ coda
 constexpr int kSentencePauseStops = 10;  // + the breath before the next sentence
@@ -707,7 +708,7 @@ constexpr float kUnstressedConsonant = 0.85f;  // other consonants
 // alignment) puhuja's consonants were 20 % short across the board (median
 // 58 vs 70 ms, s 86 vs 121, n 51 vs 65, t 45 vs 60), the vowels not (105 vs
 // 99): function words, mostly consonants, ran at 137 ms against 240.
-constexpr float kEnglishConsonantLength = 1.2f;
+const float kEnglishConsonantLength = param("kEnglishConsonantLength", 1.2f);
 constexpr float kUnaccentedCodaAffricate = 0.35f;  // ʧ ʤ closing an unaccented word
 constexpr float kVoicedHLength = 0.65f;  // h between voiced sounds
 
@@ -997,11 +998,16 @@ void EnglishReader::addWord(const std::string& raw) {
                        exceptions().find(w) == exceptions().end();
   if ((!vowel && w.size() <= 6) || acronym) {
     for (size_t k = 0; k < w.size(); ++k)
-      if (w[k] >= 'a' && w[k] <= 'z')
+      if (w[k] >= 'a' && w[k] <= 'z') {
         phrase_.push_back({arpaTokens(kLetterNames[w[k] - 'a']), k + 1 == w.size(), std::string(1, w[k])});
+        phrase_.back().source = sourceWord_;
+      }
     return;
   }
-  if (!t.empty()) phrase_.push_back({std::move(t), !isFunctionWord(w), w});
+  if (!t.empty()) {
+    phrase_.push_back({std::move(t), !isFunctionWord(w), w});
+    phrase_.back().source = sourceWord_;
+  }
 }
 
 // Longest run of digits read one by one.
@@ -1182,14 +1188,25 @@ constexpr float kArcStartDb = 1.0f, kArcEndDb = -2.0f;  // (-3: with the end rel
 constexpr float kCreakBelow = -6.5f;  // st: statement endings this low get creaky voice (-5: nearly all)
 constexpr float kPressedAccent = 0.9f, kLaxUnstressed = 1.08f, kLaxFinal = 1.12f;  // glottal opening
 constexpr float kAccentDb = 1.5f, kFunctionWordDb = -1.5f;
-constexpr float kSecondaryVowelLength = 0.7f, kInitialRLength = 1.0f;  // see sayPhrase (0.8: "generosity" ʤɛ 264 ms against 130-160 in the references, 2026-10-30)
+const float kSecondaryVowelLength = param("kSecondaryVowelLength", 0.7f), kInitialRLength = 1.0f;
+// A word-initial ɹ before a vowel ("revolution", "republics", "rights") is a
+// full r: deeper (F3 1550 as the male readings' 1450-1600; puhuja's reached
+// 1730) and a little louder (Jyrki: "r should be pronounced much more when it
+// is in the beginning of the word", 2026-10-30).
+const float kInitialRF3 = param("kInitialRF3", 1550), kInitialRLevel = param("kInitialRLevel", 1.15f);
+// Diphthongs (aɪ aʊ oʊ eɪ ɔɪ) run shorter than the Klatt table gives: over
+// kennedy.txt puhuja's aɪ was 227 ms against 135-160 in Kokoro and
+// ElevenLabs, oʊ 201 against 110-169, eɪ 178 against 130-150; "alike" was
+// heard as "too much effort, too active" (2026-10-30). 0.85: a quarter of
+// the way, as with the other durations.
+const float kDiphthongLength = param("kDiphthongLength", 0.85f);  // see sayPhrase (0.8: "generosity" ʤɛ 264 ms against 130-160 in the references, 2026-10-30)
 constexpr float kSyllabicNLength = 1.6f;
 constexpr float kSyllabicLLength = 1.8f;
 constexpr float kLinkGlideMs = 40, kLinkGlideLevel = 0.7f;  // w / j linking a vowel to the next word's
 constexpr float kGlideBeforeVowel = 0.4f;  // a diphthong's glide before a vowel: share of that vowel
-constexpr float kFlapMs = 22;  // a flap's closure  // the n of -tion (ʃn̩) carries the syllable
+const float kFlapMs = param("kFlapMs", 22);  // a flap's closure  // the n of -tion (ʃn̩) carries the syllable
 // Vowel lengthening (see sayPhrase): factor at 50 ms, change per ms, floor.
-constexpr float kVowelLength50 = 1.46f, kVowelLengthSlope = -0.0029f, kVowelLengthMin = 1.1f;
+const float kVowelLength50 = param("kVowelLength50", 1.46f), kVowelLengthSlope = -0.0029f, kVowelLengthMin = param("kVowelLengthMin", 1.1f);
 
 // Parallel halves at word j ("and" / "or"): the words right after it repeat
 // words from before it, and the half after starts with one ("all").
@@ -1755,6 +1772,7 @@ void EnglishReader::sayPhrase(char end) {
         const float firstShare = s.ph[0] == Ph::ER ? (erOnset ? kErOnsetShare : 0.8f) : 0.6f;
         const float share = s.n == 1 ? 1.0f : k == 0 ? firstShare : 1.0f - firstShare;
         shape.ms = dur[w][i] * share * v.length;
+        if (s.n == 2 && s.ph[1] != Ph::RR) shape.ms *= kDiphthongLength;  // a true diphthong, not ɜ+ɹ
         // Vowels as long as in the Google reading of kennedy.txt (goog.wav):
         // short vowels are lengthened most (x1.46 at 50 ms), long ones less
         // (x1.17 at 150 ms).
@@ -1767,8 +1785,11 @@ void EnglishReader::sayPhrase(char end) {
           const char* sn = kEnglishTokens[tokens[i] - 0x80];
           if (sn[strlen(sn) - 1] == '2') shape.ms *= kSecondaryVowelLength;
         }
-        if (i == 0 && s.ph[k] == Ph::RR && tokens.size() > 1 && isVowelToken(tokens[1]))
+        const bool initialR = i == 0 && s.ph[k] == Ph::RR && tokens.size() > 1 && isVowelToken(tokens[1]);
+        if (initialR) {
           shape.ms *= kInitialRLength;
+          shape.f3 = kInitialRF3;
+        }
         if (phrase_[w].syllabicN && i + 1 == tokens.size()) shape.ms *= kSyllabicNLength;
         if (phrase_[w].syllabicL && i + 1 == tokens.size()) shape.ms *= kSyllabicLLength;
         if (i < 32 && (phrase_[w].flaps >> i & 1)) {
@@ -1780,6 +1801,7 @@ void EnglishReader::sayPhrase(char end) {
           shape.ms *= 0.75f;
         // The back offglide fades: about 3 dB weaker than a full vowel.
         shape.level = glide ? 0.7f * v.level : v.level;
+        if (initialR) shape.level *= kInitialRLevel;
         // Voice quality: accented vowels slightly pressed (brighter, more
         // closed phase), unstressed and phrase-final ones slightly lax.
         if (vowel) {
@@ -1801,6 +1823,7 @@ void EnglishReader::sayPhrase(char end) {
           shape.level *= std::pow(10.0f, db / 20.0f);
         }
         synth_.shapeNext(shape);
+        if (first) synth_.setWord(phrase_[w].source);
         synth_.push(s.ph[k], first);
         first = false;
         if (k == 0 && s.longVowel) synth_.lengthen();
@@ -1878,6 +1901,7 @@ const char* const kUnits[][3] = {
     {"kwh", "kilowatt hour", "kilowatt hours"}};
 
 void EnglishReader::endWord() {
+  if (!word_.empty()) ++sourceWord_;
   capsWord_ = !word_.empty() && wordCaps_ == static_cast<int>(word_.size());
   wordCaps_ = 0;
   if (!word_.empty()) {
@@ -1889,8 +1913,10 @@ void EnglishReader::endWord() {
         if (word_ == u[0]) unit = numberWasOne_ ? u[1] : u[2];
     if (numberJustSaid_ && (word_ == "am" || word_ == "pm")) {
       if (!phrase_.empty() && phrase_.back().text == "o'clock") phrase_.pop_back();
-      for (char ch : word_)
+      for (char ch : word_) {
         phrase_.push_back({arpaTokens(kLetterNames[ch - 'a']), ch == 'm', std::string(1, ch)});
+        phrase_.back().source = sourceWord_;
+      }
     } else if (unit) {
       std::string u = unit;
       for (size_t a = 0, b; a < u.size(); a = b + 1) {

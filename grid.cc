@@ -1,4 +1,5 @@
 #include "grid.h"
+#include "params.h"
 
 #include "filters.h"
 
@@ -18,28 +19,7 @@ constexpr int L = GridFolds::kLayers, S = GridFolds::kSegments;
 // parameter file of "name value" lines first (the optimizer's vector): the
 // knob names, and per-mass multipliers M_f_j_i and K_f_j_i (fold, layer,
 // segment) on the mass and the body stiffness, 1 = the structured default.
-const std::map<std::string, float>& paramFile() {
-  static const std::map<std::string, float> m = [] {
-    std::map<std::string, float> out;
-    if (const char* f = std::getenv("GRID_PARAMS")) {
-      if (FILE* fp = std::fopen(f, "r")) {
-        char name[64];
-        double v;
-        while (std::fscanf(fp, "%63s %lf", name, &v) == 2) out[name] = static_cast<float>(v);
-        std::fclose(fp);
-      }
-    }
-    return out;
-  }();
-  return m;
-}
-float knob(const char* name, float def) {
-  const auto& pf = paramFile();
-  const auto it = pf.find(name);
-  if (it != pf.end()) return it->second;
-  const char* v = std::getenv(name);
-  return v ? std::strtof(v, nullptr) : def;
-}
+float knob(const char* name, float def) { return param(name, def); }
 // The per-mass multipliers from the parameter file (1 when absent).
 float massMul(char kind, int f, int j, int i) {
   static float table[2][2][L][S];

@@ -114,6 +114,9 @@ void usage(FILE* f) {
       "  -l file       write phoneme timings (start, end, symbol)\n"
       "  -words file   write word timings (start, end, word number from 1)\n"
       "  -w source     voice source: physical (default), grid (4x8 multi-mass folds), shaped, glottal, triangle, square\n"
+      "  PUHUJA_PARAMS=file  research parameters (\"name value\" lines, see params.h); without it a\n"
+      "                puhuja.params in the working directory or next to the binary is read (a running\n"
+      "                tools/word_opt.py keeps its best state there)\n"
       "  -m motion     formant motion: damped/dampen (default) or spline\n"
       "  -leak x       part of the source that bypasses the formants (default 0.03)\n"
       "  -g2p          print English pronunciations of the words on stdin\n"
@@ -338,12 +341,36 @@ int main(int argc, char** argv) {
     // boundary ("this century") is split in the middle.
     const auto labels = synth.labels();
     auto startOf = [&](size_t i) { return labels[i].wordJoin ? 0.5 * (labels[i].start + labels[i].end) : labels[i].start; };
-    int n = 0;
-    for (size_t i = 0; i < labels.size(); ++i) {
-      if (!labels[i].wordStart) continue;
-      size_t j = i + 1;
-      while (j < labels.size() && !labels[j].wordStart && labels[j].symbol != "_") ++j;
-      fprintf(wf, "%.4f\t%.4f\t%d\n", startOf(i), j < labels.size() ? startOf(j) : labels[i].end, ++n);
+    bool tagged = false;
+    for (const auto& l : labels) tagged = tagged || l.word >= 0;
+    if (tagged) {
+      // English: the labels carry the input word's number; a word's span runs
+      // from its first label to its last (a word puhuja splits, like a
+      // spelled abbreviation, stays one span), pauses left out.
+      int cur = -1;
+      double a = 0, b = 0;
+      auto flush = [&] { if (cur >= 0) fprintf(wf, "%.4f\t%.4f\t%d\n", a, b, cur); };
+      for (size_t i = 0; i < labels.size(); ++i) {
+        if (labels[i].word < 0) continue;
+        if (labels[i].word != cur) {
+          flush();
+          cur = labels[i].word;
+          a = startOf(i);
+          b = labels[i].end;
+        } else {
+          b = labels[i].end;
+        }
+        if (i + 1 < labels.size() && labels[i + 1].wordJoin && labels[i + 1].word != cur) b = startOf(i + 1);
+      }
+      flush();
+    } else {
+      int n = 0;
+      for (size_t i = 0; i < labels.size(); ++i) {
+        if (!labels[i].wordStart) continue;
+        size_t j = i + 1;
+        while (j < labels.size() && !labels[j].wordStart && labels[j].symbol != "_") ++j;
+        fprintf(wf, "%.4f\t%.4f\t%d\n", startOf(i), j < labels.size() ? startOf(j) : labels[i].end, ++n);
+      }
     }
     fclose(wf);
   }

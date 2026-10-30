@@ -31,12 +31,14 @@ class EnglishReader {
   void push(std::string_view text);  // UTF-8; may split words anywhere
   void flush();
   // Speaking rate: 1 normal, 0.9 = 10 % slower (durations and pauses).
-  void setRate(float rate) { rate_ = rate > 0.1f ? rate : 0.1f; }                      // end of input: say what is pending
+  void setRate(float rate) { rate_ = rate > 0.1f ? rate : 0.1f; }
+  int sourceWord_ = 0;  // input words seen so far                      // end of input: say what is pending
 
   struct Word {
     std::vector<uint8_t> tokens;
     bool accent;  // content word: carries a pitch accent
     std::string text;  // the word as written (lower case)
+    int source = -1;   // the input word (whitespace-delimited) it came from, counted from 1
     bool syllabicN = false;  // -tion: the schwa dropped, the n is the syllable
     bool syllabicL = false;  // -tle, -ple, -ble: the schwa dropped, the l is the syllable
     uint32_t flaps = 0;      // bit i: token i is a flap (a t or d tapped, "city")

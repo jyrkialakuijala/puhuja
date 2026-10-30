@@ -195,6 +195,8 @@ class Synth {
   // a single one (female voice 1.45x), a doubled consonant 1.4x (plosives:
   // longer closure); ː makes a sound 1.55x.
   void push(Ph ph, bool wordStart = false);
+  // The input word number the next pushed phonemes belong to (labels carry it).
+  void setWord(int w) { curWord_ = w; }
 
   // Finnish spelling merges in push(): "ng" -> long ŋ, "nk" -> ŋk, "np" ->
   // mp, "tʃ"/"dʒ" -> affricates. On by default; the English reader turns
@@ -295,6 +297,7 @@ class Synth {
     std::string symbol;
     bool wordStart = false;  // the first phoneme of a word
     bool wordJoin = false;   // ... shared with the previous word: a long consonant across the boundary
+    int word = -1;           // the input word it belongs to (setWord), -1 unknown
   };
   std::vector<Label> labels() const;
 
@@ -309,6 +312,7 @@ class Synth {
     Shape shape;             // per-phoneme adjustment (shapeNext)
     float pitchEnd = kNoPitch;  // a vowel's second pitch, reached at 3/4 of it (setPitchEnd)
     bool wordJoin = false;  // a word boundary falls inside this long consonant ("this century")
+    int word = -1;          // the input word (setWord)
   };
 
   void pushCodepoint(uint32_t cp);
@@ -352,6 +356,8 @@ class Synth {
   double outputStart_ = -1;  // timeline position of the first output sample
   std::vector<std::pair<double, std::string>> labelStarts_;  // (samples, symbol)
   std::vector<char> labelWordStarts_;  // parallel to labelStarts_: 0, 1 word start, 2 shared consonant
+  std::vector<int> labelWords_;        // parallel: the input word number
+  int curWord_ = -1;
 
   // Input state.
   uint32_t utf8Cp_ = 0;
