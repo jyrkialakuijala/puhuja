@@ -263,6 +263,7 @@ struct Event {
   // Breathe in over this many ms (lungs refill, inhaling noise); 0: no.
   float inhaleMs = 0;
   bool inhaleSnatched = false;  // the quick between-words breath (see breathPoint)
+  float aspBurstGain = 1;        // the aspiration puff's strength (a stressed word's initial p t k)
   // Speech level target: 0 at a pause (fades out exponentially), 1 when
   // speaking; < 0: no change.
   float speech = -1;
@@ -272,7 +273,25 @@ struct Event {
 // Voice source: Physical is the two-mass vocal fold model coupled to the
 // tract (folds.h); the others are fixed waveforms shaped by the airflow
 // model's vibration amplitude.
-enum class Carrier { Physical, Triangle, Square, Glottal };
+enum class Carrier { Physical, Triangle, Square, Glottal, Shaped };
+
+// A piecewise-linear glottal flow pulse for Carrier::Shaped: n segments, each
+// a share of the period at the voice's base pitch, each ending at the given
+// flow height (the last at 0, the closed phase). The excitation is the flow's
+// slope. With pitch the shares scale as (f0 / base f0)^pitchExp: 0 keeps the
+// shape, 1 keeps the segment's length in milliseconds (the fast opening of
+// real folds is such a fixed-time event); the last, closed segment takes what
+// is left (at least kMinClosed), so the open quotient grows with pitch, as it
+// does in voices (H1-H2 rises 6-14 dB per octave of pitch in the references).
+struct PulseShape {
+  static constexpr int kMaxN = 10;
+  static constexpr float kMinClosed = 0.05f;
+  int n;
+  float share[kMaxN];
+  float height[kMaxN];
+  float pitchExp[kMaxN];
+  float trebleDb;  // a treble shelf on the pulse (it has little above 4 kHz of its own)
+};
 
 // How the formants move between the phonemes' targets: a Catmull-Rom spline
 // through the keyframes (each target reached on time), or a critically
@@ -299,13 +318,16 @@ struct Voice {
   float shGain = 1;      // ʃ ʒ noise multiplier
   float glottalGap = 0;  // posterior glottal gap kept open while voicing (cm^2)
   float f4 = 3500, f5 = 4500;  // F4, F5 (Hz) at a neutral F3 and the base pitch
+  float microGain = 3;         // the folds' slow micro-variation (kMicro2Gain scale)
+  float cycleJitter = 1, cycleShimmer = 1;  // scale of the per-cycle jitter and shimmer (kCycleJitter, kCycleShimmer)
+  float sourceTiltDb = -2, sourceUpperCutDb = -1.5f, sourceMidLiftDb = 4;  // the physical source's spectral shaping (dB)
 };
 
 class Synth {
  public:
   explicit Synth(float sampleRate = 48000, float baseF0 = 0);  // 0: the voice preset's pitch
 
-  void setCarrier(Carrier c) { carrier_ = c; }
+  void setCarrier(Carrier c);  // (the shaped pulse gets its own treble shelf)
   void setFormantMotion(FormantMotion m) { motion_ = m; }
 
   // Select a speaker preset (pitch, formant scaling, tempo, breathiness).
@@ -505,6 +527,7 @@ class Synth {
   bool spokeSinceBreath_ = false;
   float nextInhaleMs_ = 0;     // inhalation for the next emitted pause
   bool nextInhaleSnatched_ = false, inhaleSnatched_ = false;
+  float cycleJ_ = 0, cycleS_ = 0;  // this glottal cycle's random tension and pressure deviation (drawn at each closure)
   float inhaleLeft_ = 0, inhaleLen_ = 0, inhaleRate_ = 0;  // samples, cm^3/sample
   FricationFilter inhaleFilter_;  // airy breath-in noise (bypasses the tract)
   FricationFilter inhaleSnatchFilter_;  // the quick breath's brighter noise
@@ -578,6 +601,18 @@ class Synth {
 
   // Voicing source state.
   Carrier carrier_ = Carrier::Physical;
+  const PulseShape* pulse_ = nullptr;  // the voice's pulse (set with the voice)
+  Biquad shapedTreble_;                // the shaped pulse's own treble shelf
+  float prevTri_ = 0;                  // the shaped pulse's flow a sample ago
+  float foldAc_ = 0;                   // the folds' radiated-sound envelope
+  Biquad foldAcHp2_;                   // the folds' sound above 250 Hz, for its envelope
+  float foldCycleMax_ = 0, foldCycleAmp_ = 0;  // the folds' peak this cycle / last cycle
+  int sinceClose_ = 0;                 // samples since the folds last closed
+  float sPhase_ = 1.0f, sDt_ = 0;      // the drawn pulse's phase (1 = closed, waiting) and step
+  float foldFast_ = 0;                 // the folds' sound, quarter-period envelope
+  float pulseAt_[PulseShape::kMaxN + 1] = {0}, pulseSlope_[PulseShape::kMaxN] = {0}, pulseMean_ = 0;
+  void setPulse(const PulseShape& p);
+  void pulseAtPitch(float f0);  // the segment ends and slopes for this cycle
   FormantMotion motion_ = FormantMotion::Damped;
   float formPos_[3] = {0, 0, 0}, formVel_[3] = {0, 0, 0};
   bool formInit_ = false;

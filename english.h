@@ -38,7 +38,11 @@ class EnglishReader {
     bool accent;  // content word: carries a pitch accent
     std::string text;  // the word as written (lower case)
     bool syllabicN = false;  // -tion: the schwa dropped, the n is the syllable
+    bool syllabicL = false;  // -tle, -ple, -ble: the schwa dropped, the l is the syllable
     uint32_t flaps = 0;      // bit i: token i is a flap (a t or d tapped, "city")
+    bool contrast = false;   // one of a pair of opposites contrasted in the phrase ("well or ill")
+    int repeat = 0;          // 1: a content word said again soon after, 2: the repetition ("help them help")
+    size_t repeatOf = 0;     // for repeat 2: the first occurrence
   };
 
  private:

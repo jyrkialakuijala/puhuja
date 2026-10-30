@@ -443,7 +443,7 @@ constexpr float kOpenCentralStart[3] = {730, 1400, 2500};
 // end, "holds" sounded like "hoolds".
 // oʊ starts a little more open and back (goog.wav "holds": F1 falls steadily
 // from ~800 female; from 520 F1 sat flat and then dropped in steps).
-constexpr float kMidBackStart[3] = {560, 1100, 2650};
+constexpr float kMidBackStart[3] = {500, 1100, 2650};  // (560: the oʊ onset's F1 was 590 against ElevenLabs' 437-497)
 
 Sound soundOf(const char* tok) {
   std::string t(tok);
@@ -535,8 +535,8 @@ constexpr float kDefaultRate = 0.95f;
 constexpr size_t kMaxHeldBack = 256;
 constexpr float kEnglishFricationGain = 4.5f;
 constexpr float kEnglishAspirationGain = 50.0f, kEnglishHGain = 20.0f;
-constexpr float kEnglishVoicedHNoise = 0.3f;  // x the h gain, h between voiced sounds (3: in "the hand" ~12 dB louder than goog.wav)
-constexpr float kEnglishVoicedHAg = 0.13f;  // cm^2, h between voiced sounds (goog.wav's stays voiced)
+constexpr float kEnglishVoicedHNoise = 1.0f;  // x the h gain, h between voiced sounds (0.3: "the hand" was heard as "the land": the h had the l's length, level and harmonicity; 3 was 12 dB louder than goog.wav)
+constexpr float kEnglishVoicedHAg = 0.2f;  // cm^2, h between voiced sounds (goog.wav's stays voiced)
 
 EnglishReader::EnglishReader(Synth& synth) : synth_(synth) {
   synth_.setSpellingRules(false);  // English phonemes come ready-made
@@ -594,6 +594,12 @@ constexpr float kPhraseVariation = 0.5f;     // +- deterministic variation of ac
 const char* const kEmphatic[] = {"every", "only", "never", "all", "not", "no", "nothing", "none",
                                  "always", "first", "most", "very", "must", "don't", "can't", "cannot"};
 constexpr float kEmphasisBoost = 2.0f;   // st
+// A content word repeated within this many words: the first +kRepeatRise
+// st, the second at least kRepeatSecondAbove above it, falling kRepeatFall
+// within its vowel, after a pause of kRepeatPauseStops (~15 ms each).
+constexpr size_t kRepeatWithin = 5;
+constexpr float kRepeatRise = 2.0f, kRepeatSecondAbove = 1.0f, kRepeatFall = 3.0f;
+constexpr int kRepeatPauseStops = 3;
 constexpr float kQuoteLift = 1.0f;       // st: quoted speech
 constexpr float kEmphaticFloor = 0.8f;   // share of the first accent's height emphasis words reach
 constexpr float kLetScale = 0.8f;        // phrase-initial imperative "let"
@@ -688,11 +694,17 @@ constexpr int kFastPhraseSyllables = 15, kShortPhraseTempoSyllables = 6;
 constexpr float kLongPhraseTempo = 0.94f, kShortPhraseTempo = 1.06f, kParagraphOpeningTempo = 1.06f;
 
 // Stress timing (on top of Klatt's rules).
-constexpr float kUnstressedVowel = 0.42f;      // Klatt: 0.5
+constexpr float kUnstressedVowel = 0.6f;       // Klatt: 0.5 (0.42: function words 137 ms against goog.wav's 240 on the same text, content words 431 vs 360: runs of function words lurched)
 constexpr float kAccentedVowelTiming = 1.2f, kUnstressedVowelTiming = 0.85f;  // stress timing
 constexpr float kStressedOnset = 1.2f;         // consonants starting a stressed syllable
 constexpr float kUnstressedConsonant = 0.85f;  // other consonants
+// All consonants: against goog.wav's reading of the same text (its DTW
+// alignment) puhuja's consonants were 20 % short across the board (median
+// 58 vs 70 ms, s 86 vs 121, n 51 vs 65, t 45 vs 60), the vowels not (105 vs
+// 99): function words, mostly consonants, ran at 137 ms against 240.
+constexpr float kEnglishConsonantLength = 1.2f;
 constexpr float kUnaccentedCodaAffricate = 0.35f;  // ʧ ʤ closing an unaccented word
+constexpr float kVoicedHLength = 0.65f;  // h between voiced sounds
 
 std::vector<std::vector<float>> EnglishReader::durations() const {
   std::vector<std::vector<float>> out(phrase_.size());
@@ -759,6 +771,7 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
         const char* vn = v < tok.size() ? kEnglishTokens[tok[v] - 0x80] : nullptr;
         const bool onsetOfStressed = vn && phrase_[w].accent && vn[strlen(vn) - 1] == '1';
         prc *= onsetOfStressed ? kStressedOnset : kUnstressedConsonant;
+        whole *= kEnglishConsonantLength;
         // A coda affricate of an unaccented word ("which our"): quick, a
         // tap of hiss (goog.wav "for which our": ʧ 50 ms; here 142, as long
         // and loud as a stressed one, a hiss bump in a run of function words).
@@ -767,6 +780,11 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
         // h before j is one sound, the palatal hiss [ç] ("human"): not
         // shortened as a cluster, and long (goog.wav ~120 ms; here it was 51).
         if (b == "HH" && i + 1 < tok.size() && baseName(tok[i + 1]) == "Y") prc *= kHBeforeJ;
+        // h between voiced sounds ("the hand"): a short breathy dip (goog.wav
+        // ~40 ms; at the full 92 ms with the l's level it was heard as "land").
+        if (b == "HH" && i == 0 && w > 0 && !phrase_[w - 1].tokens.empty() && isVowelToken(phrase_[w - 1].tokens.back()) &&
+            i + 1 < tok.size() && isVowelToken(tok[i + 1]))
+          whole *= kVoicedHLength;
       }
       // Final lengthening by the strength of the boundary.
       if (phraseFinal)
@@ -793,6 +811,13 @@ constexpr float kEmergencyBreathAir = 450;
 // below this: a natural place to breathe, before the air would run out in
 // the middle of the next phrase (~3 s of speech).
 constexpr float kSeamBreathAir = 900;
+// ... and between words before a phrase opener below this.
+constexpr float kGoodBreathAir = 700;
+// Air a syllable takes (cm^3, from the calibrated plan: ~90) and the reserve
+// kept beyond the rest of the phrase; no breath with this many words left.
+constexpr float kAirPerSyllable = 90, kBreathMargin = 150;
+constexpr float kCommaBreathBelow = 900;  // (the synth's own threshold: above it no breath is taken)
+constexpr size_t kNoBreathLastWords = 2;
 constexpr int kSplitSyllables = 22;  // (12, 16: orators hold longer phrases)
 constexpr size_t kForceSplitWords = 25;
 constexpr int kLightBreakStops = 4;  // ~60 ms
@@ -822,6 +847,31 @@ const char* const kLetterNames[26] = {
     "EY1", "B IY1", "S IY1", "D IY1", "IY1", "EH1 F", "JH IY1", "EY1 CH", "AY1", "JH EY1",
     "K EY1", "EH1 L", "EH1 M", "EH1 N", "OW1", "P IY1", "K Y UW1", "AA1 R", "EH1 S", "T IY1",
     "Y UW1", "V IY1", "D AH1 B AH0 L Y UW0", "EH1 K S", "W AY1", "Z IY1"};
+
+// Words that open a phrase: a breath may be taken before them.
+bool isBreathOpener(const std::string& w) {
+  static const char* const kOpeners[] = {"the", "a", "an", "this", "that", "these", "those", "his", "her",
+                                         "their", "our", "my", "your", "its", "and", "but", "or", "nor",
+                                         "so", "yet", "which", "who", "when", "where", "if", "because",
+                                         "while", "as", "than", "to", "for", "from", "with", "in", "on",
+                                         "at", "by", "into", "about", "through", "over", "under", "after",
+                                         "before", "between", "against", "without"};
+  for (const char* o : kOpeners)
+    if (w == o) return true;
+  return false;
+}
+// ... but not right after these (they lean on the next word).
+bool isNoSplitAfter(const std::string& w) {
+  // (A preposition is fine before it: "from | the hand of God" is where the
+  // breath belongs; "of" and "to" are not.)
+  static const char* const kAfter[] = {"of", "the", "a", "an", "to", "my", "your", "our",
+                                       "their", "his", "her", "its", "and", "or", "but", "that", "which",
+                                       "any", "every", "some", "no", "each", "all", "both", "such",
+                                       "who", "when", "where", "if", "because", "while", "as", "than", "so"};
+  for (const char* o : kAfter)
+    if (w == o) return true;
+  return false;
+}
 
 void EnglishReader::addWord(const std::string& raw) {
   size_t a = raw.find_first_not_of('\''), b = raw.find_last_not_of('\'');
@@ -879,7 +929,8 @@ void EnglishReader::addWord(const std::string& raw) {
     if (andOr && deferredSplit_ == 0 && seam && syllables >= kSplitSyllables && phrase_.size() >= 4) {
       deferredSplit_ = phrase_.size();
     } else if (deferredSplit_ == 0 && ((seam && syllables >= kSplitSyllables && phrase_.size() >= 4) ||
-                                       contrast || phrase_.size() >= kForceSplitWords)) {
+                                       contrast ||
+                                       (phrase_.size() >= kForceSplitWords && !isNoSplitAfter(phrase_.back().text)))) {
       // ... and the "not X" of "not X but Y" is set off before as well
       // ("come | not from the generosity of the state | but ..."), unless
       // it opens the phrase.
@@ -1121,6 +1172,7 @@ constexpr float kPressedAccent = 0.9f, kLaxUnstressed = 1.08f, kLaxFinal = 1.12f
 constexpr float kAccentDb = 1.5f, kFunctionWordDb = -1.5f;
 constexpr float kSecondaryVowelLength = 0.8f, kInitialRLength = 1.0f;  // see sayPhrase
 constexpr float kSyllabicNLength = 1.6f;
+constexpr float kSyllabicLLength = 1.8f;
 constexpr float kLinkGlideMs = 40, kLinkGlideLevel = 0.7f;  // w / j linking a vowel to the next word's
 constexpr float kGlideBeforeVowel = 0.4f;  // a diphthong's glide before a vowel: share of that vowel
 constexpr float kFlapMs = 22;  // a flap's closure  // the n of -tion (ʃn̩) carries the syllable
@@ -1219,6 +1271,45 @@ void EnglishReader::sayPhrase(char end) {
     for (const char* p : kPrep)
       if (phrase_[w - 1].text == p) phrase_[w].accent = true;
   }
+  // Opposites contrasted in the phrase ("well or ill", "the rich and the
+  // poor") are both emphasised; not when they form one term ("black and
+  // white photography": joined by "and" and followed by a content word).
+  static const char* const kOpposites[][2] = {
+      {"black", "white"}, {"bright", "dark"}, {"light", "dark"}, {"poor", "rich"}, {"well", "ill"},
+      {"good", "bad"}, {"good", "evil"}, {"big", "small"}, {"large", "small"}, {"high", "low"},
+      {"hot", "cold"}, {"old", "new"}, {"old", "young"}, {"fast", "slow"}, {"strong", "weak"},
+      {"war", "peace"}, {"friend", "foe"}, {"friend", "enemy"}, {"friends", "enemies"}, {"life", "death"},
+      {"love", "hate"}, {"right", "wrong"}, {"left", "right"}, {"day", "night"}, {"up", "down"},
+      {"more", "less"}, {"first", "last"}, {"win", "lose"}, {"open", "closed"}, {"full", "empty"},
+      {"early", "late"}, {"near", "far"}, {"north", "south"}, {"east", "west"}, {"men", "women"},
+      {"past", "future"}, {"truth", "lies"}, {"few", "many"}, {"before", "after"}, {"begin", "end"},
+      {"beginning", "end"}, {"question", "answer"}, {"give", "take"}, {"buy", "sell"}, {"inside", "outside"},
+      {"yes", "no"}, {"rise", "fall"}, {"victory", "defeat"}, {"success", "failure"}, {"wealth", "poverty"},
+      {"hope", "fear"}, {"happy", "sad"}, {"joy", "sorrow"}, {"weak", "powerful"}, {"more", "fewer"}};
+  for (size_t i = 0; i < phrase_.size(); ++i)
+    for (size_t j = i + 1; j < phrase_.size(); ++j) {
+      bool pair = false;
+      for (const auto& o : kOpposites)
+        pair = pair || (phrase_[i].text == o[0] && phrase_[j].text == o[1]) || (phrase_[i].text == o[1] && phrase_[j].text == o[0]);
+      if (!pair) continue;
+      const bool oneTerm = j == i + 2 && phrase_[i + 1].text == "and" && j + 1 < phrase_.size() && phrase_[j + 1].accent;
+      if (oneTerm) continue;
+      phrase_[i].contrast = phrase_[j].contrast = true;
+      phrase_[i].accent = phrase_[j].accent = true;
+    }
+  // A content word said again within a few words ("to help them help
+  // themselves") is said differently the second time: a short pause before
+  // it, and it starts a little above the first and falls.
+  for (size_t j = 1; j < phrase_.size(); ++j) {
+    if (!phrase_[j].accent || phrase_[j].repeat) continue;
+    for (size_t i = j - 1; i + kRepeatWithin >= j && i + 1 > 0; --i)
+      if (phrase_[i].accent && phrase_[i].text == phrase_[j].text && !phrase_[i].repeat) {
+        phrase_[i].repeat = 1;
+        phrase_[j].repeat = 2;
+        phrase_[j].repeatOf = i;
+        break;
+      }
+  }
   // Before a dental fricative (ð θ), s and z move to the teeth: "is that"
   // is said with a dental z (ɪð ðæt), "this thing" with a dental s. Only
   // after a vowel across words: after a consonant ("hands the") the s or z
@@ -1261,6 +1352,15 @@ void EnglishReader::sayPhrase(char end) {
       if (n >= 4 && t[n - 1] == kN && t[n - 2] == kAH0 && (t[n - 3] == kSH || t[n - 3] == kZH)) {
         t.erase(t.end() - 2);
         word.syllabicN = true;
+      }
+      // -tle, -ple, -ble, -dle, -kle, -gle, -fle, -vle, -sle, -zle ("little",
+      // "people", "trouble"): a syllabic l (l̩), no schwa (with it "little"
+      // was "lit-tuhl", a schwa and an l of 90 ms each).
+      static const uint8_t kL = tokenOf("L");
+      if (n >= 4 && t[n - 1] == kL && t[n - 2] == kAH0 && !isVowelToken(t[n - 3]) && t[n - 3] != kL &&
+          baseName(t[n - 3]) != "R" && baseName(t[n - 3]) != "N" && baseName(t[n - 3]) != "M" && baseName(t[n - 3]) != "NG") {
+        t.erase(t.end() - 2);
+        word.syllabicL = true;
       }
     }
   }
@@ -1326,6 +1426,7 @@ void EnglishReader::sayPhrase(char end) {
   // between kDeclinationMin and kDeclinationMax.
   const float n = static_cast<float>(syl.size());
   const float decline = std::clamp(kDeclination * n, kDeclinationMax, kDeclinationMin);
+  std::vector<float> wordPitch(phrase_.size(), kPhraseStart);  // each word's accent pitch (for repeats)
   for (size_t k = 0; k < syl.size(); ++k) {
     const float base = kPhraseStart + startShift + decline * (n > 1 ? k / (n - 1) : 0.0f);
     float p = base;
@@ -1336,7 +1437,7 @@ void EnglishReader::sayPhrase(char end) {
       const size_t w = syl[k].word;
       const std::string& text = phrase_[w].text;
       float scale = 1.0f;
-      bool emphatic = false;
+      bool emphatic = phrase_[w].contrast;
       for (const char* e : kEmphatic) emphatic = emphatic || text == e;
       if (!parallel && repeats == 0 && std::find(recent_.begin(), recent_.end(), text) != recent_.end())
         scale *= kGivenScale;
@@ -1355,6 +1456,13 @@ void EnglishReader::sayPhrase(char end) {
       // Emphasis words reach most of a first accent's height, however far
       // the phrase has stepped down ("come not from": "not" was at +2 st).
       if (emphatic) p = std::max(p + kEmphasisBoost, base + kEmphaticFloor * (kFirstAccent + topic + build));
+      // A repeated word: the first rises, the second starts above it and falls.
+      if (phrase_[w].repeat == 1) p += kRepeatRise;
+      if (phrase_[w].repeat == 2) {
+        p = std::max(p, wordPitch[phrase_[w].repeatOf] + kRepeatSecondAbove);
+        syl[k].end = p - kRepeatFall;
+      }
+      wordPitch[w] = p;
       accentHeight = std::max(accentHeight * kDownstep, kMinAccent);
     } else if (k > 0 && syl[k - 1].accent) {
       p = base + kPostAccent * (syl[k - 1].pitch - base);
@@ -1475,7 +1583,9 @@ void EnglishReader::sayPhrase(char end) {
         if (!isVowelToken(t[i - 1]) && t[i - 1] != kR) continue;
         // Inside the word only: across a word boundary ("bet again") the
         // flap merged the words for listeners ("better than").
-        if (i + 1 >= t.size() || !unstressedVowel(t[i + 1])) continue;
+        // ... or a syllabic l or n ("little", "button"): the tap is there too.
+        const bool syllabic = i + 2 == t.size() && (phrase_[w].syllabicL || phrase_[w].syllabicN);
+        if (i + 1 >= t.size() || !(unstressedVowel(t[i + 1]) || syllabic)) continue;
         t[i] = kD;
         phrase_[w].flaps |= 1u << i;
       }
@@ -1502,9 +1612,38 @@ void EnglishReader::sayPhrase(char end) {
     // voice-over reference has no gap between words). Except when the air
     // runs low in a long stretch without punctuation: then a short pause
     // and a breath between words, before the voice would fade out.
-    if (w > 0 && synth_.plannedAir() < kEmergencyBreathAir) {
+    // ... taken early, before a word that opens a phrase (a determiner, a
+    // conjunction, a relative), while the air is merely low: "from the hand
+    // of God" breathed between "hand" and "of" and was heard as an emphasis
+    // on "God"; a breath belongs before "the hand of God".
+    const bool opener = w > 0 && isBreathOpener(phrase_[w].text) && !isNoSplitAfter(phrase_[w - 1].text);
+    // A speaker anticipates: at an opener the breath is taken if the air
+    // would not carry to the next opener (or to the phrase's end when there
+    // is none), and never with only the last words left (nobody leaves one
+    // word for the next breath).
+    const bool lastWords = phrase_.size() - w <= kNoBreathLastWords;
+    bool anticipate = false;
+    if (opener && !lastWords) {
+      size_t nextOpener = phrase_.size();
+      for (size_t k = w + 1; k + kNoBreathLastWords < phrase_.size(); ++k)
+        if (isBreathOpener(phrase_[k].text) && !isNoSplitAfter(phrase_[k - 1].text)) { nextOpener = k; break; }
+      int syllablesToNext = 0, syllablesToEnd = 0;
+      for (size_t k = w; k < phrase_.size(); ++k)
+        for (uint8_t t : phrase_[k].tokens) {
+          syllablesToEnd += isVowelToken(t);
+          if (k < nextOpener) syllablesToNext += isVowelToken(t);
+        }
+      const float air = synth_.plannedAir();
+      const bool fitsToEnd = air > syllablesToEnd * kAirPerSyllable + kBreathMargin;
+      const bool reachesNext = nextOpener < phrase_.size() && air > syllablesToNext * kAirPerSyllable + kBreathMargin;
+      anticipate = !fitsToEnd && !reachesNext && air <= kCommaBreathBelow;
+    }
+    if (phrase_[w].repeat == 2) pause(kRepeatPauseStops);  // "help them | help themselves"
+    const bool allowed = w > 0 && !isNoSplitAfter(phrase_[w - 1].text);  // not "any | friend", "of | God"
+    if (allowed && !lastWords &&
+        (synth_.plannedAir() < kEmergencyBreathAir || (opener && synth_.plannedAir() < kGoodBreathAir) || anticipate)) {
       pause(4);
-      synth_.breathPoint(false, false, true);  // snatched: the quick breath
+      synth_.breathPoint(false, false, !opener);  // snatched (the quick breath) only at a poor place
     }
     const std::vector<uint8_t>& tokens = phrase_[w].tokens;
     // Primary stress mark (content words only) before the stressed onset.
@@ -1604,6 +1743,7 @@ void EnglishReader::sayPhrase(char end) {
         if (i == 0 && s.ph[k] == Ph::RR && tokens.size() > 1 && isVowelToken(tokens[1]))
           shape.ms *= kInitialRLength;
         if (phrase_[w].syllabicN && i + 1 == tokens.size()) shape.ms *= kSyllabicNLength;
+        if (phrase_[w].syllabicL && i + 1 == tokens.size()) shape.ms *= kSyllabicLLength;
         if (i < 32 && (phrase_[w].flaps >> i & 1)) {
           shape.flap = true;
           shape.ms = kFlapMs;

@@ -21,6 +21,18 @@ constexpr float kInertance = 0.005f;  // physically ~0.01; more makes the highs 
 constexpr float kRound = 0.002f;  // rounding of the heard area (cm^2)
 const float kSqrtM1K1 = std::sqrt(kM1 * kK1), kSqrtM2K2 = std::sqrt(kM2 * kK2);
 constexpr int kSubsteps = 1;  // per call; the synth calls it 4x per sample
+// Jyrki (2026-10-30): the folds move while closed too, and their surface
+// pushes air into the tract: a volume velocity 2 L (d1 v1 + d2 v2), scaled by
+// this (1 would be the geometric value; at 3 it is heard as a softer closure),
+// added to the flow that is heard.
+// Tried at 3 (2026-10-30, steps 19-25); Jyrki chose to return to step 15.
+constexpr float kSurfaceFlow = 0.0f;
+// ... and tension reduces damping: the damping ratios are divided by
+// q^kTensionDamping (relaxed folds damp best). The male voice sits below the
+// model's natural pitch (q ~ 0.75), so it gets more damping and a brighter
+// top (4-8 kHz +5 dB); the female (q ~ 1.6) less.
+// Tried at 1 (steps 19-25); back to step 15.
+constexpr float kTensionDamping = 0.0f;
 
 }  // namespace
 
@@ -85,14 +97,15 @@ float VocalFolds::step(float dt, const Input& in) {
     const float f1 = kLength * kD1 * pm1;
     const float f2 = kLength * kD2 * pm2;
     // Collision: when a slit closes, the tissue is compressed.
-    float c1 = 0, c2 = 0, z1 = kZeta1, z2 = kZeta2;
+    const float zq = std::pow(q, -kTensionDamping);
+    float c1 = 0, c2 = 0, z1 = kZeta1 * zq, z2 = kZeta2 * zq;
     if (a1 < 0) {
       c1 = -kCollision * k1 * a1 / (2 * kLength);
-      z1 += kZetaClosed;
+      z1 += kZetaClosed * zq;
     }
     if (a2 < 0) {
       c2 = -kCollision * k2 * a2 / (2 * kLength);
-      z2 += kZetaClosed;
+      z2 += kZetaClosed * zq;
     }
     // sqrt(m k) does not depend on the tension q (m / q times k q).
     const float r1 = 2 * z1 * kSqrtM1K1, r2 = 2 * z2 * kSqrtM2K2;
@@ -115,7 +128,7 @@ float VocalFolds::step(float dt, const Input& in) {
     }
     wasOpen_ = open;
   }
-  return uOut_;
+  return uOut_ + kSurfaceFlow * 2 * kLength * (kD1 * v1_ + kD2 * v2_);
 }
 
 }  // namespace puhuja

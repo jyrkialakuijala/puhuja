@@ -112,7 +112,7 @@ void usage(FILE* f) {
       "  -rate x       English speaking rate, 0.9 = 10 % slower (default 0.95)\n"
       "  -room         a small room: early reflections and a short tail\n"
       "  -l file       write phoneme timings (start, end, symbol)\n"
-      "  -w source     voice source: physical (default), glottal, triangle, square\n"
+      "  -w source     voice source: physical (default), shaped, glottal, triangle, square\n"
       "  -m motion     formant motion: damped/dampen (default) or spline\n"
       "  -leak x       part of the source that bypasses the formants (default 0.03)\n"
       "  -g2p          print English pronunciations of the words on stdin\n"
@@ -193,6 +193,7 @@ int main(int argc, char** argv) {
       ++i;
       carrier = !strcmp(argv[i], "physical") ? puhuja::Carrier::Physical
                 : !strcmp(argv[i], "glottal") ? puhuja::Carrier::Glottal
+                : !strcmp(argv[i], "shaped") ? puhuja::Carrier::Shaped
                 : !strcmp(argv[i], "square") ? puhuja::Carrier::Square
                                              : puhuja::Carrier::Triangle;
     } else if (!strcmp(argv[i], "-l") && i + 1 < argc) {
