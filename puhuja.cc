@@ -190,7 +190,7 @@ constexpr float kBodyFollow = 0.75f;
 
 // Fixed output gains so vowels peak at roughly +-0.5. No clipping is applied.
 constexpr float kOutGain = 0.25f;
-const float kAspirationGain = param("kAspirationGain", 0.06149f) /* cost 0.0390638945257385 stops-c32-mf */;  // glottal breath noise into the tract
+const float kAspirationGain = param("kAspirationGain", 0.3659f) /* cost 0.0394612677442557 stops-w1k-us5-mf-3 */;  // glottal breath noise into the tract
 // Aspiration source: a band of one-pole slopes (-6 dB/octave above the tilt
 // corner and below the low cut), and the gain that keeps its level around
 // 1-2 kHz where the white source had it.
@@ -198,7 +198,7 @@ constexpr float kAspirationTiltHz = 1000;
 // and below this the turbulence is weak too (it drove F1 too hard: goog.wav's
 // h is strongest at its vowel's F2, not F1).
 constexpr float kAspirationLowCutHz = 600;
-const float kAspirationTiltGain = param("kAspirationTiltGain", 5.788f) /* cost 0.0390638945257385 stops-c32-mf */;
+const float kAspirationTiltGain = param("kAspirationTiltGain", 1.919f) /* cost 0.0394612677442557 stops-w1k-us5-mf-3 */;
 constexpr float kPopGain = 120.0f;        // release transient into the tract
 
 // --- Aerodynamics ---------------------------------------------------------
@@ -370,8 +370,12 @@ constexpr float kBurstPrevVowel = 0.25f;  // vowel chains: overshoot away from n
 // At a pause speech fades out exponentially (linear in dB): ~3 dB per 10 ms.
 constexpr float kSpeechFadeMs = 28;
 constexpr float kSpeechAttackMs = 5;
-// A voiceless sound starting a phrase (f, s, h) swells in over this.
-const float kVoicelessOnsetMs = param("kVoicelessOnsetMs", 59.46) /* cost 0.0390638945257385 stops-c32-mf */;
+// A voiceless sound starting a phrase (f, s, h) swells in over this. (50:
+// the readers' phrase-initial f swells 20 dB over 40-60 ms (ElevenLabs,
+// Google); at 59 puhuja's took 100 ms and the f stayed 24 dB under the vowel.
+// Not searched on single words: every word is phrase-initial there and the
+// Zimtohrli search stretched it to 166 ms, 2026-10-30.)
+const float kVoicelessOnsetMs = param("kVoicelessOnsetMs", 50);
 // Lungs. Volume is the air available for speaking (cm^3).
 constexpr float kLungMax = 2000;         // after a full breath
 constexpr float kLungRest = 1000;        // before the first breath
@@ -529,8 +533,8 @@ constexpr float kChestHz = 500;
 // vowel before it (1-8 kHz), the readers 0 to +18 (median +4); a final ʧ in
 // a recording of "rich." is loud and 230 ms.
 constexpr float kChFricationLevel = 3.0f;
-const float kChFricationBoost = param("kChFricationBoost", 1.717f) /* cost 0.0390638945257385 stops-c32-mf */;  // ʧ's +5 dB (it was ~11 dB under the voice-over's)
-const float kJhFricationBoost = param("kJhFricationBoost", 4.212f) /* cost 0.0390638945257385 stops-c32-mf */;  // (1.6, +10 % by ear for "pledge", +10 % for "generosity")
+const float kChFricationBoost = param("kChFricationBoost", 0.9964f) /* cost 0.0394612677442557 stops-w1k-us5-mf-3 */;  // ʧ's +5 dB (it was ~11 dB under the voice-over's)
+const float kJhFricationBoost = param("kJhFricationBoost", 4.553f) /* cost 0.0394612677442557 stops-w1k-us5-mf-3 */;  // (1.6, +10 % by ear for "pledge", +10 % for "generosity")
 // Its noise band: lower and wider than ʒ's {1800, 7000, 2800, 1200, 3}.
 constexpr FricShape kJhNoiseShape = {1000, 7000, 2500, 1500, 3.0f};
 // The frication part of an affricate is shorter than a plain fricative.
@@ -540,7 +544,7 @@ constexpr float kJhFricationLength = 1.1f;
 constexpr float kEnglishChFricationLength = 1.6f, kEnglishChReleaseMs = 8;
 // English affricates: frication length as a multiple of the reader's closure
 // (1.8: a stressed ʧ's 50 ms closure + 90 ms frication, as before).
-const float kAffricateFricationPerClosure = param("kAffricateFricationPerClosure", 1.997f) /* cost 0.0390638945257385 stops-c32-mf */;  // (1.9: onset and medial ʤ ʧ 137-182 ms in kennedy.txt against 70-150, median ~115, in six references; "generosity" 163 vs 100-150, "torch" 137 vs 70-80, 2026-10-30)  // (2.2: ʧ ʤ 145-168 ms against 90-120 in am_onyx and ElevenLabs; a quarter of the way back, 2026-10-30)  // (1.8: a final "rich" came back from Whisper as "right"; a recording's final ʧ has 230 ms of hiss)  // (1.3: ʧ 124 ms, the readers 120-190, a final one in a recording 230)  // ... and ʤ's 10 % longer (by ear)
+const float kAffricateFricationPerClosure = param("kAffricateFricationPerClosure", 0.8389f) /* cost 0.0394612677442557 stops-w1k-us5-mf-3 */;  // (1.9: onset and medial ʤ ʧ 137-182 ms in kennedy.txt against 70-150, median ~115, in six references; "generosity" 163 vs 100-150, "torch" 137 vs 70-80, 2026-10-30)  // (2.2: ʧ ʤ 145-168 ms against 90-120 in am_onyx and ElevenLabs; a quarter of the way back, 2026-10-30)  // (1.8: a final "rich" came back from Whisper as "right"; a recording's final ʧ has 230 ms of hiss)  // (1.3: ʧ 124 ms, the readers 120-190, a final one in a recording 230)  // ... and ʤ's 10 % longer (by ear)
 
 enum class Cls { Vowel, Plosive, Nasal, Liquid, Trill, Glide, Fricative, H, Stop };
 
@@ -652,23 +656,23 @@ struct PlosiveInfo {
 // d before a dental fricative: closure share and release strength.
 constexpr float kDentalDClosure = 0.5f, kDentalDRelease = 0.25f;
 constexpr float kDentalReleaseMs = 30;  // t d into ð θ: the opening
-const float kUnreleasedClosure = param("kUnreleasedClosure", 1.452f) /* cost 0.0390638945257385 stops-c32-mf */;  // a plosive before another: closure share
+const float kUnreleasedClosure = param("kUnreleasedClosure", 0.8351f) /* cost 0.0394612677442557 stops-w1k-us5-mf-3 */;  // a plosive before another: closure share
 constexpr float kLinkedDRelease = 2.5f;  // word-final d before a vowel-initial word: burst and pop
 constexpr float kLinkedDReleaseSlow = 2.0f;  // and its opening this much slower (a longer burst)
-const float kVoicedAfterConsonantRelease = param("kVoicedAfterConsonantRelease", 0.4491f) /* cost 0.0390638945257385 stops-c32-mf */;  // b d g after a consonant: burst and pop
+const float kVoicedAfterConsonantRelease = param("kVoicedAfterConsonantRelease", 1.15f) /* cost 0.0394612677442557 stops-w1k-us5-mf-3 */;  // b d g after a consonant: burst and pop
 // English b after a pause or consonant: glottal opening during the closure
 // (share of voice -> open), burst noise and pop multiplier.
-const float kEnglishBOpening = param("kEnglishBOpening", 0.439f) /* cost 0.0390638945257385 stops-c32-mf */, kEnglishBNoise = param("kEnglishBNoise", 0.1811f) /* cost 0.0390638945257385 stops-c32-mf */, kEnglishBPop = param("kEnglishBPop", 4.395f) /* cost 0.0390638945257385 stops-c32-mf */;
-const float kDevoiceBeforeFric = param("kDevoiceBeforeFric", 0.848f) /* cost 0.0390638945257385 stops-c32-mf */;  // b d g before f θ s ʃ: closure glottis share
-const float kFlapRelease = param("kFlapRelease", 0.311f) /* cost 0.0390638945257385 stops-c32-mf */;  // a flap's burst and pop
-const float kEnglishKBurst = param("kEnglishKBurst", 32.04f) /* cost 0.0390638945257385 stops-c32-mf */;  // (11 until 2026-10-30: k bursts 6 dB under the readings')  // English k burst (5: +14 dB, +8 left cow -> power; 11: at 5 its burst peak was 5.5 dB under the recordings' against the vowel; "cannot" as "(k)annot")
-const float kEnglishKReleaseMs = param("kEnglishKReleaseMs", 20) /* cost 0.0390638945257385 stops-c32-mf */;  // English k release (25)
+const float kEnglishBOpening = param("kEnglishBOpening", 0.4368f) /* cost 0.0394612677442557 stops-w1k-us5-mf-3 */, kEnglishBNoise = param("kEnglishBNoise", 0.09007f) /* cost 0.0394612677442557 stops-w1k-us5-mf-3 */, kEnglishBPop = param("kEnglishBPop", 27.69f) /* cost 0.0394612677442557 stops-w1k-us5-mf-3 */;
+const float kDevoiceBeforeFric = param("kDevoiceBeforeFric", 1.007f) /* cost 0.0394612677442557 stops-w1k-us5-mf-3 */;  // b d g before f θ s ʃ: closure glottis share
+const float kFlapRelease = param("kFlapRelease", 2.405f) /* cost 0.0394612677442557 stops-w1k-us5-mf-3 */;  // a flap's burst and pop
+const float kEnglishKBurst = param("kEnglishKBurst", 9.019f) /* cost 0.0394612677442557 stops-w1k-us5-mf-3 */;  // (11 until 2026-10-30: k bursts 6 dB under the readings')  // English k burst (5: +14 dB, +8 left cow -> power; 11: at 5 its burst peak was 5.5 dB under the recordings' against the vowel; "cannot" as "(k)annot")
+const float kEnglishKReleaseMs = param("kEnglishKReleaseMs", 14.47) /* cost 0.0394612677442557 stops-w1k-us5-mf-3 */;  // English k release (25)
 // (90 and 1.25: word-initial k p had a voice onset time of 124-142 ms against
 // 55-90 in Kokoro (am_onyx 66-140, am_adam 34-74) on cup, kate, coat, cope,
 // printer, pointed; the aspiration ~4 dB quieter but twice as long; the word
 // survey's worst words were these stops. Half-way: VOT ~80 ms, 2026-10-30.)
-const float kAspiratedAdductMs = param("kAspiratedAdductMs", 35.52) /* cost 0.0390638945257385 stops-c32-mf */, kAspiratedUnstressedMs = param("kAspiratedUnstressedMs", 24.86) /* cost 0.0390638945257385 stops-c32-mf */;  // (70: VOT still 106-120; the folds take ~40 ms to start after the glottis closes)
-const float kStrongAspirationLength = param("kStrongAspirationLength", 1.312f) /* cost 0.0390638945257385 stops-c32-mf */, kStrongAspirationGain = param("kStrongAspirationGain", 4.07f) /* cost 0.0390638945257385 stops-c32-mf */;  // word-initial p t k of a primary-stressed syllable
+const float kAspiratedAdductMs = param("kAspiratedAdductMs", 14.79) /* cost 0.0394612677442557 stops-w1k-us5-mf-3 */, kAspiratedUnstressedMs = param("kAspiratedUnstressedMs", 23.82) /* cost 0.0394612677442557 stops-w1k-us5-mf-3 */;  // (70: VOT still 106-120; the folds take ~40 ms to start after the glottis closes)
+const float kStrongAspirationLength = param("kStrongAspirationLength", 0.6184f) /* cost 0.0394612677442557 stops-w1k-us5-mf-3 */, kStrongAspirationGain = param("kStrongAspirationGain", 2.594f) /* cost 0.0394612677442557 stops-w1k-us5-mf-3 */;  // word-initial p t k of a primary-stressed syllable
 // Finnish plosives are unaspirated: the glottis closes again quickly.
 PlosiveInfo plosiveInfo(Ph ph) {
   switch (ph) {
