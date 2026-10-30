@@ -6,16 +6,58 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <map>
+#include <string>
 
 namespace puhuja {
 namespace {
 
 constexpr int L = GridFolds::kLayers, S = GridFolds::kSegments;
 // Research knobs: GRID_<NAME>=value in the environment overrides a default
-// while the model is being fitted (read once).
+// while the model is being fitted (read once). GRID_PARAMS=file reads a
+// parameter file of "name value" lines first (the optimizer's vector): the
+// knob names, and per-mass multipliers M_f_j_i and K_f_j_i (fold, layer,
+// segment) on the mass and the body stiffness, 1 = the structured default.
+const std::map<std::string, float>& paramFile() {
+  static const std::map<std::string, float> m = [] {
+    std::map<std::string, float> out;
+    if (const char* f = std::getenv("GRID_PARAMS")) {
+      if (FILE* fp = std::fopen(f, "r")) {
+        char name[64];
+        double v;
+        while (std::fscanf(fp, "%63s %lf", name, &v) == 2) out[name] = static_cast<float>(v);
+        std::fclose(fp);
+      }
+    }
+    return out;
+  }();
+  return m;
+}
 float knob(const char* name, float def) {
+  const auto& pf = paramFile();
+  const auto it = pf.find(name);
+  if (it != pf.end()) return it->second;
   const char* v = std::getenv(name);
   return v ? std::strtof(v, nullptr) : def;
+}
+// The per-mass multipliers from the parameter file (1 when absent).
+float massMul(char kind, int f, int j, int i) {
+  static float table[2][2][L][S];
+  static bool loaded = false;
+  if (!loaded) {
+    for (int k = 0; k < 2; ++k)
+      for (int ff = 0; ff < 2; ++ff)
+        for (int jj = 0; jj < L; ++jj)
+          for (int ii = 0; ii < S; ++ii) {
+            char name[32];
+            std::snprintf(name, sizeof name, "%c_%d_%d_%d", k == 0 ? 'M' : 'K', ff, jj, ii);
+            const auto& pf = paramFile();
+            const auto it = pf.find(name);
+            table[k][ff][jj][ii] = it != pf.end() ? it->second : 1.0f;
+          }
+    loaded = true;
+  }
+  return table[kind == 'M' ? 0 : 1][f][j][i];
 }
 constexpr float kLength = 1.4f;     // fold length (cm)
 constexpr float kThickness = 0.3f;  // the medial surface's vertical extent (cm)
@@ -56,6 +98,7 @@ const float kSurface = knob("GRID_SURFACE", 1.0f);
 // The abduction rest area scaled for the grid (its own amplitude differs
 // from the two-mass model's; the glottis was open 95 % of the cycle at 1).
 const float kRestScale = knob("GRID_REST", 1.0f);
+const float kAssist = knob("GRID_ASSIST", 0.6f);  // see gapEff (0: level -39/-42 dB m/f, 0.3: -36/-40, 1.0: -32/-36 but the male pitch 89 for 83 and fewer voiced frames; 2026-10-30)
 // The body springs' natural frequency at tension 1 (the couplings raise the
 // fold's lowest mode above it; the driver's pitch controller takes up the
 // rest, as it does for the two-mass folds).
@@ -107,6 +150,23 @@ void GridFolds::reset() {
 // there kSlope * z further from the midline. Lifted enough, the folds part.
 float GridFolds::gap(int j, int i) const { return restW_[i] + kSlope * (z_[0][j][i] + z_[1][j][i]); }
 
+// The slit width that counts for the air and the contact: the tissue is
+// continuous, so a point next to an open neighbour parts more easily
+// (Jyrki: "the opening threshold should be slightly reduced if a neighboring
+// pixel is opened"): the raw width plus kAssist times the mean opening of
+// its neighbours along the cord and in the layers above and below.
+float GridFolds::gapEff(int j, int i) const {
+  float g = gap(j, i);
+  if (kAssist <= 0) return g;
+  float open = 0;
+  int n = 0;
+  if (i > 0) { open += std::max(gap(j, i - 1), 0.0f); ++n; }
+  if (i + 1 < S) { open += std::max(gap(j, i + 1), 0.0f); ++n; }
+  if (j > 0) { open += std::max(gap(j - 1, i), 0.0f); ++n; }
+  if (j + 1 < L) { open += std::max(gap(j + 1, i), 0.0f); ++n; }
+  return g + kAssist * open / n;
+}
+
 float GridFolds::step(float h, const VocalFolds::Input& in) {
   const float q = std::max(in.q, 0.2f);
   // Rest width along the cord (the abduction, scaled by kRestScale for this
@@ -132,11 +192,11 @@ float GridFolds::step(float h, const VocalFolds::Input& in) {
         hsh ^= hsh >> 13;
         hsh *= 0x5bd1e995u;
         const float pattern = static_cast<float>((hsh >> 8) & 0xffff) / 32767.5f - 1.0f;  // -1..1
-        mass[f][j][i] = kLayerMass[j] / S * taper * (1.0f + kInhom * pattern) * (f == 1 ? 1.0f + kAsym : 1.0f);
+        mass[f][j][i] = kLayerMass[j] / S * taper * (1.0f + kInhom * pattern) * (f == 1 ? 1.0f + kAsym : 1.0f) * massMul('M', f, j, i);
         const float w0 = 2 * kPi * kNaturalF0;
         const float layerStiff = kBottomStiff + (kTopStiff - kBottomStiff) * j / (L - 1.0f);
         const float post = (i + 0.5f) / S;
-        kBody[f][j][i] = kLayerMass[j] / S * taper * w0 * w0 * q2 * layerStiff * (1.0f + kPosteriorStiff * post * post);
+        kBody[f][j][i] = kLayerMass[j] / S * taper * w0 * w0 * q2 * layerStiff * (1.0f + kPosteriorStiff * post * post) * massMul('K', f, j, i);
         damp[f][j][i] = 2 * std::sqrt(mass[f][j][i] * kBody[f][j][i]);  // x zeta
       }
   closedNow_ = false;
@@ -148,7 +208,7 @@ float GridFolds::step(float h, const VocalFolds::Input& in) {
     aMin[i] = 1e9f;
     jMin[i] = 0;
     for (int j = 0; j < L; ++j) {
-      const float a = kSeg * gap(j, i);
+      const float a = kSeg * gapEff(j, i);
       if (a < aMin[i]) {
         aMin[i] = a;
         jMin[i] = j;
@@ -190,12 +250,12 @@ float GridFolds::step(float h, const VocalFolds::Input& in) {
     int jClosed = L;
     if (aMin[i] <= 0)
       for (int j = 0; j < L; ++j)
-        if (gap(j, i) <= 0) {
+        if (gapEff(j, i) <= 0) {
           jClosed = j;
           break;
         }
     for (int j = 0; j < L; ++j) {
-      const float g = gap(j, i);
+      const float g = gapEff(j, i);
       // Air pressure on this layer's surface.
       float p;
       if (aMin[i] <= 0) {
@@ -248,7 +308,7 @@ float GridFolds::step(float h, const VocalFolds::Input& in) {
       }
   for (int i = 0; i < kMembranous; ++i) {
     float a = 1e9f;
-    for (int j = 0; j < L; ++j) a = std::min(a, kSeg * gap(j, i));
+    for (int j = 0; j < L; ++j) a = std::min(a, kSeg * gapEff(j, i));
     aNew += std::max(a, 0.0f);
   }
   // Debug: GRID_TRACE=file writes, once per output sample (every 4th step),

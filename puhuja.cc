@@ -1721,11 +1721,15 @@ void Synth::emit(const Token& tok, const Ph* next) {
       setTargets();
       coarticulate(p, tok.ph, next);
       // An l after the r-coloured vowel ("world", "girl", "curl"): the r
-      // colour stays through it. goog.wav's "world" holds F3 at ~1400 Hz
-      // from the vowel's end to the d; puhuja's l took its own high F3, so
-      // F3 swept 1600 -> 2800 Hz in 80 ms between the vowel and the l, an
-      // edge heard as artificial.
-      if (tok.ph == Ph::L && (lastPh_ == Ph::ER || lastPh_ == Ph::RR)) p[kF3] = std::min(p[kF3], last_[kF3]);
+      // colour stays into it. goog.wav's "world" holds F3 at ~1400 Hz from
+      // the vowel's end to the d; puhuja's l took its own high F3, so F3
+      // swept 1600 -> 2800 Hz in 80 ms between the vowel and the l, an edge
+      // heard as artificial. Held at the r's F3 through the whole l, the
+      // sweep moved to the d (1700 -> 2700 in 60 ms; "too much formant
+      // activity around r and l", 2026-10-30); the male readings (Kokoro,
+      // ElevenLabs) let F3 rise through the l, 1750 -> 2650 over 70-100 ms.
+      // The l now aims half-way (geometric mean), so each sweep is half.
+      if (tok.ph == Ph::L && (lastPh_ == Ph::ER || lastPh_ == Ph::RR)) p[kF3] = std::sqrt(std::min(p[kF3], last_[kF3]) * p[kF3]);
       // A coda l (after a vowel, before a consonant or a pause: "world",
       // "all forms") keeps most of the vowel's jaw and darkens: LPC on three
       // readers, the l's middle against its vowel, F1 -0.07..-0.26 oct and

@@ -45,6 +45,7 @@ class GridFolds {
 
  private:
   float gap(int j, int i) const;  // the slit width at layer j, segment i (cm)
+  float gapEff(int j, int i) const;  // ... as the air and the contact see it (neighbours help it open)
   float z_[2][kLayers][kSegments] = {}, v_[2][kLayers][kSegments] = {};  // vertical displacement (cm, up > 0) and velocity
   float restW_[kSegments] = {};  // rest slit width per segment (cm)
   // Each segment is its own channel through the stack of layers, with its own
