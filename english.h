@@ -59,6 +59,15 @@ class EnglishReader {
   void sayPhrase(char end);  // end: '.', '?', ',' (continues) ...
   void pause(int stops);     // silence in 15 ms steps
   std::vector<std::vector<float>> durations() const;  // ms per token (Klatt)
+  // Breath planning over the rest of the sentence (see planBreaths in english.cc).
+  void planBreaths();
+  std::string restOfSentence() const;
+  std::vector<float> wordTempo_;    // the plan's tempo per word of the phrase (1: as fitted)
+  std::vector<char> breathPlan_;    // a planned breath before this word of the phrase ...
+  std::vector<char> breathSnatch_;  // ... and whether it is the quick one (a poor place)
+  std::vector<Word> splitTail_;  // the rest of a phrase split in two, while its head is spoken
+  std::string lookahead_;  // the text being read (a sentence or more)
+  size_t lookPos_ = 0;     // where in it the reader is
   Synth& synth_;
   std::vector<Word> phrase_;
   std::string lastWord_;  // the word before the current phrase (homograph context)

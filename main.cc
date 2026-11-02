@@ -113,7 +113,9 @@ void usage(FILE* f) {
       "  -room         a small room: early reflections and a short tail\n"
       "  -l file       write phoneme timings (start, end, symbol)\n"
       "  -words file   write word timings (start, end, word number from 1)\n"
-      "  -w source     voice source: physical (default), grid (4x8 multi-mass folds), shaped, glottal, triangle, square\n"
+      "  -w source     voice source: grid (default; 4x8 multi-mass folds), block (2x2x6 body-cover folds),\n"
+      "                string (one fold of two 16-lane strings against a mirror wall), physical,\n"
+      "                shaped, glottal, triangle, square\n"
       "  PUHUJA_PARAMS=file  research parameters (\"name value\" lines, see params.h); without it a\n"
       "                puhuja.params in the working directory or next to the binary is read (a running\n"
       "                tools/word_opt.py keeps its best state there)\n"
@@ -164,8 +166,8 @@ int main(int argc, char** argv) {
   const char* labelPath = nullptr;  // -l file: phoneme timings (start end symbol)
   const char* wordsPath = nullptr;  // -words file: word timings (start end number)
   float leak = 0.03f;    // -leak x: part of the source bypassing the formants
-  // -w physical|triangle|square|glottal: voice source (default physical).
-  puhuja::Carrier carrier = puhuja::Carrier::Physical;
+  // -w grid|physical|triangle|square|glottal: voice source (default grid, Jyrki 2026-10-31).
+  puhuja::Carrier carrier = puhuja::Carrier::String;
   std::string text;
   bool english = false;
   bool useRoom = false;  // -room: early reflections and a short tail
@@ -174,6 +176,7 @@ int main(int argc, char** argv) {
   float rate = 0.95f;
   size_t chunk = 0;  // -chunk N: feed the text N bytes at a time (testing streaming)
   puhuja::FormantMotion motion = puhuja::FormantMotion::Damped;
+  puhuja::Tract tract = puhuja::Tract::Line;
   for (int i = 1; i < argc; ++i) {
     if (!strcmp(argv[i], "-h") || !strcmp(argv[i], "-?") || !strcmp(argv[i], "--help") ||
         !strcmp(argv[i], "-help")) {
@@ -182,7 +185,7 @@ int main(int argc, char** argv) {
     }
     if (argv[i][0] == '-' && argv[i][1] && !(argv[i][1] >= '0' && argv[i][1] <= '9') &&
         strcmp(argv[i], "-o") && strcmp(argv[i], "-r") && strcmp(argv[i], "-w") &&
-        strcmp(argv[i], "-l") && strcmp(argv[i], "-words") && strcmp(argv[i], "-leak") && strcmp(argv[i], "-m") &&
+        strcmp(argv[i], "-l") && strcmp(argv[i], "-words") && strcmp(argv[i], "-leak") && strcmp(argv[i], "-m") && strcmp(argv[i], "-t") &&
         strcmp(argv[i], "-room") && strcmp(argv[i], "-rate") && strcmp(argv[i], "-en") &&
         strcmp(argv[i], "-g2p") && strcmp(argv[i], "-g2p-raw") && strcmp(argv[i], "-female") &&
         strcmp(argv[i], "-f0") && strcmp(argv[i], "-chunk")) {
@@ -200,8 +203,13 @@ int main(int argc, char** argv) {
                 : !strcmp(argv[i], "glottal") ? puhuja::Carrier::Glottal
                 : !strcmp(argv[i], "shaped") ? puhuja::Carrier::Shaped
                 : !strcmp(argv[i], "grid") ? puhuja::Carrier::Grid
+                : !strcmp(argv[i], "block") ? puhuja::Carrier::Block
+                : !strcmp(argv[i], "string") ? puhuja::Carrier::String
                 : !strcmp(argv[i], "square") ? puhuja::Carrier::Square
                                              : puhuja::Carrier::Triangle;
+    } else if (!strcmp(argv[i], "-t") && i + 1 < argc) {
+      // -t formant|line: the vocal tract (the formant cascade, or the transmission line).
+      tract = !strcmp(argv[++i], "line") ? puhuja::Tract::Line : puhuja::Tract::Formant;
     } else if (!strcmp(argv[i], "-words") && i + 1 < argc) {
       wordsPath = argv[++i];
     } else if (!strcmp(argv[i], "-l") && i + 1 < argc) {
@@ -253,6 +261,7 @@ int main(int argc, char** argv) {
   if (f0 > 0) synth.setBaseF0(f0);
   synth.setCarrier(carrier);
   synth.setFormantMotion(motion);
+  synth.setTract(tract);
   synth.setLeak(leak);
   FILE* out = raw ? stdout : fopen(outPath, "wb");
   if (!out) {

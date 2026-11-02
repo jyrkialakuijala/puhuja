@@ -1,5 +1,9 @@
 #include "larynx.h"
+#include "params.h"
+#include "line.h"
 
+#include <cstdio>
+#include <cstdlib>
 #include <algorithm>
 #include <cmath>
 
@@ -14,6 +18,14 @@ namespace {
 constexpr float kFoldRestPerAg = 0.8f;    // rest slit area (cm^2) per unit ag ...
 constexpr float kFoldRestOffset = -0.02f; // ... plus this: ag 0.05 -> 0.02 cm^2
 constexpr float kFoldRestPressed = -0.15f; // ag 0: pressed shut (vibration stops below ~-0.12)
+// Abducted for a voiceless sound (ag = kAgOpen) the folds are this far
+// apart. On the linear mapping (0.22 cm^2) all three fold models kept
+// vibrating at full abduction, grid and string louder than in the vowel:
+// every h was a voiced vowel with noise on top, +4 dB over its vowel in
+// "hands" where readers are 3-13 dB under or voiceless (INPUT.md
+// 2026-10-31). Real folds stop phonating well before 0.3 cm^2. From
+// kAgBreathy (a voiced h) the rest grows smoothly to this.
+const float kFoldRestOpen = param("kFoldRestOpen", 1.5f);
 constexpr float kFoldNaturalF0 = 155;     // f0 of the fold model at tension 1
 constexpr float kPitchControl = 0.3f;     // per cycle: share of pitch error corrected
 constexpr float kPitchLearnVib = 100;     // flow fluctuation (cm^3/s) needed to learn
@@ -41,6 +53,9 @@ constexpr float kFoldAntiAliasHz = 18000;
 // The grid's share of the micro-variation (Jyrki: less micro-fluctuation
 // there; its irregularity comes from its mass inhomogeneity instead).
 constexpr float kGridMicroScale = 0.33f;
+// The block folds get none for now (Jyrki, 2026-10-31: "remove all
+// micro-variations for now"); their static mass pattern (BLOCK_INHOM, BLOCK_ASYM) stays.
+constexpr float kBlockMicroScale = 0.0f;
 
 // --- the drawn pulse ------------------------------------------------------
 constexpr float kShapedGain = 10.0f;  // the vowels at the physical source's level (the pulse rides on the folds' envelope)
@@ -81,9 +96,13 @@ void FoldLarynx::init(float fs, float baseF0, uint64_t* rng) {
   for (int k = 0; k < 3; ++k) foldAa_[k].lowPass(kFoldAntiAliasHz, kFoldOversample * fs_, aaQ[k]);
   // Let the folds settle, pressed together, before the first sample (from
   // the neutral position they would spring open with a click).
+  // Without lung pressure, as at the first sample (silence has ps = 0):
+  // settled under kLungPressure, the grid's pressed folds sprang back when
+  // the pressure vanished at the first step, a 500 Hz thump before the
+  // speech (Jyrki: "a blimb before it starts", 2026-10-30).
   core_->reset();
   for (int i = 0; i < static_cast<int>(0.05f * fs_); ++i)
-    core_->step(1.0f / fs_, {kLungPressure, 0, 0.7f, kFoldRestPressed});
+    core_->step(1.0f / fs_, {0, 0, 0.7f, kFoldRestPressed});
   prevFlow_ = core_->flow();
 }
 
@@ -143,6 +162,10 @@ void FoldLarynx::step(const LarynxControl& c, LarynxOutput& out) {
   const float restVoice = kFoldRestPerAg * kAgVoice + kFoldRestOffset;
   in.rest = ag >= kAgVoice ? kFoldRestPerAg * ag + kFoldRestOffset
                            : kFoldRestPressed + (restVoice - kFoldRestPressed) * ag / kAgVoice;
+  if (ag > kAgBreathy) {
+    const float restBreathy = kFoldRestPerAg * kAgBreathy + kFoldRestOffset;
+    in.rest = restBreathy + (kFoldRestOpen - restBreathy) * smoothstep(kAgBreathy, kAgOpen, ag);
+  }
   // Its micro-variation: added after the rest position is set (before
   // it, the assignment overwrote it, and the jitter never acted).
   in.rest += kRestJitter * irregular * micro[1];
@@ -159,8 +182,20 @@ void FoldLarynx::step(const LarynxControl& c, LarynxOutput& out) {
   float u = 0;
   bool closed = false;
   double closeAt = 0;  // closure time within this sample (0..1)
+  // With a line tract the lungs' pressure (with its shimmer) drives the
+  // trachea, and the folds see the trachea's pressure below and the line's
+  // above, whole: the coupling is the physics (the halved flow and feedback
+  // of the first version were patches for an uncalibrated fold flow, review
+  // 2026-11-01).
+  if (line_) line_->setLungPressure(in.ps);
   for (int k = 0; k < kFoldOversample; ++k) {
+    if (line_) {
+      in.p1 = p1_;
+      in.ps = line_->subglottalPressure();
+      line_->setGlottalArea(core_->area());
+    }
     const float raw = core_->step(1.0f / (kFoldOversample * fs_), in);
+    if (line_) p1_ = line_->substep(raw);
     u = foldAa_[2].process(foldAa_[1].process(foldAa_[0].process(raw)));
     if (core_->closedNow()) {
       closed = true;
@@ -191,11 +226,17 @@ void FoldLarynx::step(const LarynxControl& c, LarynxOutput& out) {
   // closure.
   pitchCorr_ += (pitchCorrTarget_ - pitchCorr_) * std::min(1.0f, target / fs_);
   // Tract feedback: each formant mode turns the flow into pressure.
-  const float nyq = 0.45f * fs_;
-  p1_ = 0;
-  for (int k = 0; k < 3; ++k) {
-    tractMode_[k].set(std::clamp(c.formant[k], 100.0f, nyq), std::max(c.bw[k], 20.0f), fs_);
-    p1_ += kTractCoupling[k] * tractMode_[k].process(u);
+  // (With a line tract attached, p1_ is the line's own pressure from the
+  // last substep and stays: overwritten here, the folds saw a different
+  // pressure on the first substep of every sample, a 48 kHz glitch that
+  // put 30 dB of hiss on the voice, 2026-11-01.)
+  if (!line_) {
+    const float nyq = 0.45f * fs_;
+    p1_ = 0;
+    for (int k = 0; k < 3; ++k) {
+      tractMode_[k].set(std::clamp(c.formant[k], 100.0f, nyq), std::max(c.bw[k], 20.0f), fs_);
+      p1_ += kTractCoupling[k] * tractMode_[k].process(u);
+    }
   }
   // Radiated sound ~ rate of change of the flow (lip radiation).
   out.source = (u - prevFlow_) * kPhysicalGain;
@@ -426,6 +467,8 @@ std::unique_ptr<Larynx> makeLarynx(Carrier c) {
   switch (c) {
     case Carrier::Physical: return std::make_unique<FoldLarynx>(std::make_unique<CoreOf<VocalFolds>>(), "two-mass");
     case Carrier::Grid: return std::make_unique<FoldLarynx>(std::make_unique<CoreOf<GridFolds>>(), "4x8 grid", kGridMicroScale);
+    case Carrier::Block: return std::make_unique<FoldLarynx>(std::make_unique<CoreOf<BlockFolds>>(), "2x2x6 block", kBlockMicroScale);
+    case Carrier::String: return std::make_unique<FoldLarynx>(std::make_unique<CoreOf<StringFolds>>(), "2x16 string", kBlockMicroScale);
     case Carrier::Shaped: return std::make_unique<PulseLarynx>();
     default: return std::make_unique<WaveLarynx>(c);
   }

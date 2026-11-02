@@ -55,9 +55,17 @@ constexpr float kLayerMass[L] = {0.050f, 0.045f, 0.033f, 0.022f};
 // segment i) is scaled by GRID_ROW<j> x GRID_COL<i> on both folds alike. Row 0
 // is the body layer, row 3 the cover; column 0 the anterior end. Searched
 // by tools/word_opt.py --set gridmass; 1 = the structured default.
-const float kRowMass[L] = {knob("GRID_ROW0", 1.0f), knob("GRID_ROW1", 1.0f), knob("GRID_ROW2", 1.0f), knob("GRID_ROW3", 1.0f)};
-const float kColMass[S] = {knob("GRID_COL0", 1.0f), knob("GRID_COL1", 1.0f), knob("GRID_COL2", 1.0f), knob("GRID_COL3", 1.0f),
-                           knob("GRID_COL4", 1.0f), knob("GRID_COL5", 1.0f), knob("GRID_COL6", 1.0f), knob("GRID_COL7", 1.0f)};
+const float kRowMass[L] = {param("GRID_ROW0", 1.004f) /* cost 0.0443275665576724 gridrc-c300-mf */, param("GRID_ROW1", 1.037f) /* cost 0.0443275665576724 gridrc-c300-mf */, param("GRID_ROW2", 1.045f) /* cost 0.0443275665576724 gridrc-c300-mf */, param("GRID_ROW3", 0.9728f) /* cost 0.0443275665576724 gridrc-c300-mf */};
+const float kColMass[S] = {param("GRID_COL0", 1.105f) /* cost 0.0443275665576724 gridrc-c300-mf */, param("GRID_COL1", 1.003f) /* cost 0.0443275665576724 gridrc-c300-mf */, param("GRID_COL2", 0.9752f) /* cost 0.0443275665576724 gridrc-c300-mf */, param("GRID_COL3", 0.8646f) /* cost 0.0443275665576724 gridrc-c300-mf */,
+                           param("GRID_COL4", 1.02f) /* cost 0.0443275665576724 gridrc-c300-mf */, param("GRID_COL5", 1.004f) /* cost 0.0443275665576724 gridrc-c300-mf */, param("GRID_COL6", 0.986f) /* cost 0.0443275665576724 gridrc-c300-mf */, param("GRID_COL7", 1.018f) /* cost 0.0443275665576724 gridrc-c300-mf */};
+// The same for the body stiffness (GRID_KROW/KCOL) and the damping ratio
+// (GRID_DROW/DCOL): tools/word_opt.py --set gridmass,gridstiff,griddamp.
+const float kRowStiff[L] = {param("GRID_KROW0", 0.9552f) /* cost 0.0443275665576724 gridrc-c300-mf */, param("GRID_KROW1", 0.9632f) /* cost 0.0443275665576724 gridrc-c300-mf */, param("GRID_KROW2", 0.9496f) /* cost 0.0443275665576724 gridrc-c300-mf */, param("GRID_KROW3", 1.01f) /* cost 0.0443275665576724 gridrc-c300-mf */};
+const float kColStiff[S] = {param("GRID_KCOL0", 0.9813f) /* cost 0.0443275665576724 gridrc-c300-mf */, param("GRID_KCOL1", 0.9871f) /* cost 0.0443275665576724 gridrc-c300-mf */, param("GRID_KCOL2", 1.015f) /* cost 0.0443275665576724 gridrc-c300-mf */, param("GRID_KCOL3", 1.077f) /* cost 0.0443275665576724 gridrc-c300-mf */,
+                            param("GRID_KCOL4", 0.9731f) /* cost 0.0443275665576724 gridrc-c300-mf */, param("GRID_KCOL5", 1.027f) /* cost 0.0443275665576724 gridrc-c300-mf */, param("GRID_KCOL6", 1.024f) /* cost 0.0443275665576724 gridrc-c300-mf */, param("GRID_KCOL7", 0.9612f) /* cost 0.0443275665576724 gridrc-c300-mf */};
+const float kRowDamp[L] = {param("GRID_DROW0", 0.4163f) /* cost 0.0443275665576724 gridrc-c300-mf */, param("GRID_DROW1", 0.675f) /* cost 0.0443275665576724 gridrc-c300-mf */, param("GRID_DROW2", 0.7697f) /* cost 0.0443275665576724 gridrc-c300-mf */, param("GRID_DROW3", 0.8219f) /* cost 0.0443275665576724 gridrc-c300-mf */};
+const float kColDamp[S] = {param("GRID_DCOL0", 0.8463f) /* cost 0.0443275665576724 gridrc-c300-mf */, param("GRID_DCOL1", 1.017f) /* cost 0.0443275665576724 gridrc-c300-mf */, param("GRID_DCOL2", 1.024f) /* cost 0.0443275665576724 gridrc-c300-mf */, param("GRID_DCOL3", 0.9385f) /* cost 0.0443275665576724 gridrc-c300-mf */,
+                           param("GRID_DCOL4", 1.241f) /* cost 0.0443275665576724 gridrc-c300-mf */, param("GRID_DCOL5", 0.954f) /* cost 0.0443275665576724 gridrc-c300-mf */, param("GRID_DCOL6", 1.0f) /* cost 0.0443275665576724 gridrc-c300-mf */, param("GRID_DCOL7", 0.9395f) /* cost 0.0443275665576724 gridrc-c300-mf */};
 // Along the cord the cross-section tapers toward the anterior commissure
 // (quadratically; the depth at the anterior end ~0.77 of the middle) and the
 // cover is thickest mid-membranous: mass per segment 1 - kTaper at the ends,
@@ -186,8 +194,9 @@ float GridFolds::step(float h, const VocalFolds::Input& in) {
         const float w0 = 2 * kPi * kNaturalF0;
         const float layerStiff = kBottomStiff + (kTopStiff - kBottomStiff) * j / (L - 1.0f);
         const float post = (i + 0.5f) / S;
-        kBody[f][j][i] = kLayerMass[j] / S * taper * w0 * w0 * q2 * layerStiff * (1.0f + kPosteriorStiff * post * post) * massMul('K', f, j, i);
-        damp[f][j][i] = 2 * std::sqrt(mass[f][j][i] * kBody[f][j][i]);  // x zeta
+        kBody[f][j][i] = kLayerMass[j] / S * taper * w0 * w0 * q2 * layerStiff * (1.0f + kPosteriorStiff * post * post) * massMul('K', f, j, i) *
+                         kRowStiff[j] * kColStiff[i];
+        damp[f][j][i] = 2 * std::sqrt(mass[f][j][i] * kBody[f][j][i]) * kRowDamp[j] * kColDamp[i];  // x zeta
       }
   closedNow_ = false;
   // Areas before the step.

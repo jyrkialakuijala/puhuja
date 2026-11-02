@@ -199,7 +199,102 @@ constexpr float kAspirationTiltHz = 1000;
 // h is strongest at its vowel's F2, not F1).
 constexpr float kAspirationLowCutHz = 600;
 const float kAspirationTiltGain = param("kAspirationTiltGain", 1.919f) /* cost 0.0394612677442557 stops-w1k-us5-mf-3 */;
+// The h's own breath-noise gain, times the language's h gain
+// (setAspirationGain). It is deliberately not kAspirationGain x
+// kAspirationTiltGain: the stops' search (stops-w1k-us5-mf-3) doubled that
+// product for the p t k puff and every h came along, +6 dB; "hands" in
+// kennedy.txt was then 4 dB above its vowel where readers are 3-13 dB under
+// or voiced throughout (INPUT.md 2026-10-31). 0.35 is the product before
+// that search.
+const float kHGain = param("kHGain", 0.35f);
 constexpr float kPopGain = 120.0f;        // release transient into the tract
+
+// --- The line tract (Tract::Line) ------------------------------------------
+// The line tract's vowel shapes (tract.h TractShape), one per vowel phoneme
+// (Ph index): the tongue constriction's place as a share of the length, its
+// area (cm^2) and half-width (cm), the lip area and length, the pharynx, mouth
+// and larynx-tube areas, and the tract length (cm); then the formants (Hz) the
+// line gave for the shape when it was fitted, which place the shape in
+// lineShapeFor's blend. First fitted to the English formant targets on the
+// line (make linefit && ./linefit, ref/line/vowel_tract.txt), then each
+// searched on the 857-set words that contain the vowel with the smeared
+// Zimtohrli (word_opt.py --set vowel<ph>; Jyrki 2026-11-02: "search the
+// shapes"). The search writes its result here. y, ø and ɒ have no shape (no
+// English targets); diphthongs and consonant loci are blends of these.
+static const struct {
+  int ph;
+  float xc, ac, wc, aLip, aPharynx, aOral, lLip, aLarynx, length;
+  float f1, f2, f3;
+} kLineVowels[] = {
+    {0, param("LINE_V0_XC", 0.5980f), param("LINE_V0_AC", 2.7494f), param("LINE_V0_WC", 5.6828f), param("LINE_V0_ALIP", 3.7767f), param("LINE_V0_APH", 1.6187f), param("LINE_V0_AOR", 5.8295f), param("LINE_V0_LLIP", 0.3597f), param("LINE_V0_ALAR", 0.7200f), param("LINE_V0_LEN", 17.5051f), 710.0f, 1510.0f, 2397.0f},  // a
+    {1, param("LINE_V1_XC", 0.9500f), param("LINE_V1_AC", 3.4609f), param("LINE_V1_WC", 4.1552f), param("LINE_V1_ALIP", 4.9275f), param("LINE_V1_APH", 4.6285f), param("LINE_V1_AOR", 1.3659f), param("LINE_V1_LLIP", 2.1214f), param("LINE_V1_ALAR", 0.5601f), param("LINE_V1_LEN", 17.4931f), 449.0f, 1982.0f, 2530.0f},  // e
+    {2, param("LINE_V2_XC", 0.7101f), param("LINE_V2_AC", 0.8010f), param("LINE_V2_WC", 5.1921f), param("LINE_V2_ALIP", 4.3338f), param("LINE_V2_APH", 9.9445f), param("LINE_V2_AOR", 2.5965f), param("LINE_V2_LLIP", 1.9178f), param("LINE_V2_ALAR", 0.3000f), param("LINE_V2_LEN", 17.4513f), 290.0f, 2301.0f, 2720.0f},  // i
+    {3, param("LINE_V3_XC", 0.7174f), param("LINE_V3_AC", 1.4332f), param("LINE_V3_WC", 3.7126f), param("LINE_V3_ALIP", 2.4300f), param("LINE_V3_APH", 7.5480f), param("LINE_V3_AOR", 2.4277f), param("LINE_V3_LLIP", 1.0280f), param("LINE_V3_ALAR", 1.2129f), param("LINE_V3_LEN", 17.5958f), 355.0f, 1111.0f, 1923.0f},  // o
+    {4, param("LINE_V4_XC", 0.5127f), param("LINE_V4_AC", 0.6356f), param("LINE_V4_WC", 3.6064f), param("LINE_V4_ALIP", 2.5240f), param("LINE_V4_APH", 6.8763f), param("LINE_V4_AOR", 3.1570f), param("LINE_V4_LLIP", 1.0322f), param("LINE_V4_ALAR", 0.7670f), param("LINE_V4_LEN", 17.1611f), 391.0f, 1395.0f, 2229.0f},  // u
+    {6, param("LINE_V6_XC", 0.6700f), param("LINE_V6_AC", 1.4674f), param("LINE_V6_WC", 4.0161f), param("LINE_V6_ALIP", 5.3100f), param("LINE_V6_APH", 1.7226f), param("LINE_V6_AOR", 5.2040f), param("LINE_V6_LLIP", 1.0084f), param("LINE_V6_ALAR", 0.3261f), param("LINE_V6_LEN", 17.4609f), 675.0f, 1729.0f, 2466.0f},  // æ
+    {8, param("LINE_V8_XC", 0.7060f), param("LINE_V8_AC", 2.0636f), param("LINE_V8_WC", 2.9885f), param("LINE_V8_ALIP", 1.9251f), param("LINE_V8_APH", 7.2924f), param("LINE_V8_AOR", 3.4373f), param("LINE_V8_LLIP", 1.0725f), param("LINE_V8_ALAR", 0.8776f), param("LINE_V8_LEN", 17.3168f), 401.0f, 1764.0f, 2440.0f},  // ə
+    {9, param("LINE_V9_XC", 0.6787f), param("LINE_V9_AC", 1.2918f), param("LINE_V9_WC", 3.7543f), param("LINE_V9_ALIP", 3.3058f), param("LINE_V9_APH", 5.7075f), param("LINE_V9_AOR", 2.0436f), param("LINE_V9_LLIP", 0.6712f), param("LINE_V9_ALAR", 0.8472f), param("LINE_V9_LEN", 17.4781f), 391.0f, 1936.0f, 2536.0f},  // ɪ
+    {10, param("LINE_V10_XC", 0.6836f), param("LINE_V10_AC", 1.6646f), param("LINE_V10_WC", 3.1008f), param("LINE_V10_ALIP", 3.2115f), param("LINE_V10_APH", 3.0208f), param("LINE_V10_AOR", 3.3872f), param("LINE_V10_LLIP", 0.8379f), param("LINE_V10_ALAR", 0.7210f), param("LINE_V10_LEN", 17.4857f), 544.0f, 1713.0f, 2449.0f},  // ɛ
+    {11, param("LINE_V11_XC", 0.5106f), param("LINE_V11_AC", 1.5459f), param("LINE_V11_WC", 3.4623f), param("LINE_V11_ALIP", 2.4409f), param("LINE_V11_APH", 3.7919f), param("LINE_V11_AOR", 3.6185f), param("LINE_V11_LLIP", 1.0889f), param("LINE_V11_ALAR", 1.0739f), param("LINE_V11_LEN", 17.5692f), 525.0f, 1393.0f, 2706.0f},  // ʊ
+    {12, param("LINE_V12_XC", 0.8847f), param("LINE_V12_AC", 2.3152f), param("LINE_V12_WC", 2.8176f), param("LINE_V12_ALIP", 3.7496f), param("LINE_V12_APH", 4.8983f), param("LINE_V12_AOR", 1.7043f), param("LINE_V12_LLIP", 1.0914f), param("LINE_V12_ALAR", 1.1582f), param("LINE_V12_LEN", 17.1433f), 445.0f, 1123.0f, 1887.0f},  // ɔ
+    {13, param("LINE_V13_XC", 0.5048f), param("LINE_V13_AC", 1.3557f), param("LINE_V13_WC", 3.3916f), param("LINE_V13_ALIP", 3.4257f), param("LINE_V13_APH", 5.1333f), param("LINE_V13_AOR", 3.5296f), param("LINE_V13_LLIP", 0.9395f), param("LINE_V13_ALAR", 1.0201f), param("LINE_V13_LEN", 17.3766f), 491.0f, 1451.0f, 2142.0f},  // ʌ
+    {14, param("LINE_V14_XC", 0.5206f), param("LINE_V14_AC", 2.1668f), param("LINE_V14_WC", 3.0848f), param("LINE_V14_ALIP", 3.0285f), param("LINE_V14_APH", 2.9957f), param("LINE_V14_AOR", 6.6021f), param("LINE_V14_LLIP", 0.4428f), param("LINE_V14_ALAR", 1.1014f), param("LINE_V14_LEN", 17.6478f), 624.0f, 1305.0f, 2565.0f},  // ɑ
+    {16, param("LINE_V16_XC", 0.6191f), param("LINE_V16_AC", 1.1420f), param("LINE_V16_WC", 2.1593f), param("LINE_V16_ALIP", 2.6026f), param("LINE_V16_APH", 6.2070f), param("LINE_V16_AOR", 5.6483f), param("LINE_V16_LLIP", 1.3305f), param("LINE_V16_ALAR", 1.2830f), param("LINE_V16_LEN", 17.6893f), 429.0f, 1378.0f, 1743.0f},  // ɜ
+};
+// The line's output level, and its turbulence gains (noise pressure per unit
+// of Reynolds number past critical, at the constriction and at the glottis).
+const float kLineGain = param("LINE_GAIN", 1.438e-05f) /* cost 0.0304788830321763 line3-w15-sm2-s1-mf */;  // vowels ~-20 dB rms, kennedy.txt peaks under 1.0
+const float kLineFric = param("LINE_FRIC", 11.18f) /* cost 0.0328298499863392 n13-stringline-w30-a */;  // dyn/cm^2 per unit of (Re^2 - Re_c^2) / Re_c^2 at the jet: s at the cascade's level
+const float kLineAsp = param("LINE_ASP", 1.753f) /* cost 0.0328298499863392 n13-stringline-w30-a */;  // the same at the glottis (h between vowels is voiced and needs none)
+const float kLineShapeSigma = param("LINE_SIGMA", 0.08f);  // the formant-space width of a vowel shape (log units); 0.35 (a search result) blurred every vowel into one
+// The string folds under the line's load pass ~1.7x the air of the planner's
+// table (kennedy.txt: 449 cm^3/s of speech against 257 in the cascade,
+// 2026-11-01); the breath planner plans with this until the folds' flow is
+// calibrated.
+const float kLineAirScale = param("LINE_AIR", 1.1f);  // (1.75 before the discharge coefficient)
+// The vowel shape for formant values: the fitted shapes weighted by their
+// distance in log-formant space (a soft lookup, so the shape moves smoothly
+// along the formant path; consonants' loci land between the vowels).
+TractShape lineShapeFor(float f1, float f2, float f3) {
+  const int n = sizeof(kLineVowels) / sizeof(kLineVowels[0]);
+  const float l1 = std::log(std::max(f1, 100.0f)), l2 = std::log(std::max(f2, 300.0f)), l3 = std::log(std::max(f3, 1000.0f));
+  float w[32], sum = 0, best = 1e9f;
+  for (int i = 0; i < n; ++i) {
+    const auto& v = kLineVowels[i];
+    const float d1 = l1 - std::log(v.f1), d2 = l2 - std::log(v.f2), d3 = 0.5f * (l3 - std::log(v.f3));
+    const float d2s = d1 * d1 + d2 * d2 + d3 * d3;
+    w[i] = d2s;
+    best = std::min(best, d2s);
+  }
+  const float inv = 1.0f / (2.0f * kLineShapeSigma * kLineShapeSigma);
+  for (int i = 0; i < n; ++i) { w[i] = std::exp(-(w[i] - best) * inv); sum += w[i]; }
+  TractShape s;
+  float xc = 0, lac = 0, wc = 0, lLip = 0, lPh = 0, lOr = 0, ll = 0, lLar = 0, len = 0;
+  for (int i = 0; i < n; ++i) {
+    const auto& v = kLineVowels[i];
+    const float g = w[i] / sum;
+    xc += g * v.xc; lac += g * std::log(v.ac); wc += g * v.wc; lLip += g * std::log(v.aLip);
+    lPh += g * std::log(v.aPharynx); lOr += g * std::log(v.aOral); ll += g * v.lLip; lLar += g * std::log(v.aLarynx); len += g * v.length;
+  }
+  s.xc = xc; s.ac = std::exp(lac); s.wc = wc; s.aLip = std::exp(lLip); s.aPharynx = std::exp(lPh); s.aOral = std::exp(lOr);
+  s.lLip = ll; s.aLarynx = std::exp(lLar); s.length = len;
+  return s;
+}
+// Where a consonant constricts the line (share of the tract's length).
+float linePlaceOf(Ph ph) {
+  switch (ph) {
+    case Ph::P: case Ph::B: case Ph::M: case Ph::W: return 0.97f;
+    case Ph::F: case Ph::VV: case Ph::V: return 0.95f;
+    case Ph::TH: case Ph::DH: return 0.90f;
+    case Ph::S: case Ph::Z: return 0.90f;  // the front cavity to the teeth ~1.7 cm: the hiss near 5 kHz
+    case Ph::T: case Ph::D: case Ph::N: case Ph::L: case Ph::R: return 0.87f;
+    case Ph::SH: case Ph::ZH: case Ph::CH: case Ph::JH: return 0.78f;
+    case Ph::RR: return 0.75f;
+    case Ph::J: return 0.70f;
+    case Ph::K: case Ph::G: case Ph::NG: return 0.62f;
+    default: return -1.0f;
+  }
+}
 
 // --- Aerodynamics ---------------------------------------------------------
 // Areas in cm^2. Pressures are relative to the lung pressure (8 cmH2O).
@@ -377,7 +472,13 @@ constexpr float kSpeechAttackMs = 5;
 // Zimtohrli search stretched it to 166 ms, 2026-10-30.)
 const float kVoicelessOnsetMs = param("kVoicelessOnsetMs", 50);
 // Lungs. Volume is the air available for speaking (cm^3).
-constexpr float kLungMax = 2000;         // after a full breath
+// After a full breath. The readers hold a breath group for 3-5 s typically
+// and 8-11 s at the 90th percentile (ref/kennedy/*.words.tsv, gaps > 0.3 s);
+// puhuja drains ~260 cm^3/s of speech (kennedy.txt trace, 2026-11-01), so
+// a breath must carry ~2400 cm^3 above kLungRest for such groups. (2000:
+// groups of 3.8 s median, 6.5 s at most, and the voice faded at the end of
+// the long ones.)
+const float kLungMax = param("kLungMax", 3400.0f);
 constexpr float kLungRest = 1000;        // before the first breath
 constexpr float kCommaBreathBelow = 900; // breathe at a comma below this (1600: three breaths in a row at the commas of "Let every nation know, whether it wishes us well or ill, that we shall pay any price,", 360-435 ms each where the recordings' commas are 170 ms; 1000: breaths fell at phrase splits)
 constexpr float kInhaleRate = 2500;      // cm^3/s while breathing in
@@ -493,7 +594,7 @@ constexpr float kDoubledConsonantFactor = 1.4f;
 // air 0.3, bandwidths x0.5/0.55/0.6 and the source tilt -8 dB, 3 kHz cut
 // -10 dB, 1 kHz lift +6 dB land on its spectrum within 1-2 dB, contrast 24.
 // (Pitch and gain are research parameters: tools/word_opt.py --sweep.)
-const Voice kMaleVoice = {param("kMaleF0", 105.4) /* cost 0.0449972567973282 speaker3-c300-mf */, {1.0f, 1.0f, 1.0f}, 1.0f, 1.0f, 1.7f, 1.0f, param("kMaleGain", 2.871f) /* cost 0.0449972567973282 speaker3-c300-mf */, -6, 0.3f,
+const Voice kMaleVoice = {param("kMaleF0", 104.8) /* cost 0.0322859615827058 n13-speaker-w30 */, {1.0f, 1.0f, 1.0f}, 1.0f, 1.0f, 1.7f, 1.0f, param("kMaleGain", 4.163f) /* cost 0.0322859615827058 n13-speaker-w30 */, -6, 0.3f,
                           {0.5f, 0.55f, 0.6f}, 1.0f, 1.0f, 0.0f, 3500, 4500, 3.0f, 1.0f, 1.0f, -8, -10, 6};
 // Female: F1/F2/F3 from the measured FLEURS female / CSS10 male ratios
 // (F1 x1.27, F2 x1.04, F3 x1.18), moderated toward usual values; tempo and
@@ -513,7 +614,7 @@ const Voice kMaleVoice = {param("kMaleF0", 105.4) /* cost 0.0449972567973282 spe
 // bandwidths x1.15/1.1/1.05, no gap, breathiness 1.1, micro 3: HNR ~18,
 // H1-H2 1.7 (goog 2.0), H1-A1 -2.5, H1-A3 15.4, jitter 0.8 % (goog 1.2),
 // F0 207; female Whisper WER on 60 statements 10.4 -> 7.6 %.
-const Voice kFemaleVoice = {param("kFemaleF0", 165.7) /* cost 0.0449972567973282 speaker3-c300-mf */, {1.12f, 1.15f, 1.06f}, 1.15f, 0.92f, 1.8f, 1.1f, param("kFemaleGain", 1.954f) /* cost 0.0449972567973282 speaker3-c300-mf */, 7, 1.0f,
+const Voice kFemaleVoice = {param("kFemaleF0", 165.7), {1.12f, 1.15f, 1.06f}, 1.15f, 0.92f, 1.8f, 1.1f, param("kFemaleGain", 3.704f) /* cost 0.0322859615827058 n13-speaker-w30 */, 7, 1.0f,
                                 {1.15f, 1.1f, 1.05f}, 1.12f, 1.41f, 0.0f,
                                 // F4, F5: goog and the female voice-over have F4 at ~3.98 kHz (LPC of
                                 // the vowel middles). F3 x1.15 (2960 Hz vs 2770-2840) with F4 3850
@@ -935,6 +1036,7 @@ Synth::Synth(float sampleRate, float baseF0) : fs_(sampleRate), baseF0_(baseF0 >
   presence_.peaking(kPresenceHz, kPresenceBw, kPresenceDb, fs_);
   kPitchLag_ = 1.0f - std::exp(-1.0f / msToSamples(kPitchLagMs, fs_));
   kAspGainFollow_ = 1.0f - std::exp(-1.0f / msToSamples(3.0f, fs_));
+  aspGainTarget_ = aspGainNow_ = kAspirationGain * kAspirationTiltGain;
   kLookAheadSamples_ = std::max(kPitchLookAheadMs, kFormantLookAhead * kFormantTauMs[0]) * 0.001 * fs_;
   kCreakFollow_ = 1.0f - std::exp(-1.0f / msToSamples(20.0f, fs_));
   kAspBurstDecay_ = std::exp(-1.0f / msToSamples(kAspiratedAdductMs / 3.0f, fs_));
@@ -956,6 +1058,7 @@ Synth::Synth(float sampleRate, float baseF0) : fs_(sampleRate), baseF0_(baseF0 >
   larynx_ = makeLarynx(Carrier::Physical);
   larynx_->init(fs_, voice_.f0, &rng_);
   larynx_->setPulse(*pulse_);
+  setTract(tract_);  // the line is the default tract: initialise and attach it
   press_.set(1.0f);
   setFixedResonances();
   chestLp_.lowPass(kChestHz, fs_);
@@ -1002,12 +1105,24 @@ void Synth::setFixedResonances() {
                    : Resonator();
 }
 
+void Synth::setTract(Tract t) {
+  tract_ = t;
+  if (t == Tract::Line) {
+    line_.init(fs_);
+    lineXFollow_ = 1.0f - std::exp(-1.0f / msToSamples(kBoundaryMs, fs_));
+    larynx_->attachLine(&line_);
+  } else {
+    larynx_->attachLine(nullptr);
+  }
+}
+
 void Synth::setCarrier(Carrier c) {
   carrier_ = c;
   larynx_ = makeLarynx(c);
   larynx_->init(fs_, voice_.f0, &rng_);
   larynx_->setBaseF0(voice_.f0);
   larynx_->setPulse(*pulse_);
+  if (tract_ == Tract::Line) larynx_->attachLine(&line_);
 }
 
 void Synth::setVoice(VoicePreset preset) {
@@ -1201,8 +1316,24 @@ void Synth::push(Ph ph, bool wordStart) {
   hasPending_ = true;
 }
 
-void Synth::breathPoint(bool sentence, bool paragraph, bool snatched) {
-  if (!sentence && planVolume_ > kCommaBreathBelow) return;
+// Air a phoneme class takes (cm^3/s), for breath planning: the simulated
+// drain per class over 40 s of kennedy.txt (see emit). The English reader
+// plans its breaths over the rest of the sentence with the same table.
+float Synth::airRate(Ph ph) {
+  const Cls cls = info(ph).cls;
+  return cls == Cls::Stop ? 0.0f
+         : cls == Cls::H ? 550.0f
+         : cls == Cls::Fricative ? (aeroOf(ph).ag > kAgVoice ? 170.0f : 280.0f)
+         : cls == Cls::Plosive ? (aeroOf(ph).ag > kAgVoice ? 90.0f : 180.0f)
+                               : 310.0f;
+}
+float Synth::airScale() const { return tract_ == Tract::Line ? kLineAirScale : 1.0f; }
+float Synth::lungMax() const { return kLungMax; }
+float Synth::lungFloor() const { return kLungRest; }
+float Synth::lungEmpty() const { return kLungEmpty; }
+
+void Synth::breathPoint(bool sentence, bool paragraph, bool snatched, bool planned) {
+  if (!sentence && !planned && planVolume_ > kCommaBreathBelow) return;
   if (hasSpoken_ && !spokeSinceBreath_) return;  // "...": one breath is enough
   spokeSinceBreath_ = false;
   const float deficit = std::max(kLungMax - planVolume_, 0.0f);
@@ -1454,17 +1585,15 @@ void Synth::emit(const Token& tok, const Ph* next) {
   // is one consonant's; the doubling factor applies on top.)
   const double dur = (tok.shape.ms > 0 ? tok.shape.ms * voice_.rate * (tok.doubled && !isVowel(tok.ph) ? kDoubledConsonantFactor : 1.0f)
                                        : in.ms * lengthMul) * 0.001 * fs_;
+  float planAir = 0;
   {
     // Air this sound will use, for breath planning: the simulated drain per
     // class over 40 s of kennedy.txt (cm^3/s). With vowels planned at 210
     // the plan ended a 7-second sentence at 420 cm^3 while the lungs were at
     // 50: no breath was taken at its "and", and its last words faded.
-    const float flow = in.cls == Cls::Stop ? 0.0f
-                       : in.cls == Cls::H ? 550.0f
-                       : in.cls == Cls::Fricative ? (aeroOf(tok.ph).ag > kAgVoice ? 170.0f : 280.0f)
-                       : in.cls == Cls::Plosive ? (aeroOf(tok.ph).ag > kAgVoice ? 90.0f : 180.0f)
-                                                : 310.0f;
-    planVolume_ -= flow * static_cast<float>(dur / fs_);
+    const float flow = airRate(tok.ph) * airScale();
+    planAir = flow * static_cast<float>(dur / fs_);
+    planVolume_ -= planAir * drainScale_;  // (the scale learned from the simulated drain)
   }
   Params p = last_;
   auto setTargets = [&] {
@@ -1487,13 +1616,15 @@ void Synth::emit(const Token& tok, const Ph* next) {
   // the release already moves into this sound's targets.
   const float ms = 0.001f * fs_;
   Event e{std::max(t0 - 0.5 * kBoundaryMs * ms, phonemeStart_ + 1)};
+  e.planAir = planAir;
   Aero aero = aeroOf(tok.ph);
   e.ac = aero.ac;
+  e.lineX = linePlaceOf(tok.ph);
   e.acMs = kBoundaryMs;
   e.ag = aero.ag;
   if (in.cls == Cls::Vowel) e.ag *= tok.shape.press;  // voice quality by prosody
   e.agMs = kGlottalMs;
-  e.aspGain = in.cls == Cls::H ? hAspirationGain_ : 1.0f;
+  e.aspGain = in.cls == Cls::H ? hAspirationGain_ * kHGain : kAspirationGain * kAspirationTiltGain;
   e.creak = 0;  // a creak lasts until the next sound
   // After an aspirated release the glottis is already closing slowly into
   // this sound; a quick move here would cut the aspiration short.
@@ -2465,6 +2596,8 @@ float Synth::tick() {
     const Event& e = events_.front();
     if (e.press >= 0) press_.start(e.press, msToSamples(e.pressMs, fs_));
     if (e.aspGain >= 0) aspGainTarget_ = e.aspGain;
+    if (e.lineX >= 0) lineXTarget_ = e.lineX;
+    planUsed_ += e.planAir;
     if (e.creak >= 0) creakTarget_ = e.creak;
     if (e.aspBurst) aspBurst_ = aspirationGain_ * e.aspBurstGain;
     if (e.ac >= 0) ac_.start(e.ac, msToSamples(e.acMs, fs_));
@@ -2478,6 +2611,13 @@ float Synth::tick() {
                              : kSpeechAttack_;
     }
     if (e.inhaleMs > 0) {
+      // The planner's table against the simulated drain since the last
+      // breath: the next phrases are planned with the larynx's real thirst.
+      if (planUsed_ > 150.0f) {
+        const float ratio = actualUsed_ / planUsed_;
+        drainScale_ = std::clamp(0.5f * (drainScale_ + ratio), 0.5f, 4.0f);
+      }
+      planUsed_ = actualUsed_ = 0;
       inhaleLen_ = inhaleLeft_ = msToSamples(e.inhaleMs, fs_);
       inhaleSnatched_ = e.inhaleSnatched;
       inhaleRate_ = std::max(kLungMax - lungVolume_, 0.0f) / inhaleLen_;
@@ -2717,6 +2857,21 @@ float Synth::tick() {
   float glottalFlow = 4000.0f * ag * std::sqrt(drop) * lungFactor;
   // The larynx: the speaker's commands in, the voice source out.
   LarynxOutput lo;
+  if (tract_ == Tract::Line) {
+    // The line's shape: the vowel shape for the running formants, the
+    // consonant's constriction (the oral opening ac at its place) and the
+    // velum; updated every fourth sample (the articulators are slow).
+    lineX_ += (lineXTarget_ - lineX_) * lineXFollow_;
+    if ((lineCount_++ & 3) == 0) {
+      const TractShape sh = lineShapeFor(p[kF1] * voice_.formant[0], p[kF2] * voice_.formant[1], p[kF3] * voice_.formant[2]);
+      line_.setShape(sh, lineX_, ac, an);
+    }
+    // Glottal turbulence mostly with the glottis apart (h, aspiration, a
+    // breathy voice): in modal voicing the Reynolds gate alone put 2-8 kHz
+    // hiss on every vowel.
+    const float aspGate = 0.15f + 0.85f * smoothstep(kAgVoice, kAgBreathy, ag);
+    line_.setNoise(kLineFric, kLineAsp * aspGate, std::max(ag, 0.005f));
+  }
   {
     LarynxControl lc;
     lc.t = t_;
@@ -2729,7 +2884,11 @@ float Synth::tick() {
     lc.duty = duty_;
     // With the glottis fully closed (a pause) the speaker also stops pushing
     // air from the lungs, which ends any remaining vibration.
-    lc.ps = runFolds ? kLungPressure * lungFactor * drop * smoothstep(0.0f, 0.5f * kAgVoice, ag) * press_.tick() : 0.0f;
+    // With the line tract the pressure above the folds is the line's own
+    // (p1 from the last substep), so the lung pressure goes in whole; the
+    // cascade's mouth-pressure estimate (drop) is for the formant tract.
+    const float dropForFolds = tract_ == Tract::Line ? 1.0f : drop;
+    lc.ps = runFolds ? kLungPressure * lungFactor * dropForFolds * smoothstep(0.0f, 0.5f * kAgVoice, ag) * press_.tick() : 0.0f;
     lc.ag = ag;
     creakNow_ += (creakTarget_ - creakNow_) * kCreakFollow_;
     lc.irregular = 1.0f + kCreakJitter * creakNow_;
@@ -2751,6 +2910,7 @@ float Synth::tick() {
   // Lungs: speaking uses up air; breathing in refills it, with a soft noise
   // swelling and fading over the inhalation.
   lungVolume_ = std::max(lungVolume_ - glottalFlow / fs_, 0.0f);
+  actualUsed_ += glottalFlow / fs_;
   float inhale = 0;
   if (inhaleLeft_ > 0) {
     lungVolume_ = std::min(lungVolume_ + inhaleRate_, kLungMax);
@@ -2847,7 +3007,7 @@ float Synth::tick() {
   // white and boosted there it hissed like s instead of breathing.
   aspLp_ += kAspLp_ * (noise() - aspLp_);
   aspHpState_ += kAspHp_ * (aspLp_ - aspHpState_);
-  glottal += (aspLp_ - aspHpState_) * kAspirationTiltGain * aspAmp * kAspirationGain * aspGainNow_ * aspBurst_;
+  glottal += (aspLp_ - aspHpState_) * aspAmp * aspGainNow_ * aspBurst_;  // aspGainNow_ carries the gain constants
   float y = (glottal + pop + cTract) * speechEnv_;
   if (runFolds)
     cPar += airLp_.process(airHp2_.process(airHp1_.process(noise()))) * kAirGain * voice_.air * voice_.breathiness *
@@ -2918,6 +3078,14 @@ float Synth::tick() {
 
   // A 2nd-order cut below ~90 Hz on top (the male voice boomed: 63-100 Hz
   // 6-10 dB over the voice-overs, H1-H2 +3.5 against -0.7).
+  if (tract_ == Tract::Line) {
+    // The line tract made the sound, breath and all: the cascade's y, the
+    // parallel noise and the pops are not used.
+    // Not gated by speechEnv_ (pauses are silent physically; the gate clipped
+    // onsets) and no head shelf (the piston in a baffle is the half-space).
+    y = line_.output() * kLineGain;
+    cPar = 0;
+  }
   float out = lowCut_.process(outHp_.process(y * kOutGain + cPar));
   if (voice_.treble != 0) out = trebleShelf_.process(out);
   // Room tone: a faint, dark noise floor, so pauses never fall to digital

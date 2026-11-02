@@ -49,6 +49,8 @@
 
 #include "filters.h"
 #include "larynx.h"
+#include "line.h"
+#include "tract.h"
 
 namespace puhuja {
 
@@ -101,6 +103,7 @@ struct Keyframe {
 // and/or changes the constriction noise.
 struct Event {
   double t;  // time in samples
+  float planAir = 0;  // air this sound was planned to use (cm^3), for the drain scale
   // Area targets (cm^2), each with its movement time (ms). < 0: no change.
   float ac = -1, ag = -1, an = -1;
   float acMs = 0, agMs = 0, anMs = 0;
@@ -119,6 +122,7 @@ struct Event {
   // < 0: no change.
   float press = -1, pressMs = 0;
   float aspGain = -1;  // breath-noise strength from now on (< 0: unchanged)
+  float lineX = -1;    // the constriction's place for the line tract (share of its length; < 0: keep)
   bool aspBurst = false;  // an aspirated release: the puff's noise starts
   float creak = -1;       // creaky voice from now on (0..1; < 0: unchanged)
   float noiseFadeMs = -1;  // with setNoise: fade-in from silence (< 0: the default)
@@ -142,6 +146,12 @@ struct Event {
 // Spline: the keyframe spline as it is. Damped: through a critically damped
 // follower per formant. Planned: a sentence-level iterative planner (see
 // planSentence) replaces the formant and pitch paths by optimised ones.
+// The vocal tract: the formant cascade (filters.h resonators on the voice
+// source), or the transmission line (line.h; Jyrki 2026-11-01, the fresh
+// start): the folds' flow runs through 64 sections of the airway shaped by
+// the fitted vowel shapes and the consonant's constriction.
+enum class Tract { Formant, Line };
+
 enum class FormantMotion { Spline, Damped, Planned };
 
 // Speaker presets. Male is calibrated to a Finnish male reader (CSS10);
@@ -174,6 +184,7 @@ class Synth {
 
   void setCarrier(Carrier c);  // (the shaped pulse gets its own treble shelf)
   void setFormantMotion(FormantMotion m) { motion_ = m; }
+  void setTract(Tract t);
   // Plans the formant and pitch paths of the keyframes queued since the last
   // call (one sentence; the English reader calls it at each sentence end).
   void planSentence();
@@ -273,8 +284,19 @@ class Synth {
   // inhalation (longer the more air was used) is added as a pause with a soft
   // breathing-in noise. The first sentence gets one automatically.
   // snatched: between words, with no good place for it (a quick, sharper breath).
-  void breathPoint(bool sentence, bool paragraph = false, bool snatched = false);
+  // planned: the reader's breath plan asked for it (no air threshold).
+  void breathPoint(bool sentence, bool paragraph = false, bool snatched = false, bool planned = false);
   float plannedAir() const { return planVolume_; }  // lung volume planned so far (cm^3)
+  // For the reader's breath planner: the lungs' capacity, the volume below
+  // which the pressure sags and the one where it collapses (cm^3), the air
+  // a phoneme takes (cm^3/s of its planned duration) and the learned ratio
+  // of the larynx's real drain to that table.
+  float lungMax() const;
+  float lungFloor() const;
+  float lungEmpty() const;
+  static float airRate(Ph ph);
+  float airScale() const;  // x airRate: the line tract's folds pass more air than the table (kLineAirScale)
+  float drainScale() const { return drainScale_; }
   // The next vowel starts with a glottal onset (folds pressed, then released).
   void glottalOnset() { glottalOnsetNext_ = true; }
   // The next vowel ends in creaky voice (a low statement ending).
@@ -381,6 +403,11 @@ class Synth {
   // Lungs: air left for speaking (cm^3), as planned while phonemes are
   // queued (for breathing decisions) and as simulated while rendering.
   float planVolume_, lungVolume_;
+  // Breath planning learns the larynx's real thirst: the air used since the
+  // last breath as planned (per-class table) and as simulated, and the
+  // scale on the table from their ratio (the 2x2x6 block folds drew 3 x the
+  // two-mass model's flow and drained the lung mid-phrase, 2026-10-31).
+  float planUsed_ = 0, actualUsed_ = 0, drainScale_ = 1;
   bool hasSpoken_ = false;     // the first sentence's breath has been taken
   bool spokeSinceBreath_ = false;
   float nextInhaleMs_ = 0;     // inhalation for the next emitted pause
@@ -444,10 +471,16 @@ class Synth {
   float kTrillDecay_ = 0, kTrillAttack_ = 0;
 
   // Voicing source state.
-  Carrier carrier_ = Carrier::Physical;
+  Carrier carrier_ = Carrier::String;  // the default voice source (Jyrki 2026-11-01: "make line and string the defaults")
   std::unique_ptr<Larynx> larynx_;     // the voice source (larynx.h)
   const PulseShape* pulse_ = nullptr;  // the voice's drawn pulse (set with the voice)
   FormantMotion motion_ = FormantMotion::Damped;
+  Tract tract_ = Tract::Line;
+  VocalTractLine line_;        // the line tract (Tract::Line)
+  float lineX_ = 0.86f, lineXTarget_ = 0.86f;  // the constriction's place, smoothed
+  float lineXFollow_ = 0;
+  int lineCount_ = 0;
+  float lineOut_ = 0;
   // Sentence planner state: dense log2 F1, F2, F3 and the pitch multiplier
   // per plan frame from planStartT_; keyframes from planFromT_ on are not yet
   // planned. curPh_ tags the keyframes with their phoneme.
