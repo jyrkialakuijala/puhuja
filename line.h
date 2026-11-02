@@ -85,6 +85,8 @@ class TransmissionLine {
   // lung pressure (waves reaching it are absorbed), and the far end is the
   // glottis, whose flow uGlottis leaves the line; no lips. Returns the
   // pressure at the glottal end.
+  void setWallLoss(float mul) { wallLoss_ = mul; }
+  void setViscLoss(float mul) { viscLoss_ = mul; }
   void setSubglottal(bool on) { subglottal_ = on; }
   float substepSubglottal(float lungPressure, float uGlottis);
   // The sound: the radiated flow's rate of change (cm^3/s^2).
@@ -132,6 +134,8 @@ class TransmissionLine {
   // (under ~0.03 cm^2) is sealed; a labial fricative's 0.1 cm^2 radiates.
   float lipOpen_ = 1;
   bool subglottal_ = false;
+  float wallLoss_ = 1.0f;  // multiplies the wall damping (set before the areas)
+  float viscLoss_ = 1.0f;  // multiplies the viscous series loss
 
  public:
   float traceExtra_ = 0;  // a value the owner wants in the trace (the nostril flow)
