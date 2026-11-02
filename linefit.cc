@@ -31,7 +31,7 @@ std::vector<float> formants(const TractShape& sh, int want = 3) {
   TransmissionLine line;
   line.init(sh.length, kFs, kSections);
   line.setAreas(sh.sections(line.sections()));
-  const int n = static_cast<int>(0.04f * kFs);
+  const int n = static_cast<int>(0.08f * kFs);
   std::vector<float> y(n);
   for (int i = 0; i < n; ++i) {
     float v = 0;
@@ -62,12 +62,22 @@ std::vector<float> formants(const TractShape& sh, int want = 3) {
     }
     mag[b] = std::log(re * re + im * im + 1e-30f);
   }
+  // Smooth the log spectrum (9 bins, 45 Hz) and take peaks at least 150 Hz
+  // apart: one broad resonance read twice (o: 1083 and 1111 Hz, 2026-11-02)
+  // let the fit put "F2" and "F3" on one peak.
+  std::vector<float> sm(nb);
+  for (int b = 0; b < nb; ++b) {
+    float acc = 0; int cnt = 0;
+    for (int k = -4; k <= 4; ++k) if (b + k >= 0 && b + k < nb) { acc += mag[b + k]; ++cnt; }
+    sm[b] = acc / cnt;
+  }
   std::vector<float> out;
   for (int b = 2; b + 2 < nb && static_cast<int>(out.size()) < want; ++b) {
-    if (mag[b] > mag[b - 1] && mag[b] >= mag[b + 1] && mag[b] > mag[b - 2] && mag[b] > mag[b + 2]) {
-      // Parabolic interpolation of the peak.
-      const float d = 0.5f * (mag[b - 1] - mag[b + 1]) / (mag[b - 1] - 2 * mag[b] + mag[b + 1] + 1e-9f);
-      out.push_back(100 + (b + d) * df);
+    if (sm[b] > sm[b - 1] && sm[b] >= sm[b + 1] && sm[b] > sm[b - 2] && sm[b] > sm[b + 2]) {
+      const float d = 0.5f * (sm[b - 1] - sm[b + 1]) / (sm[b - 1] - 2 * sm[b] + sm[b + 1] + 1e-9f);
+      const float fpk = 100 + (b + d) * df;
+      if (!out.empty() && fpk - out.back() < 150) { if (sm[b] > sm[static_cast<int>((out.back() - 100) / df)]) out.back() = fpk; continue; }
+      out.push_back(fpk);
     }
   }
   while (static_cast<int>(out.size()) < want) out.push_back(0);
@@ -234,10 +244,21 @@ int main(int argc, char** argv) {
   std::printf("%-4s %7s %7s %7s | %6s %6s %6s %6s %6s %6s %5s %5s %5s | %s\n", "ph", "F1", "F2", "F3", "xc", "ac", "wc", "aLip", "aPh", "aOr", "lLip", "aLar", "L", "target");
   const TractShape base;
   const int nPh = sizeof(kEnglishShape) / sizeof(kEnglishShape[0]);
+  // LINEFIT_ONLY="o": fit one vowel; LINEFIT_TARGETS="o=430/1040/2275;u=...":
+  // formant targets other than the English table's (the line's o needed an
+  // open-mid onset, Jyrki 2026-11-02: "holds" was "hulds").
+  const char* only = std::getenv("LINEFIT_ONLY");
+  const std::string overrides = std::getenv("LINEFIT_TARGETS") ? std::getenv("LINEFIT_TARGETS") : "";
   for (int i = 0; i < nPh && i < 17; ++i) {  // the vowels come first in Ph order
     const auto& v = kEnglishShape[i];
     if (v.f1 <= 0) continue;
-    const float target[3] = {v.f1, v.f2, v.f3};
+    if (only && std::strcmp(only, v.symbol)) continue;
+    float target[3] = {v.f1, v.f2, v.f3};
+    {
+      const std::string key = std::string(v.symbol) + "=";
+      size_t at = overrides.find(key);
+      if (at != std::string::npos) std::sscanf(overrides.c_str() + at + key.size(), "%f/%f/%f", &target[0], &target[1], &target[2]);
+    }
     // A few starts: front, central, back constrictions.
     double bestC = 1e9;
     std::vector<double> best;

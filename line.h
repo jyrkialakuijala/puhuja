@@ -132,6 +132,11 @@ class TransmissionLine {
   // (under ~0.03 cm^2) is sealed; a labial fricative's 0.1 cm^2 radiates.
   float lipOpen_ = 1;
   bool subglottal_ = false;
+
+ public:
+  float traceExtra_ = 0;  // a value the owner wants in the trace (the nostril flow)
+
+ private:
   float lungDc_ = 0;  // the mean flow the lungs supply (the matched source absorbs waves, not the DC)
   float uL_ = 0, uN_ = 0, prevUN_ = 0, radiated_ = 0;
 };
@@ -155,6 +160,9 @@ class VocalTractLine {
   // The vowel shape, with a constriction of area ac (cm^2; >= 1: none) at
   // x (share of the length; < 0: none) and the velum open by an (cm^2).
   void setShape(const TractShape& shape, float x, float ac, float an);
+  // The same from an area function already sampled (cm^2 per oral section)
+  // and a length: for shapes interpolated geometrically, section by section.
+  void setShapeAreas(std::vector<float> areas, float length, float x, float ac, float an);
   // Turbulence: gains for the constriction and the glottis, and the glottal
   // area the flow passes (cm^2).
   void setNoise(float fricGain, float aspGain, float glottalArea);

@@ -645,7 +645,7 @@ constexpr int kShortPhraseSyllables = 4; // a phrase this short gets the short p
 constexpr int kShortCommaPauseStops = 8; // 120 ms
 constexpr int kClausePauseStops = 18;    // after ; and : at least 270 ms
 constexpr float kPauseVariation = 0.15f; // +- share
-const float kFinalLengthSentence = param("kFinalLengthSentence", 1.4f), kFinalLengthPhrase = 1.15f;  // final lengthening
+const float kFinalLengthSentence = param("kFinalLengthSentence", 1.173f) /* cost 0.0294516433593330 n13-timing-w30 */, kFinalLengthPhrase = 1.15f;  // final lengthening
 constexpr float kFinalLengthClause = 1.25f;  // before ; or :
 constexpr float kFinalCodaSonorant = 3.5f;  // a phrase-final l m n ŋ coda
 constexpr int kSentencePauseStops = 10;  // + the breath before the next sentence
@@ -711,7 +711,7 @@ constexpr float kUnstressedConsonant = 0.85f;  // other consonants
 // alignment) puhuja's consonants were 20 % short across the board (median
 // 58 vs 70 ms, s 86 vs 121, n 51 vs 65, t 45 vs 60), the vowels not (105 vs
 // 99): function words, mostly consonants, ran at 137 ms against 240.
-const float kEnglishConsonantLength = param("kEnglishConsonantLength", 1.2f);
+const float kEnglishConsonantLength = param("kEnglishConsonantLength", 0.7044f) /* cost 0.0294516433593330 n13-timing-w30 */;
 // A sonorant cluster across a word boundary ("human life", "in love", "all
 // right"): the readers hold the first consonant as the coda of its word and
 // make the second a short glide into the vowel (ElevenLabs and Kokoro "human
@@ -1228,25 +1228,25 @@ constexpr float kArcStartDb = 1.0f, kArcEndDb = -2.0f;  // (-3: with the end rel
 constexpr float kCreakBelow = -6.5f;  // st: statement endings this low get creaky voice (-5: nearly all)
 constexpr float kPressedAccent = 0.9f, kLaxUnstressed = 1.08f, kLaxFinal = 1.12f;  // glottal opening
 constexpr float kAccentDb = 1.5f, kFunctionWordDb = -1.5f;
-const float kSecondaryVowelLength = param("kSecondaryVowelLength", 0.7f), kInitialRLength = 1.0f;
+const float kSecondaryVowelLength = param("kSecondaryVowelLength", 1.194f) /* cost 0.0294516433593330 n13-timing-w30 */, kInitialRLength = 1.0f;
 // A word-initial ɹ before a vowel ("revolution", "republics", "rights") is a
 // full r: deeper (F3 1550 as the male readings' 1450-1600; puhuja's reached
 // 1730) and a little louder (Jyrki: "r should be pronounced much more when it
 // is in the beginning of the word", 2026-10-30).
-const float kInitialRF3 = param("kInitialRF3", 1550), kInitialRLevel = param("kInitialRLevel", 1.15f);
+const float kInitialRF3 = param("kInitialRF3", 1614) /* cost 0.0294516433593330 n13-timing-w30 */, kInitialRLevel = param("kInitialRLevel", 0.6041f) /* cost 0.0294516433593330 n13-timing-w30 */;
 // Diphthongs (aɪ aʊ oʊ eɪ ɔɪ) run shorter than the Klatt table gives: over
 // kennedy.txt puhuja's aɪ was 227 ms against 135-160 in Kokoro and
 // ElevenLabs, oʊ 201 against 110-169, eɪ 178 against 130-150; "alike" was
 // heard as "too much effort, too active" (2026-10-30). 0.85: a quarter of
 // the way, as with the other durations.
-const float kDiphthongLength = param("kDiphthongLength", 0.8216f) /* cost 0.0449972567973282 speaker3-c300-mf */;  // see sayPhrase (0.8: "generosity" ʤɛ 264 ms against 130-160 in the references, 2026-10-30)
+const float kDiphthongLength = param("kDiphthongLength", 1.002f) /* cost 0.0294516433593330 n13-timing-w30 */;  // see sayPhrase (0.8: "generosity" ʤɛ 264 ms against 130-160 in the references, 2026-10-30)
 constexpr float kSyllabicNLength = 1.6f;
 constexpr float kSyllabicLLength = 1.8f;
 constexpr float kLinkGlideMs = 40, kLinkGlideLevel = 0.7f;  // w / j linking a vowel to the next word's
 constexpr float kGlideBeforeVowel = 0.4f;  // a diphthong's glide before a vowel: share of that vowel
-const float kFlapMs = param("kFlapMs", 22);  // a flap's closure  // the n of -tion (ʃn̩) carries the syllable
+const float kFlapMs = param("kFlapMs", 18.61) /* cost 0.0294516433593330 n13-timing-w30 */;  // a flap's closure  // the n of -tion (ʃn̩) carries the syllable
 // Vowel lengthening (see sayPhrase): factor at 50 ms, change per ms, floor.
-const float kVowelLength50 = param("kVowelLength50", 1.46f), kVowelLengthSlope = -0.0029f, kVowelLengthMin = param("kVowelLengthMin", 1.1f);
+const float kVowelLength50 = param("kVowelLength50", 1.85f) /* cost 0.0294516433593330 n13-timing-w30 */, kVowelLengthSlope = -0.0029f, kVowelLengthMin = param("kVowelLengthMin", 0.8542f) /* cost 0.0294516433593330 n13-timing-w30 */;
 
 // Parallel halves at word j ("and" / "or"): the words right after it repeat
 // words from before it, and the half after starts with one ("all").

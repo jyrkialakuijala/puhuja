@@ -18,7 +18,7 @@ constexpr float kPiL = 3.14159265f;
 // Wall per unit area (Ishizaka, Flanagan & Matsudaira 1975): mass (g/cm^2),
 // resistance (dyn s/cm^3), stiffness (dyn/cm^3).
 const float kWallMass = param("LINE_WALL_M", 1.5f);
-const float kWallDamp = param("LINE_WALL_B", 1917.0f) /* cost 0.0328298499863392 n13-stringline-w30-a */;
+const float kWallDamp = param("LINE_WALL_B", 2336.0f) /* cost 0.0292528427248304 n13-stringline-w30-b */;
 const float kWallStiff = param("LINE_WALL_K", 3.0e5f);
 // Viscous loss along the wall: R = S/A^2 sqrt(omega rho mu / 2) per cm,
 // taken at this frequency (mu = 1.86e-4 poise).
@@ -136,7 +136,7 @@ float TransmissionLine::substep(float u0) {
   const int n = n_, nb = blocks_ * kBlock;
   // Debug: PUHUJA_LINE_TRACE=file writes u0, p0, lip flow per substep (the oral line only: n > 50).
   static FILE* trace = [] { const char* f = std::getenv("PUHUJA_LINE_TRACE"); return f ? std::fopen(f, "w") : nullptr; }();
-  if (trace && n > 50) std::fprintf(trace, "%g\t%g\t%g\n", u0, p_[0], uN_);
+  if (trace && n > 50) std::fprintf(trace, "%g\t%g\t%g\t%g\n", u0, p_[0], uN_, traceExtra_);
   if (glideLeft_ > 0) {
     --glideLeft_;
     for (int k = 0; k < n; ++k) a_[k] *= aStep_[k];
@@ -168,7 +168,7 @@ float TransmissionLine::substep(float u0) {
 // --- The whole airway ---------------------------------------------------
 
 namespace {
-const float kVelumScale = param("LINE_VELUM", 2.918f) /* cost 0.0328298499863392 n13-stringline-w30-a */;  // the port area per unit of the velum opening
+const float kVelumScale = param("LINE_VELUM", 4.142f) /* cost 0.0292528427248304 n13-stringline-w30-b */;  // the port area per unit of the velum opening
 // The nasal line, velum to nostrils (cm). With the velum at 55 % of a 17.5 cm
 // tract (9.6 cm from the glottis) the nasal path is 20.6 cm, 3.1 cm longer
 // than the oral one (Jyrki 2026-11-02: "the nasal tract may be longer,
@@ -216,12 +216,16 @@ void VocalTractLine::init(float fs) {
 }
 
 void VocalTractLine::setShape(const TractShape& shape, float x, float ac, float an) {
+  setShapeAreas(shape.sections(oral_.sections()), shape.length, x, ac, an);
+}
+
+void VocalTractLine::setShapeAreas(std::vector<float> a, float length, float x, float ac, float an) {
   // The length is the speaker's, 15.5-19.5 cm: a vowel's shape may not stretch
   // the tract (the ɪ search took it to 23 cm to lower every formant,
   // 2026-11-02). (Re-initialising the line here wiped its state every
   // update, 2026-11-01.)
-  oral_.setLength(std::clamp(shape.length, 15.5f, 19.5f));
-  std::vector<float> a = shape.sections(oral_.sections());
+  oral_.setLength(std::clamp(length, 15.5f, 19.5f));
+  const float shapeLength = length;
   noiseK_ = -1;
   // The constriction: a cosine^2 hump in log area down to ac, 1 cm wide each
   // way, at x. Its depth fades in as ac falls from 1.0 to 0.7 cm^2 (switched
@@ -230,7 +234,7 @@ void VocalTractLine::setShape(const TractShape& shape, float x, float ac, float 
   const float depth = 1.0f - std::clamp((ac - 0.7f) / 0.3f, 0.0f, 1.0f);
   if (x >= 0 && depth > 0) {
     const float acEff = std::max(ac, 0.01f);
-    const float xc = x * shape.length;
+    const float xc = x * shapeLength;
     for (int k = 0; k < oral_.sections(); ++k) {
       const float d = ((k + 0.5f) * oral_.dx() - xc) / 1.0f;
       if (std::fabs(d) >= 1.0f) continue;
@@ -247,14 +251,13 @@ void VocalTractLine::setShape(const TractShape& shape, float x, float ac, float 
     noiseKc_ = std::min(oral_.sections() - 1, static_cast<int>(xc / oral_.dx()));
   }
   oral_.setAreas(a);
-  velumK_ = std::min(oral_.sections() - 2, static_cast<int>(shape.xVelum * oral_.sections()));
+  velumK_ = std::min(oral_.sections() - 2, static_cast<int>(0.55f * oral_.sections()));
   an_ = std::max(an * kVelumScale, 1e-3f);  // never shut by a switch: the orifice loss closes it
   static int calls = 0;
   if (std::getenv("PUHUJA_LINE_TRACE") && (calls++ % 50) == 0) {
     float mn = 1e9f; int at = 0;
     for (int k = 0; k < oral_.sections(); ++k) if (a[k] < mn) { mn = a[k]; at = k; }
-    std::fprintf(stderr, "shape: x %.3f ac %.3f an %.3f  xc %.3f ac %.2f wc %.2f aLip %.2f aPh %.2f aOr %.2f L %.1f  min area %.3f at %d\n",
-                 x, ac, an, shape.xc, shape.ac, shape.wc, shape.aLip, shape.aPharynx, shape.aOral, shape.length, mn, at);
+    std::fprintf(stderr, "shape: x %.3f ac %.3f an %.3f  L %.1f  min area %.3f at %d\n", x, ac, an, shapeLength, mn, at);
   }
 }
 
@@ -297,6 +300,7 @@ float VocalTractLine::substep(float u0) {
     const float re = 2.0f * TransmissionLine::kRho * std::fabs(u) / (kMuAir * std::sqrt(kPiL * a));
     if (re > kReynoldsCrit) oral_.addFlowDrive(noiseK_, fricGain_ * (re * re - reC2) / reC2 * lpNoise2_);
   }
+  oral_.traceExtra_ = nasal_.lipFlow();  // the nostril flow, for the trace
   const float p1 = oral_.substep(u0);
   oral_.sink(velumK_, uNasal_);
   nasal_.substep(uNasal_);
