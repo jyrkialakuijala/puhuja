@@ -28,44 +28,44 @@ constexpr float kSeg = kLength / kMoving, kLayer = kThickness / L;
 // layers with the superior edge lighter (their 0.125 / 0.025 is too extreme
 // for a string: the light layer would race ahead), tapered along the cord.
 constexpr float kMass = 0.15f;
-const float kTopMass = param("STRING_TOPMASS", 0.5481f) /* cost 0.0328298499863392 n13-stringline-w30-a */;  // the superior layer's share
-const float kTaper = param("STRING_TAPER", 0.4419f) /* cost 0.0328298499863392 n13-stringline-w30-a */;        // half-sine taper, 1 - kTaper at the anchors
+const float kTopMass = param("STRING_TOPMASS", 0.5254f) /* cost 0.0292528427248304 n13-stringline-w30-b */;  // the superior layer's share
+const float kTaper = param("STRING_TAPER", 0.4156f) /* cost 0.0292528427248304 n13-stringline-w30-b */;        // half-sine taper, 1 - kTaper at the anchors
 // Natural frequency (Hz) of the fold's lowest mode at tension 1: the wall
 // spring and the string's first mode together. The driver's pitch controller
 // takes up the rest, as for the other fold models.
-const float kNaturalF0 = param("STRING_F0", 192.2f) /* cost 0.0328298499863392 n13-stringline-w30-a */;
+const float kNaturalF0 = param("STRING_F0", 192.5f) /* cost 0.0292528427248304 n13-stringline-w30-b */;
 // The wall spring's share of each lane's restoring stiffness at the lowest
 // mode; the string tension carries the rest (1 - share), uniform along the
 // cord as a string's tension is. (First sweep, 2026-10-31: at 0.3 with shear
 // 0.3 and kappa 1 the fold sat open and drifted at 5 Hz; 0.7 with shear 1
 // and kappa 2 phonates at 20 % closure, jitter 1.2 %.)
-const float kWallShare = param("STRING_WALLSHARE", 0.2466f) /* cost 0.0328298499863392 n13-stringline-w30-a */;
+const float kWallShare = param("STRING_WALLSHARE", 0.2318f) /* cost 0.0292528427248304 n13-stringline-w30-b */;
 // Stiffness of the superior layer relative to the inferior (softer: the
 // layers' phase lag, which feeds the oscillation from the flow).
-const float kTopStiff = param("STRING_TOPSTIFF", 0.5377f) /* cost 0.0328298499863392 n13-stringline-w30-a */;
+const float kTopStiff = param("STRING_TOPSTIFF", 0.4414f) /* cost 0.0292528427248304 n13-stringline-w30-b */;
 // Shear coupling between the two layers relative to the wall spring
 // ("connected mildly"; below ~1 the layers do not drive each other enough
 // to oscillate against the static pressure).
-const float kShearRel = param("STRING_SHEAR", 1.207f) /* cost 0.0328298499863392 n13-stringline-w30-a */;
+const float kShearRel = param("STRING_SHEAR", 1.077f) /* cost 0.0292528427248304 n13-stringline-w30-b */;
 // Damping ratios while open per layer; extra while touching the wall.
 constexpr float kZeta[L] = {0.1f, 0.4f};
-const float kZetaClosed = param("STRING_ZCLOSED", 1.099f) /* cost 0.0328298499863392 n13-stringline-w30-a */;
+const float kZetaClosed = param("STRING_ZCLOSED", 1.07f) /* cost 0.0292528427248304 n13-stringline-w30-b */;
 constexpr float kCollision = 3.0f;  // collision stiffness / the lane's total stiffness
 // The share of the air pressure on the surface that drives it.
-const float kKappa = param("STRING_KAPPA", 2.148f) /* cost 0.0328298499863392 n13-stringline-w30-a */;
+const float kKappa = param("STRING_KAPPA", 1.985f) /* cost 0.0292528427248304 n13-stringline-w30-b */;
 // The cords' own sound: surface area times lateral velocity, both folds.
-const float kSurface = param("STRING_SURFACE", 0.02016f) /* cost 0.0328298499863392 n13-stringline-w30-a */;
+const float kSurface = param("STRING_SURFACE", 0.01994f) /* cost 0.0292528427248304 n13-stringline-w30-b */;
 // The abduction rest area scaled for this model's own amplitude.
-const float kRestScale = param("STRING_REST", 0.06898f) /* cost 0.0328298499863392 n13-stringline-w30-a */;
+const float kRestScale = param("STRING_REST", 0.0784f) /* cost 0.0292528427248304 n13-stringline-w30-b */;
 // Rest width along the cord relative to the mean: front (anterior) against back.
-const float kRestFront = param("STRING_RESTFRONT", 0.03916f) /* cost 0.0328298499863392 n13-stringline-w30-a */, kRestBack = 2.0f - kRestFront;
+const float kRestFront = param("STRING_RESTFRONT", 0.07137f) /* cost 0.0292528427248304 n13-stringline-w30-b */, kRestBack = 2.0f - kRestFront;
 constexpr float kRho = 0.00113f;      // air density (g/cm^3)
 constexpr float kInertance = 0.005f;  // as folds.cc
 // Discharge coefficient of the glottal orifice (vena contracta): the flow
 // through a slit of area a is that of an ideal orifice of kDischarge x a.
 // Without it the folds passed ~2x a real glottis's flow and the pressure
 // above them swung by a third of the lung pressure (review 2026-11-01).
-const float kDischarge = param("STRING_CD", 0.9307f) /* cost 0.0328298499863392 n13-stringline-w30-a */;  // (0.65-0.85 with the folds as tuned: the closure is lost, 31 % -> 20 % -> 1 %, 2026-11-01)
+const float kDischarge = param("STRING_CD", 0.9257f) /* cost 0.0292528427248304 n13-stringline-w30-b */;  // (0.65-0.85 with the folds as tuned: the closure is lost, 31 % -> 20 % -> 1 %, 2026-11-01)
 // Rounding of the heard area (cm^2): the flow fades over this much area as a
 // lane closes instead of cutting off (Jyrki 2026-11-01: "closing should be a
 // slow process ... or closing happens over a longer distance, i.e. the
@@ -83,10 +83,10 @@ constexpr int kMembranousEnd = kLast;
 // constants (ms; 0 = off), the forces mix (1 - s) of their own and s of the
 // neighbours' mean; a touching lane's velocity relaxes toward its layer's
 // mean velocity with kClosedSmoothMs.
-const float kSmoothMs = param("STRING_SMOOTHMS", 30.13f) /* cost 0.0328298499863392 n13-stringline-w30-a */, kVSmoothMs = param("STRING_VSMOOTHMS", 54.22f) /* cost 0.0328298499863392 n13-stringline-w30-a */;
-const float kForceSmooth = param("STRING_FSMOOTH", 0.001675f) /* cost 0.0328298499863392 n13-stringline-w30-a */, kClosedSmoothMs = param("STRING_CSMOOTHMS", 2.404f) /* cost 0.0328298499863392 n13-stringline-w30-a */;
+const float kSmoothMs = param("STRING_SMOOTHMS", 37.2f) /* cost 0.0292528427248304 n13-stringline-w30-b */, kVSmoothMs = param("STRING_VSMOOTHMS", 50.36f) /* cost 0.0292528427248304 n13-stringline-w30-b */;
+const float kForceSmooth = param("STRING_FSMOOTH", 0.001803f) /* cost 0.0292528427248304 n13-stringline-w30-b */, kClosedSmoothMs = param("STRING_CSMOOTHMS", 2.349f) /* cost 0.0292528427248304 n13-stringline-w30-b */;
 // The other layer's weight in the neighbour mean (the two along the cord weigh 1 each).
-const float kMixLayer = param("STRING_MIXLAYER", 0.007426f) /* cost 0.0328298499863392 n13-stringline-w30-a */;
+const float kMixLayer = param("STRING_MIXLAYER", 0.007568f) /* cost 0.0292528427248304 n13-stringline-w30-b */;
 
 // The share of the way a value moves toward its target in one step of h
 // seconds with a time constant in milliseconds (the 0.001 is ms -> s).

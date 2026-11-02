@@ -226,26 +226,32 @@ static const struct {
   float xc, ac, wc, aLip, aPharynx, aOral, lLip, aLarynx, length;
   float f1, f2, f3;
 } kLineVowels[] = {
-    {0, param("LINE_V0_XC", 0.5980f), param("LINE_V0_AC", 2.7494f), param("LINE_V0_WC", 5.6828f), param("LINE_V0_ALIP", 3.7767f), param("LINE_V0_APH", 1.6187f), param("LINE_V0_AOR", 5.8295f), param("LINE_V0_LLIP", 0.3597f), param("LINE_V0_ALAR", 0.7200f), param("LINE_V0_LEN", 17.5051f), 710.0f, 1510.0f, 2397.0f},  // a
-    {1, param("LINE_V1_XC", 0.9500f), param("LINE_V1_AC", 3.4609f), param("LINE_V1_WC", 4.1552f), param("LINE_V1_ALIP", 4.9275f), param("LINE_V1_APH", 4.6285f), param("LINE_V1_AOR", 1.3659f), param("LINE_V1_LLIP", 2.1214f), param("LINE_V1_ALAR", 0.5601f), param("LINE_V1_LEN", 17.4931f), 449.0f, 1982.0f, 2530.0f},  // e
-    {2, param("LINE_V2_XC", 0.7101f), param("LINE_V2_AC", 0.8010f), param("LINE_V2_WC", 5.1921f), param("LINE_V2_ALIP", 4.3338f), param("LINE_V2_APH", 9.9445f), param("LINE_V2_AOR", 2.5965f), param("LINE_V2_LLIP", 1.9178f), param("LINE_V2_ALAR", 0.3000f), param("LINE_V2_LEN", 17.4513f), 290.0f, 2301.0f, 2720.0f},  // i
-    {3, param("LINE_V3_XC", 0.7174f), param("LINE_V3_AC", 1.4332f), param("LINE_V3_WC", 3.7126f), param("LINE_V3_ALIP", 2.4300f), param("LINE_V3_APH", 7.5480f), param("LINE_V3_AOR", 2.4277f), param("LINE_V3_LLIP", 1.0280f), param("LINE_V3_ALAR", 1.2129f), param("LINE_V3_LEN", 17.5958f), 355.0f, 1111.0f, 1923.0f},  // o
-    {4, param("LINE_V4_XC", 0.5127f), param("LINE_V4_AC", 0.6356f), param("LINE_V4_WC", 3.6064f), param("LINE_V4_ALIP", 2.5240f), param("LINE_V4_APH", 6.8763f), param("LINE_V4_AOR", 3.1570f), param("LINE_V4_LLIP", 1.0322f), param("LINE_V4_ALAR", 0.7670f), param("LINE_V4_LEN", 17.1611f), 391.0f, 1395.0f, 2229.0f},  // u
-    {6, param("LINE_V6_XC", 0.6700f), param("LINE_V6_AC", 1.4674f), param("LINE_V6_WC", 4.0161f), param("LINE_V6_ALIP", 5.3100f), param("LINE_V6_APH", 1.7226f), param("LINE_V6_AOR", 5.2040f), param("LINE_V6_LLIP", 1.0084f), param("LINE_V6_ALAR", 0.3261f), param("LINE_V6_LEN", 17.4609f), 675.0f, 1729.0f, 2466.0f},  // æ
-    {8, param("LINE_V8_XC", 0.7060f), param("LINE_V8_AC", 2.0636f), param("LINE_V8_WC", 2.9885f), param("LINE_V8_ALIP", 1.9251f), param("LINE_V8_APH", 7.2924f), param("LINE_V8_AOR", 3.4373f), param("LINE_V8_LLIP", 1.0725f), param("LINE_V8_ALAR", 0.8776f), param("LINE_V8_LEN", 17.3168f), 401.0f, 1764.0f, 2440.0f},  // ə
-    {9, param("LINE_V9_XC", 0.6787f), param("LINE_V9_AC", 1.2918f), param("LINE_V9_WC", 3.7543f), param("LINE_V9_ALIP", 3.3058f), param("LINE_V9_APH", 5.7075f), param("LINE_V9_AOR", 2.0436f), param("LINE_V9_LLIP", 0.6712f), param("LINE_V9_ALAR", 0.8472f), param("LINE_V9_LEN", 17.4781f), 391.0f, 1936.0f, 2536.0f},  // ɪ
-    {10, param("LINE_V10_XC", 0.6836f), param("LINE_V10_AC", 1.6646f), param("LINE_V10_WC", 3.1008f), param("LINE_V10_ALIP", 3.2115f), param("LINE_V10_APH", 3.0208f), param("LINE_V10_AOR", 3.3872f), param("LINE_V10_LLIP", 0.8379f), param("LINE_V10_ALAR", 0.7210f), param("LINE_V10_LEN", 17.4857f), 544.0f, 1713.0f, 2449.0f},  // ɛ
-    {11, param("LINE_V11_XC", 0.5106f), param("LINE_V11_AC", 1.5459f), param("LINE_V11_WC", 3.4623f), param("LINE_V11_ALIP", 2.4409f), param("LINE_V11_APH", 3.7919f), param("LINE_V11_AOR", 3.6185f), param("LINE_V11_LLIP", 1.0889f), param("LINE_V11_ALAR", 1.0739f), param("LINE_V11_LEN", 17.5692f), 525.0f, 1393.0f, 2706.0f},  // ʊ
-    {12, param("LINE_V12_XC", 0.8847f), param("LINE_V12_AC", 2.3152f), param("LINE_V12_WC", 2.8176f), param("LINE_V12_ALIP", 3.7496f), param("LINE_V12_APH", 4.8983f), param("LINE_V12_AOR", 1.7043f), param("LINE_V12_LLIP", 1.0914f), param("LINE_V12_ALAR", 1.1582f), param("LINE_V12_LEN", 17.1433f), 445.0f, 1123.0f, 1887.0f},  // ɔ
-    {13, param("LINE_V13_XC", 0.5048f), param("LINE_V13_AC", 1.3557f), param("LINE_V13_WC", 3.3916f), param("LINE_V13_ALIP", 3.4257f), param("LINE_V13_APH", 5.1333f), param("LINE_V13_AOR", 3.5296f), param("LINE_V13_LLIP", 0.9395f), param("LINE_V13_ALAR", 1.0201f), param("LINE_V13_LEN", 17.3766f), 491.0f, 1451.0f, 2142.0f},  // ʌ
-    {14, param("LINE_V14_XC", 0.5206f), param("LINE_V14_AC", 2.1668f), param("LINE_V14_WC", 3.0848f), param("LINE_V14_ALIP", 3.0285f), param("LINE_V14_APH", 2.9957f), param("LINE_V14_AOR", 6.6021f), param("LINE_V14_LLIP", 0.4428f), param("LINE_V14_ALAR", 1.1014f), param("LINE_V14_LEN", 17.6478f), 624.0f, 1305.0f, 2565.0f},  // ɑ
-    {16, param("LINE_V16_XC", 0.6191f), param("LINE_V16_AC", 1.1420f), param("LINE_V16_WC", 2.1593f), param("LINE_V16_ALIP", 2.6026f), param("LINE_V16_APH", 6.2070f), param("LINE_V16_AOR", 5.6483f), param("LINE_V16_LLIP", 1.3305f), param("LINE_V16_ALAR", 1.2830f), param("LINE_V16_LEN", 17.6893f), 429.0f, 1378.0f, 1743.0f},  // ɜ
+    {0, param("LINE_V0_XC", 0.6801f), param("LINE_V0_AC", 2.4269f), param("LINE_V0_WC", 3.4043f), param("LINE_V0_ALIP", 2.9592f), param("LINE_V0_APH", 1.6880f), param("LINE_V0_AOR", 6.2675f), param("LINE_V0_LLIP", 0.3712f), param("LINE_V0_ALAR", 0.3419f), param("LINE_V0_LEN", 17.5012f), 713.0f, 1508.0f, 2397.0f},  // a
+    {1, param("LINE_V1_XC", 0.1711f), param("LINE_V1_AC", 2.7217f), param("LINE_V1_WC", 2.2053f), param("LINE_V1_ALIP", 4.8325f), param("LINE_V1_APH", 5.9873f), param("LINE_V1_AOR", 1.7666f), param("LINE_V1_LLIP", 2.3704f), param("LINE_V1_ALAR", 0.8831f), param("LINE_V1_LEN", 17.4787f), 450.0f, 1989.0f, 2516.0f},  // e
+    {2, param("LINE_V2_XC", 0.1559f), param("LINE_V2_AC", 2.3446f), param("LINE_V2_WC", 1.3041f), param("LINE_V2_ALIP", 3.7205f), param("LINE_V2_APH", 9.5341f), param("LINE_V2_AOR", 0.8773f), param("LINE_V2_LLIP", 1.6991f), param("LINE_V2_ALAR", 0.8768f), param("LINE_V2_LEN", 17.4560f), 290.0f, 2300.0f, 2708.0f},  // i
+    {3, param("LINE_V3_XC", 0.3671f), param("LINE_V3_AC", 1.2110f), param("LINE_V3_WC", 2.2097f), param("LINE_V3_ALIP", 1.5822f), param("LINE_V3_APH", 8.5784f), param("LINE_V3_AOR", 5.4947f), param("LINE_V3_LLIP", 1.4684f), param("LINE_V3_ALAR", 0.9520f), param("LINE_V3_LEN", 17.5326f), 431.0f, 1043.0f, 2277.0f},  // o
+    {4, param("LINE_V4_XC", 0.3106f), param("LINE_V4_AC", 1.8194f), param("LINE_V4_WC", 1.7126f), param("LINE_V4_ALIP", 2.2929f), param("LINE_V4_APH", 6.8054f), param("LINE_V4_AOR", 1.9187f), param("LINE_V4_LLIP", 1.2744f), param("LINE_V4_ALAR", 3.0000f), param("LINE_V4_LEN", 17.5189f), 393.0f, 1403.0f, 2280.0f},  // u
+    {6, param("LINE_V6_XC", 0.2144f), param("LINE_V6_AC", 1.3681f), param("LINE_V6_WC", 3.0515f), param("LINE_V6_ALIP", 5.2821f), param("LINE_V6_APH", 3.0732f), param("LINE_V6_AOR", 2.7994f), param("LINE_V6_LLIP", 2.9985f), param("LINE_V6_ALAR", 0.3000f), param("LINE_V6_LEN", 17.4476f), 678.0f, 1743.0f, 2465.0f},  // æ
+    {8, param("LINE_V8_XC", 0.4992f), param("LINE_V8_AC", 2.7908f), param("LINE_V8_WC", 1.9016f), param("LINE_V8_ALIP", 2.5527f), param("LINE_V8_APH", 5.7424f), param("LINE_V8_AOR", 1.8534f), param("LINE_V8_LLIP", 0.9963f), param("LINE_V8_ALAR", 2.2313f), param("LINE_V8_LEN", 17.5109f), 400.0f, 1734.0f, 2564.0f},  // ə
+    {9, param("LINE_V9_XC", 0.1501f), param("LINE_V9_AC", 3.9386f), param("LINE_V9_WC", 2.7749f), param("LINE_V9_ALIP", 3.0272f), param("LINE_V9_APH", 5.9485f), param("LINE_V9_AOR", 1.4636f), param("LINE_V9_LLIP", 1.7599f), param("LINE_V9_ALAR", 0.7805f), param("LINE_V9_LEN", 17.5163f), 390.0f, 1934.0f, 2531.0f},  // ɪ
+    {10, param("LINE_V10_XC", 0.8307f) /* cost 0.0393619354064204 n13-vowel10-c */, param("LINE_V10_AC", 2.411f) /* cost 0.0393619354064204 n13-vowel10-c */, param("LINE_V10_WC", 4.872f) /* cost 0.0393619354064204 n13-vowel10-c */, param("LINE_V10_ALIP", 2.698f) /* cost 0.0393619354064204 n13-vowel10-c */, param("LINE_V10_APH", 3.167f) /* cost 0.0393619354064204 n13-vowel10-c */, param("LINE_V10_AOR", 3.856f) /* cost 0.0393619354064204 n13-vowel10-c */, param("LINE_V10_LLIP", 1.401f) /* cost 0.0393619354064204 n13-vowel10-c */, param("LINE_V10_ALAR", 0.852f) /* cost 0.0393619354064204 n13-vowel10-c */, param("LINE_V10_LEN", 17.5144f), 545.0f, 1719.0f, 2446.0f},  // ɛ
+    {11, param("LINE_V11_XC", 0.4003f), param("LINE_V11_AC", 2.2939f), param("LINE_V11_WC", 4.0808f), param("LINE_V11_ALIP", 2.4833f), param("LINE_V11_APH", 3.3040f), param("LINE_V11_AOR", 3.7627f), param("LINE_V11_LLIP", 2.9965f), param("LINE_V11_ALAR", 3.0000f), param("LINE_V11_LEN", 17.4967f), 515.0f, 1313.0f, 2541.0f},  // ʊ
+    {12, param("LINE_V12_XC", 0.3483f), param("LINE_V12_AC", 0.9856f), param("LINE_V12_WC", 2.5138f), param("LINE_V12_ALIP", 1.4267f), param("LINE_V12_APH", 4.4062f), param("LINE_V12_AOR", 5.1441f), param("LINE_V12_LLIP", 1.9139f), param("LINE_V12_ALAR", 2.8579f), param("LINE_V12_LEN", 17.5066f), 464.0f, 1005.0f, 2436.0f},  // ɔ
+    {13, param("LINE_V13_XC", 0.3260f), param("LINE_V13_AC", 2.3946f), param("LINE_V13_WC", 2.2256f), param("LINE_V13_ALIP", 2.6568f), param("LINE_V13_APH", 4.2939f), param("LINE_V13_AOR", 2.8830f), param("LINE_V13_LLIP", 0.7045f), param("LINE_V13_ALAR", 3.0000f), param("LINE_V13_LEN", 17.4976f), 489.0f, 1429.0f, 2382.0f},  // ʌ
+    {14, param("LINE_V14_XC", 0.6096f), param("LINE_V14_AC", 3.0450f), param("LINE_V14_WC", 2.0429f), param("LINE_V14_ALIP", 2.8555f), param("LINE_V14_APH", 1.5169f), param("LINE_V14_AOR", 5.7718f), param("LINE_V14_LLIP", 1.0899f), param("LINE_V14_ALAR", 2.2311f), param("LINE_V14_LEN", 17.5186f), 633.0f, 1193.0f, 2344.0f},  // ɑ
+    {16, param("LINE_V16_XC", 0.7458f), param("LINE_V16_AC", 1.0651f), param("LINE_V16_WC", 2.1391f), param("LINE_V16_ALIP", 2.0394f), param("LINE_V16_APH", 4.8685f), param("LINE_V16_AOR", 11.0216f), param("LINE_V16_LLIP", 0.8457f), param("LINE_V16_ALAR", 1.9937f), param("LINE_V16_LEN", 17.5306f), 426.0f, 1377.0f, 1720.0f},  // ɜ
 };
 // The line's output level, and its turbulence gains (noise pressure per unit
 // of Reynolds number past critical, at the constriction and at the glottis).
 const float kLineGain = param("LINE_GAIN", 1.438e-05f) /* cost 0.0304788830321763 line3-w15-sm2-s1-mf */;  // vowels ~-20 dB rms, kennedy.txt peaks under 1.0
-const float kLineFric = param("LINE_FRIC", 11.18f) /* cost 0.0328298499863392 n13-stringline-w30-a */;  // dyn/cm^2 per unit of (Re^2 - Re_c^2) / Re_c^2 at the jet: s at the cascade's level
-const float kLineAsp = param("LINE_ASP", 1.753f) /* cost 0.0328298499863392 n13-stringline-w30-a */;  // the same at the glottis (h between vowels is voiced and needs none)
+const float kLineFric = param("LINE_FRIC", 8.375f) /* cost 0.0292528427248304 n13-stringline-w30-b */;  // dyn/cm^2 per unit of (Re^2 - Re_c^2) / Re_c^2 at the jet: s at the cascade's level
+const float kLineAsp = param("LINE_ASP", 1.352f) /* cost 0.0292528427248304 n13-stringline-w30-b */;  // the same at the glottis (h between vowels is voiced and needs none)
+// How the line moves between two vowel shapes: 0 interpolates the shape
+// parameters (a constriction travels), 1 the area functions themselves,
+// section by section in log area (one constriction fades while the next
+// grows; Jyrki 2026-11-02: "perhaps the shapes should be interpolated more
+// geometrically?").
+const float kLineInterp = param("LINE_INTERP", 1.0f);
 const float kLineShapeSigma = param("LINE_SIGMA", 0.08f);  // the formant-space width of a vowel shape (log units); 0.35 (a search result) blurred every vowel into one
 // The string folds under the line's load pass ~1.7x the air of the planner's
 // table (kennedy.txt: 449 cm^3/s of speech against 257 in the cascade,
@@ -280,6 +286,39 @@ TractShape lineShapeFor(float f1, float f2, float f3) {
   s.lLip = ll; s.aLarynx = std::exp(lLar); s.length = len;
   return s;
 }
+// The line's shape for a phoneme: the vowels' own from kLineVowels; w has the
+// shape of u under its lip constriction (the raised tongue back that makes a
+// w; with the lips alone it was a weak labial), j the shape of i. Others have
+// none: the vowels on both sides define the path and the constriction is laid
+// over it.
+bool lineShapeOf(Ph ph, TractShape* out) {
+  // w: u's shape; j: i's; l: the dark English l has the tongue back raised
+  // behind its tip contact (F2 ~1000 Hz), so it takes ɔ's shape under the
+  // alveolar constriction ("life" was "ife" with the neighbours' shapes,
+  // Jyrki 2026-11-02); a pause: the neutral ə (the articulators rest, and
+  // the next word must not start from the last one's vowel).
+  // ɹ: the r-coloured ɜ's shape (its low F3) under the constriction; without
+  // it the final r of "more" was the neighbours' blend and heard as an n.
+  const Ph look = ph == Ph::W ? Ph::U : ph == Ph::J ? Ph::I : ph == Ph::L ? Ph::AO : ph == Ph::RR ? Ph::ER : ph == Ph::Stop ? Ph::Schwa : ph;
+  for (const auto& v : kLineVowels) {
+    if (v.ph != static_cast<int>(look)) continue;
+    out->xc = v.xc; out->ac = v.ac; out->wc = v.wc; out->aLip = v.aLip; out->aPharynx = v.aPharynx;
+    out->aOral = v.aOral; out->lLip = v.lLip; out->aLarynx = v.aLarynx; out->length = v.length;
+    return true;
+  }
+  return false;
+}
+// Interpolation of two shapes (log areas, linear places and lengths).
+TractShape lineShapeMix(const TractShape& a, const TractShape& b, float w) {
+  TractShape s;
+  auto lin = [&](float x, float y) { return x + (y - x) * w; };
+  auto lg = [&](float x, float y) { return std::exp(std::log(std::max(x, 0.01f)) + (std::log(std::max(y, 0.01f)) - std::log(std::max(x, 0.01f))) * w); };
+  s.xc = lin(a.xc, b.xc); s.ac = lg(a.ac, b.ac); s.wc = lin(a.wc, b.wc); s.aLip = lg(a.aLip, b.aLip);
+  s.aPharynx = lg(a.aPharynx, b.aPharynx); s.aOral = lg(a.aOral, b.aOral); s.lLip = lin(a.lLip, b.lLip);
+  s.aLarynx = lg(a.aLarynx, b.aLarynx); s.length = lin(a.length, b.length);
+  return s;
+}
+
 // Where a consonant constricts the line (share of the tract's length).
 float linePlaceOf(Ph ph) {
   switch (ph) {
@@ -423,6 +462,11 @@ constexpr float kApproachMs = 12;
 constexpr float kSealMs = 18;
 constexpr float kSealArea = 0.15f;   // cm^2: where the slow seal begins
 constexpr float kStopGlottalMs = 280;  // glottis closing for a pause (under the fade)
+// ... with the line tract there is no output fade, so the glottis closes at
+// a speaker's pace: with 280 ms the voice went on for 150 ms of every comma
+// pause at -7 dB (Jyrki 2026-11-02: "would also be nice if the sound stopped
+// in between of the words").
+const float kLineStopGlottalMs = param("LINE_STOP_MS", 50.0f);
 constexpr float kPreposeMs = 40;     // after a pause, articulators move this early
 // Damped formant motion: time constant per formant, by the articulator that
 // mostly moves it. F1 follows the jaw (the largest mass: slowest), F2 the
@@ -1620,6 +1664,34 @@ void Synth::emit(const Token& tok, const Ph* next) {
   Aero aero = aeroOf(tok.ph);
   e.ac = aero.ac;
   e.lineX = linePlaceOf(tok.ph);
+  if (tract_ == Tract::Line) {
+    // The ʊ offglide of aʊ ends darker than a ʊ of its own (the references'
+    // F2 ~850 Hz against ʊ's 1300): it takes o's shape. After o (oʊ) it keeps
+    // ʊ's own, so the glide moves ("slow" was "sluu" with o held, Jyrki
+    // 2026-11-02).
+    // ... and before an l (holds, old, cold) the oʊ stays at o: the readers'
+    // F2 falls into the dark l, never rises ("holds" was "hulds", 2026-11-02).
+    const bool glideToL = next && *next == Ph::L;
+    const Ph shapePh = tok.ph == Ph::UH && (lastPh_ == Ph::A || (lastPh_ == Ph::O && glideToL)) ? Ph::O : tok.ph;
+    TractShape sh;
+    bool have = lineShapeOf(shapePh, &sh);
+    if (have && tok.ph == Ph::UH && lastPh_ == Ph::O && !glideToL) {
+      // The oʊ offglide: halfway from o toward ʊ (the references' F2 rises
+      // only to ~1000-1100 Hz; ʊ's own 1300 was too front, o held was none).
+      TractShape o;
+      if (lineShapeOf(Ph::O, &o)) sh = lineShapeMix(o, sh, 0.5f);
+    }
+    if (have) {
+      // A vowel holds its shape over the middle of its sound (keys at 30 and
+      // 70 %): with one key at the middle every vowel was a glide and reached
+      // its target only for an instant. Consonants and pauses: one key.
+      const bool hold = tok.ph != Ph::Stop;  // vowels and the shaped consonants (w j l ɹ) hold; a pause is one key
+      if (hold) lineKeys_.push_back({t0 + 0.3 * dur, sh});
+      lineKeys_.push_back({t0 + (hold ? 0.7 : 0.5) * dur, sh});
+      if (std::getenv("PUHUJA_LINE_TRACE"))
+        std::fprintf(stderr, "linekey t %.3f ph %d shape %d xc %.2f ac %.2f aLip %.2f aPh %.2f aOr %.2f\n", (t0 + 0.5 * dur) / fs_, static_cast<int>(tok.ph), static_cast<int>(shapePh), sh.xc, sh.ac, sh.aLip, sh.aPharynx, sh.aOral);
+    }
+  }
   e.acMs = kBoundaryMs;
   e.ag = aero.ag;
   if (in.cls == Cls::Vowel) e.ag *= tok.shape.press;  // voice quality by prosody
@@ -2002,7 +2074,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
       e.inhaleSnatched = nextInhaleSnatched_;
       nextInhaleMs_ = 0;
       nextInhaleSnatched_ = false;
-      e.agMs = kStopGlottalMs;
+      e.agMs = tract_ == Tract::Line ? kLineStopGlottalMs : kStopGlottalMs;
       syllable_ = 0;
       resolveRanges(nullptr, -1);  // no vowel follows: they hold the last one's
       rangePrevT_ = -1;
@@ -2863,8 +2935,36 @@ float Synth::tick() {
     // velum; updated every fourth sample (the articulators are slow).
     lineX_ += (lineXTarget_ - lineX_) * lineXFollow_;
     if ((lineCount_++ & 3) == 0) {
-      const TractShape sh = lineShapeFor(p[kF1] * voice_.formant[0], p[kF2] * voice_.formant[1], p[kF3] * voice_.formant[2]);
+      // The shape at this time: between the two vowel shapes around it.
+      while (lineKeys_.size() >= 2 && lineKeys_[1].t <= t_) lineKeys_.pop_front();
+      TractShape sh;
+      if (std::getenv("PUHUJA_LINE_TRACE") && (lineCount_ % 400) == 1)
+        std::fprintf(stderr, "lineshape t %.3f keys %zu first %.3f %s\n", t_ / fs_, lineKeys_.size(), lineKeys_.empty() ? -1.0 : lineKeys_[0].t / fs_,
+                     lineKeys_.empty() ? "fallback(formants)" : (lineKeys_.size() == 1 || t_ <= lineKeys_[0].t) ? "hold" : "mix");
+      if (lineKeys_.empty()) {
+        sh = lineShapeFor(p[kF1] * voice_.formant[0], p[kF2] * voice_.formant[1], p[kF3] * voice_.formant[2]);
+      } else if (lineKeys_.size() == 1 || t_ <= lineKeys_[0].t) {
+        sh = lineKeys_[0].s;
+      } else {
+        const double span = lineKeys_[1].t - lineKeys_[0].t;
+        const float w = span > 0 ? static_cast<float>((t_ - lineKeys_[0].t) / span) : 1.0f;
+        if (kLineInterp >= 0.5f) {
+          // Geometric: the two area functions, section by section in log area.
+          const float fem = (voice_.formant[0] + voice_.formant[1] + voice_.formant[2]) / 3.0f;
+          TractShape a = lineKeys_[0].s, b = lineKeys_[1].s;
+          a.length /= fem; b.length /= fem;
+          const int n = line_.oral().sections();
+          std::vector<float> va = a.sections(n), vb = b.sections(n);
+          for (int k = 0; k < n; ++k) va[k] = std::exp(std::log(va[k]) + (std::log(vb[k]) - std::log(va[k])) * w);
+          line_.setShapeAreas(std::move(va), a.length + (b.length - a.length) * w, lineX_, ac, an);
+          goto lineShapeDone;
+        }
+        sh = lineShapeMix(lineKeys_[0].s, lineKeys_[1].s, w);
+      }
+      // The female voice: a shorter tract in place of the formant multipliers.
+      sh.length /= (voice_.formant[0] + voice_.formant[1] + voice_.formant[2]) / 3.0f;
       line_.setShape(sh, lineX_, ac, an);
+    lineShapeDone:;
     }
     // Glottal turbulence mostly with the glottis apart (h, aspiration, a
     // breathy voice): in modal voicing the Reynolds gate alone put 2-8 kHz

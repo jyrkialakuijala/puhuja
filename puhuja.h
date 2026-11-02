@@ -481,6 +481,12 @@ class Synth {
   float lineXFollow_ = 0;
   int lineCount_ = 0;
   float lineOut_ = 0;
+  // The line's articulation: a shape per vowel (and per w, j) at the middle
+  // of its sound, interpolated in time (log areas), instead of a blend looked
+  // up from the formant path (the blend of shapes is not the shape of the
+  // blend: an aʊ offglide came out as an ɪ, 2026-11-02).
+  struct LineKey { double t; TractShape s; };
+  std::deque<LineKey> lineKeys_;
   // Sentence planner state: dense log2 F1, F2, F3 and the pitch multiplier
   // per plan frame from planStartT_; keyframes from planFromT_ on are not yet
   // planned. curPh_ tags the keyframes with their phoneme.
