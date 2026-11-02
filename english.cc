@@ -539,10 +539,11 @@ std::vector<std::string> englishPronounce(std::string_view word) {
 constexpr float kDefaultRate = 0.95f;
 // Longest unfinished word held back between push() calls.
 constexpr size_t kMaxHeldBack = 256;
+constexpr size_t kMaxHeldSentence = 4000;  // ... and the longest sentence held back whole
 constexpr float kEnglishFricationGain = 4.5f;
 constexpr float kEnglishAspirationGain = 50.0f, kEnglishHGain = 20.0f;
-constexpr float kEnglishVoicedHNoise = 1.0f;  // x the h gain, h between voiced sounds (0.3: "the hand" was heard as "the land": the h had the l's length, level and harmonicity; 3 was 12 dB louder than goog.wav)
-constexpr float kEnglishVoicedHAg = 0.2f;  // cm^2, h between voiced sounds (goog.wav's stays voiced)
+const float kEnglishVoicedHNoise = param("kEnglishVoicedHNoise", 0.4f);  // x the h gain, h between voiced sounds (readers' medial h is mostly breathy voice, 10-13 dB under the vowel; 1.0 put puhuja's at -1 dB, INPUT.md 2026-10-31) (0.3 with the h gain 0.7: "the hand" was heard as "the land": the h had the l's length, level and harmonicity; 3 was 12 dB louder than goog.wav)
+const float kEnglishVoicedHAg = param("kEnglishVoicedHAg", 0.25f);  // (0.2 with the folds stopping above kAgBreathy: h-vowel -7.1 dB over kennedy.txt, 0.25: -8.7, readers -10..-13; round trip 8.6 -> 8.2 %, 2026-11-01)  // cm^2, h between voiced sounds (goog.wav's stays voiced)
 
 EnglishReader::EnglishReader(Synth& synth) : synth_(synth) {
   synth_.setSpellingRules(false);  // English phonemes come ready-made
@@ -720,7 +721,7 @@ constexpr float kClusterCodaLength = 1.5f, kClusterOnsetLength = 0.3f;
 // l by position: word-initial before a vowel it ran 98 ms against the
 // readers' 44-110 (median ~70), word-final after a vowel 77 against 80-115.
 constexpr float kOnsetLLength = 0.75f, kCodaLLength = 1.2f;
-constexpr float kUnaccentedCodaAffricate = 0.35f;  // ʧ ʤ closing an unaccented word
+constexpr float kUnaccentedCodaAffricate = 0.7f;  // ʧ ʤ closing an unaccented word (0.35: "for which our" ʧ 35 ms against the readers' 70, a tick after a long w; Jyrki: /wɪtʃ/ "ends with a ch sound", 2026-10-31)
 constexpr float kVoicedHLength = 0.65f;  // h between voiced sounds
 
 std::vector<std::vector<float>> EnglishReader::durations() const {
@@ -836,6 +837,9 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
       const float r = rate_ / kDefaultRate;
       const float rateDiv = kDefaultRate * (vowel ? r : std::sqrt(r));
       out[w][i] = (mn + (k.inh - mn) * prc) * whole * kEnglishTempo * structure / rateDiv;
+      // The breath plan's tempo for this word (planBreaths), as the rate.
+      const float g = w < wordTempo_.size() ? wordTempo_[w] : 1.0f;
+      if (g != 1.0f) out[w][i] /= vowel ? g : std::sqrt(g);
     }
   }
   return out;
@@ -941,7 +945,10 @@ void EnglishReader::addWord(const std::string& raw) {
       const bool sym = symmetricAt(j);
       std::vector<Word> tail(phrase_.begin() + static_cast<long>(j), phrase_.end());
       phrase_.resize(j);
+      splitTail_ = tail;
+      splitTail_.push_back({t, !isFunctionWord(w), w});  // the word being added belongs to the tail too
       sayPhrase(',');
+      splitTail_.clear();
       pause(sym ? kSymmetryPauseStops : kLightBreakStops);
       if (synth_.plannedAir() < kSeamBreathAir) synth_.breathPoint(false);
       phrase_ = std::move(tail);
@@ -1258,6 +1265,312 @@ bool EnglishReader::symmetricAt(size_t j) const {
   return repeated >= 2 && startsAlike;
 }
 
+// --- Breath planning ------------------------------------------------------
+// Jyrki (2026-11-01): "do the breath optimization iteratively the same way
+// like the pitch and formant travel, to find a good compromise that can
+// affect the formant travel, too -- and will lead to breath not running out
+// on long statements accidentally."
+//
+// Before a phrase is spoken, the words of this phrase and of the rest of
+// its sentence (the held-back text, restOfSentence) are costed: the air
+// each takes (the synth's table per phoneme over its planned duration,
+// times the drain the larynx has really shown, Synth::drainScale) and the
+// kind of place before it: a punctuation or split boundary, a phrase
+// opener after a word that may be split from, a plain word boundary, or
+// none (after "of", "the"; the last words of the sentence). A dynamic
+// program over the breath places minimises
+//   sum of the places' costs
+//   + rateW * duration * ln(tempo)^2 per breath group    (speaking faster
+//     saves air but compresses the formant paths; this is the compromise)
+//   + floorW * ((floor - air left at the group's end) / 100)^2 below the
+//     floor, where the lung pressure starts to sag, and a wall above empty.
+// Each group's tempo is the smallest that keeps its end above the floor,
+// found by a few rounds of iteration (vowels follow the tempo fully,
+// consonants by its square root, so the air is not a power of it). The
+// plan is redone at every phrase with the air actually left, so a wrong
+// estimate corrects itself within the sentence.
+namespace {
+float breathKnob(const char* name, float d) {
+  const char* v = std::getenv(name);
+  return v ? static_cast<float>(std::atof(v)) : d;
+}
+struct BreathWeights {
+  float placeCost[4] = {breathKnob("BREATH_PUNCT", 0.3f), breathKnob("BREATH_SEAM", 1.0f), breathKnob("BREATH_PLAIN", 3.0f), 1e9f};
+  float rateW = breathKnob("BREATH_RATE_W", 30.0f);     // cost of ln(tempo)^2 per second of speech
+  float rateMax = breathKnob("BREATH_RATE_MAX", 1.15f);  // the fastest tempo the plan may ask for
+  float floorMargin = breathKnob("BREATH_FLOOR_MARGIN", 100.0f);  // cm^3 kept above the sag point
+  float floorW = breathKnob("BREATH_FLOOR_W", 2.0f);
+  int rounds = static_cast<int>(breathKnob("BREATH_ROUNDS", 6));
+  bool off = std::getenv("BREATH_OFF") != nullptr;
+  bool debug = std::getenv("BREATH_DEBUG") != nullptr;
+};
+struct BreathItem {
+  float airV, airC;  // air at tempo 1 (cm^3): the vowels' and the consonants'
+  float dur;         // seconds at tempo 1
+  int place;         // the place before it: 0 punctuation, 1 seam, 2 plain, 3 none
+  std::string text;
+};
+}  // namespace
+
+std::string EnglishReader::restOfSentence() const {
+  if (lookPos_ + 1 >= lookahead_.size()) return std::string();
+  const char at = lookahead_[lookPos_];
+  if (at == '.' || at == '!' || at == '?' || at == '\n') return std::string();  // the phrase ends the sentence
+  std::string_view rest(lookahead_);
+  rest = rest.substr(lookPos_ + 1);
+  size_t end = rest.size();
+  for (size_t k = 0; k < rest.size(); ++k) {
+    const char c = rest[k];
+    if (c == '\n' || ((c == '.' || c == '!' || c == '?') && (k + 1 == rest.size() || rest[k + 1] == ' ' || rest[k + 1] == '\n' || rest[k + 1] == '\r' || rest[k + 1] == '\t'))) {
+      end = k + 1;
+      break;
+    }
+  }
+  return std::string(rest.substr(0, end));
+}
+
+void EnglishReader::planBreaths() {
+  static const BreathWeights W;
+  const size_t n = phrase_.size();
+  wordTempo_.assign(n, 1.0f);
+  breathPlan_.clear();
+  breathSnatch_.clear();
+  if (W.off || n == 0) return;
+  breathPlan_.assign(n, 0);
+  breathSnatch_.assign(n, 0);
+  std::vector<BreathItem> items;
+  // This phrase: the fitted durations (the tempo is 1 here).
+  const std::vector<std::vector<float>> dur = durations();
+  for (size_t w = 0; w < n; ++w) {
+    BreathItem it{0, 0, 0, 2, phrase_[w].text};
+    const auto& tok = phrase_[w].tokens;
+    for (size_t i = 0; i < tok.size() && i < dur[w].size(); ++i) {
+      const Sound snd = soundOf(kEnglishTokens[tok[i] - 0x80]);
+      const float air = dur[w][i] * 0.001f * Synth::airRate(snd.ph[0]) * synth_.airScale();
+      (isVowelToken(tok[i]) ? it.airV : it.airC) += air;
+      it.dur += dur[w][i] * 0.001f;
+    }
+    const std::string& before = w > 0 ? phrase_[w - 1].text : std::string();
+    it.place = w == 0 ? 0 : isNoSplitAfter(before) ? 3 : isBreathOpener(phrase_[w].text) ? 1 : 2;
+    items.push_back(it);
+  }
+  // The other half of a split phrase (spoken next, no longer in the text).
+  for (size_t w = 0; w < splitTail_.size(); ++w) {
+    BreathItem it{0, 0, 0, w == 0 ? 0 : 2, splitTail_[w].text};
+    for (uint8_t t : splitTail_[w].tokens) {
+      const char* name = kEnglishTokens[t - 0x80];
+      const float ms = klatt(baseName(t)).inh * kEnglishTempo;
+      (isVowelToken(t) ? it.airV : it.airC) += ms * 0.001f * Synth::airRate(soundOf(name).ph[0]) * synth_.airScale();
+      it.dur += ms * 0.001f;
+    }
+    if (w > 0) it.place = isNoSplitAfter(splitTail_[w - 1].text) ? 3 : isBreathOpener(splitTail_[w].text) ? 1 : 2;
+    items.push_back(it);
+  }
+  // The rest of the sentence from the text: words by white space, their
+  // punctuation marking the boundaries, their pronunciation for the air.
+  bool sawEnd = false;
+  {
+    std::string rest = restOfSentence();
+    // Dashes (also the UTF-8 ones) and other marks beyond ASCII separate
+    // words with a pause; a curly apostrophe is an apostrophe.
+    for (size_t k = 0; k < rest.size(); ++k) {
+      const unsigned char c = static_cast<unsigned char>(rest[k]);
+      if (c == 0xe2 && k + 2 < rest.size() && static_cast<unsigned char>(rest[k + 1]) == 0x80 && static_cast<unsigned char>(rest[k + 2]) == 0x99) {
+        rest.replace(k, 3, "'");
+      } else if (c == '-' || c >= 0x80) {
+        rest.replace(k, 1, " , ");
+        k += 2;
+      }
+    }
+    int nextPlace = 0;  // after this phrase's end: a boundary with a pause
+    std::string prevText = !splitTail_.empty() ? splitTail_.back().text : n > 0 ? phrase_[n - 1].text : std::string();
+    size_t i = 0;
+    while (i < rest.size() && !sawEnd) {
+      while (i < rest.size() && (rest[i] == ' ' || rest[i] == '\t' || rest[i] == '\r' || rest[i] == '\n')) ++i;
+      size_t j = i;
+      while (j < rest.size() && !(rest[j] == ' ' || rest[j] == '\t' || rest[j] == '\r' || rest[j] == '\n')) ++j;
+      if (j == i) break;
+      std::string chunk = rest.substr(i, j - i);
+      i = j;
+      // Trailing marks: a sentence end stops the sentence; , ; : and dashes
+      // make the next boundary a punctuation one.
+      bool punctAfter = false;
+      while (!chunk.empty()) {
+        const unsigned char c = static_cast<unsigned char>(chunk.back());
+        if (c == '.' || c == '!' || c == '?') { sawEnd = true; chunk.pop_back(); continue; }
+        if (c == ',' || c == ';' || c == ':' || c == '-' || c == '"' || c == ')' || c == '\'' || c >= 0x80) {
+          if (c != '\'' && c != '"' && c != ')') punctAfter = true;
+          chunk.pop_back();
+          continue;
+        }
+        break;
+      }
+      size_t a = 0;
+      while (a < chunk.size() && !((chunk[a] >= 'a' && chunk[a] <= 'z') || (chunk[a] >= 'A' && chunk[a] <= 'Z') || (chunk[a] >= '0' && chunk[a] <= '9'))) ++a;
+      chunk = chunk.substr(a);
+      if (chunk.empty()) { if (punctAfter) nextPlace = 0; continue; }
+      std::string word;
+      int digits = 0;
+      for (char c : chunk) {
+        if (c >= 'A' && c <= 'Z') c = static_cast<char>(c - 'A' + 'a');
+        if ((c >= 'a' && c <= 'z') || c == '\'') word += c;
+        if (c >= '0' && c <= '9') ++digits;
+      }
+      BreathItem it{0, 0, 0, 2, word};
+      if (digits > 0) {  // a number: about three syllables a digit
+        it.airV = 90.0f * 2.0f * digits;
+        it.airC = 90.0f * 1.0f * digits;
+        it.dur = 0.22f * 3 * digits;
+      } else if (!word.empty()) {
+        const std::vector<uint8_t> tok = pronounce(word);
+        for (uint8_t t : tok) {
+          const char* name = kEnglishTokens[t - 0x80];
+          const Sound snd = soundOf(name);
+          const float ms = klatt(baseName(t)).inh * kEnglishTempo;
+          const float air = ms * 0.001f * Synth::airRate(snd.ph[0]) * synth_.airScale();
+          (isVowelToken(t) ? it.airV : it.airC) += air;
+          it.dur += ms * 0.001f;
+        }
+      }
+      it.place = nextPlace == 0 ? 0 : isNoSplitAfter(prevText) ? 3 : isBreathOpener(word) ? 1 : 2;
+      items.push_back(it);
+      prevText = word;
+      nextPlace = punctAfter ? 0 : 2;
+    }
+  }
+  const size_t N = items.size();
+  // No breath with only the last words of the sentence left.
+  if (sawEnd)
+    for (size_t k = N > kNoBreathLastWords ? N - kNoBreathLastWords : 0; k < N; ++k)
+      if (k > 0) items[k].place = 3;
+  const float scale = synth_.drainScale();
+  for (BreathItem& it : items) { it.airV *= scale; it.airC *= scale; }
+
+  // The dynamic program. best[i]: the least cost of speaking items i.. with
+  // a breath group starting at i (full lungs, unless i == 0: the air left).
+  const float V0 = synth_.plannedAir(), Vmax = synth_.lungMax();
+  const float floor = synth_.lungFloor() + W.floorMargin, empty = synth_.lungEmpty() + 100.0f;
+  const double kHuge = 1e8;
+  std::vector<double> best(N + 1, 0.0);
+  std::vector<int> nextBreath(N + 1, -1);
+  std::vector<float> groupRate(N + 1, 1.0f);
+  // Prefix sums for the group air and duration.
+  std::vector<double> sumV(N + 1, 0), sumC(N + 1, 0), sumD(N + 1, 0);
+  for (size_t k = 0; k < N; ++k) {
+    sumV[k + 1] = sumV[k] + items[k].airV;
+    sumC[k + 1] = sumC[k] + items[k].airC;
+    sumD[k + 1] = sumD[k] + items[k].dur;
+  }
+  auto groupCost = [&](size_t i, size_t j, float& rate) {
+    const double aV = sumV[j] - sumV[i], aC = sumC[j] - sumC[i], d = sumD[j] - sumD[i];
+    const double start = i == 0 ? V0 : Vmax;
+    // The tempo: 1 if the air carries to the floor, else the smallest that
+    // does (iterated: the consonants follow it only by its square root).
+    double r = 1.0;
+    for (int round = 0; round < W.rounds; ++round) {
+      const double need = aV / r + aC / std::sqrt(r);
+      if (start - need >= floor) break;
+      const double avail = std::max(start - floor, 1.0);
+      // Scale the air by avail/need, mostly through the vowels.
+      const double rNew = r * need / avail;
+      r = std::min(std::max(rNew, 1.0), static_cast<double>(W.rateMax));
+      if (r >= W.rateMax) break;
+    }
+    rate = static_cast<float>(r);
+    const double need = aV / r + aC / std::sqrt(r);
+    const double end = start - need;
+    double cost = W.rateW * d * std::log(r) * std::log(r);
+    if (end < floor) cost += W.floorW * ((floor - end) / 100.0) * ((floor - end) / 100.0);
+    if (end < empty) cost += kHuge;
+    return cost;
+  };
+  for (size_t i = N; i-- > 0;) {
+    double bi = kHuge * 10;
+    int bj = -1;
+    float br = 1.0f;
+    for (size_t j = i + 1; j <= N; ++j) {
+      float r;
+      double c = groupCost(i, j, r);
+      if (j < N) {
+        if (items[j].place == 3) continue;
+        c += W.placeCost[items[j].place] + best[j];
+      }
+      if (c < bi) { bi = c; bj = j < N ? static_cast<int>(j) : -1; br = r; }
+    }
+    best[i] = bi;
+    nextBreath[i] = bj;
+    groupRate[i] = br;
+  }
+  // Read the plan off for this phrase's words. A group that starts at the
+  // phrase's first word with air to spare needs no breath (i == 0 is the
+  // air left, not a breath); a breath before word 0 is planned only when
+  // it pays: compare with starting full.
+  {
+    float r0;
+    const double here = groupCost(0, nextBreath[0] < 0 ? N : static_cast<size_t>(nextBreath[0]), r0);
+    // Cost of breathing first: a punctuation place (the pause is there),
+    // then the groups from a full start.
+    const float savedV0 = V0;
+    (void)savedV0;
+    double breathFirst = W.placeCost[0];
+    {
+      // Recompute the first group from full lungs.
+      std::vector<double> bestFull(best);
+      size_t i = 0;
+      double bi = kHuge * 10; int bj = -1; float br = 1.0f;
+      for (size_t j = 1; j <= N; ++j) {
+        const double aV = sumV[j] - sumV[i], aC = sumC[j] - sumC[i], d = sumD[j] - sumD[i];
+        double r = 1.0;
+        for (int round = 0; round < W.rounds; ++round) {
+          const double need = aV / r + aC / std::sqrt(r);
+          if (Vmax - need >= floor) break;
+          r = std::min(std::max(r * need / std::max(Vmax - floor, 1.0f), 1.0), static_cast<double>(W.rateMax));
+          if (r >= W.rateMax) break;
+        }
+        const double need = aV / r + aC / std::sqrt(r), end = Vmax - need;
+        double c = W.rateW * d * std::log(r) * std::log(r);
+        if (end < floor) c += W.floorW * ((floor - end) / 100.0) * ((floor - end) / 100.0);
+        if (end < empty) c += kHuge;
+        if (j < N) { if (items[j].place == 3) continue; c += W.placeCost[items[j].place] + bestFull[j]; }
+        if (c < bi) { bi = c; bj = j < N ? static_cast<int>(j) : -1; br = static_cast<float>(r); }
+      }
+      breathFirst += bi;
+      if (breathFirst < best[0]) {
+        breathPlan_[0] = 1;
+        nextBreath[0] = bj;
+        groupRate[0] = br;
+        best[0] = breathFirst;
+      }
+    }
+    (void)here;
+  }
+  size_t start = 0;
+  while (true) {
+    const int nb = nextBreath[start];
+    const size_t end = nb < 0 ? N : static_cast<size_t>(nb);
+    for (size_t k = start; k < end && k < n; ++k) wordTempo_[k] = groupRate[start];
+    if (nb < 0 || static_cast<size_t>(nb) >= N) break;
+    if (static_cast<size_t>(nb) < n) {
+      breathPlan_[nb] = 1;
+      breathSnatch_[nb] = items[nb].place == 2;
+    }
+    start = static_cast<size_t>(nb);
+  }
+  if (W.debug) {
+    std::fprintf(stderr, "breath plan: %zu words of this phrase + %zu ahead, air left %.0f, scale %.2f, cost %.2f\n", n, N - n, V0, scale, best[0]);
+    size_t s = 0;
+    while (true) {
+      const int nb = nextBreath[s];
+      const size_t e = nb < 0 ? N : static_cast<size_t>(nb);
+      std::fprintf(stderr, "  group %zu-%zu tempo %.3f%s:", s, e, groupRate[s], s == 0 && breathPlan_[0] ? " (breath first)" : "");
+      for (size_t k = s; k < e; ++k) std::fprintf(stderr, " %s", items[k].text.c_str());
+      std::fprintf(stderr, "\n");
+      if (nb < 0) break;
+      s = static_cast<size_t>(nb);
+    }
+  }
+}
+
 void EnglishReader::sayPhrase(char end) {
   if (breathBeforeNext_ && !phrase_.empty()) {
     synth_.breathPoint(true);
@@ -1277,7 +1590,9 @@ void EnglishReader::sayPhrase(char end) {
     split = 0;
     std::vector<Word> tail(phrase_.begin() + static_cast<long>(j), phrase_.end());
     phrase_.resize(j);
+    splitTail_ = tail;
     sayPhrase(',');
+    splitTail_.clear();
     pause(kSymmetryPauseStops);
     phrase_ = std::move(tail);
     break;
@@ -1285,7 +1600,9 @@ void EnglishReader::sayPhrase(char end) {
   if (split > 0 && split < phrase_.size()) {
     std::vector<Word> tail(phrase_.begin() + static_cast<long>(split), phrase_.end());
     phrase_.resize(split);
+    splitTail_ = tail;
     sayPhrase(',');
+    splitTail_.clear();
     pause(kLightBreakStops);
     phrase_ = std::move(tail);
   }
@@ -1615,6 +1932,7 @@ void EnglishReader::sayPhrase(char end) {
     }
   }
 
+  planBreaths();  // where to breathe in this phrase, and its tempo (sets wordTempo_)
   const std::vector<std::vector<float>> dur = durations();
   // "the" before a vowel sound is "thee" (ði): "the heirs" with ðə ran into
   // one syllable, "theirs". The spelling does not tell (heir, hour, honest,
@@ -1702,10 +2020,16 @@ void EnglishReader::sayPhrase(char end) {
     }
     if (phrase_[w].repeat == 2) pause(kRepeatPauseStops);  // "help them | help themselves"
     const bool allowed = w > 0 && !isNoSplitAfter(phrase_[w - 1].text);  // not "any | friend", "of | God"
-    if (allowed && !lastWords &&
-        (synth_.plannedAir() < kEmergencyBreathAir || (opener && synth_.plannedAir() < kGoodBreathAir) || anticipate)) {
-      pause(4);
-      synth_.breathPoint(false, false, !opener);  // snatched (the quick breath) only at a poor place
+    // The breath plan (planBreaths) says where; without a plan (BREATH_OFF)
+    // the thresholds above decide. The emergency threshold stays in force.
+    const bool planned = w < breathPlan_.size() && breathPlan_[w];
+    const bool unplanned = !breathPlan_.empty();
+    if (planned || (allowed && !lastWords &&
+                    (synth_.plannedAir() < kEmergencyBreathAir ||
+                     (!unplanned && ((opener && synth_.plannedAir() < kGoodBreathAir) || anticipate))))) {
+      if (w > 0) pause(4);
+      // snatched (the quick breath) only at a poor place
+      synth_.breathPoint(false, false, planned ? breathSnatch_[w] != 0 : !opener, planned);
     }
     const std::vector<uint8_t>& tokens = phrase_[w].tokens;
     // Primary stress mark (content words only) before the stressed onset.
@@ -2065,6 +2389,25 @@ void EnglishReader::push(std::string_view input) {
       }
     }
   }
+  // The text is read a sentence at a time: what follows the last sentence
+  // end (. ! ? before white space, or a line end) waits for the next call,
+  // so that each phrase is spoken knowing the rest of its sentence (the
+  // breath planner, planBreaths). A very long stretch is read anyway.
+  if (!flushing_) {
+    size_t cut = 0;
+    for (size_t k = text.size(); k-- > 0;) {
+      const char c = text[k];
+      if (c == '\n' || ((c == '.' || c == '!' || c == '?') && k + 1 < text.size() &&
+                         (text[k + 1] == ' ' || text[k + 1] == '\t' || text[k + 1] == '\r' || text[k + 1] == '\n'))) {
+        cut = k + 1;
+        break;
+      }
+    }
+    if (cut < text.size() && text.size() - cut < kMaxHeldSentence) {
+      pending_ = std::string(text.substr(cut)) + pending_;
+      text = text.substr(0, cut);
+    }
+  }
   // The unfinished last word waits for the next call (or flush): the rules
   // below look one character ahead and back ("21st", "1,000", "$3.50",
   // "--"), and a word split between two calls was read in two pieces.
@@ -2076,7 +2419,9 @@ void EnglishReader::push(std::string_view input) {
       text = text.substr(0, keep);
     }
   }
+  lookahead_ = std::string(text);
   for (size_t i = 0; i < text.size(); ++i) {
+    lookPos_ = i;
     unsigned char c = static_cast<unsigned char>(text[i]);
     // £ and €: currencies like $; °, °C, °F: degrees.
     if (c == 0xc2 && i + 1 < text.size() && static_cast<unsigned char>(text[i + 1]) == 0xa3) {

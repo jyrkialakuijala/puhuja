@@ -27,6 +27,8 @@
 #include <vector>
 
 #include "filters.h"
+#include "block.h"
+#include "string.h"
 #include "folds.h"
 #include "grid.h"
 
@@ -45,7 +47,7 @@ constexpr float kLipRadiationHz = 1500;
 // Voice source: Physical is the two-mass vocal fold model coupled to the
 // tract (folds.h); Shaped a drawn pulse on those folds; the others are fixed
 // waveforms shaped by the airflow model's vibration amplitude.
-enum class Carrier { Physical, Triangle, Square, Glottal, Shaped, Grid };
+enum class Carrier { Physical, Triangle, Square, Glottal, Shaped, Grid, Block, String };
 
 // A piecewise-linear glottal flow pulse for Carrier::Shaped: n segments, each
 // a share of the period at the voice's base pitch, each ending at the given
@@ -95,6 +97,8 @@ struct LarynxOutput {
   float closeAt = 0;    // ... at this fraction of it
 };
 
+class VocalTractLine;
+
 class Larynx {
  public:
   virtual ~Larynx() = default;
@@ -116,6 +120,9 @@ class Larynx {
   virtual float cyclePeak() const { return 0; } // its peak in the last cycle
   virtual float pulsePhase() const { return 0; }  // a drawn pulse's phase (trace)
   virtual const char* name() const = 0;
+  // A transmission-line tract (line.h): the folds then feed it every substep
+  // and take its pressure as the load above them.
+  virtual void attachLine(VocalTractLine* line) { (void)line; }
   // The control parameters the model uses, with their ranges (for tools).
   struct Param {
     const char* name;
@@ -126,7 +133,7 @@ class Larynx {
 };
 
 // A fold model the driver below can run: the two-mass folds (folds.h), the
-// 4 x 8 grid (grid.h), or the next one. Each step advances by dt seconds and
+// 4 x 8 grid (grid.h), the 2 x 2 x 6 block (block.h), or the next one. Each step advances by dt seconds and
 // returns the glottal flow heard (cm^3/s).
 class FoldCore {
  public:
@@ -177,6 +184,7 @@ class FoldLarynx : public Larynx {
   const char* name() const override { return name_; }
   std::vector<Param> controls() const override;
   // For the drawn pulse riding on these folds.
+  void attachLine(VocalTractLine* line) override { line_ = line; }
   float fast() const { return foldFast_; }
   int sinceClose() const { return sinceClose_; }
   float prevFlow() const { return prevFlow_; }
@@ -197,6 +205,7 @@ class FoldLarynx : public Larynx {
   float kPitchRelax_ = 0, kVibTrack_ = 0;
   BandPass tractMode_[3];  // formant modes of the tract input impedance
   float p1_ = 0;           // acoustic pressure above the folds (feedback)
+  VocalTractLine* line_ = nullptr;  // the line tract, if attached (p1 comes from it)
   float prevFlow_ = 0;     // glottal flow one sample ago
   float flowMean_ = 0, physVib_ = 0;  // flow mean and fluctuation (~10 ms)
   float foldAc_ = 0;       // the folds' radiated-sound envelope
