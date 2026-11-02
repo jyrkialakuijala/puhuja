@@ -69,14 +69,14 @@ void TransmissionLine::setAreas(const std::vector<float>& a, bool glide) {
 void TransmissionLine::coefficients() {
   const float viscK = std::sqrt(kPiL * kViscousHz * kRho * kMu);  // sqrt(omega rho mu / 2)
   const float comp = kRho * kC * kC;
-  const float wDen = 1.0f / (1.0f + dt_ * kWallDamp / kWallMass);
+  const float wDen = 1.0f / (1.0f + dt_ * kWallDamp * wallLoss_ / kWallMass);
   for (int k = 0; k < kMaxSections + kBlock; ++k) { cU_[k] = 0; gU_[k] = 1; oriInv_[k] = 0; }
   // Interfaces 1..n-1 (0 is the glottis, n the lips: set each substep).
   for (int k = 1; k < n_; ++k) {
     const float ah = std::min(a_[k], a_[k - 1]);
     const float aw = std::max(a_[k], a_[k - 1]);
     const float s = 2.0f * std::sqrt(kPiL * ah);
-    const float r = s / (ah * ah) * viscK;  // dyn s / cm^6 per cm
+    const float r = s / (ah * ah) * viscK * viscLoss_;  // dyn s / cm^6 per cm
     cU_[k] = dt_ * ah / (kRho * dx_);
     gU_[k] = 1.0f / (1.0f + dt_ * ah / kRho * r);  // the loss, implicit
     // The Borda-Carnot loss of an area change: rho u|u| / (2 A^2) times
@@ -189,6 +189,8 @@ void VocalTractLine::init(float fs) {
   dt_ = 1.0f / (TransmissionLine::kSubsteps * fs);
   oral_.init(17.5f, fs, kOralSections);
   nasal_.init(kNasalLength, fs, kNasalSections);
+  nasal_.setWallLoss(param("LINE_NASAL_LOSS", 1.0f));  // the nasal walls (mucosa, the sinuses) lose more than the mouth
+  nasal_.setViscLoss(param("LINE_NASAL_VISC", 30.0f));  // the turbinates: far more surface per volume than a tube
   // The nasal passage: the port and nasopharynx, the cavity, the nostrils.
   std::vector<float> na(nasal_.sections());
   for (int k = 0; k < nasal_.sections(); ++k) {
@@ -211,7 +213,7 @@ void VocalTractLine::init(float fs) {
   aa2_.set(18000.0f, TransmissionLine::kSubsteps * fs, 1.3066f);
   uAcc_ = prevMean_ = 0;
   subCount_ = 0;
-  aaNoise_ = 1.0f - std::exp(-2 * kPiL * 5500.0f * dt_);  // (7 kHz: s 6 dB too strong above 8 kHz)
+  aaNoise_ = 1.0f - std::exp(-2 * kPiL * param("LINE_NOISE_LP", 12000.0f) * dt_);  // the readers' s peaks at 8-12 kHz (goog "house"); at 5.5 kHz the line's s had its energy at 4-6 kHz
   out_ = uNasal_ = an_ = 0;
 }
 
@@ -247,7 +249,7 @@ void VocalTractLine::setShapeAreas(std::vector<float> a, float length, float x, 
     // meets the wide section again (~1.2 cm past the centre): a dipole at a
     // tiny-area interface moves almost no flow (cU ~ A), downstream it does.
     // The Reynolds number is the constriction's own (flow through its centre).
-    noiseK_ = std::min(oral_.sections() - 1, static_cast<int>((xc + 1.2f) / oral_.dx()));
+    noiseK_ = std::min(oral_.sections() - 2, static_cast<int>((xc + 1.2f) / oral_.dx()));  // (-1: at the last interface, the lip load took the drive: "votes" lost its s)
     noiseKc_ = std::min(oral_.sections() - 1, static_cast<int>(xc / oral_.dx()));
   }
   oral_.setAreas(a);
@@ -299,6 +301,14 @@ float VocalTractLine::substep(float u0) {
     const float a = oral_.areaAt(noiseKc_);
     const float re = 2.0f * TransmissionLine::kRho * std::fabs(u) / (kMuAir * std::sqrt(kPiL * a));
     if (re > kReynoldsCrit) oral_.addFlowDrive(noiseK_, fricGain_ * (re * re - reC2) / reC2 * lpNoise2_);
+    static FILE* ntrace = std::getenv("PUHUJA_NOISE_TRACE") ? std::fopen(std::getenv("PUHUJA_NOISE_TRACE"), "w") : nullptr;
+    static long ncount = 0;
+    if (ntrace && (ncount++ % 192) == 0) {
+      std::fprintf(ntrace, "%ld\t%d\t%d\t%.4f\t%.4f\t%.1f\t%.0f\t%.3f\t%.1f", ncount / 192, noiseKc_, noiseK_, a, oral_.areaAt(noiseK_), u, re,
+                   re > kReynoldsCrit ? (re * re - reC2) / reC2 : 0.0f, oral_.areaAt(oral_.sections() - 1));
+      for (int k = oral_.sections() - 12; k < oral_.sections(); ++k) std::fprintf(ntrace, "\t%.3f", oral_.areaAt(k));
+      std::fprintf(ntrace, "\t%.1f\t%.1f\n", oral_.lipFlow(), lungPressure_);
+    }
   }
   oral_.traceExtra_ = nasal_.lipFlow();  // the nostril flow, for the trace
   const float p1 = oral_.substep(u0);

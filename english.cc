@@ -648,6 +648,7 @@ constexpr float kPauseVariation = 0.15f; // +- share
 const float kFinalLengthSentence = param("kFinalLengthSentence", 1.173f) /* cost 0.0294516433593330 n13-timing-w30 */, kFinalLengthPhrase = 1.15f;  // final lengthening
 constexpr float kFinalLengthClause = 1.25f;  // before ; or :
 constexpr float kFinalCodaSonorant = 3.5f;  // a phrase-final l m n ŋ coda
+constexpr float kFinalCodaFricative = 2.7f;  // a phrase-final s ʃ f θ after a vowel or sonorant
 constexpr int kSentencePauseStops = 10;  // + the breath before the next sentence
 constexpr int kDashPauseStops = 8;        // parenthesis: ~120 ms
 constexpr int kThinkingPauseStops = 20;   // en/em dash: a pause for thought, ~300 ms (400 outranked sentence ends)
@@ -832,6 +833,12 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
       // through it (goog.wav "well or ill,": the l ~150 ms, here it was 68).
       if (phraseFinal && !vowel && i > static_cast<size_t>(lastVowel) && (b == "L" || isNasal(b)))
         prc *= kFinalCodaSonorant;
+      // A phrase-final voiceless fricative after a vowel or sonorant is held
+      // too (goog/11labs "house.": the s 120-125 ms, here 60: "hou"; after a
+      // plosive, "votes", theirs is 30-40 ms, so not then).
+      if (phraseFinal && !vowel && i > 0 && i > static_cast<size_t>(lastVowel) && (b == "S" || b == "SH" || b == "F" || b == "TH") &&
+          !isVoicelessPlosive(baseName(tok[i - 1])) && !isVoicedPlosive(baseName(tok[i - 1])))
+        prc *= kFinalCodaFricative;
       // Rate: vowels follow it, consonants less (a slow reader keeps the
       // consonants crisp); relative to the default rate, which stays as fitted.
       const float r = rate_ / kDefaultRate;
@@ -1207,7 +1214,9 @@ const WeakForm kWeakForms[] = {
     {"has", "HH AH0 Z"}, {"had", "HH AH0 D"}, {"are", "ER0"}, {"were", "W ER0"},
     {"but", "B AH0 T"}, {"or", "ER0"}, {"been", "B IH0 N"}, {"does", "D AH0 Z"},
     {"than", "DH AH0 N"}, {"could", "K UH0 D"}, {"would", "W UH0 D"}, {"should", "SH UH0 D"},
-    {"just", "JH AH0 S T"}, {"us", "AH0 S"}, {"his", "IH0 Z"}, {"her", "ER0"}};
+    // (his, her keep their h: the readers say "in his" with the h, 160-180 ms;
+    // without it the word was heard as too fast, Jyrki 2026-11-02.)
+    {"just", "JH AH0 S T"}, {"us", "AH0 S"}, {"his", "HH IH0 Z"}, {"her", "HH ER0"}};
 
 template <size_t N>
 void applyForeign(std::vector<EnglishReader::Word>& phrase, const ForeignWord (&table)[N]) {
