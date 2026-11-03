@@ -202,6 +202,7 @@ class FoldLarynx : public Larynx {
   float cycleJ_ = 0, cycleS_ = 0;  // this cycle's random tension and pressure deviation
   float pitchCorr_ = 1, pitchCorrTarget_ = 1;  // pitch controller: tension correction
   double lastCloseTime_ = 0;  // last fold closure (samples, sub-sample)
+  bool belowHalf_ = false;  // the flow has been under half its mean since the last cycle mark
   float kPitchRelax_ = 0, kVibTrack_ = 0;
   BandPass tractMode_[3];  // formant modes of the tract input impedance
   float p1_ = 0;           // acoustic pressure above the folds (feedback)

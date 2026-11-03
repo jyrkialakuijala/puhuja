@@ -645,8 +645,9 @@ constexpr int kShortPhraseSyllables = 4; // a phrase this short gets the short p
 constexpr int kShortCommaPauseStops = 8; // 120 ms
 constexpr int kClausePauseStops = 18;    // after ; and : at least 270 ms
 constexpr float kPauseVariation = 0.15f; // +- share
-const float kFinalLengthSentence = param("kFinalLengthSentence", 1.173f) /* cost 0.0294516433593330 n13-timing-w30 */, kFinalLengthPhrase = 1.15f;  // final lengthening
+const float kFinalLengthSentence = param("kFinalLengthSentence", 1.3f) /* 1.17: the sentence-final word was 1.18x a content word, goog 1.41, 11labs 1.21 */, kFinalLengthPhrase = 1.15f;  // final lengthening
 constexpr float kFinalLengthClause = 1.25f;  // before ; or :
+const float kFunctionWordVowel = param("kFunctionWordVowel", 0.8f);  // vowel length in a function word inside the phrase
 constexpr float kFinalCodaSonorant = 3.5f;  // a phrase-final l m n ŋ coda
 constexpr float kFinalCodaFricative = 2.7f;  // a phrase-final s ʃ f θ after a vowel or sonorant
 constexpr int kSentencePauseStops = 10;  // + the breath before the next sentence
@@ -712,7 +713,7 @@ constexpr float kUnstressedConsonant = 0.85f;  // other consonants
 // alignment) puhuja's consonants were 20 % short across the board (median
 // 58 vs 70 ms, s 86 vs 121, n 51 vs 65, t 45 vs 60), the vowels not (105 vs
 // 99): function words, mostly consonants, ran at 137 ms against 240.
-const float kEnglishConsonantLength = param("kEnglishConsonantLength", 0.7044f) /* cost 0.0294516433593330 n13-timing-w30 */;
+const float kEnglishConsonantLength = param("kEnglishConsonantLength", 0.82f) /* 0.70 from the timing search cut every consonant 30 %: nasal murmurs 8-35 ms against Kokoro 40-75, words 20 % short (2026-11-02) */;
 // A sonorant cluster across a word boundary ("human life", "in love", "all
 // right"): the readers hold the first consonant as the coda of its word and
 // make the second a short glide into the vowel (ElevenLabs and Kokoro "human
@@ -767,6 +768,11 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
           prc *= kUnstressedVowel;
           mn *= kUnstressedVowel;
         }
+        // A function word inside the phrase is quicker still: in kennedy.txt
+        // puhuja's function words ran 285 ms against the human readers' 240-250
+        // and Kokoro's 112-125, while its content words were on the short side
+        // (302 against 325-387), 2026-11-02.
+        if (!phrase_[w].accent && !phraseFinal) prc *= kFunctionWordVowel;
         // Stress timing: accented vowels longer, unstressed ones shorter (the
         // syllables were too even: nPVI 61, the voice-overs about 76).
         if (phrase_[w].accent && name[strlen(name) - 1] == '1') prc *= kAccentedVowelTiming;
@@ -1237,7 +1243,8 @@ constexpr float kArcStartDb = 1.0f, kArcEndDb = -2.0f;  // (-3: with the end rel
 constexpr float kCreakBelow = -6.5f;  // st: statement endings this low get creaky voice (-5: nearly all)
 constexpr float kPressedAccent = 0.9f, kLaxUnstressed = 1.08f, kLaxFinal = 1.12f;  // glottal opening
 constexpr float kAccentDb = 1.5f, kFunctionWordDb = -1.5f;
-const float kSecondaryVowelLength = param("kSecondaryVowelLength", 1.194f) /* cost 0.0294516433593330 n13-timing-w30 */, kInitialRLength = 1.0f;
+const float kSecondaryDb = param("kSecondaryDb", -4.0f), kUnstressedDb = param("kUnstressedDb", 2.0f);
+const float kSecondaryVowelLength = param("kSecondaryVowelLength", 0.9f) /* 1.19 from the timing search made the secondary-stress syllable as long as the primary */, kInitialRLength = 1.0f;
 // A word-initial ɹ before a vowel ("revolution", "republics", "rights") is a
 // full r: deeper (F3 1550 as the male readings' 1450-1600; puhuja's reached
 // 1730) and a little louder (Jyrki: "r should be pronounced much more when it
@@ -1253,6 +1260,7 @@ constexpr float kSyllabicNLength = 1.6f;
 constexpr float kSyllabicLLength = 1.8f;
 constexpr float kLinkGlideMs = 40, kLinkGlideLevel = 0.7f;  // w / j linking a vowel to the next word's
 constexpr float kGlideBeforeVowel = 0.4f;  // a diphthong's glide before a vowel: share of that vowel
+const float kFlapping = param("kFlapping", 0.0f);  // 1: the American flap of t/d between vowels
 const float kFlapMs = param("kFlapMs", 18.61) /* cost 0.0294516433593330 n13-timing-w30 */;  // a flap's closure  // the n of -tion (ʃn̩) carries the syllable
 // Vowel lengthening (see sayPhrase): factor at 50 ms, change per ms, floor.
 const float kVowelLength50 = param("kVowelLength50", 1.85f) /* cost 0.0294516433593330 n13-timing-w30 */, kVowelLengthSlope = -0.0029f, kVowelLengthMin = param("kVowelLengthMin", 0.8542f) /* cost 0.0294516433593330 n13-timing-w30 */;
@@ -1958,7 +1966,11 @@ void EnglishReader::sayPhrase(char end) {
   // American flap: t or d after a vowel (or r) and before an unstressed
   // vowel in the same word ("city", "better", "water"): a quick voiced tap
   // instead of a full, aspirated t.
-  {
+  // (Off by default since 2026-11-02: the readers who are understood make a
+  // full t in "poverty", 65 ms of silence while the pressure builds and a
+  // 30 ms puff at the release; the tap had neither, and the listener lost
+  // the t. kFlapping 1 restores the American tap.)
+  if (kFlapping > 0.5f) {
     static const uint8_t kT = tokenOf("T"), kD = tokenOf("D"), kR = tokenOf("R");
     auto unstressedVowel = [](uint8_t t) {
       if (!isVowelToken(t)) return false;
@@ -2186,7 +2198,15 @@ void EnglishReader::sayPhrase(char end) {
           if (sentenceEnd_ && lastEnd_ == '!') db += kExclaimDb;
           if (phrase_[w].accent && vn[strlen(vn) - 1] == '1') db += kAccentDb;
           else if (!phrase_[w].accent) db += kFunctionWordDb;
+          // Secondary stress is a step down from the primary, not its equal:
+          // Kokoro's "robot", "habitat", "antibody" end 5-15 dB under their
+          // first syllable; here the last third was the loudest (2026-11-02).
+          // An unstressed syllable, by contrast, was too weak (-18..-24 dB re
+          // the word's peak against Kokoro's -13..-17).
+          if (vn[strlen(vn) - 1] == '2') db += kSecondaryDb;
+          else if (vn[strlen(vn) - 1] == '0') db += kUnstressedDb;
           shape.level *= std::pow(10.0f, db / 20.0f);
+          shape.prosody = std::pow(10.0f, db / 20.0f);
         }
         synth_.shapeNext(shape);
         if (first) synth_.setWord(phrase_[w].source);

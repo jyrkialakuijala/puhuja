@@ -122,6 +122,8 @@ struct Event {
   // < 0: no change.
   float press = -1, pressMs = 0;
   float aspGain = -1;  // breath-noise strength from now on (< 0: unchanged)
+  float lineLevel = -1;  // the prosodic level as a lung-pressure factor on the line (< 0: unchanged)
+  float lineHw = -1, lineLip = -1;  // the constriction's half-width and lip cap on the line (< 0: unchanged / none)
   float lineX = -1;    // the constriction's place for the line tract (share of its length; < 0: keep)
   bool aspBurst = false;  // an aspirated release: the puff's noise starts
   float creak = -1;       // creaky voice from now on (0..1; < 0: unchanged)
@@ -231,6 +233,7 @@ class Synth {
     float f1 = 0, f2 = 0, f3 = 0;
     float length = 1;  // duration multiplier
     float level = 1;   // voicing (and frication noise) multiplier
+    float prosody = 1;  // the prosodic part of the level alone (arc, accent, stress, function word): the line's lung-pressure factor
     float ms = 0;      // absolute duration (plosives: closure), 0 = table
     float press = 1;   // vowels: glottal opening multiplier (< 1 pressed, > 1 lax)
     bool flap = false;  // a d said as a tap (English t/d between vowels)
@@ -478,6 +481,8 @@ class Synth {
   Tract tract_ = Tract::Line;
   VocalTractLine line_;        // the line tract (Tract::Line)
   float lineX_ = 0.86f, lineXTarget_ = 0.86f;  // the constriction's place, smoothed
+  float lineLevel_ = 1.0f, lineLevelTarget_ = 1.0f;  // the prosodic level (shape.level) as a lung-pressure factor on the line
+  float lineHw_ = 1.0f, lineHwTarget_ = 1.0f, lineLip_ = 0.0f, lineLipTarget_ = 0.0f;  // its half-width and lip cap (0: none)
   float lineXFollow_ = 0;
   int lineCount_ = 0;
   float lineOut_ = 0;
@@ -486,7 +491,11 @@ class Synth {
   // up from the formant path (the blend of shapes is not the shape of the
   // blend: an aʊ offglide came out as an ɪ, 2026-11-02).
   struct LineKey { double t; TractShape s; };
+  Event pendingKick_;  // the glottis closing back after a voiced stop's release kick
+  bool hasPendingKick_ = false;
   std::deque<LineKey> lineKeys_;
+  TractShape lastKeyShape_;  // the last shape pushed (a pause holds it until the voice stops)
+  bool haveLastKeyShape_ = false;
   // Sentence planner state: dense log2 F1, F2, F3 and the pitch multiplier
   // per plan frame from planStartT_; keyframes from planFromT_ on are not yet
   // planned. curPh_ tags the keyframes with their phoneme.
