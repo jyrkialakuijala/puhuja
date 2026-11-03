@@ -502,6 +502,19 @@ class Synth {
   std::deque<LineKey> lineKeys_;
   TractShape lastKeyShape_;  // the last shape pushed (a pause holds it until the voice stops)
   bool haveLastKeyShape_ = false;
+  // Tract shape planner (FormantMotion::Planned with the line): each sound
+  // demands a shape over a time window, only in the channels that matter to
+  // it; a phrase at a time (at every pause) the path of all channels is
+  // solved at once by iterative optimization (planShapes), and the line
+  // reads the planned path. Channels: kShapeChannels in puhuja.cc.
+  static constexpr int kShapeCh = 9;
+  struct ShapeDemand { double tA, tB; float x[kShapeCh], w[kShapeCh]; };
+  std::vector<ShapeDemand> shapeDemands_;
+  std::vector<float> shapePlan_;  // kShapeCh values per frame, from t = 0
+  double shapePlanEnd_ = 0;       // the planned horizon (samples)
+  void addShapeDemand(double tA, double tB, const TractShape& s, Ph ph, float wScale);
+  void planShapes(double tEnd);
+  bool shapePlanAt(double t, TractShape* s) const;
   // Sentence planner state: dense log2 F1, F2, F3 and the pitch multiplier
   // per plan frame from planStartT_; keyframes from planFromT_ on are not yet
   // planned. curPh_ tags the keyframes with their phoneme.

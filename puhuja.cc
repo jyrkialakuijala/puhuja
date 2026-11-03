@@ -255,8 +255,8 @@ const float kLineAnticipNasal = param("LINE_ANTICIP_NASAL", 0.4f);  // the velum
 const float kLineReleaseKick = param("LINE_RELEASE_KICK", 0.0f);  // (0.2 gave a voiced stop a 23 ms voiceless puff: "abolish" was heard as "atolish"; off since 2026-11-03)  // a voiced stop's release: the glottis parts to this area (cm^2; 0: off) ...
 const float kLineReleaseKickMs = param("LINE_RELEASE_KICK_MS", 15.0f);  // ... for this long before voicing
 const float kLineFricAc = param("LINE_FRIC_AC", 1.0f);  // the fricatives' constriction area on the line, relative to the aero table
-const float kLineVotHoldMs = param("LINE_VOT_HOLD_MS", 40.0f);     // a voiceless stop's puff: the glottis held open this long after the release (stressed; 60 % unstressed)
-const float kLineVotAdductMs = param("LINE_VOT_ADDUCT_MS", 25.0f);  // ... then adducting into voice over this
+const float kLineVotHoldMs = param("LINE_VOT_HOLD_MS", 7.727f) /* cost 0.0311509643599044 wobble */;     // a voiceless stop's puff: the glottis held open this long after the release (stressed; 60 % unstressed)
+const float kLineVotAdductMs = param("LINE_VOT_ADDUCT_MS", 26.34f) /* cost 0.0311509643599044 wobble */;  // ... then adducting into voice over this
 const float kLineExpandFlow = param("LINE_EXPAND_FLOW", 200.0f);  // cm^3/s drawn by the expanding cavity at full expansion behind a voiced closure
 const float kLineVoicedReleaseScale = param("LINE_VOICED_RELEASE", 2.5f);  // a voiced stop's release time relative to a voiceless one's
 const float kLineVoicedSoft = param("LINE_VOICED_SOFT", 6.0f);     // a voiced stop's closure: its sections lose this many times more (soft tissue)
@@ -264,12 +264,12 @@ const float kLineVoicedExtraCm = param("LINE_VOICED_EXTRA_CM", 0.15f);  // b: th
 const float kLineLabialO = param("LINE_LABIAL_O", 1.0f);  // 0: labial stops keep the vowel's shape; 1: b takes o's; 2: b and p
 const float kLineBExtraMs = param("LINE_B_EXTRA_MS", 30.0f);  // b holds its closure this much longer than the table says
 const float kLineOnsetMs = param("LINE_ONSET_MS", 80.0f);  // a vowel after a pause: breathy opening adducting into voice over this long
-const float kLineReleaseScale = param("LINE_RELEASE_SCALE", 1.0f);  // a stop's release time on the line, relative to the cascade's table
+const float kLineReleaseScale = param("LINE_RELEASE_SCALE", 0.5507f) /* cost 0.0311509643599044 wobble */;  // a stop's release time on the line, relative to the cascade's table
 const float kLineFinalFricMs = param("LINE_FINAL_FRIC_MS", 40.0f);  // a final voiceless fricative: the pause's glottal closing waits this long
 const float kLinePausePressMs = param("LINE_PAUSE_PRESS_MS", 80.0f);
 const float kLineFinalNasalOpen = param("LINE_FINAL_NASAL_MS", 100.0f);  // a pause after a nasal closes the velum over this long (0: kBoundaryMs, the old cut-off)
 const float kLinePrePressMs = param("LINE_PRE_PRESS_MS", 80.0f);     // ... and rises again this long before the next phrase's first sound  // the breath pressure falls to zero over this at a pause
-const float kLineDentalAc = param("LINE_DENTAL_AC", 0.6f);        // θ ð slit area on the line, relative to the aero table (weak fricatives)
+const float kLineDentalAc = param("LINE_DENTAL_AC", 0.03238f) /* cost 0.0311509643599044 wobble */;        // θ ð slit area on the line, relative to the aero table (weak fricatives)
 const float kLineFAc = param("LINE_F_AC", 0.3f);                   // f likewise: the lower lip on the upper teeth all but seals (Jyrki 2026-11-03: "more or less fully closing the opening, only what comes from the closing being not tight gives air through"); 0.03 cm^2 holds 95 % of the lung pressure behind it, 112 cm^3/s, Kennedy's f -9.8 dB under the vowels (readers -5..-16.5; 0.5: 190 cm^3/s, -7.1)
 const float kLineFinalAspMs = param("LINE_FINAL_ASP_MS", 60.0f);  // a final voiceless stop's open-glottis release before the pause closes it
 const float kLineBurstArea = param("LINE_BURST_AREA", 0.2f);  // a stop's release opening before a fricative (cm^2)
@@ -511,6 +511,25 @@ constexpr float kFormantTauMs[3] = {16, 12, 9};
 // With a planned path (FormantMotion::Planned) the follower only smooths the
 // plan's grid: a short constant.
 constexpr float kPlanTauMs = 3;
+// Tract shape planner (-m planned with the line; Synth::planShapes). Per
+// phrase and per shape channel, over 5 ms frames, it minimises
+//   demands:     w (|x - target| - tol)+^2 in each sound's window, only in
+//                the channels that sound needs (a w: the lips, a j: the tongue)
+//   effort:      vel (dx)^2 + acc (d2x)^2   (a slow, smooth articulator)
+//   speed limit: mu (|dx| - vmax)+^2
+// by reweighted least squares (the dead zones and the speed limit are
+// re-decided each round). Free channels coast on the neighbours' path.
+const float kShapeW = param("SPLAN_W", 1.0f);
+const float kShapeVel = param("SPLAN_VEL", 1.218f) /* cost 0.0311509643599044 wobble */;  // (0.3, acc 30, vmax 8: transitions 3x slower; Jyrki 2026-11-03 took the 3x faster ones)
+const float kShapeAcc = param("SPLAN_ACC", 0.4128f) /* cost 0.0311509643599044 wobble */;
+const float kShapeMu = param("SPLAN_MU", 3.499f) /* cost 0.0311509643599044 wobble */;
+const float kShapeVmax = param("SPLAN_VMAX", 7.272f) /* cost 0.0311509643599044 wobble */;  // log units (or channel ranges) per second
+const float kShapeTol = param("SPLAN_TOL", 0.07422f) /* cost 0.0311509643599044 wobble */;   // dead zone (log units, or shares of the channel range)
+const float kShapeRel = param("SPLAN_REL", 0.001f);  // a faint pull to the phrase mean where nothing is demanded
+const float kShapePauseW = param("SPLAN_PAUSEW", 0.2653f) /* cost 0.0311509643599044 wobble */;      // a pause's neutral shape
+const float kShapeBorrowedW = param("SPLAN_BORROWEDW", 0.5f);  // a consonant in a vowel's shape (f, b, p)
+const int kShapeRounds = static_cast<int>(param("SPLAN_ROUNDS", 10));
+constexpr float kShapeHopMs = 5;
 // Damped motion: the follower aims at the smooth spline through the
 // keyframes, read this many time constants ahead (a critically damped
 // follower lags ~2 tau). The target glides every sample; aiming at each
@@ -674,7 +693,7 @@ constexpr float kDoubledConsonantFactor = 1.4f;
 // air 0.3, bandwidths x0.5/0.55/0.6 and the source tilt -8 dB, 3 kHz cut
 // -10 dB, 1 kHz lift +6 dB land on its spectrum within 1-2 dB, contrast 24.
 // (Pitch and gain are research parameters: tools/word_opt.py --sweep.)
-const Voice kMaleVoice = {param("kMaleF0", 117) /* cost 0.0431489781638616 n14-stringline-w1k-f */, {param("kMaleFormant", 0.9625), param("kMaleFormant", 0.9625), param("kMaleFormant", 0.9625)}, 1.0f, 1.0f, 1.7f, 1.0f, param("kMaleGain", 4.163f) /* cost 0.0322859615827058 n13-speaker-w30 */, -6, 0.3f,
+const Voice kMaleVoice = {param("kMaleF0", 116.8) /* cost 0.0311509643599044 wobble */, {param("kMaleFormant", 0.9625), param("kMaleFormant", 0.9625), param("kMaleFormant", 0.9625)}, 1.0f, 1.0f, 1.7f, 1.0f, param("kMaleGain", 4.163f) /* cost 0.0322859615827058 n13-speaker-w30 */, -6, 0.3f,
                           {0.5f, 0.55f, 0.6f}, 1.0f, 1.0f, 0.0f, 3500, 4500, 3.0f, 1.0f, 1.0f, -8, -10, 6};
 // Female: F1/F2/F3 from the measured FLEURS female / CSS10 male ratios
 // (F1 x1.27, F2 x1.04, F3 x1.18), moderated toward usual values; tempo and
@@ -1458,6 +1477,7 @@ void Synth::finish() {
     emit(pending_, nullptr);
     hasPending_ = false;
   }
+  planShapes(timeline_);
   planSentence();
   finished_ = true;
 }
@@ -1797,6 +1817,8 @@ void Synth::emit(const Token& tok, const Ph* next) {
         // to ə (Whisper: "to" -> "Do it", "you" -> "Yolo it", 2026-11-02).
         lineKeys_.push_back({t0 + 0.15 * dur, lastKeyShape_});
         lineKeys_.push_back({t0 + 0.6 * dur, sh});
+        addShapeDemand(t0, t0 + 0.15 * dur, lastKeyShape_, lastPh_, 1.0f);
+        addShapeDemand(t0 + 0.6 * dur, t0 + dur, sh, Ph::Stop, kShapePauseW);
       } else {
         if (hold) lineKeys_.push_back({t0 + 0.3 * dur, sh});
         // A vowel before a coda r is r-coloured through its second half (the
@@ -1808,6 +1830,19 @@ void Synth::emit(const Token& tok, const Ph* next) {
           if (lineShapeOf(Ph::ER, &r)) late = lineShapeMix(sh, r, 0.8f);  // (0.5 in log area moved F3 only 2409 -> 2340; 0.8 gives 1937, the readers 1600-2000)
         }
         lineKeys_.push_back({t0 + (hold ? 0.7 : 0.5) * dur, late});
+        {
+          // The planner's demands: the held middle; an r-coloured end of its own.
+          const bool rColoured = late.ac != sh.ac || late.xc != sh.xc || late.aLip != sh.aLip;
+          TractShape own;
+          const bool borrowed = !isVowel(tok.ph) && !lineShapeOf(tok.ph, &own);  // f in the next vowel's shape
+          const float ws = borrowed ? kShapeBorrowedW : 1.0f;
+          if (!hold) addShapeDemand(t0 + 0.5 * dur, t0 + 0.5 * dur, sh, tok.ph, ws);
+          else if (!rColoured) addShapeDemand(t0 + 0.3 * dur, t0 + 0.7 * dur, sh, tok.ph, ws);
+          else {
+            addShapeDemand(t0 + 0.3 * dur, t0 + 0.45 * dur, sh, tok.ph, ws);
+            addShapeDemand(t0 + 0.6 * dur, t0 + 0.75 * dur, late, tok.ph, ws);
+          }
+        }
         lastKeyShape_ = late;
         haveLastKeyShape_ = true;
       }
@@ -2372,6 +2407,12 @@ void Synth::emit(const Token& tok, const Ph* next) {
   prevVoiced_ = isSonorant(tok.ph);
   lastPh_ = tok.ph;
   rangeTok_ = nullptr;
+  // A pause closes a phrase: plan its shapes and pitch (the line renders
+  // only what is planned, see pull()).
+  if (in.cls == Cls::Stop) {
+    planShapes(timeline_);
+    planSentence();
+  }
 }
 
 // An affricate is a plosive released straight into a short fricative at the
@@ -2598,6 +2639,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     TractShape sh;
     if (lineShapeOf(tok.ph, &sh)) {
       lineKeys_.push_back({timeline_ + 0.5 * closure, sh});
+      addShapeDemand(timeline_ + 0.3 * closure, timeline_ + 0.7 * closure, sh, tok.ph, kShapeBorrowedW);
       lastKeyShape_ = sh;
       haveLastKeyShape_ = true;
     }
@@ -3019,6 +3061,8 @@ size_t Synth::pull(float* out, size_t n) {
     // keyframes cover that far (else the output depended on how the text
     // was split into pushes: up to 4 st at phrase starts).
     if (!finished_ && (k_.empty() || k_.back().t < t_ + kLookAheadSamples_ + 1)) break;
+    // The planned line renders a phrase once it is planned.
+    if (!finished_ && motion_ == FormantMotion::Planned && tract_ == Tract::Line && t_ + 1 > shapePlanEnd_) break;
     out[i++] = tick();
     t_ += 1;
   }
@@ -3286,11 +3330,15 @@ float Synth::tick() {
   // laryngeal lag delays the melody less.
   {
     float pl[4];
-    const double tp = t_ + kPitchLookAheadMs * 0.001 * fs_;
-    const float cmd = motion_ == FormantMotion::Planned && planAt(tp, pl) ? std::exp2(pl[3]) : splineAt(kF0Mul, tp);
-    pitch1_ += kPitchLag_ * (cmd - pitch1_);
+    if (motion_ == FormantMotion::Planned && planAt(t_, pl)) {
+      // The planned melody is the pitch itself: no lag stages.
+      pitch1_ = pitch2_ = std::exp2(pl[3]);
+    } else {
+      const double tp = t_ + kPitchLookAheadMs * 0.001 * fs_;
+      pitch1_ += kPitchLag_ * (splineAt(kF0Mul, tp) - pitch1_);
+      pitch2_ += kPitchLag_ * (pitch1_ - pitch2_);
+    }
   }
-  pitch2_ += kPitchLag_ * (pitch1_ - pitch2_);
   float f0 = baseF0_ * pitch2_ * f0Aero * jitter_;
   float dt = f0 / fs_;
   phase_ += dt;
@@ -3319,6 +3367,7 @@ float Synth::tick() {
       // The shape at this time: between the two vowel shapes around it.
       while (lineKeys_.size() >= 2 && lineKeys_[1].t <= t_) lineKeys_.pop_front();
       TractShape sh;
+      if (motion_ == FormantMotion::Planned && shapePlanAt(t_, &sh)) goto lineShapePlanned;
       if (std::getenv("PUHUJA_LINE_TRACE") && (lineCount_ % 400) == 1)
         std::fprintf(stderr, "lineshape t %.3f keys %zu first %.3f %s\n", t_ / fs_, lineKeys_.size(), lineKeys_.empty() ? -1.0 : lineKeys_[0].t / fs_,
                      lineKeys_.empty() ? "fallback(formants)" : (lineKeys_.size() == 1 || t_ <= lineKeys_[0].t) ? "hold" : "mix");
@@ -3348,6 +3397,7 @@ float Synth::tick() {
         }
         sh = lineShapeMix(lineKeys_[0].s, lineKeys_[1].s, w);
       }
+    lineShapePlanned:
       // The female voice: a shorter tract in place of the formant multipliers.
       sh.length /= (voice_.formant[0] + voice_.formant[1] + voice_.formant[2]) / 3.0f;
       sh.lLip += lineExtra_; sh.length += lineExtra_;  // (as above)
@@ -3937,6 +3987,188 @@ void Synth::planSentence() {
     for (int i = 0; i < n; ++i) plan_[c][first + static_cast<size_t>(i)] = static_cast<float>(x[i]);
   }
   planFromT_ = gridStart + static_cast<double>(n - 1) * planHop_;
+}
+
+// ---------------------------------------------------------------------------
+// Tract shape planner (see kShapeW). The channels, in lineShapeMix's
+// conventions: places and lengths linear, areas in log; the range scales
+// the tolerance and the speed limit of a linear channel.
+namespace {
+
+constexpr int kCh = 9;  // = Synth::kShapeCh (checked in planShapes)
+struct ShapeChannel { bool log; float range; };
+constexpr ShapeChannel kShapeChannels[kCh] = {
+    {false, 0.3f},  // xc: the tongue's place (share of the length)
+    {true, 1.0f},   // ac: its opening
+    {false, 1.0f},  // wc: its half-width (cm)
+    {true, 1.0f},   // aLip
+    {true, 1.0f},   // aPharynx
+    {true, 1.0f},   // aOral
+    {false, 0.5f},  // lLip (cm)
+    {true, 1.0f},   // aLarynx
+    {false, 1.0f},  // length (cm)
+};
+
+void shapeToChannels(const TractShape& s, float x[kCh]) {
+  const float v[kCh] = {s.xc, s.ac, s.wc, s.aLip, s.aPharynx, s.aOral, s.lLip, s.aLarynx, s.length};
+  for (int c = 0; c < kCh; ++c) x[c] = kShapeChannels[c].log ? std::log(std::max(v[c], 0.01f)) : v[c];
+}
+
+TractShape channelsToShape(const float x[kCh]) {
+  float v[kCh];
+  for (int c = 0; c < kCh; ++c) v[c] = kShapeChannels[c].log ? std::exp(x[c]) : x[c];
+  TractShape s;
+  s.xc = v[0]; s.ac = v[1]; s.wc = v[2]; s.aLip = v[3]; s.aPharynx = v[4];
+  s.aOral = v[5]; s.lLip = v[6]; s.aLarynx = v[7]; s.length = v[8];
+  return s;
+}
+
+// Which channels a sound needs (the others are free): weights per channel.
+void shapeNeeds(Ph ph, float w[kCh]) {
+  enum { XC, AC, WC, LIPA, PHAR, ORAL, LIPL, LAR, LEN };
+  auto all = [&](float v) { for (int c = 0; c < kCh; ++c) w[c] = v; };
+  if (isVowel(ph) || ph == Ph::Stop) { all(1.0f); return; }
+  switch (ph) {
+    case Ph::W:  // the lips round; the tongue back rises a little
+      all(0.2f); w[LIPA] = w[LIPL] = 1.0f; w[XC] = w[AC] = 0.5f; return;
+    case Ph::J:  // the tongue body at the palate
+      all(0.2f); w[XC] = w[AC] = w[WC] = 1.0f; return;
+    case Ph::L:  // the tongue's back (its tip is the constriction)
+      all(0.2f); w[XC] = w[AC] = w[WC] = 1.0f; w[ORAL] = 0.5f; return;
+    case Ph::RR:  // bunched, rounded, the pharynx narrowed
+      all(0.3f); w[XC] = w[AC] = w[LIPA] = w[LIPL] = w[PHAR] = 1.0f; return;
+    default:
+      all(1.0f); return;
+  }
+}
+
+}  // namespace
+
+void Synth::addShapeDemand(double tA, double tB, const TractShape& s, Ph ph, float wScale) {
+  if (tract_ != Tract::Line || motion_ != FormantMotion::Planned) return;
+  ShapeDemand d;
+  d.tA = tA;
+  d.tB = std::max(tA, tB);
+  shapeToChannels(s, d.x);
+  shapeNeeds(ph, d.w);
+  for (float& w : d.w) w *= wScale * kShapeW;
+  shapeDemands_.push_back(d);
+  // A phrase without pauses: plan all but its last second.
+  if (tA - shapePlanEnd_ > 4.0 * fs_) planShapes(tA - 1.0 * fs_);
+}
+
+bool Synth::shapePlanAt(double t, TractShape* s) const {
+  const size_t frames = shapePlan_.size() / kShapeCh;
+  if (frames < 2 || t < 0 || t > shapePlanEnd_) return false;
+  const double hop = kShapeHopMs * 0.001 * fs_;
+  const double f = t / hop;
+  const size_t i = std::min(static_cast<size_t>(f), frames - 2);
+  const float u = static_cast<float>(std::clamp(f - static_cast<double>(i), 0.0, 1.0));
+  float x[kShapeCh];
+  for (int c = 0; c < kShapeCh; ++c)
+    x[c] = shapePlan_[i * kShapeCh + c] + (shapePlan_[(i + 1) * kShapeCh + c] - shapePlan_[i * kShapeCh + c]) * u;
+  *s = channelsToShape(x);
+  return true;
+}
+
+void Synth::planShapes(double tEnd) {
+  static_assert(kCh == kShapeCh);
+  if (tract_ != Tract::Line || motion_ != FormantMotion::Planned) return;
+  const double hop = kShapeHopMs * 0.001 * fs_;
+  const size_t first = shapePlan_.size() / kShapeCh;
+  const double gridStart = static_cast<double>(first) * hop;
+  const int n = static_cast<int>((tEnd - gridStart) / hop) + 1;
+  if (n < 1 || n > 200000) return;
+  // The last two planned frames are held: the new phrase continues the old
+  // one's path and speed.
+  const int a = static_cast<int>(std::min<size_t>(first, 2));
+  const int N = a + n;
+  auto frameOf = [&](double t) { return a + static_cast<int>(std::lround((t - gridStart) / hop)); };
+  struct Entry { int i; int d; };  // a demanded frame and its demand
+  std::vector<Entry> entries;
+  for (int q = 0; q < static_cast<int>(shapeDemands_.size()); ++q) {
+    const ShapeDemand& d = shapeDemands_[q];
+    const int i0 = std::max(a, frameOf(d.tA)), i1 = std::min(N - 1, frameOf(d.tB));
+    for (int i = i0; i <= i1; ++i) entries.push_back({i, q});
+  }
+  const double vel = kShapeVel, acc = kShapeAcc, mu = kShapeMu;
+  std::vector<double> x(N), d(N), e(N), f(N), b(N);
+  for (int c = 0; c < kShapeCh; ++c) {
+    const ShapeChannel& ch = kShapeChannels[c];
+    const double tol = kShapeTol * ch.range, vmax = kShapeVmax * ch.range * kShapeHopMs * 0.001;
+    // The faint pull where nothing is demanded: the phrase's mean demand.
+    double mean = 0, wsum = 0;
+    for (const Entry& en : entries) { mean += shapeDemands_[en.d].w[c] * shapeDemands_[en.d].x[c]; wsum += shapeDemands_[en.d].w[c]; }
+    if (wsum > 0) mean /= wsum;
+    else if (first > 0) mean = shapePlan_[(first - 1) * kShapeCh + c];
+    else { TractShape neutral; lineShapeOf(Ph::Stop, &neutral); float v[kShapeCh]; shapeToChannels(neutral, v); mean = v[c]; }
+    std::fill(x.begin(), x.end(), mean);
+    for (int round = 0; round <= kShapeRounds; ++round) {
+      std::fill(d.begin(), d.end(), kShapeRel);
+      std::fill(e.begin(), e.end(), 0.0);
+      std::fill(f.begin(), f.end(), 0.0);
+      for (int i = 0; i < N; ++i) b[i] = kShapeRel * mean;
+      for (int i = 0; i < a; ++i) {  // held frames
+        const double v = shapePlan_[(first - a + i) * kShapeCh + c];
+        d[i] += 1e6; b[i] += 1e6 * v;
+      }
+      // Demands, with the dead zone decided from the last round's path (the
+      // first round: everything active, aiming at the centre).
+      for (const Entry& en : entries) {
+        const ShapeDemand& dm = shapeDemands_[en.d];
+        const double w = dm.w[c];
+        if (w <= 0) continue;
+        double target = dm.x[c];
+        if (round > 0) {
+          const double off = x[en.i] - target;
+          if (std::fabs(off) <= tol) continue;
+          target += off > 0 ? tol : -tol;
+        }
+        d[en.i] += w; b[en.i] += w * target;
+      }
+      // Effort: first and second differences (and the speed limit, from the
+      // last round's path, as a first difference aimed at vmax).
+      for (int i = 1; i < N; ++i) {
+        double wv = vel, tv = 0;
+        if (round > 0) {
+          const double dx = x[i] - x[i - 1];
+          if (std::fabs(dx) > vmax) { tv = mu * (dx > 0 ? vmax : -vmax); wv += mu; }
+        }
+        d[i - 1] += wv; d[i] += wv; e[i - 1] -= wv;
+        b[i] += tv; b[i - 1] -= tv;
+      }
+      for (int i = 1; i + 1 < N; ++i) {
+        d[i - 1] += acc; d[i] += 4 * acc; d[i + 1] += acc;
+        e[i - 1] -= 2 * acc; e[i] -= 2 * acc;
+        f[i - 1] += acc;
+      }
+      solvePenta(d, e, f, b);
+      x = b;
+    }
+    // Append the new frames.
+    if (c == 0) shapePlan_.resize((first + static_cast<size_t>(n)) * kShapeCh);
+    for (int i = a; i < N; ++i) shapePlan_[(first + static_cast<size_t>(i - a)) * kShapeCh + c] = static_cast<float>(x[i]);
+  }
+  shapePlanEnd_ = gridStart + static_cast<double>(n - 1) * hop;
+  if (std::getenv("PUHUJA_SPLAN_TRACE")) {
+    std::fprintf(stderr, "splan %.3f..%.3f s: %d frames, %zu demand frames\n", gridStart / fs_, shapePlanEnd_ / fs_, n, entries.size());
+    // The planned frames, and the demand in each channel (or nan if free).
+    for (int i = a; i < N; ++i) {
+      std::fprintf(stderr, "sframe %.3f", (gridStart + (i - a) * hop) / fs_);
+      for (int c = 0; c < kShapeCh; ++c) std::fprintf(stderr, " %.4f", shapePlan_[(first + static_cast<size_t>(i - a)) * kShapeCh + c]);
+      for (int c = 0; c < kShapeCh; ++c) {
+        double tw = 0, ww = 0;
+        for (const Entry& en : entries)
+          if (en.i == i) { tw += shapeDemands_[en.d].w[c] * shapeDemands_[en.d].x[c]; ww += shapeDemands_[en.d].w[c]; }
+        std::fprintf(stderr, " %.4f", ww > 0 ? tw / ww : std::nan(""));
+      }
+      std::fprintf(stderr, "\n");
+    }
+  }
+  // Demands that end well before the horizon are done.
+  const double keep = shapePlanEnd_ - 0.5 * fs_;
+  shapeDemands_.erase(std::remove_if(shapeDemands_.begin(), shapeDemands_.end(), [&](const ShapeDemand& dm) { return dm.tB < keep; }),
+                      shapeDemands_.end());
 }
 
 }  // namespace puhuja

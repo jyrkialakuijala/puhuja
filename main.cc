@@ -8,8 +8,9 @@
 //   -en         read English text (default: Finnish spelling / IPA)
 //   -g2p        print English pronunciations of the words on stdin
 //   -g2p-raw    the same from the letter-to-sound rules alone
-//   -m damped|spline  formant motion: damped target-following (default) or
-//               a spline through the targets
+//   -m planned|damped|spline  motion: planned (default; the sentence planner
+//               optimizes the tract shapes and the pitch a phrase at a time),
+//               damped target-following, or a spline through the targets
 
 #include <algorithm>
 #include <cmath>
@@ -113,13 +114,13 @@ void usage(FILE* f) {
       "  -room         a small room: early reflections and a short tail\n"
       "  -l file       write phoneme timings (start, end, symbol)\n"
       "  -words file   write word timings (start, end, word number from 1)\n"
-      "  -w source     voice source: grid (default; 4x8 multi-mass folds), block (2x2x6 body-cover folds),\n"
-      "                string (one fold of two 16-lane strings against a mirror wall), physical,\n"
+      "  -w source     voice source: string (default; one fold of two 16-lane strings against a mirror wall),\n"
+      "                grid (4x8 multi-mass folds), block (2x2x6 body-cover folds), physical,\n"
       "                shaped, glottal, triangle, square\n"
       "  PUHUJA_PARAMS=file  research parameters (\"name value\" lines, see params.h); without it a\n"
       "                puhuja.params in the working directory or next to the binary is read (a running\n"
       "                tools/word_opt.py keeps its best state there)\n"
-      "  -m motion     formant motion: damped/dampen (default) or spline\n"
+      "  -m motion     motion: planned (default; tract shapes and pitch planned per phrase), damped or spline\n"
       "  -leak x       part of the source that bypasses the formants (default 0.03)\n"
       "  -g2p          print English pronunciations of the words on stdin\n"
       "  -g2p-raw      the candidate before the stored corrections (letter rules, prefixes)\n"
@@ -152,6 +153,9 @@ void writeWavHeader(FILE* f, uint32_t rate, uint32_t dataBytes) {
   put32(f, dataBytes);
 }
 
+// Replaces NaNs and infinities by 0 so that they never reach the room or the file.
+inline float denan(float x) { return std::isfinite(x) ? x : 0.0f; }
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -166,7 +170,7 @@ int main(int argc, char** argv) {
   const char* labelPath = nullptr;  // -l file: phoneme timings (start end symbol)
   const char* wordsPath = nullptr;  // -words file: word timings (start end number)
   float leak = 0.03f;    // -leak x: part of the source bypassing the formants
-  // -w grid|physical|triangle|square|glottal: voice source (default grid, Jyrki 2026-10-31).
+  // -w string|grid|block|physical|triangle|square|glottal: voice source (default string).
   puhuja::Carrier carrier = puhuja::Carrier::String;
   std::string text;
   bool english = false;
@@ -175,7 +179,7 @@ int main(int argc, char** argv) {
   // little slower than the voice-over reference it is fitted to.
   float rate = 0.95f;
   size_t chunk = 0;  // -chunk N: feed the text N bytes at a time (testing streaming)
-  puhuja::FormantMotion motion = puhuja::FormantMotion::Damped;
+  puhuja::FormantMotion motion = puhuja::FormantMotion::Planned;  // (Jyrki 2026-11-03)
   puhuja::Tract tract = puhuja::Tract::Line;
   for (int i = 1; i < argc; ++i) {
     if (!strcmp(argv[i], "-h") || !strcmp(argv[i], "-?") || !strcmp(argv[i], "--help") ||
@@ -219,8 +223,8 @@ int main(int argc, char** argv) {
     } else if (!strcmp(argv[i], "-m") && i + 1 < argc) {
       // -m damped|spline: how the formants move between targets.
       motion = !strcmp(argv[++i], "spline")    ? puhuja::FormantMotion::Spline
-               : !strcmp(argv[i], "planned") ? puhuja::FormantMotion::Planned
-                                            : puhuja::FormantMotion::Damped;
+               : !strcmp(argv[i], "damped")  ? puhuja::FormantMotion::Damped
+                                            : puhuja::FormantMotion::Planned;
     } else if (!strcmp(argv[i], "-room")) {
       useRoom = true;
     } else if (!strcmp(argv[i], "-rate") && i + 1 < argc) {
@@ -277,8 +281,9 @@ int main(int argc, char** argv) {
   auto drain = [&] {
     size_t n;
     while ((n = synth.pull(buf, 1024)) > 0) {
+      for (size_t k = 0; k < n; ++k) buf[k] = denan(buf[k]);
       if (room)
-        for (size_t k = 0; k < n; ++k) buf[k] = room->process(buf[k]);
+        for (size_t k = 0; k < n; ++k) buf[k] = denan(room->process(buf[k]));
       fwrite(buf, sizeof(float), n, out);
       total += n;
     }
@@ -323,7 +328,7 @@ int main(int argc, char** argv) {
   drain();
   if (room) {  // let the room's tail ring out
     for (int k = 0; k < 48000 / 3; ++k) {
-      const float y = room->process(0.0f);
+      const float y = denan(room->process(0.0f));
       fwrite(&y, sizeof(float), 1, out);
       ++total;
     }
