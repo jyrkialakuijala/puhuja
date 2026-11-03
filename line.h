@@ -102,6 +102,7 @@ class TransmissionLine {
   // A pressure difference dp (dyn/cm^2) driving interface k this substep (a
   // dipole source, as turbulence downstream of a constriction is).
   void addFlowDrive(int k, float dp) { u_[k] += cU_[k] * dp; }
+  void addPressureDrive(int k, float dp) { p_[k] += dp; }  // a pressure source in section k (not throttled by the interfaces' orifice loss)
 
  private:
   void coefficients();
@@ -139,9 +140,15 @@ class TransmissionLine {
 
  public:
   float traceExtra_ = 0;  // a value the owner wants in the trace (the nostril flow)
+  // A Helmholtz side branch (a paranasal sinus): a neck of area aN and length
+  // lN into a volume v, opening at section k. Its flow is a sink there.
+  struct Sinus { int k = -1; float m = 0, cInv = 0, r = 0, u = 0, p = 0; };
+  void addSinus(int k, float volume, float neckArea, float neckLength, float q);
+  void stepSinuses();
+  Sinus sinus_[2]; int nSinus_ = 0;
 
  private:
-  float lungDc_ = 0;  // the mean flow the lungs supply (the matched source absorbs waves, not the DC)
+  float lungDc_ = 0;  // the slow part of the lung-to-trachea pressure difference (driven through kLungR)
   float uL_ = 0, uN_ = 0, prevUN_ = 0, radiated_ = 0;
 };
 
@@ -167,6 +174,14 @@ class VocalTractLine {
   // The same from an area function already sampled (cm^2 per oral section)
   // and a length: for shapes interpolated geometrically, section by section.
   void setShapeAreas(std::vector<float> areas, float length, float x, float ac, float an);
+  // The constriction's half-width (cm; 1.0 for most consonants, ~1.8 for the
+  // long groove of ʃ ʒ ʧ ʤ) and a lip opening cap (cm^2; <= 0: the vowel's):
+  // the rounding of ʃ. Set before setShape.
+  void setConstriction(float halfWidth, float lipCap) { humpHw_ = halfWidth; lipCap_ = lipCap; }
+  // A volume sink in the mouth (cm^3/s): the cavity expanding behind a voiced
+  // closure (cheeks, larynx lowering), which keeps the pressure down so the
+  // folds go on vibrating (the voice bar of b d g).
+  void setExpansion(float flow) { expandFlow_ = flow; }
   // Turbulence: gains for the constriction and the glottis, and the glottal
   // area the flow passes (cm^2).
   void setNoise(float fricGain, float aspGain, float glottalArea);
@@ -185,6 +200,8 @@ class VocalTractLine {
   TransmissionLine oral_, nasal_, sub_;  // sub_: the trachea, lungs to glottis
   float fs_ = 48000, dt_ = 0;
   float lungPressure_ = 0, pSub_ = 0;   // the lung pressure set per sample; the pressure under the folds
+  float humpHw_ = 1.0f, lipCap_ = -1.0f;
+  float expandFlow_ = 0;
   int velumK_ = 0, noiseK_ = -1, noiseKc_ = 0;  // noiseK_: where the turbulence drives; noiseKc_: the constriction's centre
   float an_ = 0, uNasal_ = 0;
   float fricGain_ = 0, aspGain_ = 0, glotArea_ = 0.05f;

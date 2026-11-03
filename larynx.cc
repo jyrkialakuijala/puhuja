@@ -25,10 +25,11 @@ constexpr float kFoldRestPressed = -0.15f; // ag 0: pressed shut (vibration stop
 // "hands" where readers are 3-13 dB under or voiceless (INPUT.md
 // 2026-10-31). Real folds stop phonating well before 0.3 cm^2. From
 // kAgBreathy (a voiced h) the rest grows smoothly to this.
-const float kFoldRestOpen = param("kFoldRestOpen", 1.5f);
+const float kFoldRestOpen = param("kFoldRestOpen", 5.0f);  // (1.5 with STRING_REST 0.047 left the folds vibrating in f, a pitch swoop 126 -> 82 Hz through the f of "different", Jyrki: "a swirp", 2026-11-02)
 constexpr float kFoldNaturalF0 = 155;     // f0 of the fold model at tension 1
 constexpr float kPitchControl = 0.3f;     // per cycle: share of pitch error corrected
-constexpr float kPitchLearnVib = 100;     // flow fluctuation (cm^3/s) needed to learn
+const float kPitchLearnVib = param("kPitchLearnVib", 100.0f);     // flow fluctuation (cm^3/s) needed to learn (100 before 2026-11-02)
+const float kPitchCorrMin = param("kPitchCorrMin", 0.5f), kPitchCorrMax = param("kPitchCorrMax", 2.0f);  // (0.7-1.4 pinned the string folds half an octave low, 2026-11-02)  // the tension correction's range
 // Tract load on the folds: each formant mode turns the flow into pressure
 // above the glottis (physically the coupling is 30-100x stronger; see
 // DESIGN_folds_physics.md).
@@ -204,23 +205,42 @@ void FoldLarynx::step(const LarynxControl& c, LarynxOutput& out) {
   }
   out.flow = u;
   if (physVib_ < kPitchLearnVib) pitchCorrTarget_ += (1.0f - pitchCorrTarget_) * kPitchRelax_;
-  if (closed) {
+  // The cycle for the pitch controller is timed from the flow waveform: its
+  // upward crossing of the mean after a dip under half of it, once per
+  // period. The fold models' closure events came 2-4 times per cycle with
+  // the string folds (the lanes shut at different moments), the controller
+  // read the voice as too high and held it half an octave under its
+  // command (93 Hz for 126; the whole sentence a drone, 2026-11-02).
+  bool cycleMark = false;
+  if (u < 0.5f * flowMean_) belowHalf_ = true;
+  else if (belowHalf_ && u > flowMean_ && flowMean_ > 5.0f) {
+    belowHalf_ = false;
+    cycleMark = true;
+  }
+  if (cycleMark) {
     // Period from closure to closure, timed to a small fraction of a
     // sample (the zero crossing of the opening between the folds'
     // substeps; whole samples were only good to ~3 cents at 92 Hz).
-    const double closeTime = c.t + closeAt;
+    const double closeTime = c.t + (closed ? closeAt : 0.5);
     const double period = closeTime - lastCloseTime_;
     // The next cycle's deviations (a rough gaussian from two draws).
     cycleJ_ = std::clamp(0.87f * (noise() + noise()), -2.5f, 2.5f);
     cycleS_ = std::clamp(0.87f * (noise() + noise()), -2.5f, 2.5f);
     lastCloseTime_ = closeTime;
     const float measured = static_cast<float>(fs_ / std::max(period, 1.0));
+    {
+      static FILE* ptrace = std::getenv("PUHUJA_PITCH_TRACE") ? std::fopen(std::getenv("PUHUJA_PITCH_TRACE"), "w") : nullptr;
+      if (ptrace) std::fprintf(ptrace, "%.4f\t%.1f\t%.1f\t%.3f\t%.1f\n", c.t / fs_, target, measured, pitchCorrTarget_, physVib_);
+    }
     // Learn only from steady, strong vibration: during onsets and offsets
     // the closures are irregular and would detune the folds.
-    if (physVib_ > kPitchLearnVib && measured > 0.7f * target && measured < 1.4f * target)
+    // (the correction's range was 0.7-1.4: with the string folds swinging
+    // wider the voice sat at 93 Hz against a commanded 126 and the
+    // controller could not reach it, the sentence a flat drone, 2026-11-02)
+    if (physVib_ > kPitchLearnVib && measured > 0.5f * target && measured < 2.0f * target)
       pitchCorrTarget_ = std::clamp(
           pitchCorrTarget_ * static_cast<float>(std::pow(static_cast<double>(target) / measured, kPitchControl)),
-          0.7f, 1.4f);
+          kPitchCorrMin, kPitchCorrMax);
   }
   // The correction glides over about a cycle instead of jumping at each
   // closure.

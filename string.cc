@@ -28,44 +28,44 @@ constexpr float kSeg = kLength / kMoving, kLayer = kThickness / L;
 // layers with the superior edge lighter (their 0.125 / 0.025 is too extreme
 // for a string: the light layer would race ahead), tapered along the cord.
 constexpr float kMass = 0.15f;
-const float kTopMass = param("STRING_TOPMASS", 0.5254f) /* cost 0.0292528427248304 n13-stringline-w30-b */;  // the superior layer's share
-const float kTaper = param("STRING_TAPER", 0.4156f) /* cost 0.0292528427248304 n13-stringline-w30-b */;        // half-sine taper, 1 - kTaper at the anchors
+const float kTopMass = param("STRING_TOPMASS", 0.6201f) /* cost 0.0431489781638616 n14-stringline-w1k-f */;  // the superior layer's share
+const float kTaper = param("STRING_TAPER", 0.3594f) /* cost 0.0431489781638616 n14-stringline-w1k-f */;        // half-sine taper, 1 - kTaper at the anchors
 // Natural frequency (Hz) of the fold's lowest mode at tension 1: the wall
 // spring and the string's first mode together. The driver's pitch controller
 // takes up the rest, as for the other fold models.
-const float kNaturalF0 = param("STRING_F0", 192.5f) /* cost 0.0292528427248304 n13-stringline-w30-b */;
+const float kNaturalF0 = param("STRING_F0", 155.6f);
 // The wall spring's share of each lane's restoring stiffness at the lowest
 // mode; the string tension carries the rest (1 - share), uniform along the
 // cord as a string's tension is. (First sweep, 2026-10-31: at 0.3 with shear
 // 0.3 and kappa 1 the fold sat open and drifted at 5 Hz; 0.7 with shear 1
 // and kappa 2 phonates at 20 % closure, jitter 1.2 %.)
-const float kWallShare = param("STRING_WALLSHARE", 0.2318f) /* cost 0.0292528427248304 n13-stringline-w30-b */;
+const float kWallShare = param("STRING_WALLSHARE", 0.1749f) /* cost 0.0431489781638616 n14-stringline-w1k-f */;
 // Stiffness of the superior layer relative to the inferior (softer: the
 // layers' phase lag, which feeds the oscillation from the flow).
-const float kTopStiff = param("STRING_TOPSTIFF", 0.4414f) /* cost 0.0292528427248304 n13-stringline-w30-b */;
+const float kTopStiff = param("STRING_TOPSTIFF", 0.7194f) /* cost 0.0431489781638616 n14-stringline-w1k-f */;
 // Shear coupling between the two layers relative to the wall spring
 // ("connected mildly"; below ~1 the layers do not drive each other enough
 // to oscillate against the static pressure).
-const float kShearRel = param("STRING_SHEAR", 1.077f) /* cost 0.0292528427248304 n13-stringline-w30-b */;
+const float kShearRel = param("STRING_SHEAR", 1.467f) /* cost 0.0431489781638616 n14-stringline-w1k-f */;
 // Damping ratios while open per layer; extra while touching the wall.
 constexpr float kZeta[L] = {0.1f, 0.4f};
-const float kZetaClosed = param("STRING_ZCLOSED", 1.07f) /* cost 0.0292528427248304 n13-stringline-w30-b */;
+const float kZetaClosed = param("STRING_ZCLOSED", 0.9424f) /* cost 0.0431489781638616 n14-stringline-w1k-f */;
 constexpr float kCollision = 3.0f;  // collision stiffness / the lane's total stiffness
 // The share of the air pressure on the surface that drives it.
-const float kKappa = param("STRING_KAPPA", 1.985f) /* cost 0.0292528427248304 n13-stringline-w30-b */;
+const float kKappa = param("STRING_KAPPA", 3.0f) /* not searched: the 30-word runs drove it to 4.4 and 5.4, where the folds swing 0.47 cm^2 and the vowels carry 2-4 kHz at -6 dB re <1 kHz (Kokoro -12..-24); 3.0 gives 0.29 cm^2 and -17 dB, 2026-11-02 */ /* cost 0.0328353163620721 n14-stringline-w30-g */ /* 1.7 (searched): after a voiceless consonant the folds restarted at a quarter of the amplitude they have after a pause (area 0.03 vs 0.12 cm^2, vowels 6-9 dB weak); 3.0 gives 0.07 vs 0.29 and +4-8 dB, 2026-11-02 */ /* cost 0.0298241432933307 n14-stringline-w30-c */;
 // The cords' own sound: surface area times lateral velocity, both folds.
-const float kSurface = param("STRING_SURFACE", 0.01994f) /* cost 0.0292528427248304 n13-stringline-w30-b */;
+const float kSurface = param("STRING_SURFACE", 0.02104f) /* cost 0.0431489781638616 n14-stringline-w1k-f */;
 // The abduction rest area scaled for this model's own amplitude.
-const float kRestScale = param("STRING_REST", 0.0784f) /* cost 0.0292528427248304 n13-stringline-w30-b */;
+const float kRestScale = param("STRING_REST", 0.04671f) /* cost 0.0431489781638616 n14-stringline-w1k-f */;
 // Rest width along the cord relative to the mean: front (anterior) against back.
-const float kRestFront = param("STRING_RESTFRONT", 0.07137f) /* cost 0.0292528427248304 n13-stringline-w30-b */, kRestBack = 2.0f - kRestFront;
+const float kRestFront = param("STRING_RESTFRONT", 0.3268f), kRestBack = 2.0f - kRestFront;
 constexpr float kRho = 0.00113f;      // air density (g/cm^3)
 constexpr float kInertance = 0.005f;  // as folds.cc
 // Discharge coefficient of the glottal orifice (vena contracta): the flow
 // through a slit of area a is that of an ideal orifice of kDischarge x a.
 // Without it the folds passed ~2x a real glottis's flow and the pressure
 // above them swung by a third of the lung pressure (review 2026-11-01).
-const float kDischarge = param("STRING_CD", 0.9257f) /* cost 0.0292528427248304 n13-stringline-w30-b */;  // (0.65-0.85 with the folds as tuned: the closure is lost, 31 % -> 20 % -> 1 %, 2026-11-01)
+const float kDischarge = param("STRING_CD", 1.0f) /* cost 0.0298241432933307 n14-stringline-w30-c */;  // (0.65-0.85 with the folds as tuned: the closure is lost, 31 % -> 20 % -> 1 %, 2026-11-01)
 // Rounding of the heard area (cm^2): the flow fades over this much area as a
 // lane closes instead of cutting off (Jyrki 2026-11-01: "closing should be a
 // slow process ... or closing happens over a longer distance, i.e. the
@@ -83,10 +83,10 @@ constexpr int kMembranousEnd = kLast;
 // constants (ms; 0 = off), the forces mix (1 - s) of their own and s of the
 // neighbours' mean; a touching lane's velocity relaxes toward its layer's
 // mean velocity with kClosedSmoothMs.
-const float kSmoothMs = param("STRING_SMOOTHMS", 37.2f) /* cost 0.0292528427248304 n13-stringline-w30-b */, kVSmoothMs = param("STRING_VSMOOTHMS", 50.36f) /* cost 0.0292528427248304 n13-stringline-w30-b */;
-const float kForceSmooth = param("STRING_FSMOOTH", 0.001803f) /* cost 0.0292528427248304 n13-stringline-w30-b */, kClosedSmoothMs = param("STRING_CSMOOTHMS", 2.349f) /* cost 0.0292528427248304 n13-stringline-w30-b */;
+const float kSmoothMs = param("STRING_SMOOTHMS", 44.29f) /* cost 0.0431489781638616 n14-stringline-w1k-f */, kVSmoothMs = param("STRING_VSMOOTHMS", 43.49f) /* cost 0.0431489781638616 n14-stringline-w1k-f */;
+const float kForceSmooth = param("STRING_FSMOOTH", 0.0009663f) /* cost 0.0431489781638616 n14-stringline-w1k-f */, kClosedSmoothMs = param("STRING_CSMOOTHMS", 1.559f) /* cost 0.0431489781638616 n14-stringline-w1k-f */;
 // The other layer's weight in the neighbour mean (the two along the cord weigh 1 each).
-const float kMixLayer = param("STRING_MIXLAYER", 0.007568f) /* cost 0.0292528427248304 n13-stringline-w30-b */;
+const float kMixLayer = param("STRING_MIXLAYER", 0.007103f) /* cost 0.0431489781638616 n14-stringline-w1k-f */;
 
 // The share of the way a value moves toward its target in one step of h
 // seconds with a time constant in milliseconds (the 0.001 is ms -> s).
@@ -192,9 +192,18 @@ float StringFolds::step(float h, const VocalFolds::Input& in) {
       openMask_ |= 1u << l;
       const float A = 0.5f * kRho / (kDischarge * kDischarge * a * a);
       const float C = B * u_[l] + drive;
-      u_[l] = C <= 0 ? 0.0f : 2 * C / (B + std::sqrt(B * B + 4 * A * C));
+      // (either direction: with the flow clamped at zero, air pushed into a
+      // sealed mouth by the closure's own transient could never return, the
+      // cavity sat at 1.3x the lung pressure and the folds were held 0.5 cm^2
+      // open through every b, d, g, 2026-11-03)
+      u_[l] = C >= 0 ? 2 * C / (B + std::sqrt(B * B + 4 * A * C)) : -2 * C / (B + std::sqrt(B * B - 4 * A * C));
     }
-    float af = a > 30.0f * kRound ? a : kRound * std::log1p(std::exp(a / kRound));
+    // (the plain softplus left kRound ln 2 = 0.0014 cm^2 per shut lane, 0.02
+    // over the cord, half the open peak: a steady leak that kept the flow at
+    // 50 % of its mean through the closed phase, a dark breathy source,
+    // 2026-11-02; shifted by its value at zero a shut lane passes nothing)
+    constexpr float kLn2 = 0.69314718f;
+    float af = a > 30.0f * kRound ? a : std::max(kRound * (std::log1p(std::exp(a / kRound)) - kLn2), 0.0f);
     // The heard channel closes no faster than kCloseMs (it opens at once):
     // the area lags, so the flow still answers the pressure instantly (a lag
     // on the flow itself ran away against the sealed tract of a b, 2026-11-01).
@@ -205,9 +214,19 @@ float StringFolds::step(float h, const VocalFolds::Input& in) {
     }
     const float A = 0.5f * kRho / (kDischarge * kDischarge * af * af + 1e-12f);
     const float C = B * uOut_[l] + drive;
-    uOut_[l] = C <= 0 ? 0.0f : 2 * C / (B + std::sqrt(B * B + 4 * A * C));
+    uOut_[l] = C >= 0 ? 2 * C / (B + std::sqrt(B * B + 4 * A * C)) : -2 * C / (B + std::sqrt(B * B - 4 * A * C));
     uSum_ += u_[l];
     uOutSum_ += uOut_[l];
+  }
+  {
+    // Debug: PUHUJA_STRING_TRACE=file writes the glottal area (cm^2, the lanes' minima summed) every 4th substep.
+    static FILE* strace = std::getenv("PUHUJA_STRING_TRACE") ? std::fopen(std::getenv("PUHUJA_STRING_TRACE"), "w") : nullptr;
+    static long scount = 0;
+    if (strace && (scount++ & 3) == 0) {
+      float aTot = 0;
+      for (int l = kFirst; l <= kLast; ++l) aTot += std::max(aMin[l], 0.0f);
+      std::fprintf(strace, "%.5f\t%d\n", aTot, __builtin_popcount(openMask_));
+    }
   }
   // Air pressure on each layer's surface: in an open lane the Bernoulli
   // pressure at its own width down to the narrowest layer, the tract pressure

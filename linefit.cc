@@ -251,7 +251,6 @@ int main(int argc, char** argv) {
   const std::string overrides = std::getenv("LINEFIT_TARGETS") ? std::getenv("LINEFIT_TARGETS") : "";
   for (int i = 0; i < nPh && i < 17; ++i) {  // the vowels come first in Ph order
     const auto& v = kEnglishShape[i];
-    if (v.f1 <= 0) continue;
     if (only && std::strcmp(only, v.symbol)) continue;
     float target[3] = {v.f1, v.f2, v.f3};
     {
@@ -259,6 +258,7 @@ int main(int argc, char** argv) {
       size_t at = overrides.find(key);
       if (at != std::string::npos) std::sscanf(overrides.c_str() + at + key.size(), "%f/%f/%f", &target[0], &target[1], &target[2]);
     }
+    if (target[0] <= 0) continue;  // (a symbol without targets, unless LINEFIT_TARGETS gives them: ɒ carries the onset-r shape)
     // A few starts: front, central, back constrictions.
     double bestC = 1e9;
     std::vector<double> best;
