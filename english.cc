@@ -668,6 +668,7 @@ struct KlattDur {
   float inh, min;
 };
 constexpr float kHBeforeJ = 2.5f;
+constexpr float kLotInh = 150, kLotMin = 70;  // the short ɑ of "poverty" (AA: 240, 100)
 constexpr KlattDur kKlatt[] = {
     {"AA", 240, 100}, {"AE", 230, 80}, {"AH", 140, 60}, {"AO", 240, 100}, {"AW", 260, 100},
     {"AY", 250, 150}, {"EH", 150, 70}, {"ER", 180, 80}, {"EY", 190, 100}, {"IH", 135, 40},
@@ -754,9 +755,13 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
     out[w].resize(tok.size());
     for (size_t i = 0; i < tok.size(); ++i) {
       const std::string b = baseName(tok[i]);
-      const KlattDur& k = klatt(b);
       const bool vowel = isVowelToken(tok[i]);
       const bool inLastSyllable = static_cast<int>(i) >= lastVowel;
+      // ɑ before another syllable of its word is the short "lot" vowel
+      // ("poverty", "body", "problem"); the long one stays at the word's end
+      // ("spa", "car"). Jyrki 2026-11-03: "'poverty' not 'pooverty'".
+      static constexpr KlattDur kLotVowel = {"AA", kLotInh, kLotMin};
+      const KlattDur& k = b == "AA" && !inLastSyllable ? kLotVowel : klatt(b);
       const bool phraseFinal = static_cast<int>(w) == lastWordWithVowel && inLastSyllable;
       float prc = 1, mn = k.min;
       float whole = 1.0f;  // a factor on the whole duration, minimum included
@@ -1249,7 +1254,7 @@ constexpr float kCreakBelow = -6.5f;  // st: statement endings this low get crea
 constexpr float kPressedAccent = 0.9f, kLaxUnstressed = 1.08f, kLaxFinal = 1.12f;  // glottal opening
 constexpr float kAccentDb = 1.5f, kFunctionWordDb = -1.5f;
 const float kSecondaryDb = param("kSecondaryDb", -4.0f), kUnstressedDb = param("kUnstressedDb", 2.0f);
-const float kSecondaryVowelLength = param("kSecondaryVowelLength", 1.308f) /* cost 0.0311509643599044 wobble */ /* 1.19 from the timing search made the secondary-stress syllable as long as the primary */, kInitialRLength = 1.0f;
+const float kSecondaryVowelLength = param("kSecondaryVowelLength", 1.362f) /* cost 0.0307807887603556 wobble */ /* 1.19 from the timing search made the secondary-stress syllable as long as the primary */, kInitialRLength = 1.0f;
 // A word-initial ɹ before a vowel ("revolution", "republics", "rights") is a
 // full r: deeper (F3 1550 as the male readings' 1450-1600; puhuja's reached
 // 1730) and a little louder (Jyrki: "r should be pronounced much more when it
@@ -1260,7 +1265,7 @@ const float kInitialRF3 = param("kInitialRF3", 1614) /* cost 0.0294516433593330 
 // ElevenLabs, oʊ 201 against 110-169, eɪ 178 against 130-150; "alike" was
 // heard as "too much effort, too active" (2026-10-30). 0.85: a quarter of
 // the way, as with the other durations.
-const float kDiphthongLength = param("kDiphthongLength", 0.9463f) /* cost 0.0316076787338645 wobble */;  // see sayPhrase (0.8: "generosity" ʤɛ 264 ms against 130-160 in the references, 2026-10-30)
+const float kDiphthongLength = param("kDiphthongLength", 0.8787f) /* cost 0.0307807887603556 wobble */;  // see sayPhrase (0.8: "generosity" ʤɛ 264 ms against 130-160 in the references, 2026-10-30)
 constexpr float kSyllabicNLength = 1.6f;
 constexpr float kSyllabicLLength = 1.8f;
 constexpr float kLinkGlideMs = 40, kLinkGlideLevel = 0.7f;  // w / j linking a vowel to the next word's
@@ -1268,7 +1273,7 @@ constexpr float kGlideBeforeVowel = 0.4f;  // a diphthong's glide before a vowel
 const float kFlapping = param("kFlapping", 0.0f);  // 1: the American flap of t/d between vowels
 const float kFlapMs = param("kFlapMs", 18.61) /* cost 0.0294516433593330 n13-timing-w30 */;  // a flap's closure  // the n of -tion (ʃn̩) carries the syllable
 // Vowel lengthening (see sayPhrase): factor at 50 ms, change per ms, floor.
-const float kVowelLength50 = param("kVowelLength50", 1.645f) /* cost 0.0316076787338645 wobble */, kVowelLengthSlope = -0.0029f, kVowelLengthMin = param("kVowelLengthMin", 0.779f) /* cost 0.0311509643599044 wobble */;
+const float kVowelLength50 = param("kVowelLength50", 1.647f) /* cost 0.0307807887603556 wobble */, kVowelLengthSlope = -0.0029f, kVowelLengthMin = param("kVowelLengthMin", 0.773f) /* cost 0.0307807887603556 wobble */;
 
 // Parallel halves at word j ("and" / "or"): the words right after it repeat
 // words from before it, and the half after starts with one ("all").
@@ -2217,7 +2222,14 @@ void EnglishReader::sayPhrase(char end) {
         if (first) synth_.setWord(phrase_[w].source);
         synth_.push(s.ph[k], first);
         first = false;
-        if (k == 0 && s.longVowel) synth_.lengthen();
+        // A stressed ɑ before another syllable of the same word is the short
+        // "lot" vowel (see the durations): "poverty", "body", "problem".
+        bool shortLot = baseName(tokens[i]) == "AA";
+        if (shortLot) {
+          shortLot = false;
+          for (size_t j = i + 1; j < tokens.size(); ++j) shortLot |= isVowelToken(tokens[j]);
+        }
+        if (k == 0 && s.longVowel && !shortLot) synth_.lengthen();
       }
       // Linking: a word ending in a high vowel or a diphthong's glide runs
       // into a vowel-initial next word through a short w or j ("to assure"
