@@ -255,8 +255,8 @@ const float kLineAnticipNasal = param("LINE_ANTICIP_NASAL", 0.4f);  // the velum
 const float kLineReleaseKick = param("LINE_RELEASE_KICK", 0.0f);  // (0.2 gave a voiced stop a 23 ms voiceless puff: "abolish" was heard as "atolish"; off since 2026-11-03)  // a voiced stop's release: the glottis parts to this area (cm^2; 0: off) ...
 const float kLineReleaseKickMs = param("LINE_RELEASE_KICK_MS", 15.0f);  // ... for this long before voicing
 const float kLineFricAc = param("LINE_FRIC_AC", 1.0f);  // the fricatives' constriction area on the line, relative to the aero table
-const float kLineVotHoldMs = param("LINE_VOT_HOLD_MS", 7.727f) /* cost 0.0311509643599044 wobble */;     // a voiceless stop's puff: the glottis held open this long after the release (stressed; 60 % unstressed)
-const float kLineVotAdductMs = param("LINE_VOT_ADDUCT_MS", 26.34f) /* cost 0.0311509643599044 wobble */;  // ... then adducting into voice over this
+const float kLineVotHoldMs = param("LINE_VOT_HOLD_MS", 6.845f) /* cost 0.0307807887603556 wobble */;     // a voiceless stop's puff: the glottis held open this long after the release (stressed; 60 % unstressed)
+const float kLineVotAdductMs = param("LINE_VOT_ADDUCT_MS", 11.56f) /* cost 0.0307807887603556 wobble */;  // ... then adducting into voice over this
 const float kLineExpandFlow = param("LINE_EXPAND_FLOW", 200.0f);  // cm^3/s drawn by the expanding cavity at full expansion behind a voiced closure
 const float kLineVoicedReleaseScale = param("LINE_VOICED_RELEASE", 2.5f);  // a voiced stop's release time relative to a voiceless one's
 const float kLineVoicedSoft = param("LINE_VOICED_SOFT", 6.0f);     // a voiced stop's closure: its sections lose this many times more (soft tissue)
@@ -264,7 +264,7 @@ const float kLineVoicedExtraCm = param("LINE_VOICED_EXTRA_CM", 0.15f);  // b: th
 const float kLineLabialO = param("LINE_LABIAL_O", 1.0f);  // 0: labial stops keep the vowel's shape; 1: b takes o's; 2: b and p
 const float kLineBExtraMs = param("LINE_B_EXTRA_MS", 30.0f);  // b holds its closure this much longer than the table says
 const float kLineOnsetMs = param("LINE_ONSET_MS", 80.0f);  // a vowel after a pause: breathy opening adducting into voice over this long
-const float kLineReleaseScale = param("LINE_RELEASE_SCALE", 0.5507f) /* cost 0.0311509643599044 wobble */;  // a stop's release time on the line, relative to the cascade's table
+const float kLineReleaseScale = param("LINE_RELEASE_SCALE", 0.4425f) /* cost 0.0307807887603556 wobble */;  // a stop's release time on the line, relative to the cascade's table
 const float kLineFinalFricMs = param("LINE_FINAL_FRIC_MS", 40.0f);  // a final voiceless fricative: the pause's glottal closing waits this long
 const float kLinePausePressMs = param("LINE_PAUSE_PRESS_MS", 80.0f);
 const float kLineFinalNasalOpen = param("LINE_FINAL_NASAL_MS", 100.0f);  // a pause after a nasal closes the velum over this long (0: kBoundaryMs, the old cut-off)
@@ -520,14 +520,17 @@ constexpr float kPlanTauMs = 3;
 // by reweighted least squares (the dead zones and the speed limit are
 // re-decided each round). Free channels coast on the neighbours' path.
 const float kShapeW = param("SPLAN_W", 1.0f);
-const float kShapeVel = param("SPLAN_VEL", 1.218f) /* cost 0.0311509643599044 wobble */;  // (0.3, acc 30, vmax 8: transitions 3x slower; Jyrki 2026-11-03 took the 3x faster ones)
-const float kShapeAcc = param("SPLAN_ACC", 0.4128f) /* cost 0.0311509643599044 wobble */;
-const float kShapeMu = param("SPLAN_MU", 3.499f) /* cost 0.0311509643599044 wobble */;
+const float kShapeVel = param("SPLAN_VEL", 10.98f) /* cost 0.0307807887603556 wobble */;  // (0.3, acc 30, vmax 8: transitions 3x slower; Jyrki 2026-11-03 took the 3x faster ones)
+const float kShapeAcc = param("SPLAN_ACC", 1.052f) /* cost 0.0307807887603556 wobble */;
+const float kShapeMu = param("SPLAN_MU", 7.591f) /* cost 0.0307807887603556 wobble */;
 const float kShapeVmax = param("SPLAN_VMAX", 7.272f) /* cost 0.0311509643599044 wobble */;  // log units (or channel ranges) per second
-const float kShapeTol = param("SPLAN_TOL", 0.07422f) /* cost 0.0311509643599044 wobble */;   // dead zone (log units, or shares of the channel range)
+const float kShapeTol = param("SPLAN_TOL", 0.04092f) /* cost 0.0307807887603556 wobble */;   // dead zone (log units, or shares of the channel range)
 const float kShapeRel = param("SPLAN_REL", 0.001f);  // a faint pull to the phrase mean where nothing is demanded
-const float kShapePauseW = param("SPLAN_PAUSEW", 0.2653f) /* cost 0.0311509643599044 wobble */;      // a pause's neutral shape
-const float kShapeBorrowedW = param("SPLAN_BORROWEDW", 0.5f);  // a consonant in a vowel's shape (f, b, p)
+const float kShapePauseW = param("SPLAN_PAUSEW", 0.1279f) /* cost 0.0307807887603556 wobble */;      // a pause's neutral shape
+const float kShapeBorrowedW = param("SPLAN_BORROWEDW", 0.8064f) /* cost 0.0307807887603556 wobble */;  // a consonant in a vowel's shape (f, b, p)
+const float kShapeOpenA = param("SPLAN_OPEN_A", 2.5f);      // cm^2: a vowel constriction this wide has a free place
+const float kShapeNarrowA = param("SPLAN_NARROW_A", 0.5f);  // cm^2: this narrow, the place counts in full
+const float kShapeOpenXcW = param("SPLAN_OPEN_XCW", 0.01f);  // the place's least weight in an open vowel
 const int kShapeRounds = static_cast<int>(param("SPLAN_ROUNDS", 10));
 constexpr float kShapeHopMs = 5;
 // Damped motion: the follower aims at the smooth spline through the
@@ -693,7 +696,7 @@ constexpr float kDoubledConsonantFactor = 1.4f;
 // air 0.3, bandwidths x0.5/0.55/0.6 and the source tilt -8 dB, 3 kHz cut
 // -10 dB, 1 kHz lift +6 dB land on its spectrum within 1-2 dB, contrast 24.
 // (Pitch and gain are research parameters: tools/word_opt.py --sweep.)
-const Voice kMaleVoice = {param("kMaleF0", 116.8) /* cost 0.0311509643599044 wobble */, {param("kMaleFormant", 0.9625), param("kMaleFormant", 0.9625), param("kMaleFormant", 0.9625)}, 1.0f, 1.0f, 1.7f, 1.0f, param("kMaleGain", 4.163f) /* cost 0.0322859615827058 n13-speaker-w30 */, -6, 0.3f,
+const Voice kMaleVoice = {param("kMaleF0", 113.2) /* cost 0.0307807887603556 wobble */, {param("kMaleFormant", 0.9625), param("kMaleFormant", 0.9625), param("kMaleFormant", 0.9625)}, 1.0f, 1.0f, 1.7f, 1.0f, param("kMaleGain", 4.163f) /* cost 0.0322859615827058 n13-speaker-w30 */, -6, 0.3f,
                           {0.5f, 0.55f, 0.6f}, 1.0f, 1.0f, 0.0f, 3500, 4500, 3.0f, 1.0f, 1.0f, -8, -10, 6};
 // Female: F1/F2/F3 from the measured FLEURS female / CSS10 male ratios
 // (F1 x1.27, F2 x1.04, F3 x1.18), moderated toward usual values; tempo and
@@ -4051,6 +4054,18 @@ void Synth::addShapeDemand(double tA, double tB, const TractShape& s, Ph ph, flo
   d.tB = std::max(tA, tB);
   shapeToChannels(s, d.x);
   shapeNeeds(ph, d.w);
+  // A vowel's constriction place matters only as much as the constriction is
+  // narrow: in an open vowel (a, ɑ) the tongue can already travel toward the
+  // next sound's place. Held at full weight, the place slid through the
+  // palate at the end of the glide while still fairly narrow, and F2 rose
+  // before it fell: "now" sounded "navu" (Jyrki 2026-11-03).
+  if (isVowel(ph)) {
+    const float open = std::log(kShapeOpenA), narrow = std::log(kShapeNarrowA);
+    // A place past the lips (the open vowels' fits put it there) is no
+    // constriction at all: its place is free.
+    const float freePlace = d.x[0] >= 1.0f ? 0.0f : 1.0f;
+    d.w[0] *= std::max(kShapeOpenXcW, freePlace * std::clamp((open - d.x[1]) / (open - narrow), 0.0f, 1.0f));
+  }
   for (float& w : d.w) w *= wScale * kShapeW;
   shapeDemands_.push_back(d);
   // A phrase without pauses: plan all but its last second.
