@@ -28,6 +28,26 @@ const float kViscousHz = param("LINE_VISC_HZ", 1000.0f);
 constexpr float kMu = 1.86e-4f;
 }  // namespace
 
+// The losses that grow with frequency: the viscous loss above its reference
+// frequency, the heat conduction into the walls, the soft and uneven walls.
+// Without them the line's upper resonances rang with 12-25 Hz bandwidths
+// (u: F3-F5 at 12-16 Hz, i: F2 at 23 Hz; a vocal tract has 60-200 Hz there):
+// tones that ring ~20 ms after every pulse and glide with the shape, the
+// whistling between phonemes (2026-11-03). A resistance on the high-passed
+// flow, du/dt = -2 pi B u_hp: B Hz of bandwidth well above the corner, half of
+// it at the corner, little at F1. Passive (Re{s/(s+wc)} >= 0), so stable.
+const float kHfBandwidth = param("LINE_HF_BW", 100.0f);  // Hz added well above the corner
+const float kHfCorner = param("LINE_HF_FC", 2000.0f);    // Hz
+
+void TransmissionLine::hfLoss(int nb) {
+  if (hfK_ <= 0) return;
+  for (int k = 1; k <= nb; ++k) {
+    const float hp = u_[k] - uLp_[k];
+    u_[k] -= hfK_ * hp;
+    uLp_[k] += hfA_ * (u_[k] - uLp_[k]);
+  }
+}
+
 void TransmissionLine::init(float length, float fs, int sections) {
   fs_ = fs;
   dt_ = 1.0f / (kSubsteps * fs);
@@ -43,7 +63,9 @@ void TransmissionLine::init(float length, float fs, int sections) {
     aStep_[k] = 1;
     wallV_[k] = wallX_[k] = 0;
   }
-  for (int k = 0; k < kMaxSections + kBlock; ++k) u_[k] = p_[k] = 0;
+  for (int k = 0; k < kMaxSections + kBlock; ++k) u_[k] = p_[k] = uLp_[k] = 0;
+  hfK_ = 2.0f * kPiL * kHfBandwidth * dt_;
+  hfA_ = 1.0f - std::exp(-2.0f * kPiL * kHfCorner * dt_);
   uL_ = uN_ = prevUN_ = radiated_ = 0;
   glideLeft_ = 0;
   coefficients();
@@ -78,7 +100,8 @@ void TransmissionLine::coefficients() {
     const float ah = std::min(a_[k], a_[k - 1]);
     const float aw = std::max(a_[k], a_[k - 1]);
     const float s = 2.0f * std::sqrt(kPiL * ah);
-    const float r = s / (ah * ah) * viscK * viscLoss_;  // dyn s / cm^6 per cm
+    const float lm = lossMul_[k] > 0 ? lossMul_[k] : 1.0f;
+    const float r = s / (ah * ah) * viscK * viscLoss_ * lm;  // dyn s / cm^6 per cm
     cU_[k] = dt_ * ah / (kRho * dx_);
     gU_[k] = 1.0f / (1.0f + dt_ * ah / kRho * r);  // the loss, implicit
     // The Borda-Carnot loss of an area change: rho u|u| / (2 A^2) times
@@ -130,6 +153,7 @@ float TransmissionLine::substepSubglottal(float lungPressure, float uGlottis) {
   lungDc_ += (dp - lungDc_) * (dt_ / 0.003f);  // the slow (DC) part of the pressure difference
   u_[0] = lungDc_ / kLungR + (dp - lungDc_) * a_[0] / (kRho * kC);
   for (int k = 1; k <= nb; ++k) u_[k] = gU_[k] / (1.0f + oriInv_[k] * std::fabs(u_[k])) * (u_[k] - cU_[k] * (p_[k] - p_[k - 1]));
+  hfLoss(nb);
   u_[n] = uGlottis;  // the glottal end: the folds' flow leaves here
   for (int k = 0; k < nb; ++k) {
     const float v = wA_[k] * wallV_[k] + wB_[k] * (p_[k] - kWallStiff * wallX_[k]);
@@ -144,7 +168,7 @@ float TransmissionLine::substep(float u0) {
   const int n = n_, nb = blocks_ * kBlock;
   // Debug: PUHUJA_LINE_TRACE=file writes u0, p0, lip flow per substep (the oral line only: n > 50).
   static FILE* trace = [] { const char* f = std::getenv("PUHUJA_LINE_TRACE"); return f ? std::fopen(f, "w") : nullptr; }();
-  if (trace && n > 50) std::fprintf(trace, "%g\t%g\t%g\t%g\n", u0, p_[0], uN_, traceExtra_);
+  if (trace && n > 50) std::fprintf(trace, "%g\t%g\t%g\t%g\t%g\n", u0, p_[0], uN_, traceExtra_, traceExtra2_);
   if (glideLeft_ > 0) {
     --glideLeft_;
     for (int k = 0; k < n; ++k) a_[k] *= aStep_[k];
@@ -154,6 +178,7 @@ float TransmissionLine::substep(float u0) {
   // u_[0] and u_[n] are set outside the loop.
   u_[0] = u0;
   for (int k = 1; k <= nb; ++k) u_[k] = gU_[k] / (1.0f + oriInv_[k] * std::fabs(u_[k])) * (u_[k] - cU_[k] * (p_[k] - p_[k - 1]));
+  hfLoss(nb);
   // Lips: Flanagan's piston, R and L in parallel, driven by p_{n-1}.
   // Closed lips are a rigid end: the load's flow fades with the opening and
   // the inertance's stored flow drains.
@@ -184,6 +209,8 @@ const float kVelumScale = param("LINE_VELUM", 9.631f) /* cost 0.0431489781638616
 // make it 4-4.6 cm longer.
 const float kNasalLength = param("LINE_NASAL_CM", 11.0f);
 const float kReynoldsCrit = param("LINE_RE_CRIT", 1800.0f);
+const float kFricA0 = param("LINE_FRIC_A0", 0.12f);  // the frication source at full strength below this constriction area (cm^2; the widest slit, ð, is 0.084) ...
+const float kFricA1 = param("LINE_FRIC_A1", 0.22f);  // ... and silent above this (the approximants: 0.25-0.35; at 0.3 the r after a vowel, 0.25 cm^2, still hissed +17 dB)
 constexpr float kMuAir = 1.86e-4f;
 }  // namespace
 
@@ -203,18 +230,34 @@ void TransmissionLine::addSinus(int k, float volume, float neckArea, float neckL
   s.u = s.p = 0;
 }
 
-void TransmissionLine::stepSinuses() {
+// The sinuses in two halves around the line's own substep, so that the neck
+// flows, like the line's interface flows, come from the pressures before the
+// substep, and every pressure (the section's, the volume's) moves with the new
+// flows: the staggered leapfrog, which conserves energy. In one step after the
+// line, the neck read pressures the line had already advanced, and the
+// maxillary branch (464 Hz) grew without any source whenever the velum was
+// open behind a shut mouth: a hum up to 18 dB over a final n once the breath
+// had stopped, before the next phrase (2026-11-03).
+void TransmissionLine::sinusFlows() {
   for (int i = 0; i < nSinus_; ++i) {
     Sinus& s = sinus_[i];
-    // Semi-implicit: the neck flow from the pressure difference, then the volume's pressure.
-    s.u = (s.u + dt_ / s.m * (p_[s.k] - s.p)) / (1.0f + dt_ * s.r / s.m);
+    s.u = (s.u + dt_ / s.m * (p_[s.k] - s.p)) / (1.0f + dt_ * s.r / s.m);  // the loss implicit
+  }
+}
+
+void TransmissionLine::sinusPressures() {
+  for (int i = 0; i < nSinus_; ++i) {
+    Sinus& s = sinus_[i];
     s.p += dt_ * s.cInv * s.u;
     if (!(std::fabs(s.p) < 1e7f && std::fabs(s.u) < 1e6f)) s.u = s.p = 0;  // never let a branch blow up into the output
     p_[s.k] -= cP_[s.k] * s.u;  // the volume drawn from the section
   }
 }
 
-const float kNoiseAsPressure = param("LINE_NOISE_P", 2.0f);  // as a flow drive the hiss grew only 0.45 dB per dB of gain (s stuck 18 dB under the vowels); as a section pressure x2 it sits at -9, Kokoro -5..-7 (2026-11-02)  // > 0: inject the turbulence as a section pressure (scaled by this) instead of an interface flow
+const float kNoiseAsPressure = param("LINE_NOISE_P", 3.0f);  // as a flow drive the hiss grew only 0.45 dB per dB of gain (s stuck 18 dB under the vowels); as a section pressure x2 it sits at -9, Kokoro -5..-7 (2026-11-02)  // > 0: inject the turbulence as a section pressure (scaled by this) instead of an interface flow
+const float kExpandHold = param("LINE_EXPAND_HOLD", 0.6f);  // a voiced closure's cavity pressure is held near this share of the lungs'
+const float kHumpReleaseMs = param("LINE_HUMP_RELEASE_MS", 40.0f);  // the constriction's area releases with this time constant beyond kHumpFastTo
+const float kHumpFastTo = param("LINE_HUMP_FAST_TO", 2.0f);  // (2.0: off; 0.4 held F2 low through the vowel and affricated the t puff)        // ... after opening fast (6 ms) to this area (cm^2): the acoustic release
 const float kNoiseDx = param("LINE_NOISE_DX", 0.2f);  // the turbulence source this far (cm) past the hump's downstream edge
 const float kNostrilArea = param("LINE_NOSTRIL_A", 0.6f);  // both nostrils together (cm^2; 1.2 put the n level with the vowel, the readers 9-14 dB under)
 
@@ -271,18 +314,33 @@ void VocalTractLine::setShapeAreas(std::vector<float> a, float length, float x, 
   // the tract (the ɪ search took it to 23 cm to lower every formant,
   // 2026-11-02). (Re-initialising the line here wiped its state every
   // update, 2026-11-01.)
-  const float shapeLength = std::clamp(length, 15.5f, 19.5f);  // (the hump's place x is a share of the tube that exists: with an unclamped 32 cm every constriction fell past the lips, 2026-11-02)
+  const float shapeLength = std::clamp(length + closureExtra_, 15.5f, 19.5f);  // (the hump's place x is a share of the tube that exists: with an unclamped 32 cm every constriction fell past the lips, 2026-11-02)
   oral_.setLength(shapeLength);
   noiseK_ = -1;
   // The constriction: a cosine^2 hump in log area down to ac, 1 cm wide each
   // way, at x. Its depth fades in as ac falls from 1.0 to 0.7 cm^2 (switched
   // on at 1.0 it stepped the area 3:1 at every consonant onset, review
   // 2026-11-01); the noise goes in just downstream of its centre.
-  const float depth = 1.0f - std::clamp((ac - 0.7f) / 0.3f, 0.0f, 1.0f);
+  // The tongue (or lips) leave a constriction slowly: the hump's depth
+  // follows the opening at once when closing, but releases with a time
+  // constant of kHumpReleaseMs, so the formants glide from the stop's locus
+  // into the vowel over tens of milliseconds. Tied to the opening alone the
+  // hump vanished within the release and b, d, g, p all started the vowel
+  // at its own F2: no place cue, "abolish" heard as "adolish" (2026-11-03).
+  // (the depth alone did nothing: the hump's area target is the opening
+  // itself, so once the opening passed 1 cm^2 the hump was gone whatever its
+  // depth. The constriction's own area, humpAc_, closes at once, opens fast
+  // to kHumpFastTo, the acoustic release, and from there slowly.)
+  const float step = 4.0f / (fs_ * 0.001f);  // this is called every 4th sample: ms per call
+  if (ac <= humpAc_) humpAc_ = ac;
+  else if (humpAc_ < kHumpFastTo) humpAc_ += (std::min(ac, kHumpFastTo) - humpAc_) * std::min(1.0f, step / 6.0f);
+  else humpAc_ += (ac - humpAc_) * std::min(1.0f, step / kHumpReleaseMs);
+  const float acH = humpAc_;
+  const float depth = 1.0f - std::clamp((acH - 0.7f) / 0.3f, 0.0f, 1.0f);
   if (x >= 0 && depth > 0) {
     // (floor 0.01 cm^2 let 35 cm^3/s leak through every stop closure, Re 2400:
     // a faint hiss in each closure; 0.002 leaks 7 cm^3/s, below the gate)
-    const float acEff = std::max(ac, kClosureMin);
+    const float acEff = std::max(acH, kClosureMin);
     const float xc = x * shapeLength;
     for (int k = 0; k < oral_.sections(); ++k) {
       const float d = ((k + 0.5f) * oral_.dx() - xc) / humpHw_;
@@ -306,9 +364,16 @@ void VocalTractLine::setShapeAreas(std::vector<float> a, float length, float x, 
         if (lnC < lnA) a[k] = std::exp(lnA + (lnC - lnA) * round);
       }
     }
+    // A soft closure: the hump's sections lose closureSoft_ times more.
+    {
+      const int k0 = std::max(1, static_cast<int>((xc - humpHw_) / oral_.dx()));
+      const int k1 = std::min(oral_.sections(), static_cast<int>((xc + humpHw_) / oral_.dx()) + 1);
+      oral_.setSectionLoss(k0, k1, depth > 0.5f ? closureSoft_ : 1.0f);
+    }
     noiseK_ = std::min(oral_.sections() - 2, static_cast<int>((xc + kNoiseDx + humpHw_) / oral_.dx()));  // (-1: at the last interface, the lip load took the drive: "votes" lost its s)
     noiseKc_ = std::min(oral_.sections() - 1, static_cast<int>(xc / oral_.dx()));
   }
+  if (!(x >= 0 && depth > 0)) oral_.setSectionLoss(0, 0, 1.0f);
   oral_.setAreas(a);
   velumK_ = std::min(oral_.sections() - 2, static_cast<int>(0.55f * oral_.sections()));
   an_ = std::max(an * kVelumScale, 1e-3f);  // never shut by a switch: the orifice loss closes it
@@ -357,8 +422,16 @@ float VocalTractLine::substep(float u0) {
     const float u = oral_.flowAt(noiseKc_);
     const float a = oral_.areaAt(noiseKc_);
     const float re = 2.0f * TransmissionLine::kRho * std::fabs(u) / (kMuAir * std::sqrt(kPiL * a));
-    if (re > kReynoldsCrit) {
-      const float drive = fricGain_ * (re * re - reC2) / reC2 * lpNoise2_;
+    // Only a fricative-sized slit makes a jet that hisses: the source fades out
+    // as the constriction widens past kFricA0..kFricA1 (log scale). The Re^2
+    // law alone barely depends on the area at a given flow (Stevens' measured
+    // source goes as U^3 / A^2.5), and with the voiced flow through them the
+    // approximants' 0.25-0.35 cm^2 constrictions hissed: r +33 dB, w +16,
+    // l +13, n +7 dB of 3-8 kHz noise, the "smoosh" (2026-11-03).
+    const float wide = std::clamp(std::log(a / kFricA0) / std::log(kFricA1 / kFricA0), 0.0f, 1.0f);
+    const float slit = 1.0f - wide * wide * (3.0f - 2.0f * wide);
+    if (re > kReynoldsCrit && slit > 0) {
+      const float drive = slit * fricGain_ * (re * re - reC2) / reC2 * lpNoise2_;
       if (kNoiseAsPressure > 0) oral_.addPressureDrive(noiseK_, drive * kNoiseAsPressure);
       else oral_.addFlowDrive(noiseK_, drive);
     }
@@ -374,9 +447,19 @@ float VocalTractLine::substep(float u0) {
   oral_.traceExtra_ = nasal_.lipFlow();  // the nostril flow, for the trace
   const float p1 = oral_.substep(u0);
   oral_.sink(velumK_, uNasal_);
-  if (expandFlow_ > 0) oral_.sink(std::max(velumK_ - 4, 1), expandFlow_);  // the expanding cavity behind a voiced closure
+  if (expandFlow_ > 0) {
+    // The expanding cavity behind a voiced closure (cheeks, larynx lowering):
+    // a leak that holds the cavity near kExpandHold of the lung pressure, so
+    // less pressure gathers for b than for p (Jyrki 2026-11-03).
+    const float pc = oral_.pressureAt(std::max(velumK_ - 4, 1));
+    const float hold = kExpandHold * lungPressure_;
+    const float share = std::clamp((pc - hold) / std::max(0.2f * lungPressure_, 1.0f), 0.0f, 1.0f);
+    oral_.sink(std::max(velumK_ - 4, 1), expandFlow_ * share);
+  }
+  oral_.traceExtra2_ = lungPressure_;
+  nasal_.sinusFlows();
   nasal_.substep(uNasal_);
-  nasal_.stepSinuses();
+  nasal_.sinusPressures();
   pSub_ = sub_.substepSubglottal(lungPressure_, u0);
   // The microphone: the radiated pressure is the derivative of the total
   // flow out of the mouth and the nostrils, low-passed at the substep rate

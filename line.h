@@ -86,6 +86,9 @@ class TransmissionLine {
   // glottis, whose flow uGlottis leaves the line; no lips. Returns the
   // pressure at the glottal end.
   void setWallLoss(float mul) { wallLoss_ = mul; }
+  // Extra loss over sections [k0, k1): a soft closure (the lips' or tongue's
+  // tissue damping the tube where it is shut). Takes effect at the next setAreas.
+  void setSectionLoss(int k0, int k1, float mul) { for (int k = 0; k < kMaxSections; ++k) lossMul_[k] = (k >= k0 && k < k1) ? mul : 1.0f; }
   void setViscLoss(float mul) { viscLoss_ = mul; }
   void setSubglottal(bool on) { subglottal_ = on; }
   float substepSubglottal(float lungPressure, float uGlottis);
@@ -106,6 +109,9 @@ class TransmissionLine {
 
  private:
   void coefficients();
+  void hfLoss(int nb);  // the losses that grow with frequency (line.cc)
+  alignas(64) float uLp_[kMaxSections + kBlock] = {};  // the flow low-passed at LINE_HF_FC, per interface
+  float hfK_ = 0, hfA_ = 0;
   int n_ = 0, blocks_ = 0;
   float fs_ = 48000, dt_ = 0, dx_ = 0;
   alignas(64) float a_[kMaxSections] = {};      // areas (cm^2)
@@ -136,15 +142,18 @@ class TransmissionLine {
   float lipOpen_ = 1;
   bool subglottal_ = false;
   float wallLoss_ = 1.0f;  // multiplies the wall damping (set before the areas)
+  alignas(64) float lossMul_[kMaxSections] = {};  // per-section multiplier of the viscous and wall losses (1 = none; 0 is treated as 1)
   float viscLoss_ = 1.0f;  // multiplies the viscous series loss
 
  public:
   float traceExtra_ = 0;  // a value the owner wants in the trace (the nostril flow)
+  float traceExtra2_ = 0;  // ... and another (the lung pressure)
   // A Helmholtz side branch (a paranasal sinus): a neck of area aN and length
   // lN into a volume v, opening at section k. Its flow is a sink there.
   struct Sinus { int k = -1; float m = 0, cInv = 0, r = 0, u = 0, p = 0; };
   void addSinus(int k, float volume, float neckArea, float neckLength, float q);
-  void stepSinuses();
+  void sinusFlows();      // before substep: the neck flows from the old pressures
+  void sinusPressures();  // after substep: the volumes and the sections move with them
   Sinus sinus_[2]; int nSinus_ = 0;
 
  private:
@@ -178,6 +187,11 @@ class VocalTractLine {
   // long groove of ʃ ʒ ʧ ʤ) and a lip opening cap (cm^2; <= 0: the vowel's):
   // the rounding of ʃ. Set before setShape.
   void setConstriction(float halfWidth, float lipCap) { humpHw_ = halfWidth; lipCap_ = lipCap; }
+  // A voiced closure: softer (its sections lose soft times more) and longer by
+  // extraLength cm (b against p: the lips compress and protrude; Jyrki
+  // 2026-11-03: "b needs to be a softer, more damped closure ... two
+  // millimeters longer", its resonances ~1 % under p's).
+  void setClosureSoftness(float soft, float extraLength) { closureSoft_ = soft; closureExtra_ = extraLength; }
   // A volume sink in the mouth (cm^3/s): the cavity expanding behind a voiced
   // closure (cheeks, larynx lowering), which keeps the pressure down so the
   // folds go on vibrating (the voice bar of b d g).
@@ -202,6 +216,8 @@ class VocalTractLine {
   float lungPressure_ = 0, pSub_ = 0;   // the lung pressure set per sample; the pressure under the folds
   float humpHw_ = 1.0f, lipCap_ = -1.0f;
   float expandFlow_ = 0;
+  float humpAc_ = 2.0f;  // the constriction's own area: closes at once, releases slowly
+  float closureSoft_ = 1.0f, closureExtra_ = 0.0f;
   int velumK_ = 0, noiseK_ = -1, noiseKc_ = 0;  // noiseK_: where the turbulence drives; noiseKc_: the constriction's centre
   float an_ = 0, uNasal_ = 0;
   float fricGain_ = 0, aspGain_ = 0, glotArea_ = 0.05f;

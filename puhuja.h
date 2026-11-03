@@ -123,6 +123,7 @@ struct Event {
   float press = -1, pressMs = 0;
   float aspGain = -1;  // breath-noise strength from now on (< 0: unchanged)
   float lineLevel = -1;  // the prosodic level as a lung-pressure factor on the line (< 0: unchanged)
+  float lineSoft = -1, lineExtra = -1;  // a voiced closure's softness and extra length on the line (< 0: unchanged)
   float lineHw = -1, lineLip = -1;  // the constriction's half-width and lip cap on the line (< 0: unchanged / none)
   float lineX = -1;    // the constriction's place for the line tract (share of its length; < 0: keep)
   bool aspBurst = false;  // an aspirated release: the puff's noise starts
@@ -401,6 +402,7 @@ class Synth {
   int syllable_ = 0;
   bool prevWasVowel_ = false;
   bool prevWasPlosive_ = false;
+  bool prevWasNasal_ = false;
   bool prevWasPause_ = false;  // the last emitted phoneme was a pause
   float lastVowelF_[3] = {0, 0, 0};  // previous vowel's own targets (for sharpening)
   // Lungs: air left for speaking (cm^3), as planned while phonemes are
@@ -482,6 +484,7 @@ class Synth {
   VocalTractLine line_;        // the line tract (Tract::Line)
   float lineX_ = 0.86f, lineXTarget_ = 0.86f;  // the constriction's place, smoothed
   float lineLevel_ = 1.0f, lineLevelTarget_ = 1.0f;  // the prosodic level (shape.level) as a lung-pressure factor on the line
+  float lineSoft_ = 1.0f, lineExtra_ = 0.0f;
   float lineHw_ = 1.0f, lineHwTarget_ = 1.0f, lineLip_ = 0.0f, lineLipTarget_ = 0.0f;  // its half-width and lip cap (0: none)
   float lineXFollow_ = 0;
   int lineCount_ = 0;
@@ -491,6 +494,9 @@ class Synth {
   // up from the formant path (the blend of shapes is not the shape of the
   // blend: an aʊ offglide came out as an ɪ, 2026-11-02).
   struct LineKey { double t; TractShape s; };
+  Event pendingRelax_;  // a pause's mouth opening, after the breath has stopped
+  bool hasPendingRelax_ = false;
+  double relaxAt_ = -1;  // when the current pause's mouth relaxes (samples; -1: none due)
   Event pendingKick_;  // the glottis closing back after a voiced stop's release kick
   bool hasPendingKick_ = false;
   std::deque<LineKey> lineKeys_;

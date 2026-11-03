@@ -725,6 +725,10 @@ constexpr float kClusterCodaLength = 1.5f, kClusterOnsetLength = 0.3f;
 constexpr float kOnsetLLength = 0.75f, kCodaLLength = 1.2f;
 constexpr float kUnaccentedCodaAffricate = 0.7f;  // ʧ ʤ closing an unaccented word (0.35: "for which our" ʧ 35 ms against the readers' 70, a tick after a long w; Jyrki: /wɪtʃ/ "ends with a ch sound", 2026-10-31)
 constexpr float kVoicedHLength = 0.65f;  // h between voiced sounds
+// f: kEnglishConsonantLength scales Klatt's 80 ms minimum too, so no f got
+// past ~66 ms (Kennedy: median 59 ms, the readers' 100; "forget" 66 against
+// 60-90; Jyrki 2026-11-03: "f can be longer in 'forget'").
+const float kFLength = param("kFLength", 1.4f);
 
 std::vector<std::vector<float>> EnglishReader::durations() const {
   std::vector<std::vector<float>> out(phrase_.size());
@@ -797,6 +801,7 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
         const bool onsetOfStressed = vn && phrase_[w].accent && vn[strlen(vn) - 1] == '1';
         prc *= onsetOfStressed ? kStressedOnset : kUnstressedConsonant;
         whole *= kEnglishConsonantLength;
+        if (b == "F") whole *= kFLength;
         // Across the word boundary: a sonorant coda before an approximant
         // onset is held, the onset becomes a glide into its vowel
         // (kClusterCodaLength, kClusterOnsetLength).
