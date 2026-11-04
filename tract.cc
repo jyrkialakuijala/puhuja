@@ -23,10 +23,12 @@ float TractShape::area(float x) const {
   const float xv = xVelum * length;
   lnA += (lnOr - lnPh) * ramp(x, xv - 1.0f, xv + 1.0f);
   // The tongue constriction: a cosine^2 hump in log area toward ln(ac).
+  // Its strength sc scales the hump, so a constriction grows and fades in
+  // place instead of travelling in from wherever the last one was.
   const float d = (x - xc * length) / std::max(wc, 0.2f);
-  if (std::fabs(d) < 1.0f) {
+  if (std::fabs(d) < 1.0f && sc > 0) {
     const float g = std::cos(0.5f * kPi * d);
-    lnA += (std::log(std::max(ac, 0.05f)) - lnA) * g * g;
+    lnA += std::min(sc, 1.0f) * (std::log(std::max(ac, 0.05f)) - lnA) * g * g;
   }
   // The lips: the last lLip cm at aLip, with a half-cm blend.
   const float lnLip = std::log(std::max(aLip, 0.05f));

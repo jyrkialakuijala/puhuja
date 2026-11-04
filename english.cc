@@ -1254,7 +1254,7 @@ constexpr float kCreakBelow = -6.5f;  // st: statement endings this low get crea
 constexpr float kPressedAccent = 0.9f, kLaxUnstressed = 1.08f, kLaxFinal = 1.12f;  // glottal opening
 constexpr float kAccentDb = 1.5f, kFunctionWordDb = -1.5f;
 const float kSecondaryDb = param("kSecondaryDb", -4.0f), kUnstressedDb = param("kUnstressedDb", 2.0f);
-const float kSecondaryVowelLength = param("kSecondaryVowelLength", 1.362f) /* cost 0.0307807887603556 wobble */ /* 1.19 from the timing search made the secondary-stress syllable as long as the primary */, kInitialRLength = 1.0f;
+const float kSecondaryVowelLength = param("kSecondaryVowelLength", 1.362f) /* cost 0.0307218938484690 wobble */ /* 1.19 from the timing search made the secondary-stress syllable as long as the primary */, kInitialRLength = 1.0f;
 // A word-initial ɹ before a vowel ("revolution", "republics", "rights") is a
 // full r: deeper (F3 1550 as the male readings' 1450-1600; puhuja's reached
 // 1730) and a little louder (Jyrki: "r should be pronounced much more when it
@@ -1265,7 +1265,7 @@ const float kInitialRF3 = param("kInitialRF3", 1614) /* cost 0.0294516433593330 
 // ElevenLabs, oʊ 201 against 110-169, eɪ 178 against 130-150; "alike" was
 // heard as "too much effort, too active" (2026-10-30). 0.85: a quarter of
 // the way, as with the other durations.
-const float kDiphthongLength = param("kDiphthongLength", 0.8787f) /* cost 0.0307807887603556 wobble */;  // see sayPhrase (0.8: "generosity" ʤɛ 264 ms against 130-160 in the references, 2026-10-30)
+const float kDiphthongLength = param("kDiphthongLength", 0.8787f) /* cost 0.0307218938484690 wobble */;  // see sayPhrase (0.8: "generosity" ʤɛ 264 ms against 130-160 in the references, 2026-10-30)
 constexpr float kSyllabicNLength = 1.6f;
 constexpr float kSyllabicLLength = 1.8f;
 constexpr float kLinkGlideMs = 40, kLinkGlideLevel = 0.7f;  // w / j linking a vowel to the next word's
@@ -1273,7 +1273,7 @@ constexpr float kGlideBeforeVowel = 0.4f;  // a diphthong's glide before a vowel
 const float kFlapping = param("kFlapping", 0.0f);  // 1: the American flap of t/d between vowels
 const float kFlapMs = param("kFlapMs", 18.61) /* cost 0.0294516433593330 n13-timing-w30 */;  // a flap's closure  // the n of -tion (ʃn̩) carries the syllable
 // Vowel lengthening (see sayPhrase): factor at 50 ms, change per ms, floor.
-const float kVowelLength50 = param("kVowelLength50", 1.647f) /* cost 0.0307807887603556 wobble */, kVowelLengthSlope = -0.0029f, kVowelLengthMin = param("kVowelLengthMin", 0.773f) /* cost 0.0307807887603556 wobble */;
+const float kVowelLength50 = param("kVowelLength50", 1.615f) /* cost 0.0307218938484690 wobble */, kVowelLengthSlope = -0.0029f, kVowelLengthMin = param("kVowelLengthMin", 0.773f) /* cost 0.0307218938484690 wobble */;
 
 // Parallel halves at word j ("and" / "or"): the words right after it repeat
 // words from before it, and the half after starts with one ("all").
