@@ -855,6 +855,12 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
       if (phraseFinal && !vowel && i > 0 && i > static_cast<size_t>(lastVowel) && (b == "S" || b == "SH" || b == "F" || b == "TH") &&
           !isVoicelessPlosive(baseName(tok[i - 1])) && !isVoicedPlosive(baseName(tok[i - 1])))
         prc *= kFinalCodaFricative;
+      // A phrase-final v after a vowel ("Have."): 50 ms, Kokoro holds ~150-200
+      // of fading voiced frication (2026-11-04, EN_FINAL_V_LEN; 1 = today's).
+      if (phraseFinal && !vowel && i > static_cast<size_t>(lastVowel) && b == "V") {
+        static const float vLen = param("EN_FINAL_V_LEN", 1.0f);
+        whole *= vLen;
+      }
       // Rate: vowels follow it, consonants less (a slow reader keeps the
       // consonants crisp); relative to the default rate, which stays as fitted.
       const float r = rate_ / kDefaultRate;

@@ -22,6 +22,12 @@ const float kWallMass = param("LINE_WALL_M", 1.5f);
 const float kNoiseSt = param("LINE_NOISE_ST", 0.1f);         // Strouhal number of the noise corners (0: the fixed LINE_NOISE_HP; 0.1 on 2026-11-04: the s spectrum near Kokoro's, Whisper neutral)
 const float kNoiseLpRatio = param("LINE_NOISE_LPR", 2.5f);   // ... the low-pass corner at this times the high-pass one
 const float kGlottisLength = param("LINE_GLOTTIS_L", 1.3f);  // the glottis's length (cm): its width = area / this
+// The glottal jet's own low-pass ratio and floor (2026-11-04): at a p puff's
+// 0.6 cm^2 glottis fc ~0.6 kHz put the low-pass at 1.6 kHz, so the aspiration
+// had no 2-5 kHz hiss (its 1.5-3 kHz band 12-14 dB under 0.5-1.5 kHz; the
+// readers' is level or brighter). <= 0: LINE_NOISE_LPR; the floor in Hz.
+const float kGlottalLpRatio = param("LINE_GLOTTAL_LPR", -1.0f);
+const float kGlottalLpMin = param("LINE_GLOTTAL_LPMIN", 0.0f);
 const float kSlitWidth = param("LINE_SLIT_W", 1.0f);         // a fricative slit's width (cm): its height = area / this
 const float kWallRadiate = param("LINE_WALL_RADIATE", 10.0f);  // the walls' volume velocity radiated with the lips' (0: not; 2026-11-04: 10 with LINE_VOICED_SOFT 2, d words right 24 -> 28 of 108, the vowels 2-4 dB less bright above 1 kHz)
 const float kWallDamp = param("LINE_WALL_B", 1.019e+04f) /* cost 0.0308115287161875 wobble */;
@@ -468,15 +474,15 @@ float VocalTractLine::substep(float u0) {
     // The band of each jet: high-pass at fc, low-pass at kNoiseLpRatio x fc
     // (the 3-D turbulence fit: 2.5-5.6). With only the high-pass under the
     // fixed 5 kHz low-pass, the s's fc ~12 kHz left it no hiss (2026-11-04).
-    auto alphaOf = [&](float flow, float area, float width, float* lp) {
+    auto alphaOf = [&](float flow, float area, float width, float* lp, float jetD = 0, float lpr = kNoiseLpRatio, float lpMin = 0) {
       const float U = std::fabs(flow) / std::max(area, 1e-4f);
-      const float d = std::max(area / width, 1e-3f);
+      const float d = jetD > 0 ? jetD : std::max(area / width, 1e-3f);
       const float fc = std::clamp(kNoiseSt * U / d, 200.0f, 12000.0f);
-      *lp = 1.0f - std::exp(-2 * kPiL * std::min(kNoiseLpRatio * fc, 40000.0f) * dt_);
+      *lp = 1.0f - std::exp(-2 * kPiL * std::min(std::max(lpr * fc, lpMin), 40000.0f) * dt_);
       return 1.0f - std::exp(-2 * kPiL * fc * dt_);
     };
-    stAlphaG_ = alphaOf(u0, glotArea_, kGlottisLength, &stLpG_);
-    if (noiseK_ >= 0) stAlphaF_ = alphaOf(oral_.flowAt(noiseKc_), oral_.areaAt(noiseKc_), kSlitWidth, &stLpF_);
+    stAlphaG_ = alphaOf(u0, glotArea_, kGlottisLength, &stLpG_, 0, puffLpr_ > 0 ? puffLpr_ : kGlottalLpRatio > 0 ? kGlottalLpRatio : kNoiseLpRatio, kGlottalLpMin);
+    if (noiseK_ >= 0) stAlphaF_ = alphaOf(oral_.flowAt(noiseKc_), oral_.areaAt(noiseKc_), kSlitWidth, &stLpF_, jetD_);
   }
   // Each jet's band-limited noise from the shared low-passed white noise.
   auto band = [&](float* s, float a, float lp) {  // s: 2 low-pass then 2 high-pass states
