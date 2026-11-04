@@ -166,6 +166,10 @@ void FoldLarynx::step(const LarynxControl& c, LarynxOutput& out) {
   if (ag > kAgBreathy) {
     const float restBreathy = kFoldRestPerAg * kAgBreathy + kFoldRestOffset;
     in.rest = restBreathy + (kFoldRestOpen - restBreathy) * smoothstep(kAgBreathy, kAgOpen, ag);
+    // Wider than a fricative's: a stop's puff, the tract open and the full
+    // lung pressure across the folds, which at kFoldRestOpen kept flapping
+    // (a breathy voice under 200 Hz for an aspirated t, 2026-11-04).
+    if (ag > kAgOpen) in.rest = kFoldRestOpen * ag / kAgOpen;
   }
   // Its micro-variation: added after the rest position is set (before
   // it, the assignment overwrote it, and the jitter never acted).
