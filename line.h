@@ -238,6 +238,8 @@ class VocalTractLine {
   // at the substep rate, averaged over the kSubsteps of a sample, then
   // differentiated at the output rate (the radiated pressure).
   LineLowPass aa1_, aa2_;
+  LineLowPass wallLp_;  // the walls' radiation through the cheeks and the neck (LINE_WALL_RAD_LP)
+  float wallLpHz_ = 0;
   float uAcc_ = 0, prevMean_ = 0;
   int subCount_ = 0;
   unsigned rng_ = 0x9e3779b9u;

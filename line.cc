@@ -321,6 +321,12 @@ void VocalTractLine::init(float fs) {
   // decimation (one pole at 16 kHz let 24-96 kHz fold back nearly flat).
   aa1_.set(18000.0f, TransmissionLine::kSubsteps * fs, 0.5412f);
   aa2_.set(18000.0f, TransmissionLine::kSubsteps * fs, 1.3066f);
+  // The walls' sound passes through the cheeks and the neck, which pass only
+  // the low frequencies. Unfiltered, b's voice bar under a strong expansion
+  // had its 2-8 kHz only 6 dB under the whole band (Kokoro's: 35-45 dB under)
+  // (2026-11-04; 0: off).
+  wallLpHz_ = param("LINE_WALL_RAD_LP", 0.0f);
+  if (wallLpHz_ > 0) wallLp_.set(wallLpHz_, TransmissionLine::kSubsteps * fs, 0.7071f);
   uAcc_ = prevMean_ = 0;
   subCount_ = 0;
   {
@@ -542,7 +548,8 @@ float VocalTractLine::substep(float u0) {
   // closure) nothing else radiates, and the voice bar of b d g was silent
   // (-50 dB re the word while the folds swung; the readers' -18..-24 dB,
   // 2026-11-04).
-  const float wall = kWallRadiate > 0 ? kWallRadiate * oral_.wallFlow() : 0.0f;
+  float wall = kWallRadiate > 0 ? kWallRadiate * oral_.wallFlow() : 0.0f;
+  if (wallLpHz_ > 0) wall = wallLp_.process(wall);
   uAcc_ += aa2_.process(aa1_.process(oral_.lipFlow() + nasal_.lipFlow() + wall));
   if (++subCount_ == TransmissionLine::kSubsteps) {
     const float mean = uAcc_ / TransmissionLine::kSubsteps;

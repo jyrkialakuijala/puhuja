@@ -352,6 +352,8 @@ class Synth {
   void addHeld(const Params& p, double t0, double dur, double a, double b, bool vowel = false);
   void addEvent(const Event& e);
   void addEventAt(const Event& e);
+  void addPressPulse(double peak, double lowBound, float amount, float riseMs = -1, float fallMs = -1);
+  double syllOnsetT_ = -1;  // the start of the current syllable's onset consonants (samples; -1: none)
   bool startSegment();
   float splineAt(int param, double t) const;
   void resolveF1(float target, double tTarget);
@@ -438,6 +440,8 @@ class Synth {
   // Aerodynamics.
   Gesture ac_, ag_, an_;  // constriction, glottis, nasal port areas (cm^2)
   Gesture press_;         // relative lung pressure (phrase endings)
+  float pressTo_ = 1.0f;  // ... the target it last started towards
+  double pulseEnd_ = -1;  // the end of the last planned diaphragm push (LINE_PULSE)
   Gesture expand_;        // cavity compliance multiplier (1 = rigid walls)
   float po_ = 0;          // mouth pressure relative to the lungs (0..1)
   float flowGain_;        // pressure change per sample per unit flow
@@ -487,6 +491,7 @@ class Synth {
   Event pendingAspEnd_{0};  // a stop's puff: its hiss ends once the folds have closed
   bool hasPendingAspEnd_ = false;
   float lineAspMul_ = 1.0f;  // the glottal noise gain factor (a stop's puff)
+  bool lineHAsp_ = false;  // a voiceless h set lineAspMul: the next sound resets it
   float lineLevel_ = 1.0f, lineLevelTarget_ = 1.0f;  // the prosodic level (shape.level) as a lung-pressure factor on the line
   float lineSoft_ = 1.0f, lineExtra_ = 0.0f;
   float lineHw_ = 1.0f, lineHwTarget_ = 1.0f, lineLip_ = 0.0f, lineLipTarget_ = 0.0f;  // its half-width and lip cap (0: none)
