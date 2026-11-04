@@ -195,6 +195,14 @@ class VocalTractLine {
   // long groove of ʃ ʒ ʧ ʤ) and a lip opening cap (cm^2; <= 0: the vowel's):
   // the rounding of ʃ. Set before setShape.
   void setConstriction(float halfWidth, float lipCap) { humpHw_ = halfWidth; lipCap_ = lipCap; }
+  // The frication jet's thickness for its Strouhal noise corner (cm; 0: the
+  // slit's height, area / LINE_SLIT_W). f's air leaks through a few wider
+  // gaps between lip and teeth, not one 0.3 mm sheet (2026-11-04).
+  void setJetThickness(float d) { jetD_ = d; }
+  // The glottal noise's low-pass ratio during a voiceless stop's puff (<= 0:
+  // LINE_GLOTTAL_LPR / LINE_NOISE_LPR): the puff's hiss reaches 2-5 kHz while
+  // an h keeps its darker band (2026-11-04).
+  void setPuffLpRatio(float r) { puffLpr_ = r; }
   // A voiced closure: softer (its sections lose soft times more) and longer by
   // extraLength cm (b against p: the lips compress and protrude; Jyrki
   // 2026-11-03: "b needs to be a softer, more damped closure ... two
@@ -223,6 +231,8 @@ class VocalTractLine {
   float fs_ = 48000, dt_ = 0;
   float lungPressure_ = 0, pSub_ = 0;   // the lung pressure set per sample; the pressure under the folds
   float humpHw_ = 1.0f, lipCap_ = -1.0f;
+  float jetD_ = 0;
+  float puffLpr_ = 0;
   float expandFlow_ = 0;
   float humpAc_ = 2.0f;  // the constriction's own area: closes at once, releases slowly
   float closureSoft_ = 1.0f, closureExtra_ = 0.0f;
