@@ -21,3 +21,7 @@ clean:
 
 test: puhuja
 	python3 -I tools/test_english.py
+
+# How close the string folds' glottal airflow is to the LF model in relaxed speech (a report).
+lftest: puhuja
+	python3 -I tools/test_lf.py

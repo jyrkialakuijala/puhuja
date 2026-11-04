@@ -244,7 +244,7 @@ static const struct {
 };
 // The line's output level, and its turbulence gains (noise pressure per unit
 // of Reynolds number past critical, at the constriction and at the glottis).
-const float kLineGain = param("LINE_GAIN", 0.0000020f) /* not searched; set for a Kennedy peak near 0.75 (the n14 searches put it at 3-6e-6 and the peak at 2.2-2.8) */ /* cost 0.0328353163620721 n14-stringline-w30-g */ /* the level now drives the lung pressure: accented vowels swing to 1.7x, peak 2.8 at 0.45e-5 */ /* cost 0.0311997780195740 n14-stringline-w30-f */ /* 1.44e-5 clipped (peak 2.2) once the folds swing with kappa 3; 0.53e-5 keeps the Kennedy peak near 0.8, 2026-11-02 */ /* cost 0.0304788830321763 line3-w15-sm2-s1-mf */;  // vowels ~-20 dB rms, kennedy.txt peaks under 1.0
+const float kLineGain = param("LINE_GAIN", 5.1e-6f) /* 2026-11-04: x2.55 for the LF-fitted folds (7 dB weaker) with the noise at -7 dB: Kennedy rms -23.6 dB as before the fit */;  // vowels ~-20 dB rms, kennedy.txt peaks under 1.0
 const float kLinePostHw = param("LINE_POST_HW", 2.5f);   // ʃ ʒ ʧ ʤ: the groove's half-width (cm)
 const float kLinePostLip = param("LINE_POST_LIP", 1.5f);  // (0.5 -> 1.5 on 2026-11-04: medial ʃ heard 12 -> 20 of 40, Whisper) (0.7 put ʃ at -3..-7 dB under the vowel, Kokoro -5..-23; the ablation charged it 0.0007 on the 857 words)  // ... and their lip rounding (cm^2)
 const float kLineRestartMs = param("LINE_RESTART_MS", 0.0f);  // after a voiceless fricative: shut for this long, then voice (0: adduct only)
@@ -261,6 +261,8 @@ const float kLineFricAc = param("LINE_FRIC_AC", 1.0f);  // the fricatives' const
 const float kLineVotHoldMs = param("LINE_VOT_HOLD_MS", 50.0f);     // a voiceless stop's puff: the glottis held open this long after the release (stressed; 60 % unstressed)
 const float kLineAspAg = param("LINE_ASP_AG", 0.6f);  // the glottis during a voiceless stop's puff (cm^2)
 const float kLineStopAspMul = param("LINE_STOP_ASP", 15.0f);  // ... its glottal noise relative to LINE_ASP
+const float kLineTStopAspMul = param("LINE_T_STOP_ASP", 33.0f);  // t's own puff noise (< 0: LINE_STOP_ASP); 2026-11-04 with the release below: initial t 18 -> 27 of 90 (Whisper)
+const float kLineTReleaseScale = param("LINE_T_RELEASE_SCALE", 1.0f);  // t's own release time scale (< 0: LINE_RELEASE_SCALE): the tongue tip leaves the ridge slower than the shared 0.58
 const float kLinePStopAspMul = param("LINE_P_STOP_ASP", 8.0f);  // p's own puff noise (< 0: LINE_STOP_ASP); 2026-11-04: with the fast release, initial p heard 25 -> 38 of 84 (Whisper)
 const float kLinePReleaseScale = param("LINE_P_RELEASE_SCALE", 0.3f);  // p's own release time scale (< 0: LINE_RELEASE_SCALE): the lips part fast, a weaker puff
 // A vowel before a coda r: its share of ɜ and where the r-coloured demand starts
@@ -344,8 +346,8 @@ const float kLineFinalAspMul = param("LINE_FINAL_ASP", 1.0f);  // ... its glotta
 const float kLineFinalAspMs = param("LINE_FINAL_ASP_MS", 60.0f);  // a final voiceless stop's open-glottis release before the pause closes it
 const float kLineBurstArea = param("LINE_BURST_AREA", 0.2f);  // a stop's release opening before a fricative (cm^2)
 const float kLineBurstMs = param("LINE_BURST_MS", 20.0f);     // ... for this long
-const float kLineFric = param("LINE_FRIC", 40.0f) /* cost 0.0298241432933307 n14-stringline-w30-c */;  // (8.375 from the 30-word search was a metric exploit: the s hiss fell to -20..-26 dB under the vowels, the readers have -5..-7; "house" was "hou", 2026-11-02)  // dyn/cm^2 per unit of (Re^2 - Re_c^2) / Re_c^2 at the jet: s at the cascade's level
-const float kLineAsp = param("LINE_ASP", 30.0f) /* cost 0.0298241432933307 n14-stringline-w30-c */;  // the same at the glottis (h between vowels is voiced and needs none)
+const float kLineFric = param("LINE_FRIC", 29.0f) /* 2026-11-04: 40 x0.45 with the LF-fitted folds, x1.25 for the noise high-pass, then 29 with the Strouhal-scaled noise bands (LINE_NOISE_ST 0.1): Same. s -16 dB re the vowel */;  // (8.375 from the 30-word search was a metric exploit: the s hiss fell to -20..-26 dB under the vowels, the readers have -5..-7; "house" was "hou", 2026-11-02)  // dyn/cm^2 per unit of (Re^2 - Re_c^2) / Re_c^2 at the jet: s at the cascade's level
+const float kLineAsp = param("LINE_ASP", 16.8f) /* 2026-11-04: 30 x0.45 x1.25 with LINE_FRIC */;  // the same at the glottis (h between vowels is voiced and needs none)
 // How the line moves between two vowel shapes: 0 interpolates the shape
 // parameters (a constriction travels), 1 the area functions themselves,
 // section by section in log area (one constriction fades while the next
@@ -455,7 +457,8 @@ float linePlaceOf(Ph ph) {
     // n further back than t d (0.87): there Whisper heard it as l or bl
     // ("Now." -> "hello", "New." -> "blue"; 0.77-0.80 best, 2026-11-04).
     case Ph::N: { static const float x = param("LINE_N_X", 0.78f); return x; }
-    case Ph::T: case Ph::D: case Ph::L: case Ph::R: return 0.87f;
+    case Ph::T: { static const float x = param("LINE_T_X", 0.87f); return x; }
+    case Ph::D: case Ph::L: case Ph::R: return 0.87f;
     case Ph::SH: case Ph::ZH: case Ph::CH: case Ph::JH: return 0.78f;
     case Ph::RR: return 0.75f;
     case Ph::J: return 0.70f;
@@ -2974,7 +2977,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // lips part softly, the burst keeps all its frequencies but builds over a
   // longer time (Jyrki 2026-11-03: "open in a way that there are all
   // frequencies but slower than p").
-  rel.acMs = pi.releaseMs * (tract_ == Tract::Line ? (tok.ph == Ph::P && kLinePReleaseScale >= 0 ? kLinePReleaseScale : kLineReleaseScale) * (pi.voiced ? kLineVoicedReleaseScale : 1.0f) : 1.0f);
+  rel.acMs = pi.releaseMs * (tract_ == Tract::Line ? (tok.ph == Ph::P && kLinePReleaseScale >= 0 ? kLinePReleaseScale : tok.ph == Ph::T && kLineTReleaseScale >= 0 ? kLineTReleaseScale : kLineReleaseScale) * (pi.voiced ? kLineVoicedReleaseScale : 1.0f) : 1.0f);
   // Into a dental fricative ("that the", "around the") the tongue slides
   // from the ridge to the teeth: a slow opening, so the ð noise grows in
   // (opened in 12 ms it rose 45 dB in 8 ms, a snap).
@@ -3010,7 +3013,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
       // ... and the puff hisses: the turbulence of the full lung pressure
       // through the open glottis, far stronger than an h's (LINE_ASP alone
       // left it 30 dB under the readers' 3-5 kHz puff).
-      rel.lineAspMul = tok.ph == Ph::P && kLinePStopAspMul >= 0 ? kLinePStopAspMul : kLineStopAspMul;
+      rel.lineAspMul = tok.ph == Ph::P && kLinePStopAspMul >= 0 ? kLinePStopAspMul : tok.ph == Ph::T && kLineTStopAspMul >= 0 ? kLineTStopAspMul : kLineStopAspMul;
       Event adductLine{release + (curStress_ ? kLineVotHoldMs : 0.6f * kLineVotHoldMs) * ms};
       adductLine.ag = nextAero.ag;
       adductLine.agMs = kLineVotAdductMs;
