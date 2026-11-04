@@ -199,6 +199,7 @@ class VocalTractLine {
   // slit's height, area / LINE_SLIT_W). f's air leaks through a few wider
   // gaps between lip and teeth, not one 0.3 mm sheet (2026-11-04).
   void setJetThickness(float d) { jetD_ = d; }
+  void setFricFade(float s) { fricFade_ = s; }  // the frication source's fade-out areas x this (voiced fricatives)
   // The glottal noise's low-pass ratio during a voiceless stop's puff (<= 0:
   // LINE_GLOTTAL_LPR / LINE_NOISE_LPR): the puff's hiss reaches 2-5 kHz while
   // an h keeps its darker band (2026-11-04).
@@ -243,7 +244,9 @@ class VocalTractLine {
   float aspHpState_ = 0, aspHpA_ = 0;
   float noiseHp1_ = 0, noiseHp2_ = 0, noiseHpA_ = 0;
   float stG_[4] = {}, stF_[4] = {}, stAlphaG_ = 0.1f, stAlphaF_ = 0.1f, stLpG_ = 0.5f, stLpF_ = 0.5f;  // the Strouhal-banded noises (glottis, slit)
-  unsigned stCount_ = 0;  // all the turbulence noise: a 2-pole high-pass (LINE_NOISE_HP)  // the glottal noise's high-pass (turbulence has little below ~500 Hz)
+  unsigned stCount_ = 0;
+  float stLogFcG_ = 0, stLogFcF_ = 0;
+  float fricFade_ = 1.0f;  // x LINE_FRIC_A0 / A1 for the current sound  // the corners' smoothed log frequencies (0: not yet set)  // all the turbulence noise: a 2-pole high-pass (LINE_NOISE_HP)  // the glottal noise's high-pass (turbulence has little below ~500 Hz)
   // Decimation: the lip + nostril flow through a 4th-order low-pass at 18 kHz
   // at the substep rate, averaged over the kSubsteps of a sample, then
   // differentiated at the output rate (the radiated pressure).

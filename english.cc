@@ -1274,6 +1274,7 @@ const float kInitialRF3 = param("kInitialRF3", 1614) /* cost 0.0294516433593330 
 const float kDiphthongLength = param("kDiphthongLength", 0.8787f) /* cost 0.0307218938484690 wobble */;  // see sayPhrase (0.8: "generosity" ʤɛ 264 ms against 130-160 in the references, 2026-10-30)
 constexpr float kSyllabicNLength = 1.6f;
 constexpr float kSyllabicLLength = 1.8f;
+const float kInnerGlide = param("EN_INNER_GLIDE", 1.0f);  // w / j inside a word (0 off, 1 aʊ, 2 every high vowel or glide)
 constexpr float kLinkGlideMs = 40, kLinkGlideLevel = 0.7f;  // w / j linking a vowel to the next word's
 constexpr float kGlideBeforeVowel = 0.4f;  // a diphthong's glide before a vowel: share of that vowel
 const float kFlapping = param("kFlapping", 0.0f);  // 1: the American flap of t/d between vowels
@@ -2241,8 +2242,17 @@ void EnglishReader::sayPhrase(char end) {
       // into a vowel-initial next word through a short w or j ("to assure"
       // tuː w‿əʃʊɹ, "the heirs" ði j‿ɛɹz). Without it the two vowels blurred
       // into one ("to assure" heard as "to show").
-      if (vowel && i + 1 == tokens.size() && w + 1 < phrase_.size() &&
-          !phrase_[w + 1].tokens.empty() && isVowelToken(phrase_[w + 1].tokens[0])) {
+      // ... and inside a word (EN_INNER_GLIDE, 2026-11-04): aʊ before the
+      // r vowel or a vowel ("power", "flower", "hour": goog and 11labs dip F2
+      // to 900-1150 Hz with F1 ~450-600 between the two, a w; puhuja's F2
+      // sat flat at 1250), and a high vowel or glide before another vowel
+      // ("going", "player" with EN_INNER_GLIDE 2).
+      const bool innerNext = vowel && i + 1 < tokens.size() &&
+                             ((kInnerGlide >= 1 && baseName(tokens[i]) == "AW" &&
+                               (isVowelToken(tokens[i + 1]) || baseName(tokens[i + 1]) == "R")) ||
+                              (kInnerGlide >= 2 && isVowelToken(tokens[i + 1])));
+      if ((vowel && i + 1 == tokens.size() && w + 1 < phrase_.size() &&
+           !phrase_[w + 1].tokens.empty() && isVowelToken(phrase_[w + 1].tokens[0])) || innerNext) {
         const Ph last = s.ph[s.n - 1];
         const Ph link = last == Ph::U || last == Ph::UH ? Ph::W
                         : last == Ph::I || last == Ph::IH ? Ph::J : Ph::Stop;
