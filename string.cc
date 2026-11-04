@@ -28,7 +28,7 @@ constexpr float kSeg = kLength / kMoving, kLayer = kThickness / L;
 // layers with the superior edge lighter (their 0.125 / 0.025 is too extreme
 // for a string: the light layer would race ahead), tapered along the cord.
 constexpr float kMass = 0.15f;
-const float kTopMass = param("STRING_TOPMASS", 0.764f) /* cost 0.0307807887603556 wobble */;  // the superior layer's share
+const float kTopMass = param("STRING_TOPMASS", 0.7614f) /* cost 0.0307218938484690 wobble */;  // the superior layer's share
 const float kTaper = param("STRING_TAPER", 0.1888f) /* cost 0.0311509643599044 wobble */;        // half-sine taper, 1 - kTaper at the anchors
 // Natural frequency (Hz) of the fold's lowest mode at tension 1: the wall
 // spring and the string's first mode together. The driver's pitch controller
@@ -39,17 +39,17 @@ const float kNaturalF0 = param("STRING_F0", 117.4f) /* cost 0.0307807887603556 w
 // cord as a string's tension is. (First sweep, 2026-10-31: at 0.3 with shear
 // 0.3 and kappa 1 the fold sat open and drifted at 5 Hz; 0.7 with shear 1
 // and kappa 2 phonates at 20 % closure, jitter 1.2 %.)
-const float kWallShare = param("STRING_WALLSHARE", 0.1804f) /* cost 0.0307807887603556 wobble */;
+const float kWallShare = param("STRING_WALLSHARE", 0.1804f) /* cost 0.0307218938484690 wobble */;
 // Stiffness of the superior layer relative to the inferior (softer: the
 // layers' phase lag, which feeds the oscillation from the flow).
 const float kTopStiff = param("STRING_TOPSTIFF", 0.6737f) /* cost 0.0307807887603556 wobble */;
 // Shear coupling between the two layers relative to the wall spring
 // ("connected mildly"; below ~1 the layers do not drive each other enough
 // to oscillate against the static pressure).
-const float kShearRel = param("STRING_SHEAR", 2.275f) /* cost 0.0311509643599044 wobble */;
+const float kShearRel = param("STRING_SHEAR", 2.275f) /* cost 0.0307218938484690 wobble */;
 // Damping ratios while open per layer; extra while touching the wall.
 constexpr float kZeta[L] = {0.1f, 0.4f};
-const float kZetaClosed = param("STRING_ZCLOSED", 0.1462f) /* cost 0.0307807887603556 wobble */;
+const float kZetaClosed = param("STRING_ZCLOSED", 0.1868f) /* cost 0.0307218938484690 wobble */;
 constexpr float kCollision = 3.0f;  // collision stiffness / the lane's total stiffness
 // The share of the air pressure on the surface that drives it.
 const float kKappa = param("STRING_KAPPA", 3.0f) /* not searched: the 30-word runs drove it to 4.4 and 5.4, where the folds swing 0.47 cm^2 and the vowels carry 2-4 kHz at -6 dB re <1 kHz (Kokoro -12..-24); 3.0 gives 0.29 cm^2 and -17 dB, 2026-11-02 */ /* cost 0.0328353163620721 n14-stringline-w30-g */ /* 1.7 (searched): after a voiceless consonant the folds restarted at a quarter of the amplitude they have after a pause (area 0.03 vs 0.12 cm^2, vowels 6-9 dB weak); 3.0 gives 0.07 vs 0.29 and +4-8 dB, 2026-11-02 */ /* cost 0.0298241432933307 n14-stringline-w30-c */;
@@ -58,7 +58,7 @@ const float kSurface = param("STRING_SURFACE", 0.02104f) /* cost 0.0431489781638
 // The abduction rest area scaled for this model's own amplitude.
 const float kRestScale = param("STRING_REST", 0.04671f) /* cost 0.0431489781638616 n14-stringline-w1k-f */;
 // Rest width along the cord relative to the mean: front (anterior) against back.
-const float kRestFront = param("STRING_RESTFRONT", 0.5284f) /* cost 0.0307807887603556 wobble */, kRestBack = 2.0f - kRestFront;
+const float kRestFront = param("STRING_RESTFRONT", 1.51f) /* cost 0.0307218938484690 wobble */, kRestBack = 2.0f - kRestFront;
 constexpr float kRho = 0.00113f;      // air density (g/cm^3)
 constexpr float kInertance = 0.005f;  // as folds.cc
 // Discharge coefficient of the glottal orifice (vena contracta): the flow

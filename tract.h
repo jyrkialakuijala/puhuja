@@ -24,6 +24,7 @@ struct TractShape {
   float xc = 0.6f;        // the tongue constriction's place (share of the length)
   float ac = 4.0f;        // ... its area (cm^2)
   float wc = 3.0f;        // ... its half-width (cm)
+  float sc = 1.0f;        // ... its strength: 0 none (place, area and width free), 1 full
   float lLip = 1.0f, aLip = 3.0f;
   // The continuous area (cm^2) at x cm from the glottis.
   float area(float x) const;

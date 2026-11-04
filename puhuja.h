@@ -497,6 +497,7 @@ class Synth {
   Event pendingRelax_;  // a pause's mouth opening, after the breath has stopped
   bool hasPendingRelax_ = false;
   double relaxAt_ = -1;  // when the current pause's mouth relaxes (samples; -1: none due)
+  double pauseEventT_ = -1;  // the current pause's first event (samples)
   Event pendingKick_;  // the glottis closing back after a voiced stop's release kick
   bool hasPendingKick_ = false;
   std::deque<LineKey> lineKeys_;
@@ -507,7 +508,7 @@ class Synth {
   // it; a phrase at a time (at every pause) the path of all channels is
   // solved at once by iterative optimization (planShapes), and the line
   // reads the planned path. Channels: kShapeChannels in puhuja.cc.
-  static constexpr int kShapeCh = 9;
+  static constexpr int kShapeCh = 10;
   struct ShapeDemand { double tA, tB; float x[kShapeCh], w[kShapeCh]; };
   std::vector<ShapeDemand> shapeDemands_;
   std::vector<float> shapePlan_;  // kShapeCh values per frame, from t = 0

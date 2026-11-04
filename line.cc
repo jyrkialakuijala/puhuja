@@ -19,7 +19,7 @@ constexpr float kPiL = 3.14159265f;
 // resistance (dyn s/cm^3), stiffness (dyn/cm^3).
 const float kLungR = param("LINE_LUNG_R", 3.0f);  // the respiratory system's DC resistance (dyn s/cm^5)
 const float kWallMass = param("LINE_WALL_M", 1.5f);
-const float kWallDamp = param("LINE_WALL_B", 7501.0f) /* cost 0.0307807887603556 wobble */;
+const float kWallDamp = param("LINE_WALL_B", 1.019e+04f) /* cost 0.0308115287161875 wobble */;
 const float kWallStiff = param("LINE_WALL_K", 3.0e5f);
 const float kClosureMin = param("LINE_CLOSURE_MIN", 0.002f);  // the smallest constriction area the hump reaches (cm^2)
 // Viscous loss along the wall: R = S/A^2 sqrt(omega rho mu / 2) per cm,
@@ -259,7 +259,7 @@ const float kExpandHold = param("LINE_EXPAND_HOLD", 0.6f);  // a voiced closure'
 const float kHumpReleaseMs = param("LINE_HUMP_RELEASE_MS", 40.0f);  // the constriction's area releases with this time constant beyond kHumpFastTo
 const float kHumpFastTo = param("LINE_HUMP_FAST_TO", 2.0f);  // (2.0: off; 0.4 held F2 low through the vowel and affricated the t puff)        // ... after opening fast (6 ms) to this area (cm^2): the acoustic release
 const float kNoiseDx = param("LINE_NOISE_DX", 0.2f);  // the turbulence source this far (cm) past the hump's downstream edge
-const float kNostrilArea = param("LINE_NOSTRIL_A", 2.341f) /* cost 0.0307807887603556 wobble */;  // both nostrils together (cm^2; 1.2 put the n level with the vowel, the readers 9-14 dB under)
+const float kNostrilArea = param("LINE_NOSTRIL_A", 1.627f) /* cost 0.0307218938484690 wobble */;  // both nostrils together (cm^2; 1.2 put the n level with the vowel, the readers 9-14 dB under)
 
 void VocalTractLine::init(float fs) {
   fs_ = fs;
@@ -267,7 +267,7 @@ void VocalTractLine::init(float fs) {
   oral_.init(17.5f, fs, kOralSections);
   nasal_.init(kNasalLength, fs, kNasalSections);
   nasal_.setWallLoss(param("LINE_NASAL_LOSS", 1.0f));  // the nasal walls (mucosa, the sinuses) lose more than the mouth
-  nasal_.setViscLoss(param("LINE_NASAL_VISC", 2.037f) /* cost 0.0307807887603556 wobble */);  // (30: the m of "his mortal", starting from the voiceless z, fell to -26 dB)  // the turbinates: far more surface per volume than a tube
+  nasal_.setViscLoss(param("LINE_NASAL_VISC", 4.221f) /* cost 0.0307218938484690 wobble */);  // (30: the m of "his mortal", starting from the voiceless z, fell to -26 dB)  // the turbinates: far more surface per volume than a tube
   // The nasal passage: the port and nasopharynx, the cavity, the nostrils.
   std::vector<float> na(nasal_.sections());
   for (int k = 0; k < nasal_.sections(); ++k) {
@@ -301,7 +301,7 @@ void VocalTractLine::init(float fs) {
   aa2_.set(18000.0f, TransmissionLine::kSubsteps * fs, 1.3066f);
   uAcc_ = prevMean_ = 0;
   subCount_ = 0;
-  aaNoise_ = 1.0f - std::exp(-2 * kPiL * param("LINE_NOISE_LP", 2314.0f) /* cost 0.0309801212318235 wobble */ * dt_);  // the readers' s peaks at 8-12 kHz (goog "house"); at 5.5 kHz the line's s had its energy at 4-6 kHz
+  aaNoise_ = 1.0f - std::exp(-2 * kPiL * param("LINE_NOISE_LP", 2265.0f) /* cost 0.0307218938484690 wobble */ * dt_);  // the readers' s peaks at 8-12 kHz (goog "house"); at 5.5 kHz the line's s had its energy at 4-6 kHz
   out_ = uNasal_ = an_ = 0;
 }
 

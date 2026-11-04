@@ -255,8 +255,8 @@ const float kLineAnticipNasal = param("LINE_ANTICIP_NASAL", 0.4f);  // the velum
 const float kLineReleaseKick = param("LINE_RELEASE_KICK", 0.0f);  // (0.2 gave a voiced stop a 23 ms voiceless puff: "abolish" was heard as "atolish"; off since 2026-11-03)  // a voiced stop's release: the glottis parts to this area (cm^2; 0: off) ...
 const float kLineReleaseKickMs = param("LINE_RELEASE_KICK_MS", 15.0f);  // ... for this long before voicing
 const float kLineFricAc = param("LINE_FRIC_AC", 1.0f);  // the fricatives' constriction area on the line, relative to the aero table
-const float kLineVotHoldMs = param("LINE_VOT_HOLD_MS", 6.845f) /* cost 0.0307807887603556 wobble */;     // a voiceless stop's puff: the glottis held open this long after the release (stressed; 60 % unstressed)
-const float kLineVotAdductMs = param("LINE_VOT_ADDUCT_MS", 11.56f) /* cost 0.0307807887603556 wobble */;  // ... then adducting into voice over this
+const float kLineVotHoldMs = param("LINE_VOT_HOLD_MS", 7.043f) /* cost 0.0307218938484690 wobble */;     // a voiceless stop's puff: the glottis held open this long after the release (stressed; 60 % unstressed)
+const float kLineVotAdductMs = param("LINE_VOT_ADDUCT_MS", 7.223f) /* cost 0.0307218938484690 wobble */;  // ... then adducting into voice over this
 const float kLineExpandFlow = param("LINE_EXPAND_FLOW", 200.0f);  // cm^3/s drawn by the expanding cavity at full expansion behind a voiced closure
 const float kLineVoicedReleaseScale = param("LINE_VOICED_RELEASE", 2.5f);  // a voiced stop's release time relative to a voiceless one's
 const float kLineVoicedSoft = param("LINE_VOICED_SOFT", 6.0f);     // a voiced stop's closure: its sections lose this many times more (soft tissue)
@@ -264,12 +264,15 @@ const float kLineVoicedExtraCm = param("LINE_VOICED_EXTRA_CM", 0.15f);  // b: th
 const float kLineLabialO = param("LINE_LABIAL_O", 1.0f);  // 0: labial stops keep the vowel's shape; 1: b takes o's; 2: b and p
 const float kLineBExtraMs = param("LINE_B_EXTRA_MS", 30.0f);  // b holds its closure this much longer than the table says
 const float kLineOnsetMs = param("LINE_ONSET_MS", 80.0f);  // a vowel after a pause: breathy opening adducting into voice over this long
-const float kLineReleaseScale = param("LINE_RELEASE_SCALE", 0.4425f) /* cost 0.0307807887603556 wobble */;  // a stop's release time on the line, relative to the cascade's table
+const float kLineReleaseScale = param("LINE_RELEASE_SCALE", 0.5828f) /* cost 0.0307218938484690 wobble */;  // a stop's release time on the line, relative to the cascade's table
 const float kLineFinalFricMs = param("LINE_FINAL_FRIC_MS", 40.0f);  // a final voiceless fricative: the pause's glottal closing waits this long
 const float kLinePausePressMs = param("LINE_PAUSE_PRESS_MS", 80.0f);
 const float kLineFinalNasalOpen = param("LINE_FINAL_NASAL_MS", 100.0f);  // a pause after a nasal closes the velum over this long (0: kBoundaryMs, the old cut-off)
+const float kLineNasalLeadMs = param("LINE_NASAL_LEAD_MS", 40.0f);   // a phrase-initial nasal's gesture starts this long before it, in the pause
+const float kLineNasalOnsetMs = param("LINE_NASAL_ONSET_MS", 25.0f);  // ... and its voicing adducts over this long
+const float kLineNasalVoiceLagMs = param("LINE_NASAL_VOICE_LAG_MS", 20.0f);  // ... from this long after the closure starts
 const float kLinePrePressMs = param("LINE_PRE_PRESS_MS", 80.0f);     // ... and rises again this long before the next phrase's first sound  // the breath pressure falls to zero over this at a pause
-const float kLineDentalAc = param("LINE_DENTAL_AC", 0.03238f) /* cost 0.0311509643599044 wobble */;        // θ ð slit area on the line, relative to the aero table (weak fricatives)
+const float kLineDentalAc = param("LINE_DENTAL_AC", 0.03238f) /* cost 0.0307218938484690 wobble */;        // θ ð slit area on the line, relative to the aero table (weak fricatives)
 const float kLineFAc = param("LINE_F_AC", 0.3f);                   // f likewise: the lower lip on the upper teeth all but seals (Jyrki 2026-11-03: "more or less fully closing the opening, only what comes from the closing being not tight gives air through"); 0.03 cm^2 holds 95 % of the lung pressure behind it, 112 cm^3/s, Kennedy's f -9.8 dB under the vowels (readers -5..-16.5; 0.5: 190 cm^3/s, -7.1)
 const float kLineFinalAspMs = param("LINE_FINAL_ASP_MS", 60.0f);  // a final voiceless stop's open-glottis release before the pause closes it
 const float kLineBurstArea = param("LINE_BURST_AREA", 0.2f);  // a stop's release opening before a fricative (cm^2)
@@ -291,6 +294,11 @@ const float kLineAirScale = param("LINE_AIR", 1.1f);  // (1.75 before the discha
 // The vowel shape for formant values: the fitted shapes weighted by their
 // distance in log-formant space (a soft lookup, so the shape moves smoothly
 // along the formant path; consonants' loci land between the vowels).
+// A fitted vowel's bump strength: 0 when the hump lies wholly past the lips
+// (the open vowels' fits park it there: no tongue constriction), else 1.
+float lineVowelStrength(float xc, float wc, float length) {
+  return xc * length - std::max(wc, 0.2f) >= length ? 0.0f : 1.0f;
+}
 TractShape lineShapeFor(float f1, float f2, float f3) {
   const int n = sizeof(kLineVowels) / sizeof(kLineVowels[0]);
   const float l1 = std::log(std::max(f1, 100.0f)), l2 = std::log(std::max(f2, 300.0f)), l3 = std::log(std::max(f3, 1000.0f));
@@ -305,14 +313,17 @@ TractShape lineShapeFor(float f1, float f2, float f3) {
   const float inv = 1.0f / (2.0f * kLineShapeSigma * kLineShapeSigma);
   for (int i = 0; i < n; ++i) { w[i] = std::exp(-(w[i] - best) * inv); sum += w[i]; }
   TractShape s;
-  float xc = 0, lac = 0, wc = 0, lLip = 0, lPh = 0, lOr = 0, ll = 0, lLar = 0, len = 0;
+  float xc = 0, lac = 0, wc = 0, sc = 0, lLip = 0, lPh = 0, lOr = 0, ll = 0, lLar = 0, len = 0;
   for (int i = 0; i < n; ++i) {
     const auto& v = kLineVowels[i];
-    const float g = w[i] / sum;
-    xc += g * v.xc; lac += g * std::log(v.ac); wc += g * v.wc; lLip += g * std::log(v.aLip);
+    const float g = w[i] / sum, gs = g * lineVowelStrength(v.xc, v.wc, v.length);
+    // The bump's place, area and width by the weight of the bumps that exist.
+    sc += gs; xc += gs * v.xc; lac += gs * std::log(v.ac); wc += gs * v.wc;
+    lLip += g * std::log(v.aLip);
     lPh += g * std::log(v.aPharynx); lOr += g * std::log(v.aOral); ll += g * v.lLip; lLar += g * std::log(v.aLarynx); len += g * v.length;
   }
-  s.xc = xc; s.ac = std::exp(lac); s.wc = wc; s.aLip = std::exp(lLip); s.aPharynx = std::exp(lPh); s.aOral = std::exp(lOr);
+  if (sc > 1e-6f) { xc /= sc; lac /= sc; wc /= sc; } else { xc = 0.5f; lac = std::log(4.0f); wc = 3.0f; }
+  s.xc = xc; s.ac = std::exp(lac); s.wc = wc; s.sc = sc; s.aLip = std::exp(lLip); s.aPharynx = std::exp(lPh); s.aOral = std::exp(lOr);
   s.lLip = ll; s.aLarynx = std::exp(lLar); s.length = len;
   return s;
 }
@@ -339,6 +350,7 @@ bool lineShapeOf(Ph ph, TractShape* out) {
     if (v.ph != static_cast<int>(look)) continue;
     out->xc = v.xc; out->ac = v.ac; out->wc = v.wc; out->aLip = v.aLip; out->aPharynx = v.aPharynx;
     out->aOral = v.aOral; out->lLip = v.lLip; out->aLarynx = v.aLarynx; out->length = v.length;
+    out->sc = lineVowelStrength(v.xc, v.wc, v.length);
     return true;
   }
   return false;
@@ -348,7 +360,18 @@ TractShape lineShapeMix(const TractShape& a, const TractShape& b, float w) {
   TractShape s;
   auto lin = [&](float x, float y) { return x + (y - x) * w; };
   auto lg = [&](float x, float y) { return std::exp(std::log(std::max(x, 0.01f)) + (std::log(std::max(y, 0.01f)) - std::log(std::max(x, 0.01f))) * w); };
-  s.xc = lin(a.xc, b.xc); s.ac = lg(a.ac, b.ac); s.wc = lin(a.wc, b.wc); s.aLip = lg(a.aLip, b.aLip);
+  // The bump: its strength blends; its place, area and width follow the
+  // stronger bump (a mix with a bumpless shape keeps the other's place).
+  s.sc = lin(a.sc, b.sc);
+  const float ga = a.sc * (1 - w), gb = b.sc * w, gs = ga + gb;
+  if (gs > 1e-6f) {
+    const float u = gb / gs;
+    s.xc = a.xc + (b.xc - a.xc) * u; s.wc = a.wc + (b.wc - a.wc) * u;
+    s.ac = std::exp(std::log(std::max(a.ac, 0.01f)) + (std::log(std::max(b.ac, 0.01f)) - std::log(std::max(a.ac, 0.01f))) * u);
+  } else {
+    s.xc = lin(a.xc, b.xc); s.ac = lg(a.ac, b.ac); s.wc = lin(a.wc, b.wc);
+  }
+  s.aLip = lg(a.aLip, b.aLip);
   s.aPharynx = lg(a.aPharynx, b.aPharynx); s.aOral = lg(a.aOral, b.aOral); s.lLip = lin(a.lLip, b.lLip);
   s.aLarynx = lg(a.aLarynx, b.aLarynx); s.length = lin(a.length, b.length);
   return s;
@@ -521,16 +544,19 @@ constexpr float kPlanTauMs = 3;
 // re-decided each round). Free channels coast on the neighbours' path.
 const float kShapeW = param("SPLAN_W", 1.0f);
 const float kShapeVel = param("SPLAN_VEL", 10.98f) /* cost 0.0307807887603556 wobble */;  // (0.3, acc 30, vmax 8: transitions 3x slower; Jyrki 2026-11-03 took the 3x faster ones)
-const float kShapeAcc = param("SPLAN_ACC", 1.052f) /* cost 0.0307807887603556 wobble */;
-const float kShapeMu = param("SPLAN_MU", 7.591f) /* cost 0.0307807887603556 wobble */;
-const float kShapeVmax = param("SPLAN_VMAX", 7.272f) /* cost 0.0311509643599044 wobble */;  // log units (or channel ranges) per second
-const float kShapeTol = param("SPLAN_TOL", 0.04092f) /* cost 0.0307807887603556 wobble */;   // dead zone (log units, or shares of the channel range)
+const float kShapeAcc = param("SPLAN_ACC", 1.052f) /* cost 0.0307218938484690 wobble */;
+const float kShapeMu = param("SPLAN_MU", 9.674f) /* cost 0.0307218938484690 wobble */;
+const float kShapeVmax = param("SPLAN_VMAX", 9.289f) /* cost 0.0307218938484690 wobble */;  // log units (or channel ranges) per second
+const float kShapeTol = param("SPLAN_TOL", 0.08775f) /* cost 0.0307218938484690 wobble */;   // dead zone (log units, or shares of the channel range)
 const float kShapeRel = param("SPLAN_REL", 0.001f);  // a faint pull to the phrase mean where nothing is demanded
-const float kShapePauseW = param("SPLAN_PAUSEW", 0.1279f) /* cost 0.0307807887603556 wobble */;      // a pause's neutral shape
-const float kShapeBorrowedW = param("SPLAN_BORROWEDW", 0.8064f) /* cost 0.0307807887603556 wobble */;  // a consonant in a vowel's shape (f, b, p)
+const float kShapePauseW = param("SPLAN_PAUSEW", 0.342f) /* cost 0.0307218938484690 wobble */;      // a pause's neutral shape
+const float kShapeBorrowedW = param("SPLAN_BORROWEDW", 1.642f) /* cost 0.0307218938484690 wobble */;  // a consonant in a vowel's shape (f, b, p)
 const float kShapeOpenA = param("SPLAN_OPEN_A", 2.5f);      // cm^2: a vowel constriction this wide has a free place
 const float kShapeNarrowA = param("SPLAN_NARROW_A", 0.5f);  // cm^2: this narrow, the place counts in full
 const float kShapeOpenXcW = param("SPLAN_OPEN_XCW", 0.01f);  // the place's least weight in an open vowel
+const float kShapeGlideStart = param("SPLAN_GLIDE_START", 0.3f);  // a chain's first vowel is held until this share of it
+const float kShapeGlideEnd = param("SPLAN_GLIDE_END", 0.8f);      // ... the second from this share of it
+const float kShapeGlideW = param("SPLAN_GLIDE_W", 1.0f);  // ... their weight (3-10 reached the ends better but brought the F2 rise back: the straight shape path is not straight in formants)
 const int kShapeRounds = static_cast<int>(param("SPLAN_ROUNDS", 10));
 constexpr float kShapeHopMs = 5;
 // Damped motion: the follower aims at the smooth spline through the
@@ -1839,8 +1865,17 @@ void Synth::emit(const Token& tok, const Ph* next) {
           TractShape own;
           const bool borrowed = !isVowel(tok.ph) && !lineShapeOf(tok.ph, &own);  // f in the next vowel's shape
           const float ws = borrowed ? kShapeBorrowedW : 1.0f;
+          // A vowel chain (aʊ, aɪ, oʊ, Finnish ai, uo) is one glide: the first
+          // vowel is reached early and briefly, the second only near its end.
+          // Held over both middles, the whole tract changed in ~100 ms between
+          // them ("now": an event where none should be, Jyrki 2026-11-03).
+          const bool chainStart = isVowel(tok.ph) && next && isVowel(*next) && *next != tok.ph;
+          const bool chainEnd = isVowel(tok.ph) && isVowel(lastPh_) && lastPh_ != tok.ph;
           if (!hold) addShapeDemand(t0 + 0.5 * dur, t0 + 0.5 * dur, sh, tok.ph, ws);
-          else if (!rColoured) addShapeDemand(t0 + 0.3 * dur, t0 + 0.7 * dur, sh, tok.ph, ws);
+          else if (!rColoured && (chainStart || chainEnd)) {
+            const double a = chainEnd ? kShapeGlideEnd : 0.1, b = chainStart ? kShapeGlideStart : 0.9;
+            addShapeDemand(t0 + std::min(a, b) * dur, t0 + std::max(a, b) * dur, sh, tok.ph, ws * kShapeGlideW);
+          } else if (!rColoured) addShapeDemand(t0 + 0.3 * dur, t0 + 0.7 * dur, sh, tok.ph, ws);
           else {
             addShapeDemand(t0 + 0.3 * dur, t0 + 0.45 * dur, sh, tok.ph, ws);
             addShapeDemand(t0 + 0.6 * dur, t0 + 0.75 * dur, late, tok.ph, ws);
@@ -2253,6 +2288,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
         // held back behind it: the initial f of "forget" began 70-95 ms late
         // and sounded for ~28 ms of its 93 (2026-11-03).
         if (!prevWasPause_) relaxAt_ = e.t + kLinePausePressMs * ms;
+        if (!prevWasPause_) pauseEventT_ = e.t;
         const bool relaxNow = relaxAt_ >= 0 && relaxAt_ < t0 + dur;
         pendingRelax_ = Event{relaxNow ? relaxAt_ : e.t};
         pendingRelax_.ac = kAcOpen;
@@ -2293,6 +2329,11 @@ void Synth::emit(const Token& tok, const Ph* next) {
         e.press = 0.0f;
         e.pressMs = kLinePausePressMs;
         if (!prevVoiced_ && !prevWasPause_) e.ag = -1;
+        // The pause's later tokens (15 ms each) change nothing: each one
+        // re-sent the closed glottis, the zero pressure and the silence, and
+        // so undid the next phrase's breath and voicing queued inside the
+        // pause (the initial n of "Name." stayed 45 dB down, 2026-11-04).
+        if (prevWasPause_) e.ag = e.an = e.press = e.speech = -1;
         // After a final nasal the velum stays open: the mouth is still shut,
         // and closing the port sealed the airway, cutting the n off within
         // 10 ms ("revolution." ended abruptly, Jyrki 2026-11-03; the readers'
@@ -2329,6 +2370,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
       e.agMs = 10;
     }
   }
+  double inPauseFrom = phonemeStart_ + 1;
   if (prevWasPause_ && in.cls != Cls::Stop) {  // speaking again: full pressure
     e.press = 1.0f;
     e.pressMs = kPressResumeMs;
@@ -2336,7 +2378,11 @@ void Synth::emit(const Token& tok, const Ph* next) {
       // The lungs push before the first sound: with the breath stopped in the
       // pause, a phrase-initial θ or ð had no pressure for its first 30 ms
       // and came out silent ("Three.", "This.", 2026-11-03).
-      Event prePress{std::max(e.t - kLinePrePressMs * ms, phonemeStart_ + 1)};
+      // Inside the pause, once its breath has stopped and the mouth has
+      // relaxed (the phonemeStart_ bound kept the rise inside the first
+      // sound: the n of "Name." had no pressure for its first 50 ms).
+      inPauseFrom = std::max(pauseEventT_ + kLinePausePressMs * ms, t_ + 1);
+      Event prePress{std::max(e.t - kLinePrePressMs * ms, std::min(inPauseFrom, e.t))};
       prePress.press = 1.0f;
       prePress.pressMs = kLinePrePressMs;
       prePress.ac = prePress.ag = prePress.an = -1;
@@ -2345,7 +2391,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
       prePress.expand = -1;
       prePress.inhaleMs = 0;
       prePress.pop = -1;
-      addEvent(prePress);
+      addEventAt(prePress);
     }
     if (tract_ == Tract::Line && !prevWasPlosive_ && (in.cls == Cls::Vowel || in.cls == Cls::Nasal || in.cls == Cls::Liquid ||
                                   in.cls == Cls::Glide || in.cls == Cls::Trill)) {
@@ -2356,14 +2402,37 @@ void Synth::emit(const Token& tok, const Ph* next) {
       // string folds reached full amplitude within a cycle, a glottal attack
       // Whisper heard as d or b ("at" -> "Dad", "is" -> "Dave"); Kokoro onyx
       // starts 10 dB down and rises over 100-200 ms.
-      Event pre{std::max(e.t - kLineOnsetMs * ms, phonemeStart_ + 1)};
-      pre.ag = kAgBreathy;
-      pre.agMs = 10;
-      addEvent(pre);
-      e.agMs = kLineOnsetMs;
+      if (in.cls == Cls::Nasal && kLineNasalLeadMs > 0) {
+        // A phrase-initial nasal: closed mouth, open velum and voicing are
+        // set up at the end of the pause, so the murmur sounds from its
+        // start (the soft vowel onset left "Name.", "Make." starting with a
+        // silent n, heard as "hey"; Kokoro's initial n m are 5-10 dB under
+        // the vowel). The closed mouth softens the attack.
+        e.t = std::max(e.t - kLineNasalLeadMs * ms, std::min(inPauseFrom, e.t));
+        // The voice waits for the closed mouth: voiced while the tongue was
+        // still closing, the murmur began with a vowel ("Number." -> "an
+        // emperor", "Many." -> "I'm on it", 2026-11-04).
+        Event voice{e.t + kLineNasalVoiceLagMs * ms};
+        voice.ag = e.ag;
+        voice.agMs = kLineNasalOnsetMs;
+        e.ag = -1;
+        Event pre{std::max(voice.t - 10 * ms, e.t)};
+        pre.ag = kAgBreathy;
+        pre.agMs = 10;
+        addEventAt(pre);
+        addEventAt(voice);
+      } else {
+        Event pre{std::max(e.t - kLineOnsetMs * ms, phonemeStart_ + 1)};
+        pre.ag = kAgBreathy;
+        pre.agMs = 10;
+        addEvent(pre);
+        e.agMs = kLineOnsetMs;
+      }
     }
   }
-  if (!prevWasPlosive_) addEvent(e);
+  if (!prevWasPlosive_) {
+    if (!events_.empty() && e.t < events_.back().t) addEventAt(e); else addEvent(e);
+  }
   if (hasPendingRelax_) {
     addEvent(pendingRelax_);
     hasPendingRelax_ = false;
@@ -3998,7 +4067,7 @@ void Synth::planSentence() {
 // the tolerance and the speed limit of a linear channel.
 namespace {
 
-constexpr int kCh = 9;  // = Synth::kShapeCh (checked in planShapes)
+constexpr int kCh = 10;  // = Synth::kShapeCh (checked in planShapes)
 struct ShapeChannel { bool log; float range; };
 constexpr ShapeChannel kShapeChannels[kCh] = {
     {false, 0.3f},  // xc: the tongue's place (share of the length)
@@ -4010,10 +4079,11 @@ constexpr ShapeChannel kShapeChannels[kCh] = {
     {false, 0.5f},  // lLip (cm)
     {true, 1.0f},   // aLarynx
     {false, 1.0f},  // length (cm)
+    {false, 0.5f},  // sc: the tongue constriction's strength (0..1)
 };
 
 void shapeToChannels(const TractShape& s, float x[kCh]) {
-  const float v[kCh] = {s.xc, s.ac, s.wc, s.aLip, s.aPharynx, s.aOral, s.lLip, s.aLarynx, s.length};
+  const float v[kCh] = {s.xc, s.ac, s.wc, s.aLip, s.aPharynx, s.aOral, s.lLip, s.aLarynx, s.length, s.sc};
   for (int c = 0; c < kCh; ++c) x[c] = kShapeChannels[c].log ? std::log(std::max(v[c], 0.01f)) : v[c];
 }
 
@@ -4022,24 +4092,24 @@ TractShape channelsToShape(const float x[kCh]) {
   for (int c = 0; c < kCh; ++c) v[c] = kShapeChannels[c].log ? std::exp(x[c]) : x[c];
   TractShape s;
   s.xc = v[0]; s.ac = v[1]; s.wc = v[2]; s.aLip = v[3]; s.aPharynx = v[4];
-  s.aOral = v[5]; s.lLip = v[6]; s.aLarynx = v[7]; s.length = v[8];
+  s.aOral = v[5]; s.lLip = v[6]; s.aLarynx = v[7]; s.length = v[8]; s.sc = std::clamp(v[9], 0.0f, 1.0f);
   return s;
 }
 
 // Which channels a sound needs (the others are free): weights per channel.
 void shapeNeeds(Ph ph, float w[kCh]) {
-  enum { XC, AC, WC, LIPA, PHAR, ORAL, LIPL, LAR, LEN };
+  enum { XC, AC, WC, LIPA, PHAR, ORAL, LIPL, LAR, LEN, SC };
   auto all = [&](float v) { for (int c = 0; c < kCh; ++c) w[c] = v; };
   if (isVowel(ph) || ph == Ph::Stop) { all(1.0f); return; }
   switch (ph) {
     case Ph::W:  // the lips round; the tongue back rises a little
-      all(0.2f); w[LIPA] = w[LIPL] = 1.0f; w[XC] = w[AC] = 0.5f; return;
+      all(0.2f); w[LIPA] = w[LIPL] = 1.0f; w[XC] = w[AC] = w[SC] = 0.5f; return;
     case Ph::J:  // the tongue body at the palate
-      all(0.2f); w[XC] = w[AC] = w[WC] = 1.0f; return;
+      all(0.2f); w[XC] = w[AC] = w[WC] = w[SC] = 1.0f; return;
     case Ph::L:  // the tongue's back (its tip is the constriction)
-      all(0.2f); w[XC] = w[AC] = w[WC] = 1.0f; w[ORAL] = 0.5f; return;
+      all(0.2f); w[XC] = w[AC] = w[WC] = w[SC] = 1.0f; w[ORAL] = 0.5f; return;
     case Ph::RR:  // bunched, rounded, the pharynx narrowed
-      all(0.3f); w[XC] = w[AC] = w[LIPA] = w[LIPL] = w[PHAR] = 1.0f; return;
+      all(0.3f); w[XC] = w[AC] = w[SC] = w[LIPA] = w[LIPL] = w[PHAR] = 1.0f; return;
     default:
       all(1.0f); return;
   }
@@ -4054,17 +4124,23 @@ void Synth::addShapeDemand(double tA, double tB, const TractShape& s, Ph ph, flo
   d.tB = std::max(tA, tB);
   shapeToChannels(s, d.x);
   shapeNeeds(ph, d.w);
-  // A vowel's constriction place matters only as much as the constriction is
-  // narrow: in an open vowel (a, ɑ) the tongue can already travel toward the
-  // next sound's place. Held at full weight, the place slid through the
-  // palate at the end of the glide while still fairly narrow, and F2 rose
-  // before it fell: "now" sounded "navu" (Jyrki 2026-11-03).
-  if (isVowel(ph)) {
-    const float open = std::log(kShapeOpenA), narrow = std::log(kShapeNarrowA);
-    // A place past the lips (the open vowels' fits put it there) is no
-    // constriction at all: its place is free.
-    const float freePlace = d.x[0] >= 1.0f ? 0.0f : 1.0f;
-    d.w[0] *= std::max(kShapeOpenXcW, freePlace * std::clamp((open - d.x[1]) / (open - narrow), 0.0f, 1.0f));
+  // The bump's place, area and width count only as much as the bump exists
+  // (its strength): a vowel without a tongue constriction (a) leaves them
+  // free, and the next sound's bump grows in its own place instead of
+  // travelling there across the palate. Before the strength, "now" slid a
+  // fairly narrow bump from past the lips to ʊ's place, and F2 rose before
+  // it fell ("navu", Jyrki 2026-11-03). A vowel's place also counts only as
+  // much as its bump is narrow (in a wide one the tongue can already move).
+  {
+    const float str = std::clamp(d.x[9], 0.0f, 1.0f);
+    d.w[1] *= std::max(kShapeOpenXcW, str);
+    d.w[2] *= std::max(kShapeOpenXcW, str);
+    float place = str;
+    if (isVowel(ph)) {
+      const float open = std::log(kShapeOpenA), narrow = std::log(kShapeNarrowA);
+      place *= std::clamp((open - d.x[1]) / (open - narrow), 0.0f, 1.0f);
+    }
+    d.w[0] *= std::max(kShapeOpenXcW, place);
   }
   for (float& w : d.w) w *= wScale * kShapeW;
   shapeDemands_.push_back(d);
