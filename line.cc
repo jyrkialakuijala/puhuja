@@ -19,6 +19,10 @@ constexpr float kPiL = 3.14159265f;
 // resistance (dyn s/cm^3), stiffness (dyn/cm^3).
 const float kLungR = param("LINE_LUNG_R", 3.0f);  // the respiratory system's DC resistance (dyn s/cm^5)
 const float kWallMass = param("LINE_WALL_M", 1.5f);
+const float kNoiseSt = param("LINE_NOISE_ST", 0.1f);         // Strouhal number of the noise corners (0: the fixed LINE_NOISE_HP; 0.1 on 2026-11-04: the s spectrum near Kokoro's, Whisper neutral)
+const float kNoiseLpRatio = param("LINE_NOISE_LPR", 2.5f);   // ... the low-pass corner at this times the high-pass one
+const float kGlottisLength = param("LINE_GLOTTIS_L", 1.3f);  // the glottis's length (cm): its width = area / this
+const float kSlitWidth = param("LINE_SLIT_W", 1.0f);         // a fricative slit's width (cm): its height = area / this
 const float kWallRadiate = param("LINE_WALL_RADIATE", 10.0f);  // the walls' volume velocity radiated with the lips' (0: not; 2026-11-04: 10 with LINE_VOICED_SOFT 2, d words right 24 -> 28 of 108, the vowels 2-4 dB less bright above 1 kHz)
 const float kWallDamp = param("LINE_WALL_B", 1.019e+04f) /* cost 0.0308115287161875 wobble */;
 const float kWallStiff = param("LINE_WALL_K", 3.0e5f);
@@ -322,6 +326,8 @@ void VocalTractLine::init(float fs) {
   {
     const float hp = param("LINE_ASP_HP", 0.0f);
     aspHpA_ = hp > 0 ? 1.0f - std::exp(-2 * kPiL * hp * dt_) : 0.0f;
+    const float nhp = param("LINE_NOISE_HP", 1500.0f);  // the turbulence noise's high-pass corner (Hz; 0: none; 1500 on 2026-11-04, Jyrki: the s's 0.5-2 kHz bands 4-8 dB toward Kokoro's)
+    noiseHpA_ = nhp > 0 ? 1.0f - std::exp(-2 * kPiL * nhp * dt_) : 0.0f;
   }
   aaNoise_ = 1.0f - std::exp(-2 * kPiL * param("LINE_NOISE_LP", 5000.0f) /* 2026-11-04: the search had 2265 (s heard as f); 6000: initial s 3 -> 8 of 10 (Whisper), 4000 matched Kokoro s level; Jyrki: 5000 */ * dt_);  // the readers' s peaks at 8-12 kHz (goog "house"); at 5.5 kHz the line's s had its energy at 4-6 kHz
   out_ = uNasal_ = an_ = 0;
@@ -435,14 +441,55 @@ float VocalTractLine::substep(float u0) {
   const float white = noise();
   lpNoise_ += aaNoise_ * (white - lpNoise_);
   lpNoise2_ += aaNoise_ * (lpNoise_ - lpNoise2_);
+  // The noise is made locally by the jet and has no reservoir for slow
+  // pressure changes: those are carried by the bulk flow, so the source falls
+  // off below the jet's Strouhal frequency (~0.2 U / d: 2-3 kHz for an s or an
+  // aspiration). Two one-pole high-passes (Jyrki 2026-11-04).
+  float noise = lpNoise2_;
+  if (noiseHpA_ > 0) {
+    noiseHp1_ += noiseHpA_ * (noise - noiseHp1_);
+    noise -= noiseHp1_;
+    noiseHp2_ += noiseHpA_ * (noise - noiseHp2_);
+    noise -= noiseHp2_;
+  }
   const float reC2 = kReynoldsCrit * kReynoldsCrit;
+  // With LINE_NOISE_ST > 0 each jet has its own corner, St U / d, from its
+  // speed and its width (the glottis: area / its length; the slit: area / its
+  // width), 12 dB/octave below it (the k^4 continuity rise of 3-D turbulence,
+  // tools/noise_hp_fit.py), updated every 16 substeps (2026-11-04).
+  const bool strouhal = kNoiseSt > 0;
+  if (strouhal && (stCount_++ & 15) == 0) {
+    // The band of each jet: high-pass at fc, low-pass at kNoiseLpRatio x fc
+    // (the 3-D turbulence fit: 2.5-5.6). With only the high-pass under the
+    // fixed 5 kHz low-pass, the s's fc ~12 kHz left it no hiss (2026-11-04).
+    auto alphaOf = [&](float flow, float area, float width, float* lp) {
+      const float U = std::fabs(flow) / std::max(area, 1e-4f);
+      const float d = std::max(area / width, 1e-3f);
+      const float fc = std::clamp(kNoiseSt * U / d, 200.0f, 12000.0f);
+      *lp = 1.0f - std::exp(-2 * kPiL * std::min(kNoiseLpRatio * fc, 40000.0f) * dt_);
+      return 1.0f - std::exp(-2 * kPiL * fc * dt_);
+    };
+    stAlphaG_ = alphaOf(u0, glotArea_, kGlottisLength, &stLpG_);
+    if (noiseK_ >= 0) stAlphaF_ = alphaOf(oral_.flowAt(noiseKc_), oral_.areaAt(noiseKc_), kSlitWidth, &stLpF_);
+  }
+  // Each jet's band-limited noise from the shared low-passed white noise.
+  auto band = [&](float* s, float a, float lp) {  // s: 2 low-pass then 2 high-pass states
+    s[0] += lp * (white - s[0]);
+    s[1] += lp * (s[0] - s[1]);
+    float x = s[1];
+    s[2] += a * (x - s[2]); x -= s[2];
+    s[3] += a * (x - s[3]); x -= s[3];
+    return x;
+  };
+  const float noiseG = strouhal ? band(stG_, stAlphaG_, stLpG_) : noise;
+  const float noiseF = strouhal ? band(stF_, stAlphaF_, stLpF_) : noise;
   if (aspGain_ > 0) {
     const float re = 2.0f * TransmissionLine::kRho * std::fabs(u0) / (kMuAir * std::sqrt(kPiL * glotArea_));
     // High-passed: the white source drove the open tract's low resonances,
     // so a t's aspiration peaked under 200 Hz (the readers' at 3-5 kHz, 20 dB
     // less below 350 Hz; 2026-11-04).
-    aspHpState_ += aspHpA_ * (lpNoise2_ - aspHpState_);
-    const float n = aspHpA_ > 0 ? lpNoise2_ - aspHpState_ : lpNoise2_;
+    aspHpState_ += aspHpA_ * (noiseG - aspHpState_);
+    const float n = aspHpA_ > 0 ? noiseG - aspHpState_ : noiseG;
     if (re > kReynoldsCrit) oral_.addFlowDrive(1, aspGain_ * (re * re - reC2) / reC2 * n);
   }
   if (noiseK_ >= 0 && fricGain_ > 0) {
@@ -458,7 +505,7 @@ float VocalTractLine::substep(float u0) {
     const float wide = std::clamp(std::log(a / kFricA0) / std::log(kFricA1 / kFricA0), 0.0f, 1.0f);
     const float slit = 1.0f - wide * wide * (3.0f - 2.0f * wide);
     if (re > kReynoldsCrit && slit > 0) {
-      const float drive = slit * fricGain_ * (re * re - reC2) / reC2 * lpNoise2_;
+      const float drive = slit * fricGain_ * (re * re - reC2) / reC2 * noiseF;
       if (kNoiseAsPressure > 0) oral_.addPressureDrive(noiseK_, drive * kNoiseAsPressure);
       else oral_.addFlowDrive(noiseK_, drive);
     }
