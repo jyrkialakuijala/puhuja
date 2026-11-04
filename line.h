@@ -96,6 +96,13 @@ class TransmissionLine {
   // The sound: the radiated flow's rate of change (cm^3/s^2).
   float radiated() const { return radiated_; }
   float lipFlow() const { return uN_; }
+  // The walls' total volume velocity (cm^3/s): the yielding tissue moves with
+  // the pressure, and radiates (the throat and cheeks carry a voice bar).
+  float wallFlow() const {
+    float s = 0;
+    for (int k = 0; k < n_; ++k) s += sWall_[k] * wallV_[k];
+    return s;
+  }
   float pressureAt(int k) const { return p_[k]; }
   float areaAt(int k) const { return a_[k]; }
   float flowAt(int k) const { return u_[k]; }  // interface k

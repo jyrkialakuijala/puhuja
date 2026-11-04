@@ -19,6 +19,7 @@ constexpr float kPiL = 3.14159265f;
 // resistance (dyn s/cm^3), stiffness (dyn/cm^3).
 const float kLungR = param("LINE_LUNG_R", 3.0f);  // the respiratory system's DC resistance (dyn s/cm^5)
 const float kWallMass = param("LINE_WALL_M", 1.5f);
+const float kWallRadiate = param("LINE_WALL_RADIATE", 10.0f);  // the walls' volume velocity radiated with the lips' (0: not; 2026-11-04: 10 with LINE_VOICED_SOFT 2, d words right 24 -> 28 of 108, the vowels 2-4 dB less bright above 1 kHz)
 const float kWallDamp = param("LINE_WALL_B", 1.019e+04f) /* cost 0.0308115287161875 wobble */;
 const float kWallStiff = param("LINE_WALL_K", 3.0e5f);
 const float kClosureMin = param("LINE_CLOSURE_MIN", 0.002f);  // the smallest constriction area the hump reaches (cm^2)
@@ -490,7 +491,12 @@ float VocalTractLine::substep(float u0) {
   // The microphone: the radiated pressure is the derivative of the total
   // flow out of the mouth and the nostrils, low-passed at the substep rate
   // and averaged over the sample before the derivative is taken at 48 kHz.
-  uAcc_ += aa2_.process(aa1_.process(oral_.lipFlow() + nasal_.lipFlow()));
+  // ... plus the walls' motion: with the lips and the velum shut (a voiced
+  // closure) nothing else radiates, and the voice bar of b d g was silent
+  // (-50 dB re the word while the folds swung; the readers' -18..-24 dB,
+  // 2026-11-04).
+  const float wall = kWallRadiate > 0 ? kWallRadiate * oral_.wallFlow() : 0.0f;
+  uAcc_ += aa2_.process(aa1_.process(oral_.lipFlow() + nasal_.lipFlow() + wall));
   if (++subCount_ == TransmissionLine::kSubsteps) {
     const float mean = uAcc_ / TransmissionLine::kSubsteps;
     out_ = (mean - prevMean_) * fs_;
