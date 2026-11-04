@@ -318,7 +318,11 @@ void VocalTractLine::init(float fs) {
   aa2_.set(18000.0f, TransmissionLine::kSubsteps * fs, 1.3066f);
   uAcc_ = prevMean_ = 0;
   subCount_ = 0;
-  aaNoise_ = 1.0f - std::exp(-2 * kPiL * param("LINE_NOISE_LP", 2265.0f) /* cost 0.0307218938484690 wobble */ * dt_);  // the readers' s peaks at 8-12 kHz (goog "house"); at 5.5 kHz the line's s had its energy at 4-6 kHz
+  {
+    const float hp = param("LINE_ASP_HP", 0.0f);
+    aspHpA_ = hp > 0 ? 1.0f - std::exp(-2 * kPiL * hp * dt_) : 0.0f;
+  }
+  aaNoise_ = 1.0f - std::exp(-2 * kPiL * param("LINE_NOISE_LP", 5000.0f) /* 2026-11-04: the search had 2265 (s heard as f); 6000: initial s 3 -> 8 of 10 (Whisper), 4000 matched Kokoro s level; Jyrki: 5000 */ * dt_);  // the readers' s peaks at 8-12 kHz (goog "house"); at 5.5 kHz the line's s had its energy at 4-6 kHz
   out_ = uNasal_ = an_ = 0;
 }
 
@@ -433,7 +437,12 @@ float VocalTractLine::substep(float u0) {
   const float reC2 = kReynoldsCrit * kReynoldsCrit;
   if (aspGain_ > 0) {
     const float re = 2.0f * TransmissionLine::kRho * std::fabs(u0) / (kMuAir * std::sqrt(kPiL * glotArea_));
-    if (re > kReynoldsCrit) oral_.addFlowDrive(1, aspGain_ * (re * re - reC2) / reC2 * lpNoise2_);
+    // High-passed: the white source drove the open tract's low resonances,
+    // so a t's aspiration peaked under 200 Hz (the readers' at 3-5 kHz, 20 dB
+    // less below 350 Hz; 2026-11-04).
+    aspHpState_ += aspHpA_ * (lpNoise2_ - aspHpState_);
+    const float n = aspHpA_ > 0 ? lpNoise2_ - aspHpState_ : lpNoise2_;
+    if (re > kReynoldsCrit) oral_.addFlowDrive(1, aspGain_ * (re * re - reC2) / reC2 * n);
   }
   if (noiseK_ >= 0 && fricGain_ > 0) {
     const float u = oral_.flowAt(noiseKc_);

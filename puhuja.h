@@ -122,6 +122,7 @@ struct Event {
   // < 0: no change.
   float press = -1, pressMs = 0;
   float aspGain = -1;  // breath-noise strength from now on (< 0: unchanged)
+  float lineAspMul = -1;  // the glottal noise gain factor on the line (a stop's puff; < 0: unchanged)
   float lineLevel = -1;  // the prosodic level as a lung-pressure factor on the line (< 0: unchanged)
   float lineSoft = -1, lineExtra = -1;  // a voiced closure's softness and extra length on the line (< 0: unchanged)
   float lineHw = -1, lineLip = -1;  // the constriction's half-width and lip cap on the line (< 0: unchanged / none)
@@ -483,6 +484,9 @@ class Synth {
   Tract tract_ = Tract::Line;
   VocalTractLine line_;        // the line tract (Tract::Line)
   float lineX_ = 0.86f, lineXTarget_ = 0.86f;  // the constriction's place, smoothed
+  Event pendingAspEnd_{0};  // a stop's puff: its hiss ends once the folds have closed
+  bool hasPendingAspEnd_ = false;
+  float lineAspMul_ = 1.0f;  // the glottal noise gain factor (a stop's puff)
   float lineLevel_ = 1.0f, lineLevelTarget_ = 1.0f;  // the prosodic level (shape.level) as a lung-pressure factor on the line
   float lineSoft_ = 1.0f, lineExtra_ = 0.0f;
   float lineHw_ = 1.0f, lineHwTarget_ = 1.0f, lineLip_ = 0.0f, lineLipTarget_ = 0.0f;  // its half-width and lip cap (0: none)

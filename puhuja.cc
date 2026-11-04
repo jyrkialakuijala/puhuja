@@ -232,7 +232,7 @@ static const struct {
     {3, param("LINE_V3_XC", 0.3671f), param("LINE_V3_AC", 1.2110f), param("LINE_V3_WC", 2.2097f), param("LINE_V3_ALIP", 1.5822f), param("LINE_V3_APH", 8.5784f), param("LINE_V3_AOR", 5.4947f), param("LINE_V3_LLIP", 1.4684f), param("LINE_V3_ALAR", 0.9520f), param("LINE_V3_LEN", 17.5326f), 431.0f, 1043.0f, 2277.0f},  // o
     {4, param("LINE_V4_XC", 0.3504f), param("LINE_V4_AC", 0.9204f), param("LINE_V4_WC", 2.3701f), param("LINE_V4_ALIP", 1.3056f), param("LINE_V4_APH", 7.3547f), param("LINE_V4_AOR", 4.8150f), param("LINE_V4_LLIP", 2.0842f), param("LINE_V4_ALAR", 2.9988f), param("LINE_V4_LEN", 17.5161f), 401.0f, 954.0f, 2304.0f},  // u
     {6, param("LINE_V6_XC", 0.1836f) /* cost 0.0357555963333996 n13-vowel6-c */, param("LINE_V6_AC", 1.306f) /* cost 0.0357555963333996 n13-vowel6-c */, param("LINE_V6_WC", 3.808f) /* cost 0.0357555963333996 n13-vowel6-c */, param("LINE_V6_ALIP", 4.838f) /* cost 0.0357555963333996 n13-vowel6-c */, param("LINE_V6_APH", 2.615f) /* cost 0.0357555963333996 n13-vowel6-c */, param("LINE_V6_AOR", 4.301f) /* cost 0.0357555963333996 n13-vowel6-c */, param("LINE_V6_LLIP", 5.107f) /* cost 0.0357555963333996 n13-vowel6-c */, param("LINE_V6_ALAR", 0.2658f) /* cost 0.0357555963333996 n13-vowel6-c */, param("LINE_V6_LEN", 17.4476f), 678.0f, 1743.0f, 2465.0f},  // æ
-    {8, param("LINE_V8_XC", 0.4992f), param("LINE_V8_AC", 2.7908f), param("LINE_V8_WC", 1.9016f), param("LINE_V8_ALIP", 2.5527f), param("LINE_V8_APH", 5.7424f), param("LINE_V8_AOR", 1.8534f), param("LINE_V8_LLIP", 0.9963f), param("LINE_V8_ALAR", 2.2313f), param("LINE_V8_LEN", 17.5109f), 400.0f, 1734.0f, 2564.0f},  // ə
+    {8, param("LINE_V8_XC", 0.4992f), param("LINE_V8_AC", 2.7908f), param("LINE_V8_WC", 1.9016f), param("LINE_V8_ALIP", 2.8f), param("LINE_V8_APH", 4.6f), param("LINE_V8_AOR", 2.7f), param("LINE_V8_LLIP", 0.9963f), param("LINE_V8_ALAR", 2.2313f), param("LINE_V8_LEN", 17.5109f), 490.0f, 1450.0f, 2564.0f},  // ə: wider mouth, narrower pharynx (2026-11-04; was ALIP 2.55 APH 5.74 AOR 1.85, F1/F2 ~430/1600, a front vowel heard as ɪ; now ~490/1450, Kokoro ~520/1500; Whisper medial ə 12 -> 18 of 42)
     {9, param("LINE_V9_XC", 0.1501f), param("LINE_V9_AC", 3.9386f), param("LINE_V9_WC", 2.7749f), param("LINE_V9_ALIP", 3.0272f), param("LINE_V9_APH", 5.9485f), param("LINE_V9_AOR", 1.4636f), param("LINE_V9_LLIP", 1.7599f), param("LINE_V9_ALAR", 0.7805f), param("LINE_V9_LEN", 17.5163f), 390.0f, 1934.0f, 2531.0f},  // ɪ
     {10, param("LINE_V10_XC", 0.8307f) /* cost 0.0393619354064204 n13-vowel10-c */, param("LINE_V10_AC", 2.411f) /* cost 0.0393619354064204 n13-vowel10-c */, param("LINE_V10_WC", 4.872f) /* cost 0.0393619354064204 n13-vowel10-c */, param("LINE_V10_ALIP", 2.698f) /* cost 0.0393619354064204 n13-vowel10-c */, param("LINE_V10_APH", 3.167f) /* cost 0.0393619354064204 n13-vowel10-c */, param("LINE_V10_AOR", 3.856f) /* cost 0.0393619354064204 n13-vowel10-c */, param("LINE_V10_LLIP", 1.401f) /* cost 0.0393619354064204 n13-vowel10-c */, param("LINE_V10_ALAR", 0.852f) /* cost 0.0393619354064204 n13-vowel10-c */, param("LINE_V10_LEN", 17.5144f), 545.0f, 1719.0f, 2446.0f},  // ɛ
     {11, param("LINE_V11_XC", 0.4581f) /* cost 0.0367746817152231 n13-vowel11-c */, param("LINE_V11_AC", 2.028f) /* cost 0.0367746817152231 n13-vowel11-c */, param("LINE_V11_WC", 3.766f) /* cost 0.0367746817152231 n13-vowel11-c */, param("LINE_V11_ALIP", 1.812f) /* cost 0.0367746817152231 n13-vowel11-c */, param("LINE_V11_APH", 2.721f) /* cost 0.0367746817152231 n13-vowel11-c */, param("LINE_V11_AOR", 4.503f) /* cost 0.0367746817152231 n13-vowel11-c */, param("LINE_V11_LLIP", 2.804f) /* cost 0.0367746817152231 n13-vowel11-c */, param("LINE_V11_ALAR", 1.741f) /* cost 0.0367746817152231 n13-vowel11-c */, param("LINE_V11_LEN", 17.4967f), 515.0f, 1313.0f, 2541.0f},  // ʊ
@@ -255,8 +255,13 @@ const float kLineAnticipNasal = param("LINE_ANTICIP_NASAL", 0.4f);  // the velum
 const float kLineReleaseKick = param("LINE_RELEASE_KICK", 0.0f);  // (0.2 gave a voiced stop a 23 ms voiceless puff: "abolish" was heard as "atolish"; off since 2026-11-03)  // a voiced stop's release: the glottis parts to this area (cm^2; 0: off) ...
 const float kLineReleaseKickMs = param("LINE_RELEASE_KICK_MS", 15.0f);  // ... for this long before voicing
 const float kLineFricAc = param("LINE_FRIC_AC", 1.0f);  // the fricatives' constriction area on the line, relative to the aero table
-const float kLineVotHoldMs = param("LINE_VOT_HOLD_MS", 7.043f) /* cost 0.0307218938484690 wobble */;     // a voiceless stop's puff: the glottis held open this long after the release (stressed; 60 % unstressed)
-const float kLineVotAdductMs = param("LINE_VOT_ADDUCT_MS", 7.223f) /* cost 0.0307218938484690 wobble */;  // ... then adducting into voice over this
+// The puff of p t k (2026-11-04, Whisper on 45 t-initial words: t heard at the
+// start 9 -> 21 of 90 with these and the noise at 5000 Hz; the simplex had
+// shrunk the hold to 7 ms, and at the old 0.3 cm^2 the folds kept flapping).
+const float kLineVotHoldMs = param("LINE_VOT_HOLD_MS", 50.0f);     // a voiceless stop's puff: the glottis held open this long after the release (stressed; 60 % unstressed)
+const float kLineAspAg = param("LINE_ASP_AG", 0.6f);  // the glottis during a voiceless stop's puff (cm^2)
+const float kLineStopAspMul = param("LINE_STOP_ASP", 15.0f);  // ... its glottal noise relative to LINE_ASP
+const float kLineVotAdductMs = param("LINE_VOT_ADDUCT_MS", 20.0f);  // ... then adducting into voice over this
 const float kLineExpandFlow = param("LINE_EXPAND_FLOW", 200.0f);  // cm^3/s drawn by the expanding cavity at full expansion behind a voiced closure
 const float kLineVoicedReleaseScale = param("LINE_VOICED_RELEASE", 2.5f);  // a voiced stop's release time relative to a voiceless one's
 const float kLineVoicedSoft = param("LINE_VOICED_SOFT", 6.0f);     // a voiced stop's closure: its sections lose this many times more (soft tissue)
@@ -283,9 +288,51 @@ const float kLineNLeadMs = param("LINE_N_LEAD_MS", 40.0f);
 const float kLineNVoiceLagMs = param("LINE_N_VOICE_LAG_MS", -1.0f);
 inline float nasalKnob(Ph ph, float m, float n) { return ph != Ph::M && n >= 0 ? n : m; }
 const float kLineNasalVoiceLagMs = param("LINE_NASAL_VOICE_LAG_MS", 20.0f);  // ... from this long after the closure starts
+// The same set-up for a phrase-initial l, w, j, ɹ (2026-11-04): they took
+// the vowel's soft onset, a breathy glottis adducting over LINE_ONSET_MS
+// (80 ms), longer than the sound itself; behind the narrow constriction the
+// folds stopped and the l w j r had a 25-40 ms hole at -30..-40 dB, then the
+// vowel's hard start: heard as b, g, d or nothing ("Life." -> "hi", "Will."
+// -> "bill", "Yes." -> "good", "Read." -> "bead"). Lead: the gesture starts
+// this long before the sound, in the pause; voice lag: the voice from this
+// long after the gesture; onset: adducting over this long (< 0: the vowel's
+// soft onset, the old path). J and R (ɹ, r) < 0: as GLIDE (w).
+const float kLineLLeadMs = param("LINE_L_LEAD_MS", 0.0f);
+const float kLineLVoiceLagMs = param("LINE_L_VOICE_LAG_MS", 0.0f);
+const float kLineLOnsetMs = param("LINE_L_ONSET_MS", -1.0f);
+const float kLineGlideLeadMs = param("LINE_GLIDE_LEAD_MS", 0.0f);
+const float kLineGlideVoiceLagMs = param("LINE_GLIDE_VOICE_LAG_MS", 0.0f);
+const float kLineGlideOnsetMs = param("LINE_GLIDE_ONSET_MS", -1.0f);
+const float kLineJLeadMs = param("LINE_J_LEAD_MS", -1.0f);
+const float kLineJVoiceLagMs = param("LINE_J_VOICE_LAG_MS", -1.0f);
+const float kLineJOnsetMs = param("LINE_J_ONSET_MS", -1.0f);
+const float kLineRLeadMs = param("LINE_R_LEAD_MS", -1.0f);
+const float kLineRVoiceLagMs = param("LINE_R_VOICE_LAG_MS", -1.0f);
+const float kLineROnsetMs = param("LINE_R_ONSET_MS", -1.0f);
+struct SonorantOnset { float leadMs, voiceLagMs, onsetMs; };
+// Returns onsetMs < 0 for sounds that take the vowel's soft onset.
+inline SonorantOnset sonorantOnset(Ph ph) {
+  auto pick = [](float own, float glide) { return own >= 0 ? own : glide; };
+  switch (ph) {
+    case Ph::L: return {kLineLLeadMs, kLineLVoiceLagMs, kLineLOnsetMs};
+    case Ph::J:
+      return {pick(kLineJLeadMs, kLineGlideLeadMs), pick(kLineJVoiceLagMs, kLineGlideVoiceLagMs),
+              pick(kLineJOnsetMs, kLineGlideOnsetMs)};
+    case Ph::RR: case Ph::R:
+      return {pick(kLineRLeadMs, kLineGlideLeadMs), pick(kLineRVoiceLagMs, kLineGlideVoiceLagMs),
+              pick(kLineROnsetMs, kLineGlideOnsetMs)};
+    case Ph::W: case Ph::V: return {kLineGlideLeadMs, kLineGlideVoiceLagMs, kLineGlideOnsetMs};
+    default: return {0, 0, -1};
+  }
+}
 const float kLinePrePressMs = param("LINE_PRE_PRESS_MS", 80.0f);     // ... and rises again this long before the next phrase's first sound  // the breath pressure falls to zero over this at a pause
 const float kLineDentalAc = param("LINE_DENTAL_AC", 0.03238f) /* cost 0.0307218938484690 wobble */;        // θ ð slit area on the line, relative to the aero table (weak fricatives)
 const float kLineFAc = param("LINE_F_AC", 0.3f);                   // f likewise: the lower lip on the upper teeth all but seals (Jyrki 2026-11-03: "more or less fully closing the opening, only what comes from the closing being not tight gives air through"); 0.03 cm^2 holds 95 % of the lung pressure behind it, 112 cm^3/s, Kennedy's f -9.8 dB under the vowels (readers -5..-16.5; 0.5: 190 cm^3/s, -7.1)
+const float kLineFinalPressMs = param("LINE_FINAL_PRESS_MS", 60.0f);  // (2026-11-04: final k heard 4 -> 8 of 80, Whisper; the "uh" after final p t k gone)
+//  // after a final voiceless stop the breath stops over this long from the release (0: at the pause)
+const float kLineFinalClose = param("LINE_FINAL_CLOSE", 1.0f);  // ... and the glottis closes after LINE_FINAL_ASP_MS (0: stays open)
+const float kLineFinalAg = param("LINE_FINAL_AG", 0.3f);  // ... the glottis during its release (cm^2)
+const float kLineFinalAspMul = param("LINE_FINAL_ASP", 1.0f);  // ... its glottal noise relative to LINE_ASP
 const float kLineFinalAspMs = param("LINE_FINAL_ASP_MS", 60.0f);  // a final voiceless stop's open-glottis release before the pause closes it
 const float kLineBurstArea = param("LINE_BURST_AREA", 0.2f);  // a stop's release opening before a fricative (cm^2)
 const float kLineBurstMs = param("LINE_BURST_MS", 20.0f);     // ... for this long
@@ -403,7 +450,8 @@ float linePlaceOf(Ph ph) {
     case Ph::SH: case Ph::ZH: case Ph::CH: case Ph::JH: return 0.78f;
     case Ph::RR: return 0.75f;
     case Ph::J: return 0.70f;
-    case Ph::K: case Ph::G: case Ph::NG: return 0.62f;
+    case Ph::K: { static const float x = param("LINE_K_X", 0.62f); return x; }
+    case Ph::G: case Ph::NG: return 0.62f;
     default: return -1.0f;
   }
 }
@@ -2434,19 +2482,25 @@ void Synth::emit(const Token& tok, const Ph* next) {
       // string folds reached full amplitude within a cycle, a glottal attack
       // Whisper heard as d or b ("at" -> "Dad", "is" -> "Dave"); Kokoro onyx
       // starts 10 dB down and rises over 100-200 ms.
-      if (in.cls == Cls::Nasal && nasalKnob(tok.ph, kLineNasalLeadMs, kLineNLeadMs) > 0) {
+      const bool nasalOnset = in.cls == Cls::Nasal && nasalKnob(tok.ph, kLineNasalLeadMs, kLineNLeadMs) > 0;
+      const SonorantOnset son = nasalOnset ? SonorantOnset{nasalKnob(tok.ph, kLineNasalLeadMs, kLineNLeadMs),
+                                                           nasalKnob(tok.ph, kLineNasalVoiceLagMs, kLineNVoiceLagMs),
+                                                           kLineNasalOnsetMs}
+                                           : sonorantOnset(tok.ph);
+      if (nasalOnset || son.onsetMs >= 0) {
         // A phrase-initial nasal: closed mouth, open velum and voicing are
         // set up at the end of the pause, so the murmur sounds from its
         // start (the soft vowel onset left "Name.", "Make." starting with a
         // silent n, heard as "hey"; Kokoro's initial n m are 5-10 dB under
-        // the vowel). The closed mouth softens the attack.
-        e.t = std::max(e.t - nasalKnob(tok.ph, kLineNasalLeadMs, kLineNLeadMs) * ms, std::min(inPauseFrom, e.t));
+        // the vowel). The closed mouth softens the attack. The same for an
+        // initial l w j ɹ with their own knobs (LINE_L_*, LINE_GLIDE_*).
+        e.t = std::max(e.t - son.leadMs * ms, std::min(inPauseFrom, e.t));
         // The voice waits for the closed mouth: voiced while the tongue was
         // still closing, the murmur began with a vowel ("Number." -> "an
         // emperor", "Many." -> "I'm on it", 2026-11-04).
-        Event voice{e.t + nasalKnob(tok.ph, kLineNasalVoiceLagMs, kLineNVoiceLagMs) * ms};
+        Event voice{e.t + son.voiceLagMs * ms};
         voice.ag = e.ag;
-        voice.agMs = kLineNasalOnsetMs;
+        voice.agMs = son.onsetMs;
         e.ag = -1;
         Event pre{std::max(voice.t - 10 * ms, e.t)};
         pre.ag = kAgBreathy;
@@ -2929,12 +2983,24 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
       // The slow glide gave a breathy voiced transition instead (HF share
       // -8..-16 dB in the 40 ms after the t of "poverty"; goog's puff 0 dB),
       // Jyrki 2026-11-02: "how the puff of air meets the tongue".
-      rel.ag = kAgOpen;
+      // Open wide: at kAgOpen (0.3 cm^2) the string folds kept vibrating,
+      // a breathy voice under 200 Hz in place of the hiss (2026-11-04).
+      rel.ag = kLineAspAg;
       rel.agMs = 5;
+      // ... and the puff hisses: the turbulence of the full lung pressure
+      // through the open glottis, far stronger than an h's (LINE_ASP alone
+      // left it 30 dB under the readers' 3-5 kHz puff).
+      rel.lineAspMul = kLineStopAspMul;
       Event adductLine{release + (curStress_ ? kLineVotHoldMs : 0.6f * kLineVotHoldMs) * ms};
       adductLine.ag = nextAero.ag;
       adductLine.agMs = kLineVotAdductMs;
       pendingKick_ = adductLine;
+      // The hiss lasts while the folds close (cut at the adduction's start it
+      // left a 10 ms silence before the voice).
+      // (queued after the release, with the adduction, below)
+      pendingAspEnd_ = Event{adductLine.t + kLineVotAdductMs * ms};
+      pendingAspEnd_.lineAspMul = 1.0f;
+      hasPendingAspEnd_ = true;
       hasPendingKick_ = true;
     }
     // A word that carries its stress on the syllable this stop opens
@@ -2973,21 +3039,45 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     // A final voiceless stop before a pause: the glottis stays open through
     // the release and its aspiration, then closes (the release event closed it
     // with the pause's ag = 0 at once: a 10 ms click for "make", "take").
-    rel.ag = kAgOpen;
+    rel.ag = kLineFinalAg;
     rel.agMs = 5;
+    // ... and hisses like an aspirated release (the readers' final k: 60-130
+    // ms of noise), the hiss ending with the breath.
+    if (kLineFinalAspMul != 1.0f) {
+      rel.lineAspMul = kLineFinalAspMul;
+      pendingAspEnd_ = Event{release + (kLineFinalAspMs + std::max(kLineFinalPressMs, 0.0f)) * ms};
+      pendingAspEnd_.lineAspMul = 1.0f;
+      hasPendingAspEnd_ = true;
+    }
   }
   addEvent(rel);
   if (hasPendingKick_) {
     addEvent(pendingKick_);
     hasPendingKick_ = false;
   }
+  if (hasPendingAspEnd_) {
+    addEvent(pendingAspEnd_);
+    hasPendingAspEnd_ = false;
+  }
   if (tract_ == Tract::Line && nextIsPause && !pi.voiced) {
     // (queued after the release: the event queue is in insertion order, and a
     // later-timed event ahead of the release held it back 60 ms)
-    Event close{release + kLineFinalAspMs * ms};
-    close.ag = 0;
-    close.agMs = kLineStopGlottalMs;
-    addEvent(close);
+    // Closing the glottis while the lungs still pushed restarted the folds:
+    // a 110 ms "uh" after every final p t k ("Back." -> "back-uh", heard as
+    // t + a vowel, 2026-11-04). The breath can stop with the release, and the
+    // glottis can stay open into the pause.
+    if (kLineFinalPressMs > 0) {
+      Event ease{release};
+      ease.press = 0.0f;
+      ease.pressMs = kLineFinalPressMs;
+      addEvent(ease);
+    }
+    if (kLineFinalClose > 0) {
+      Event close{release + kLineFinalAspMs * ms};
+      close.ag = 0;
+      close.agMs = kLineStopGlottalMs;
+      addEvent(close);
+    }
   }
   if (tract_ == Tract::Line && next && info(*next).cls == Cls::Fricative && !nextIsPause && !unreleased &&
       !(tok.ph == Ph::CH || tok.ph == Ph::JH)) {
@@ -3186,6 +3276,7 @@ float Synth::tick() {
     // The groove width and rounding step at once (the place glides): an
     // affricate's 30-60 ms of hiss never reached a followed target.
     if (e.lineLevel > 0) lineLevelTarget_ = e.lineLevel;
+    if (e.lineAspMul >= 0) lineAspMul_ = e.lineAspMul;
     if (e.lineSoft >= 0) lineSoft_ = e.lineSoft;
     if (e.lineExtra >= 0) lineExtra_ = e.lineExtra;
     if (e.lineHw >= 0) lineHw_ = lineHwTarget_ = e.lineHw;
@@ -3513,7 +3604,7 @@ float Synth::tick() {
     // breathy voice): in modal voicing the Reynolds gate alone put 2-8 kHz
     // hiss on every vowel.
     const float aspGate = 0.15f + 0.85f * smoothstep(kAgVoice, kAgBreathy, ag);
-    line_.setNoise(kLineFric, kLineAsp * aspGate, std::max(ag, 0.005f));
+    line_.setNoise(kLineFric, kLineAsp * aspGate * lineAspMul_, std::max(ag, 0.005f));
     // The voiced closure's expansion (expand_ runs 1 -> kVoicedExpansion over
     // the closure and back after the release): as a sink flow, since the line
     // has no compliance knob. The folds stalled 10 ms into every b, d, g

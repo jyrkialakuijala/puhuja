@@ -223,6 +223,7 @@ class VocalTractLine {
   float an_ = 0, uNasal_ = 0;
   float fricGain_ = 0, aspGain_ = 0, glotArea_ = 0.05f;
   float out_ = 0, aaNoise_ = 0, lpNoise_ = 0, lpNoise2_ = 0;
+  float aspHpState_ = 0, aspHpA_ = 0;  // the glottal noise's high-pass (turbulence has little below ~500 Hz)
   // Decimation: the lip + nostril flow through a 4th-order low-pass at 18 kHz
   // at the substep rate, averaged over the kSubsteps of a sample, then
   // differentiated at the output rate (the radiated pressure).
