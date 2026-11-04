@@ -124,6 +124,7 @@ struct Event {
   float aspGain = -1;  // breath-noise strength from now on (< 0: unchanged)
   float lineAspMul = -1;  // the glottal noise gain factor on the line (a stop's puff; < 0: unchanged)
   float linePuffLpr = -1;  // the glottal noise low-pass ratio on the line during a stop's puff (0: off; < 0: unchanged)
+  float lineFricFade = -1;  // the frication source's fade-out areas x this (voiced fricatives; < 0: unchanged)
   float lineFricMul = -1;  // the slit noise gain factor on the line (v; < 0: unchanged)
   float lineLevel = -1;  // the prosodic level as a lung-pressure factor on the line (< 0: unchanged)
   float lineSoft = -1, lineExtra = -1;  // a voiced closure's softness and extra length on the line (< 0: unchanged)
@@ -494,10 +495,12 @@ class Synth {
   Event pendingAspEnd_{0};  // a stop's puff: its hiss ends once the folds have closed
   bool hasPendingAspEnd_ = false;
   float lineAspMul_ = 1.0f;  // the glottal noise gain factor (a stop's puff)
+  float lineFricFade_ = 1.0f;
   float lineFricMul_ = 1.0f;  // the slit noise gain factor (LINE_V_FRIC during a v)
   bool lineHAsp_ = false;  // a voiceless h set lineAspMul: the next sound resets it
   float lineLevel_ = 1.0f, lineLevelTarget_ = 1.0f;  // the prosodic level (shape.level) as a lung-pressure factor on the line
   float lineSoft_ = 1.0f, lineExtra_ = 0.0f;
+  double lineVbarFrom_ = -1;  // when the current voiced closure began (LINE_VBAR_MS; < 0: none)
   float lineHw_ = 1.0f, lineHwTarget_ = 1.0f, lineLip_ = 0.0f, lineLipTarget_ = 0.0f;  // its half-width and lip cap (0: none)
   float lineXFollow_ = 0;
   int lineCount_ = 0;

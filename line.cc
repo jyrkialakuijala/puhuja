@@ -20,7 +20,8 @@ constexpr float kPiL = 3.14159265f;
 const float kLungR = param("LINE_LUNG_R", 3.0f);  // the respiratory system's DC resistance (dyn s/cm^5)
 const float kWallMass = param("LINE_WALL_M", 1.5f);
 const float kNoiseSt = param("LINE_NOISE_ST", 0.1f);         // Strouhal number of the noise corners (0: the fixed LINE_NOISE_HP; 0.1 on 2026-11-04: the s spectrum near Kokoro's, Whisper neutral)
-const float kNoiseLpRatio = param("LINE_NOISE_LPR", 2.5f);   // ... the low-pass corner at this times the high-pass one
+const float kNoiseLpRatio = param("LINE_NOISE_LPR", 10.0f);  // (2.5 -> 10 on 2026-11-04: in a 1.3-octave band the noise's peak hopped 0.30 octave per 10 ms frame, the readers' 0.06-0.08: the "zipping, zonking, pinging" Jyrki heard; at 10: 0.11; Whisper neutral)
+const float kNoiseStSmoothMs = param("LINE_NOISE_ST_SMOOTH_MS", 0.0f);  // ... the corners smoothed over this long (ms; 0: none)   // ... the low-pass corner at this times the high-pass one
 const float kGlottisLength = param("LINE_GLOTTIS_L", 1.3f);  // the glottis's length (cm): its width = area / this
 // The glottal jet's own low-pass ratio and floor (2026-11-04): at a p puff's
 // 0.6 cm^2 glottis fc ~0.6 kHz put the low-pass at 1.6 kHz, so the aspiration
@@ -474,15 +475,27 @@ float VocalTractLine::substep(float u0) {
     // The band of each jet: high-pass at fc, low-pass at kNoiseLpRatio x fc
     // (the 3-D turbulence fit: 2.5-5.6). With only the high-pass under the
     // fixed 5 kHz low-pass, the s's fc ~12 kHz left it no hiss (2026-11-04).
-    auto alphaOf = [&](float flow, float area, float width, float* lp, float jetD = 0, float lpr = kNoiseLpRatio, float lpMin = 0) {
+    // The corner smoothed in log frequency over LINE_NOISE_ST_SMOOTH_MS: the
+    // glottal jet's speed and width swing with every voicing cycle, and the
+    // narrow band swept 200 -> 12000 Hz at the pitch rate, a zip in the voice
+    // and a ping or a zonk where a slit opened (Jyrki 2026-11-04: "ringing,
+    // zipping, zonking, pinging").
+    const float smoothK = kNoiseStSmoothMs > 0 ? 1.0f - std::exp(-16.0f * dt_ / (0.001f * kNoiseStSmoothMs)) : 1.0f;
+    auto alphaOf = [&](float flow, float area, float width, float* lp, float jetD, float lpr, float lpMin, float* logFc) {
       const float U = std::fabs(flow) / std::max(area, 1e-4f);
       const float d = jetD > 0 ? jetD : std::max(area / width, 1e-3f);
-      const float fc = std::clamp(kNoiseSt * U / d, 200.0f, 12000.0f);
+      float fc = std::clamp(kNoiseSt * U / d, 200.0f, 12000.0f);
+      if (kNoiseStSmoothMs > 0) {
+        const float target = std::log(fc);
+        if (*logFc <= 0) *logFc = target;
+        *logFc += smoothK * (target - *logFc);
+        fc = std::exp(*logFc);
+      }
       *lp = 1.0f - std::exp(-2 * kPiL * std::min(std::max(lpr * fc, lpMin), 40000.0f) * dt_);
       return 1.0f - std::exp(-2 * kPiL * fc * dt_);
     };
-    stAlphaG_ = alphaOf(u0, glotArea_, kGlottisLength, &stLpG_, 0, puffLpr_ > 0 ? puffLpr_ : kGlottalLpRatio > 0 ? kGlottalLpRatio : kNoiseLpRatio, kGlottalLpMin);
-    if (noiseK_ >= 0) stAlphaF_ = alphaOf(oral_.flowAt(noiseKc_), oral_.areaAt(noiseKc_), kSlitWidth, &stLpF_, jetD_);
+    stAlphaG_ = alphaOf(u0, glotArea_, kGlottisLength, &stLpG_, 0, puffLpr_ > 0 ? puffLpr_ : kGlottalLpRatio > 0 ? kGlottalLpRatio : kNoiseLpRatio, kGlottalLpMin, &stLogFcG_);
+    if (noiseK_ >= 0) stAlphaF_ = alphaOf(oral_.flowAt(noiseKc_), oral_.areaAt(noiseKc_), kSlitWidth, &stLpF_, jetD_, kNoiseLpRatio, 0, &stLogFcF_);
   }
   // Each jet's band-limited noise from the shared low-passed white noise.
   auto band = [&](float* s, float a, float lp) {  // s: 2 low-pass then 2 high-pass states
@@ -514,7 +527,7 @@ float VocalTractLine::substep(float u0) {
     // source goes as U^3 / A^2.5), and with the voiced flow through them the
     // approximants' 0.25-0.35 cm^2 constrictions hissed: r +33 dB, w +16,
     // l +13, n +7 dB of 3-8 kHz noise, the "smoosh" (2026-11-03).
-    const float wide = std::clamp(std::log(a / kFricA0) / std::log(kFricA1 / kFricA0), 0.0f, 1.0f);
+    const float wide = std::clamp(std::log(a / (kFricA0 * fricFade_)) / std::log(kFricA1 / kFricA0), 0.0f, 1.0f);
     const float slit = 1.0f - wide * wide * (3.0f - 2.0f * wide);
     if (re > kReynoldsCrit && slit > 0) {
       const float drive = slit * fricGain_ * (re * re - reC2) / reC2 * noiseF;
