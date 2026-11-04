@@ -268,8 +268,20 @@ const float kLineReleaseScale = param("LINE_RELEASE_SCALE", 0.5828f) /* cost 0.0
 const float kLineFinalFricMs = param("LINE_FINAL_FRIC_MS", 40.0f);  // a final voiceless fricative: the pause's glottal closing waits this long
 const float kLinePausePressMs = param("LINE_PAUSE_PRESS_MS", 80.0f);
 const float kLineFinalNasalOpen = param("LINE_FINAL_NASAL_MS", 100.0f);  // a pause after a nasal closes the velum over this long (0: kBoundaryMs, the old cut-off)
-const float kLineNasalLeadMs = param("LINE_NASAL_LEAD_MS", 40.0f);   // a phrase-initial nasal's gesture starts this long before it, in the pause
+const float kLineNasalLeadMs = param("LINE_NASAL_LEAD_MS", 20.0f);   // a phrase-initial nasal's gesture starts this long before it, in the pause
 const float kLineNasalOnsetMs = param("LINE_NASAL_ONSET_MS", 25.0f);  // ... and its voicing adducts over this long
+const float kLineNasalRelMs = param("LINE_NASAL_REL_MS", 35.0f);       // a nasal's release into a vowel: the mouth opens over this long
+const float kLineNasalVelMs = param("LINE_NASAL_VEL_MS", 30.0f);       // ... the velum closes over this long
+const float kLineNasalVelLagMs = param("LINE_NASAL_VEL_LAG_MS", 40.0f); // ... starting this long after the release
+// The same for n (and ŋ) alone; < 0: as for m. Whisper on the n-initial
+// words (2026-11-04, 40 variants): n wants a longer lead and no velum lag
+// (19-20 of 34 heard starting with n, 10 before), m the opposite.
+const float kLineNRelMs = param("LINE_N_REL_MS", -1.0f);
+const float kLineNVelMs = param("LINE_N_VEL_MS", 20.0f);
+const float kLineNVelLagMs = param("LINE_N_VEL_LAG_MS", 0.0f);
+const float kLineNLeadMs = param("LINE_N_LEAD_MS", 40.0f);
+const float kLineNVoiceLagMs = param("LINE_N_VOICE_LAG_MS", -1.0f);
+inline float nasalKnob(Ph ph, float m, float n) { return ph != Ph::M && n >= 0 ? n : m; }
 const float kLineNasalVoiceLagMs = param("LINE_NASAL_VOICE_LAG_MS", 20.0f);  // ... from this long after the closure starts
 const float kLinePrePressMs = param("LINE_PRE_PRESS_MS", 80.0f);     // ... and rises again this long before the next phrase's first sound  // the breath pressure falls to zero over this at a pause
 const float kLineDentalAc = param("LINE_DENTAL_AC", 0.03238f) /* cost 0.0307218938484690 wobble */;        // θ ð slit area on the line, relative to the aero table (weak fricatives)
@@ -384,7 +396,10 @@ float linePlaceOf(Ph ph) {
     case Ph::F: case Ph::VV: case Ph::V: return 0.95f;
     case Ph::TH: case Ph::DH: return 0.90f;
     case Ph::S: case Ph::Z: return 0.90f;  // the front cavity to the teeth ~1.7 cm: the hiss near 5 kHz
-    case Ph::T: case Ph::D: case Ph::N: case Ph::L: case Ph::R: return 0.87f;
+    // n further back than t d (0.87): there Whisper heard it as l or bl
+    // ("Now." -> "hello", "New." -> "blue"; 0.77-0.80 best, 2026-11-04).
+    case Ph::N: { static const float x = param("LINE_N_X", 0.78f); return x; }
+    case Ph::T: case Ph::D: case Ph::L: case Ph::R: return 0.87f;
     case Ph::SH: case Ph::ZH: case Ph::CH: case Ph::JH: return 0.78f;
     case Ph::RR: return 0.75f;
     case Ph::J: return 0.70f;
@@ -1909,6 +1924,23 @@ void Synth::emit(const Token& tok, const Ph* next) {
     e.an = kAnNasal * kLineAnticipNasal;
     e.anMs = static_cast<float>(dur / ms);
   }
+  // The release of a nasal into a vowel: how fast the mouth opens and the
+  // velum closes, and how long the velum stays open into the vowel.
+  Event velLag{0};
+  bool hasVelLag = false;
+  if (tract_ == Tract::Line && prevWasNasal_ && isVowel(tok.ph)) {
+    const float velMs = nasalKnob(lastPh_, kLineNasalVelMs, kLineNVelMs);
+    const float velLagMs = nasalKnob(lastPh_, kLineNasalVelLagMs, kLineNVelLagMs);
+    e.acMs = nasalKnob(lastPh_, kLineNasalRelMs, kLineNRelMs);
+    e.anMs = velMs;
+    if (velLagMs > 0 && e.an >= 0) {
+      velLag = Event{e.t + velLagMs * ms};
+      velLag.an = e.an;
+      velLag.anMs = velMs;
+      e.an = -1;
+      hasVelLag = true;
+    }
+  }
   e.speech = in.cls == Cls::Stop ? 0.0f : 1.0f;
   if (prevWasPause_ && in.cls != Cls::Vowel && in.cls != Cls::Stop) {
     // After a pause the tongue and lips take their place before the voice
@@ -2402,17 +2434,17 @@ void Synth::emit(const Token& tok, const Ph* next) {
       // string folds reached full amplitude within a cycle, a glottal attack
       // Whisper heard as d or b ("at" -> "Dad", "is" -> "Dave"); Kokoro onyx
       // starts 10 dB down and rises over 100-200 ms.
-      if (in.cls == Cls::Nasal && kLineNasalLeadMs > 0) {
+      if (in.cls == Cls::Nasal && nasalKnob(tok.ph, kLineNasalLeadMs, kLineNLeadMs) > 0) {
         // A phrase-initial nasal: closed mouth, open velum and voicing are
         // set up at the end of the pause, so the murmur sounds from its
         // start (the soft vowel onset left "Name.", "Make." starting with a
         // silent n, heard as "hey"; Kokoro's initial n m are 5-10 dB under
         // the vowel). The closed mouth softens the attack.
-        e.t = std::max(e.t - kLineNasalLeadMs * ms, std::min(inPauseFrom, e.t));
+        e.t = std::max(e.t - nasalKnob(tok.ph, kLineNasalLeadMs, kLineNLeadMs) * ms, std::min(inPauseFrom, e.t));
         // The voice waits for the closed mouth: voiced while the tongue was
         // still closing, the murmur began with a vowel ("Number." -> "an
         // emperor", "Many." -> "I'm on it", 2026-11-04).
-        Event voice{e.t + kLineNasalVoiceLagMs * ms};
+        Event voice{e.t + nasalKnob(tok.ph, kLineNasalVoiceLagMs, kLineNVoiceLagMs) * ms};
         voice.ag = e.ag;
         voice.agMs = kLineNasalOnsetMs;
         e.ag = -1;
@@ -2432,6 +2464,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
   }
   if (!prevWasPlosive_) {
     if (!events_.empty() && e.t < events_.back().t) addEventAt(e); else addEvent(e);
+    if (hasVelLag) addEventAt(velLag);
   }
   if (hasPendingRelax_) {
     addEvent(pendingRelax_);

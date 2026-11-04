@@ -90,6 +90,7 @@ class TransmissionLine {
   // tissue damping the tube where it is shut). Takes effect at the next setAreas.
   void setSectionLoss(int k0, int k1, float mul) { for (int k = 0; k < kMaxSections; ++k) lossMul_[k] = (k >= k0 && k < k1) ? mul : 1.0f; }
   void setViscLoss(float mul) { viscLoss_ = mul; }
+  void setHfLoss(float bandwidthHz, float cornerHz);  // the losses that grow with frequency (after init)
   void setSubglottal(bool on) { subglottal_ = on; }
   float substepSubglottal(float lungPressure, float uGlottis);
   // The sound: the radiated flow's rate of change (cm^3/s^2).

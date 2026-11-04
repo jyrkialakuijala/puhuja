@@ -48,6 +48,11 @@ void TransmissionLine::hfLoss(int nb) {
   }
 }
 
+void TransmissionLine::setHfLoss(float bandwidthHz, float cornerHz) {
+  hfK_ = 2.0f * kPiL * bandwidthHz * dt_;
+  hfA_ = 1.0f - std::exp(-2.0f * kPiL * cornerHz * dt_);
+}
+
 void TransmissionLine::init(float length, float fs, int sections) {
   fs_ = fs;
   dt_ = 1.0f / (kSubsteps * fs);
@@ -259,6 +264,8 @@ const float kExpandHold = param("LINE_EXPAND_HOLD", 0.6f);  // a voiced closure'
 const float kHumpReleaseMs = param("LINE_HUMP_RELEASE_MS", 40.0f);  // the constriction's area releases with this time constant beyond kHumpFastTo
 const float kHumpFastTo = param("LINE_HUMP_FAST_TO", 2.0f);  // (2.0: off; 0.4 held F2 low through the vowel and affricated the t puff)        // ... after opening fast (6 ms) to this area (cm^2): the acoustic release
 const float kNoiseDx = param("LINE_NOISE_DX", 0.2f);  // the turbulence source this far (cm) past the hump's downstream edge
+const float kNasalCavityArea = param("LINE_NASAL_CAVITY_A", 3.5f);  // the main nasal cavity, both sides (cm^2)
+const float kNasalPortArea = param("LINE_NASAL_PORT_A", 1.5f);      // the nasopharynx behind it (cm^2)
 const float kNostrilArea = param("LINE_NOSTRIL_A", 1.627f) /* cost 0.0307218938484690 wobble */;  // both nostrils together (cm^2; 1.2 put the n level with the vowel, the readers 9-14 dB under)
 
 void VocalTractLine::init(float fs) {
@@ -267,12 +274,22 @@ void VocalTractLine::init(float fs) {
   oral_.init(17.5f, fs, kOralSections);
   nasal_.init(kNasalLength, fs, kNasalSections);
   nasal_.setWallLoss(param("LINE_NASAL_LOSS", 1.0f));  // the nasal walls (mucosa, the sinuses) lose more than the mouth
+  // The turbinates split the nose into narrow slits: everything above the
+  // murmur's low resonance is damped. With the mouth's losses the n kept its
+  // overtones (1-5 kHz only 10-20 dB under the 250 Hz peak; the readers'
+  // 25-40), heard as l ("Never." -> "later", "Now." -> "hello", 2026-11-04).
+  // Damped like the readers' (1000 Hz above 600) the murmur fell 6 dB and
+  // Whisper heard b d instead (10 -> 1 of 52 initial n m words); with wider
+  // nostrils and port to win the level back, 8 of 52. Lightly (300 Hz above
+  // 1000), with the slower nasal release, 40 of 70 m words were heard
+  // starting with m (24 without it; Whisper, 2026-11-04).
+  nasal_.setHfLoss(param("LINE_NASAL_HF_BW", 300.0f), param("LINE_NASAL_HF_FC", 1000.0f));
   nasal_.setViscLoss(param("LINE_NASAL_VISC", 4.221f) /* cost 0.0307218938484690 wobble */);  // (30: the m of "his mortal", starting from the voiceless z, fell to -26 dB)  // the turbinates: far more surface per volume than a tube
   // The nasal passage: the port and nasopharynx, the cavity, the nostrils.
   std::vector<float> na(nasal_.sections());
   for (int k = 0; k < nasal_.sections(); ++k) {
     const float x = (k + 0.5f) * nasal_.dx();
-    na[k] = x < 2.0f ? 1.5f : x < 9.0f ? 3.5f : kNostrilArea;
+    na[k] = x < 2.0f ? kNasalPortArea : x < 9.0f ? kNasalCavityArea : kNostrilArea;
   }
   nasal_.setAreas(na, false);
   // The paranasal sinuses as Helmholtz side branches (Dang & Honda 1994: the
