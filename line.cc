@@ -593,7 +593,10 @@ float VocalTractLine::substep(float u0) {
       std::fprintf(ntrace, "%ld\t%d\t%d\t%.4f\t%.4f\t%.1f\t%.0f\t%.3f\t%.1f", ncount / 192, noiseKc_, noiseK_, a, oral_.areaAt(noiseK_), u, re,
                    re > kReynoldsCrit ? (re * re - reC2) / reC2 : 0.0f, oral_.areaAt(oral_.sections() - 1));
       for (int k = oral_.sections() - 12; k < oral_.sections(); ++k) std::fprintf(ntrace, "\t%.3f", oral_.areaAt(k));
-      std::fprintf(ntrace, "\t%.1f\t%.1f\t%.1f\t%.1f\n", oral_.lipFlow(), lungPressure_, expandFlow_, oral_.pressureAt(std::max(velumK_ - 4, 1)));
+      const float fcF = stAlphaF_ > 0 && stAlphaF_ < 1 ? -std::log(1.0f - stAlphaF_) / (2.0f * kPiL * dt_) : 0.0f;
+      const float fcG = stAlphaG_ > 0 && stAlphaG_ < 1 ? -std::log(1.0f - stAlphaG_) / (2.0f * kPiL * dt_) : 0.0f;
+      std::fprintf(ntrace, "\t%.1f\t%.1f\t%.1f\t%.1f\t%.3f\t%.2f\t%.2f\t%.0f\t%.0f\t%.4f\t%.1f\n", oral_.lipFlow(), lungPressure_, expandFlow_,
+                   oral_.pressureAt(std::max(velumK_ - 4, 1)), slit, fricGain_, aspGain_, fcF, fcG, glotArea_, u0);
     }
   }
   oral_.traceExtra_ = nasal_.lipFlow();  // the nostril flow, for the trace
