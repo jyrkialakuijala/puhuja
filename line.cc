@@ -15,10 +15,11 @@ namespace puhuja {
 
 namespace {
 constexpr float kPiL = 3.14159265f;
+constexpr float kM2PiL = -2.0f * kPiL;
 // Wall per unit area (Ishizaka, Flanagan & Matsudaira 1975): mass (g/cm^2),
 // resistance (dyn s/cm^3), stiffness (dyn/cm^3).
-const float kLungR = param("LINE_LUNG_R", 3.0f);  // the respiratory system's DC resistance (dyn s/cm^5)
-const float kWallMass = param("LINE_WALL_M", 1.5f);
+const float kLungR = param("LINE_LUNG_R", 3.0f), kLungRInv = 1.0f / kLungR;  // the respiratory system's DC resistance (dyn s/cm^5)
+const float kWallMass = param("LINE_WALL_M", 1.5f), kWallMassInv = 1.0f / kWallMass;
 const float kNoiseSt = param("LINE_NOISE_ST", 0.1f);         // Strouhal number of the noise corners (0: the fixed LINE_NOISE_HP; 0.1 on 2026-11-04: the s spectrum near Kokoro's, Whisper neutral)
 const float kNoiseLpRatio = param("LINE_NOISE_LPR", 10.0f);  // (2.5 -> 10 on 2026-11-04: in a 1.3-octave band the noise's peak hopped 0.30 octave per 10 ms frame, the readers' 0.06-0.08: the "zipping, zonking, pinging" Jyrki heard; at 10: 0.11; Whisper neutral)
 const float kNoiseStSmoothMs = param("LINE_NOISE_ST_SMOOTH_MS", 0.0f);  // ... the corners smoothed over this long (ms; 0: none)   // ... the low-pass corner at this times the high-pass one
@@ -48,8 +49,8 @@ constexpr float kMu = 1.86e-4f;
 // whistling between phonemes (2026-11-03). A resistance on the high-passed
 // flow, du/dt = -2 pi B u_hp: B Hz of bandwidth well above the corner, half of
 // it at the corner, little at F1. Passive (Re{s/(s+wc)} >= 0), so stable.
-const float kHfBandwidth = param("LINE_HF_BW", 100.0f);  // Hz added well above the corner
-const float kHfCorner = param("LINE_HF_FC", 2000.0f);    // Hz
+const float kHfBandwidth = param("LINE_HF_BW", 198.6f) /* cost 5.3123456789012345 schwa-run2-kokoro-dB */;  // Hz added well above the corner
+const float kHfCorner = param("LINE_HF_FC", 2000.0f) /* cost 1814 whisper-run1-phon_err */;    // Hz
 
 void TransmissionLine::hfLoss(int nb) {
   if (hfK_ <= 0) return;
@@ -62,7 +63,7 @@ void TransmissionLine::hfLoss(int nb) {
 
 void TransmissionLine::setHfLoss(float bandwidthHz, float cornerHz) {
   hfK_ = 2.0f * kPiL * bandwidthHz * dt_;
-  hfA_ = 1.0f - std::exp(-2.0f * kPiL * cornerHz * dt_);
+  hfA_ = 1.0f - std::exp(kM2PiL * cornerHz * dt_);
 }
 
 void TransmissionLine::init(float length, float fs, int sections) {
@@ -74,6 +75,7 @@ void TransmissionLine::init(float length, float fs, int sections) {
   // 2.7 mm give 0.67; the formants moved under 1 % against 86 sections.
   if (sections > 0) n_ = std::min({sections, kMaxSections, static_cast<int>(length * 0.98f / (kC * dt_))});
   dx_ = length / n_;
+  invDx_ = 1.0f / dx_;
   blocks_ = (n_ + kBlock - 1) / kBlock;
   for (int k = 0; k < kMaxSections; ++k) {
     a_[k] = aTarget_[k] = k < n_ ? 3.0f : 0.0f;
@@ -82,7 +84,7 @@ void TransmissionLine::init(float length, float fs, int sections) {
   }
   for (int k = 0; k < kMaxSections + kBlock; ++k) u_[k] = p_[k] = uLp_[k] = 0;
   hfK_ = 2.0f * kPiL * kHfBandwidth * dt_;
-  hfA_ = 1.0f - std::exp(-2.0f * kPiL * kHfCorner * dt_);
+  hfA_ = 1.0f - std::exp(kM2PiL * kHfCorner * dt_);
   uL_ = uN_ = prevUN_ = radiated_ = 0;
   glideLeft_ = 0;
   coefficients();
@@ -91,6 +93,7 @@ void TransmissionLine::init(float length, float fs, int sections) {
 void TransmissionLine::setLength(float length) {
   // Never below what keeps c dt / dx under 0.98 for this many sections.
   dx_ = std::max(length / n_, kC * dt_ / 0.98f);
+  invDx_ = 1.0f / dx_;
 }
 
 void TransmissionLine::setAreas(const std::vector<float>& a, bool glide) {
@@ -110,7 +113,10 @@ void TransmissionLine::setAreas(const std::vector<float>& a, bool glide) {
 void TransmissionLine::coefficients() {
   const float viscK = std::sqrt(kPiL * kViscousHz * kRho * kMu);  // sqrt(omega rho mu / 2)
   const float comp = kRho * kC * kC;
-  const float wDen = 1.0f / (1.0f + dt_ * kWallDamp * wallLoss_ / kWallMass);
+  const float wDen = 1.0f / (1.0f + dt_ * kWallDamp * wallLoss_ * kWallMassInv);
+  const float dtOverRhoDx = dt_ * invDx_ * (1.0f / kRho);
+  const float halfDtOverDx = 0.5f * dt_ * invDx_;
+  const float dtComp = dt_ * comp * invDx_;
   for (int k = 0; k < kMaxSections + kBlock; ++k) { cU_[k] = 0; gU_[k] = 1; oriInv_[k] = 0; }
   // Interfaces 1..n-1 (0 is the glottis, n the lips: set each substep).
   for (int k = 1; k < n_; ++k) {
@@ -118,9 +124,10 @@ void TransmissionLine::coefficients() {
     const float aw = std::max(a_[k], a_[k - 1]);
     const float s = 2.0f * std::sqrt(kPiL * ah);
     const float lm = lossMul_[k] > 0 ? lossMul_[k] : 1.0f;
-    const float r = s / (ah * ah) * viscK * viscLoss_ * lm;  // dyn s / cm^6 per cm
-    cU_[k] = dt_ * ah / (kRho * dx_);
-    gU_[k] = 1.0f / (1.0f + dt_ * ah / kRho * r);  // the loss, implicit
+    const float invAh = 1.0f / ah;
+    const float r = s * invAh * invAh * viscK * viscLoss_ * lm;  // dyn s / cm^6 per cm
+    cU_[k] = ah * dtOverRhoDx;
+    gU_[k] = 1.0f / (1.0f + dt_ * ah * (1.0f / kRho) * r);  // the loss, implicit
     // The Borda-Carnot loss of an area change: rho u|u| / (2 A^2) times
     // (1 - A_small / A_large)^2 at this interface, applied implicitly in
     // substep as 1 / (1 + oriInv |u|). Zero in a uniform tube; over a
@@ -128,14 +135,14 @@ void TransmissionLine::coefficients() {
     // every interface it added ~30 Hz to every formant's bandwidth, growing
     // with the section count, review 2026-11-01.)
     const float contraction = 1.0f - ah / aw;
-    oriInv_[k] = dt_ / (2.0f * ah * dx_) * contraction * contraction;
+    oriInv_[k] = halfDtOverDx * invAh * contraction * contraction;
   }
   for (int k = 0; k < kMaxSections; ++k) {
     if (k < n_) {
-      cP_[k] = dt_ * comp / (a_[k] * dx_);
+      cP_[k] = dtComp / a_[k];
       sWall_[k] = 2.0f * std::sqrt(kPiL * a_[k]) * dx_;
       wA_[k] = wDen;
-      wB_[k] = dt_ / kWallMass * wDen;
+      wB_[k] = dt_ * kWallMassInv * wDen;
     } else {
       cP_[k] = sWall_[k] = wA_[k] = wB_[k] = 0;
     }
@@ -168,7 +175,7 @@ float TransmissionLine::substepSubglottal(float lungPressure, float uGlottis) {
   // the folds were blown 0.5 cm^2 open and fell silent, 2026-11-03.)
   const float dp = lungPressure - p_[0];
   lungDc_ += (dp - lungDc_) * (dt_ / 0.003f);  // the slow (DC) part of the pressure difference
-  u_[0] = lungDc_ / kLungR + (dp - lungDc_) * a_[0] / (kRho * kC);
+  u_[0] = lungDc_ * kLungRInv + (dp - lungDc_) * a_[0] * (1.0f / (kRho * kC));
   for (int k = 1; k <= nb; ++k) u_[k] = gU_[k] / (1.0f + oriInv_[k] * std::fabs(u_[k])) * (u_[k] - cU_[k] * (p_[k] - p_[k - 1]));
   hfLoss(nb);
   u_[n] = uGlottis;  // the glottal end: the folds' flow leaves here
@@ -218,7 +225,7 @@ float TransmissionLine::substep(float u0) {
 // --- The whole airway ---------------------------------------------------
 
 namespace {
-const float kVelumScale = param("LINE_VELUM", 6.012f) /* cost 0.0307807887603556 wobble */;  // the port area per unit of the velum opening
+const float kVelumScale = param("LINE_VELUM", 6.01f) /* cost 1814 whisper-run1-phon_err */;  // the port area per unit of the velum opening
 // The nasal line, velum to nostrils (cm). With the velum at 55 % of a 17.5 cm
 // tract (9.6 cm from the glottis) the nasal path is 20.6 cm, 3.1 cm longer
 // than the oral one (Jyrki 2026-11-02: "the nasal tract may be longer,
@@ -227,8 +234,11 @@ const float kVelumScale = param("LINE_VELUM", 6.012f) /* cost 0.0307807887603556
 const float kNasalLength = param("LINE_NASAL_CM", 11.0f);
 const float kReynoldsCrit = param("LINE_RE_CRIT", 1800.0f);
 const float kFricA0 = param("LINE_FRIC_A0", 0.12f);  // the frication source at full strength below this constriction area (cm^2; the widest slit, ð, is 0.084) ...
-const float kFricA1 = param("LINE_FRIC_A1", 0.22f);  // ... and silent above this (the approximants: 0.25-0.35; at 0.3 the r after a vowel, 0.25 cm^2, still hissed +17 dB)
+const float kFricA1 = param("LINE_FRIC_A1", 0.2156f) /* cost 1814 whisper-run1-phon_err */;  // ... and silent above this (the approximants: 0.25-0.35; at 0.3 the r after a vowel, 0.25 cm^2, still hissed +17 dB)
 constexpr float kMuAir = 1.86e-4f;
+// Re = 2 rho |u| / (mu L) (slit) or 2 rho |u| / (mu sqrt(pi A)) (round duct): the constant factors once.
+const float kReSlitFactor = 2.0f * TransmissionLine::kRho / (kMuAir * kGlottisLength);
+constexpr float kReRoundFactor = 2.0f * TransmissionLine::kRho / kMuAir;
 }  // namespace
 
 float VocalTractLine::noise() {
@@ -244,6 +254,8 @@ void TransmissionLine::addSinus(int k, float volume, float neckArea, float neckL
   s.cInv = kRho * kC * kC / volume;               // 1 / compliance of the volume
   const float w0 = std::sqrt(s.cInv / s.m);       // resonance (rad/s)
   s.r = s.m * w0 / q;                              // resistance for the quality factor q
+  s.dtOverM = dt_ / s.m;                           // the per-substep factors (dt_ is set: init first)
+  s.invDen = 1.0f / (1.0f + dt_ * s.r / s.m);
   s.u = s.p = 0;
 }
 
@@ -258,7 +270,7 @@ void TransmissionLine::addSinus(int k, float volume, float neckArea, float neckL
 void TransmissionLine::sinusFlows() {
   for (int i = 0; i < nSinus_; ++i) {
     Sinus& s = sinus_[i];
-    s.u = (s.u + dt_ / s.m * (p_[s.k] - s.p)) / (1.0f + dt_ * s.r / s.m);  // the loss implicit
+    s.u = (s.u + s.dtOverM * (p_[s.k] - s.p)) * s.invDen;  // the loss implicit
   }
 }
 
@@ -279,7 +291,7 @@ const float kHumpFastTo = param("LINE_HUMP_FAST_TO", 2.0f);  // (2.0: off; 0.4 h
 const float kNoiseDx = param("LINE_NOISE_DX", 0.2f);  // the turbulence source this far (cm) past the hump's downstream edge
 const float kNasalCavityArea = param("LINE_NASAL_CAVITY_A", 3.5f);  // the main nasal cavity, both sides (cm^2)
 const float kNasalPortArea = param("LINE_NASAL_PORT_A", 1.5f);      // the nasopharynx behind it (cm^2)
-const float kNostrilArea = param("LINE_NOSTRIL_A", 1.627f) /* cost 0.0307218938484690 wobble */;  // both nostrils together (cm^2; 1.2 put the n level with the vowel, the readers 9-14 dB under)
+const float kNostrilArea = param("LINE_NOSTRIL_A", 1.594f) /* cost 1814 whisper-run1-phon_err */;  // both nostrils together (cm^2; 1.2 put the n level with the vowel, the readers 9-14 dB under)
 
 void VocalTractLine::init(float fs) {
   fs_ = fs;
@@ -297,7 +309,7 @@ void VocalTractLine::init(float fs) {
   // 1000), with the slower nasal release, 40 of 70 m words were heard
   // starting with m (24 without it; Whisper, 2026-11-04).
   nasal_.setHfLoss(param("LINE_NASAL_HF_BW", 300.0f), param("LINE_NASAL_HF_FC", 1000.0f));
-  nasal_.setViscLoss(param("LINE_NASAL_VISC", 4.221f) /* cost 0.0307218938484690 wobble */);  // (30: the m of "his mortal", starting from the voiceless z, fell to -26 dB)  // the turbinates: far more surface per volume than a tube
+  nasal_.setViscLoss(param("LINE_NASAL_VISC", 4.221f) /* cost 1814 whisper-run1-phon_err */);  // (30: the m of "his mortal", starting from the voiceless z, fell to -26 dB)  // the turbinates: far more surface per volume than a tube
   // The nasal passage: the port and nasopharynx, the cavity, the nostrils.
   std::vector<float> na(nasal_.sections());
   for (int k = 0; k < nasal_.sections(); ++k) {
@@ -339,11 +351,11 @@ void VocalTractLine::init(float fs) {
   subCount_ = 0;
   {
     const float hp = param("LINE_ASP_HP", 0.0f);
-    aspHpA_ = aspHpBaseA_ = hp > 0 ? 1.0f - std::exp(-2 * kPiL * hp * dt_) : 0.0f;
+    aspHpA_ = aspHpBaseA_ = hp > 0 ? 1.0f - std::exp(kM2PiL * hp * dt_) : 0.0f;
     const float nhp = param("LINE_NOISE_HP", 1500.0f);  // the turbulence noise's high-pass corner (Hz; 0: none; 1500 on 2026-11-04, Jyrki: the s's 0.5-2 kHz bands 4-8 dB toward Kokoro's)
-    noiseHpA_ = nhp > 0 ? 1.0f - std::exp(-2 * kPiL * nhp * dt_) : 0.0f;
+    noiseHpA_ = nhp > 0 ? 1.0f - std::exp(kM2PiL * nhp * dt_) : 0.0f;
   }
-  aaNoise_ = 1.0f - std::exp(-2 * kPiL * param("LINE_NOISE_LP", 5000.0f) /* 2026-11-04: the search had 2265 (s heard as f); 6000: initial s 3 -> 8 of 10 (Whisper), 4000 matched Kokoro s level; Jyrki: 5000 */ * dt_);  // the readers' s peaks at 8-12 kHz (goog "house"); at 5.5 kHz the line's s had its energy at 4-6 kHz
+  aaNoise_ = 1.0f - std::exp(kM2PiL * param("LINE_NOISE_LP", 5000.0f) /* 2026-11-04: the search had 2265 (s heard as f); 6000: initial s 3 -> 8 of 10 (Whisper), 4000 matched Kokoro s level; Jyrki: 5000 */ * dt_);  // the readers' s peaks at 8-12 kHz (goog "house"); at 5.5 kHz the line's s had its energy at 4-6 kHz
   out_ = uNasal_ = an_ = 0;
 }
 
@@ -419,6 +431,8 @@ void VocalTractLine::setShapeAreas(std::vector<float> a, float length, float x, 
   oral_.setAreas(a);
   velumK_ = std::min(oral_.sections() - 2, static_cast<int>(0.55f * oral_.sections()));
   an_ = std::max(an * kVelumScale, 1e-3f);  // never shut by a switch: the orifice loss closes it
+  velarG_ = dt_ * an_ * (1.0f / TransmissionLine::kRho) * nasal_.invDx();
+  velarInv2A2_ = 1.0f / (2.0f * an_ * an_);
   static int calls = 0;
   if (std::getenv("PUHUJA_LINE_TRACE") && (calls++ % 50) == 0) {
     float mn = 1e9f; int at = 0;
@@ -443,8 +457,8 @@ float VocalTractLine::substep(float u0) {
   {
     const float rho = TransmissionLine::kRho;
     const float dp = oral_.pressureAt(velumK_) - nasal_.pressureAt(0);
-    const float g = dt_ * an_ / (rho * nasal_.dx());
-    const float r = rho * std::fabs(uNasal_) / (2.0f * an_ * an_);
+    const float g = velarG_;  // dt an / (rho dx), set with an_
+    const float r = rho * std::fabs(uNasal_) * velarInv2A2_;
     uNasal_ = (uNasal_ + g * dp) / (1.0f + g * r);
   }
   // Turbulence: a dipole source (a pressure difference across an interface)
@@ -466,7 +480,7 @@ float VocalTractLine::substep(float u0) {
     noiseHp2_ += noiseHpA_ * (noise - noiseHp2_);
     noise -= noiseHp2_;
   }
-  const float reC2 = kReynoldsCrit * kReynoldsCrit;
+  const float reC2 = kReynoldsCrit * kReynoldsCrit, invReC2 = 1.0f / reC2;
   // With LINE_NOISE_ST > 0 each jet has its own corner, St U / d, from its
   // speed and its width (the glottis: area / its length; the slit: area / its
   // width), 12 dB/octave below it (the k^4 continuity rise of 3-D turbulence,
@@ -492,8 +506,8 @@ float VocalTractLine::substep(float u0) {
         *logFc += smoothK * (target - *logFc);
         fc = std::exp(*logFc);
       }
-      *lp = 1.0f - std::exp(-2 * kPiL * std::min(std::max(lpr * fc, lpMin), 40000.0f) * dt_);
-      return 1.0f - std::exp(-2 * kPiL * fc * dt_);
+      *lp = 1.0f - std::exp(kM2PiL * std::min(std::max(lpr * fc, lpMin), 40000.0f) * dt_);
+      return 1.0f - std::exp(kM2PiL * fc * dt_);
     };
     stAlphaG_ = alphaOf(u0, glotArea_, kGlottisLength, &stLpG_, 0, puffLpr_ > 0 ? puffLpr_ : kGlottalLpRatio > 0 ? kGlottalLpRatio : kNoiseLpRatio, kGlottalLpMin, &stLogFcG_);
     if (noiseK_ >= 0) stAlphaF_ = alphaOf(oral_.flowAt(noiseKc_), oral_.areaAt(noiseKc_), kSlitWidth, &stLpF_, jetD_, fricLpr_ > 0 ? fricLpr_ : kNoiseLpRatio, 0, &stLogFcF_);
@@ -531,8 +545,8 @@ float VocalTractLine::substep(float u0) {
     // after a p t k (a crescendo into the vowel; goog's decays). x
     // LINE_GLOT_RE_SLIT as a scale (the threshold is then LINE_RE_CRIT / it).
     static const float reSlit = param("LINE_GLOT_RE_SLIT", 0.0f);
-    const float re = reSlit > 0 ? reSlit * 2.0f * TransmissionLine::kRho * std::fabs(u0) / (kMuAir * kGlottisLength)
-                                : 2.0f * TransmissionLine::kRho * std::fabs(u0) / (kMuAir * std::sqrt(kPiL * glotArea_));
+    const float re = reSlit > 0 ? reSlit * kReSlitFactor * std::fabs(u0)
+                                : kReRoundFactor * std::fabs(u0) / std::sqrt(kPiL * glotArea_);
     // High-passed: the white source drove the open tract's low resonances,
     // so a t's aspiration peaked under 200 Hz (the readers' at 3-5 kHz, 20 dB
     // less below 350 Hz; 2026-11-04).
@@ -551,22 +565,25 @@ float VocalTractLine::substep(float u0) {
         n -= aspHpMore_[k];
       }
     }
-    if (re > kReynoldsCrit) oral_.addFlowDrive(1, aspGain_ * (re * re - reC2) / reC2 * n);
+    if (re > kReynoldsCrit) oral_.addFlowDrive(1, aspGain_ * (re * re - reC2) * invReC2 * n);
   }
   if (noiseK_ >= 0 && fricGain_ > 0) {
     const float u = oral_.flowAt(noiseKc_);
     const float a = oral_.areaAt(noiseKc_);
-    const float re = 2.0f * TransmissionLine::kRho * std::fabs(u) / (kMuAir * std::sqrt(kPiL * a));
+    const float re = kReRoundFactor * std::fabs(u) / std::sqrt(kPiL * a);
     // Only a fricative-sized slit makes a jet that hisses: the source fades out
     // as the constriction widens past kFricA0..kFricA1 (log scale). The Re^2
     // law alone barely depends on the area at a given flow (Stevens' measured
     // source goes as U^3 / A^2.5), and with the voiced flow through them the
     // approximants' 0.25-0.35 cm^2 constrictions hissed: r +33 dB, w +16,
     // l +13, n +7 dB of 3-8 kHz noise, the "smoosh" (2026-11-03).
-    const float wide = std::clamp(std::log(a / (kFricA0 * fricFade_)) / std::log(kFricA1 / kFricA0), 0.0f, 1.0f);
+    // log(a / (A0 f)) / log(A1 / A0) as (log a - log(A0 f)) x a constant: one log per substep.
+    static const float invLogRatio = 1.0f / std::log(kFricA1 / kFricA0);
+    if (fricLogA0_ == 0) fricLogA0_ = std::log(kFricA0 * fricFade_);
+    const float wide = std::clamp((std::log(a) - fricLogA0_) * invLogRatio, 0.0f, 1.0f);
     const float slit = 1.0f - wide * wide * (3.0f - 2.0f * wide);
     if (re > kReynoldsCrit && slit > 0) {
-      const float drive = slit * fricGain_ * (re * re - reC2) / reC2 * noiseF;
+      const float drive = slit * fricGain_ * (re * re - reC2) * invReC2 * noiseF;
       if (kNoiseAsPressure > 0) oral_.addPressureDrive(noiseK_, drive * kNoiseAsPressure);
       else oral_.addFlowDrive(noiseK_, drive);
     }
@@ -595,7 +612,7 @@ float VocalTractLine::substep(float u0) {
       // closure at share ~0.9): the folds lost their load, p0's AC was 55
       // dyn/cm^2 (d's 510), voicing died within 5 ms and the closure was
       // silent; d's bar kept only the 1.2 kHz closed-tube mode (2026-11-05).
-      expandPc_ += (1.0f - std::exp(-2.0f * kPiL * kExpandLp * dt_)) * (pc - expandPc_);
+      expandPc_ += (1.0f - std::exp(kM2PiL * kExpandLp * dt_)) * (pc - expandPc_);
       pc = expandPc_;
     }
     const float hold = kExpandHold * lungPressure_;
@@ -640,7 +657,7 @@ float VocalTractLine::substep(float u0) {
 }
 
 void VocalTractLine::setAspHp(float hz, int poles) {
-  aspHpA_ = hz > 0 ? 1.0f - std::exp(-2 * kPiL * hz * dt_) : aspHpBaseA_;
+  aspHpA_ = hz > 0 ? 1.0f - std::exp(kM2PiL * hz * dt_) : aspHpBaseA_;
   aspHpPolesNow_ = hz > 0 ? poles : 0;
 }
 

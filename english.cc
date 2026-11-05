@@ -543,7 +543,7 @@ constexpr size_t kMaxHeldSentence = 4000;  // ... and the longest sentence held 
 constexpr float kEnglishFricationGain = 4.5f;
 constexpr float kEnglishAspirationGain = 50.0f, kEnglishHGain = 20.0f;
 const float kEnglishVoicedHNoise = param("kEnglishVoicedHNoise", 0.4f);  // x the h gain, h between voiced sounds (readers' medial h is mostly breathy voice, 10-13 dB under the vowel; 1.0 put puhuja's at -1 dB, INPUT.md 2026-10-31) (0.3 with the h gain 0.7: "the hand" was heard as "the land": the h had the l's length, level and harmonicity; 3 was 12 dB louder than goog.wav)
-const float kEnglishVoicedHAg = param("kEnglishVoicedHAg", 0.25f);  // (0.2 with the folds stopping above kAgBreathy: h-vowel -7.1 dB over kennedy.txt, 0.25: -8.7, readers -10..-13; round trip 8.6 -> 8.2 %, 2026-11-01)  // cm^2, h between voiced sounds (goog.wav's stays voiced)
+const float kEnglishVoicedHAg = param("kEnglishVoicedHAg", 0.15f);  // 0.25 until 2026-11-05: it stopped the folds, a 45 ms gap in "his"; Jyrki chose 0.15 (hih-Z1)  // (0.2 with the folds stopping above kAgBreathy: h-vowel -7.1 dB over kennedy.txt, 0.25: -8.7, readers -10..-13; round trip 8.6 -> 8.2 %, 2026-11-01)  // cm^2, h between voiced sounds (goog.wav's stays voiced)
 
 EnglishReader::EnglishReader(Synth& synth) : synth_(synth) {
   synth_.setSpellingRules(false);  // English phonemes come ready-made
@@ -860,6 +860,14 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
       if (phraseFinal && !vowel && i > static_cast<size_t>(lastVowel) && b == "V") {
         static const float vLen = param("EN_FINAL_V_LEN", 1.0f);
         whole *= vLen;
+      }
+      // The voiceless fricatives' and stops' lengths x these (Jyrki 2026-11-05,
+      // the blend exploration: Kokoro's Kennedy has s 80 ms, ʃ 110, t 60, k 70,
+      // p 70 against puhuja's 70, 73, 37, 43, 49; 1: unchanged).
+      if (!vowel) {
+        static const float vfricLen = param("EN_VFRIC_LEN", 1.0f), vstopLen = param("EN_VSTOP_LEN", 1.0f);
+        if (b == "S" || b == "SH" || b == "F" || b == "TH") whole *= vfricLen;
+        else if (isVoicelessPlosive(b)) whole *= vstopLen;
       }
       // Rate: vowels follow it, consonants less (a slow reader keeps the
       // consonants crisp); relative to the default rate, which stays as fitted.
@@ -1276,7 +1284,7 @@ constexpr float kSyllabicNLength = 1.6f;
 constexpr float kSyllabicLLength = 1.8f;
 const float kInnerGlide = param("EN_INNER_GLIDE", 1.0f);  // w / j inside a word (0 off, 1 aʊ, 2 every high vowel or glide)
 // "to" before a vowel sound (see sayPhrase): 0 keeps the weak tə, 1 tʊ, 2 tu.
-const float kToBeforeVowel = param("EN_TO_VOWEL", 2.0f);
+const float kToBeforeVowel = param("EN_TO_VOWEL", 0.0f);  // Jyrki 2026-11-05: in "power to abolish" tu (2) sounded "chu"; of tu / tʊ / tə renders the weak tə was best by ear
 const float kToVowelLength = param("EN_TO_VOWEL_LEN", 0.6f);  // ... its vowel's length then
 const float kToGlide = param("EN_TO_GLIDE", 1.0f);  // ... and its linking w (0: none)
 const float kToWeakOnly = param("EN_TO_VOWEL_WEAK", 1.0f);  // 1: only before an unstressed vowel ("to abolish", not "to ask")
@@ -2194,7 +2202,12 @@ void EnglishReader::sayPhrase(char end) {
         }
         // Duration (Klatt rules); diphthongs share it 60/40, ɜ+ɹ 80/20 (the
         // vowel is r-coloured itself; the ɹ is only its tail).
-        const float firstShare = s.ph[0] == Ph::ER ? (erOnset ? kErOnsetShare : 0.8f) : 0.6f;
+        // aʊ's own split (EN_AW_FIRST_SHARE): Jyrki 2026-11-05, "now" as "naauu",
+        // the ʊ part too long (a 203, ʊ 171 ms with 0.6: the short-vowel
+        // lengthening below favours the shorter half).
+        static const float kAwFirstShare = param("EN_AW_FIRST_SHARE", 0.6f);
+        const float firstShare = s.ph[0] == Ph::ER ? (erOnset ? kErOnsetShare : 0.8f)
+                                 : s.n == 2 && s.ph[0] == Ph::A && s.ph[1] == Ph::UH ? kAwFirstShare : 0.6f;
         const float share = s.n == 1 ? 1.0f : k == 0 ? firstShare : 1.0f - firstShare;
         shape.ms = dur[w][i] * share * v.length;
         const bool toLinked = kToBeforeVowel > 0.5f && phrase_[w].text == "to" && i == 1 &&
@@ -2202,6 +2215,13 @@ void EnglishReader::sayPhrase(char end) {
                               !phrase_[w + 1].tokens.empty() && isVowelToken(phrase_[w + 1].tokens[0]);
         if (toLinked) shape.ms *= kToVowelLength;
         if (s.n == 2 && s.ph[1] != Ph::RR) shape.ms *= kDiphthongLength;  // a true diphthong, not ɜ+ɹ
+        // The unstressed ɜ after aʊ ("power", "hour", "flower") x this (EN_AW_ER_LEN;
+        // Jyrki 2026-11-05: "the rhythm of the words is a little off, first
+        // syllable should be stressed, 2nd unstressed": its ɜ ran 115 ms at the
+        // first syllable's level, Kokoro's and 11labs' r tail is ~80 ms and a
+        // continuous glide out of the ʊ).
+        static const float kAwErLen = param("EN_AW_ER_LEN", 1.0f);
+        if (s.ph[0] == Ph::ER && i > 0 && baseName(tokens[i - 1]) == "AW") shape.ms *= kAwErLen;
         // Vowels as long as in the Google reading of kennedy.txt (goog.wav):
         // short vowels are lengthened most (x1.46 at 50 ms), long ones less
         // (x1.17 at 150 ms).
@@ -2256,6 +2276,11 @@ void EnglishReader::sayPhrase(char end) {
           // the word's peak against Kokoro's -13..-17).
           if (vn[strlen(vn) - 1] == '2') db += kSecondaryDb;
           else if (vn[strlen(vn) - 1] == '0') db += kUnstressedDb;
+          // ... and the ɜ of "power", "hour" a step under its aʊ (EN_AW_ER_DB; with
+          // kUnstressedDb +2 it was the louder syllable, -11 dB re the phrase
+          // against the aʊ's -13; Kokoro and 11labs: 2-5 dB under).
+          static const float kAwErDb = param("EN_AW_ER_DB", 0.0f);
+          if (i > 0 && baseName(tokens[i]) == "ER" && baseName(tokens[i - 1]) == "AW") db += kAwErDb;
           shape.level *= std::pow(10.0f, db / 20.0f);
           shape.prosody = std::pow(10.0f, db / 20.0f);
         }

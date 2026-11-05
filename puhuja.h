@@ -128,6 +128,7 @@ struct Event {
   float lineFricMul = -1;  // the slit noise gain factor on the line (v; < 0: unchanged)
   float lineLevel = -1;  // the prosodic level as a lung-pressure factor on the line (< 0: unchanged)
   float lineSoft = -1, lineExtra = -1;  // a voiced closure's softness and extra length on the line (< 0: unchanged)
+  float lineExpand = -1;  // a voiced closure's expansion flow on the line (cm^3/s; 0: the shared knobs; < 0: unchanged)
   float lineHw = -1, lineLip = -1;  // the constriction's half-width and lip cap on the line (< 0: unchanged / none)
   float lineAspHp = -1;  // the aspiration's high-pass on the line (Hz; 0: LINE_ASP_HP; < 0: unchanged)
   float lineFricLpr = -1;  // the frication band's low-pass ratio on the line (0: LINE_NOISE_LPR; < 0: unchanged)
@@ -370,6 +371,7 @@ class Synth {
   void setFixedResonances();
 
   float fs_;
+  bool female_ = false;  // the voice preset (the female's stop puffs are scaled by LINE_PUFF_FEMALE)
   float baseF0_;
   Voice voice_;
 
@@ -501,8 +503,9 @@ class Synth {
   float lineFricMul_ = 1.0f;  // the slit noise gain factor (LINE_V_FRIC during a v)
   bool lineHAsp_ = false;  // a voiceless h set lineAspMul: the next sound resets it
   float lineLevel_ = 1.0f, lineLevelTarget_ = 1.0f;  // the prosodic level (shape.level) as a lung-pressure factor on the line
-  float lineSoft_ = 1.0f, lineExtra_ = 0.0f;
+  float lineSoft_ = 1.0f, lineExtra_ = 0.0f, lineExpand_ = 0.0f;
   double lineVbarFrom_ = -1;  // when the current voiced closure began (LINE_VBAR_MS; < 0: none)
+  double lineCloseFrom_ = -1;  // when the current closure (any) began (LINE_VSTOP_VBAR_MS; < 0: open)
   float lineHw_ = 1.0f, lineHwTarget_ = 1.0f, lineLip_ = 0.0f, lineLipTarget_ = 0.0f;  // its half-width and lip cap (0: none)
   float lineXFollow_ = 0;
   int lineCount_ = 0;

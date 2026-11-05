@@ -28,37 +28,37 @@ constexpr float kSeg = kLength / kMoving, kLayer = kThickness / L;
 // layers with the superior edge lighter (their 0.125 / 0.025 is too extreme
 // for a string: the light layer would race ahead), tapered along the cord.
 constexpr float kMass = 0.15f;
-const float kTopMass = param("STRING_TOPMASS", 0.401101f) /* 2026-11-04 LF fit (tools/lf_fit.py, ref/lf/fit2) 0.358205, then 15 % back toward the earlier 0.7614 (Jyrki: the more trained voice) */;  // the superior layer's share
-const float kTaper = param("STRING_TAPER", 0.186054f) /* 2026-11-04 LF fit (tools/lf_fit.py, ref/lf/fit2) 0.185574, then 15 % back toward the earlier 0.1888 (Jyrki: the more trained voice) */;        // half-sine taper, 1 - kTaper at the anchors
+const float kTopMass = param("STRING_TOPMASS", 0.4091f) /* cost 1814 whisper-run1-phon_err */ /* 2026-11-04 LF fit (tools/lf_fit.py, ref/lf/fit2) 0.358205, then 15 % back toward the earlier 0.7614 (Jyrki: the more trained voice) */;  // the superior layer's share
+const float kTaper = param("STRING_TAPER", 0.1787f) /* cost 1814 whisper-run1-phon_err */ /* 2026-11-04 LF fit (tools/lf_fit.py, ref/lf/fit2) 0.185574, then 15 % back toward the earlier 0.1888 (Jyrki: the more trained voice) */;        // half-sine taper, 1 - kTaper at the anchors
 // Natural frequency (Hz) of the fold's lowest mode at tension 1: the wall
 // spring and the string's first mode together. The driver's pitch controller
 // takes up the rest, as for the other fold models.
-const float kNaturalF0 = param("STRING_F0", 117.4f) /* cost 0.0307807887603556 wobble */;
+const float kNaturalF0 = param("STRING_F0", 105.7f) /* cost 1058 whisper-sens1-combo-phase1-err */;
 // The wall spring's share of each lane's restoring stiffness at the lowest
 // mode; the string tension carries the rest (1 - share), uniform along the
 // cord as a string's tension is. (First sweep, 2026-10-31: at 0.3 with shear
 // 0.3 and kappa 1 the fold sat open and drifted at 5 Hz; 0.7 with shear 1
 // and kappa 2 phonates at 20 % closure, jitter 1.2 %.)
-const float kWallShare = param("STRING_WALLSHARE", 0.166296f) /* 2026-11-04 LF fit (tools/lf_fit.py, ref/lf/fit2) 0.163924, then 15 % back toward the earlier 0.1804 (Jyrki: the more trained voice) */;
+const float kWallShare = param("STRING_WALLSHARE", 0.163f) /* cost 1814 whisper-run1-phon_err */ /* 2026-11-04 LF fit (tools/lf_fit.py, ref/lf/fit2) 0.163924, then 15 % back toward the earlier 0.1804 (Jyrki: the more trained voice) */;
 // Stiffness of the superior layer relative to the inferior (softer: the
 // layers' phase lag, which feeds the oscillation from the flow).
-const float kTopStiff = param("STRING_TOPSTIFF", 1.01489f) /* 2026-11-04 LF fit (tools/lf_fit.py, ref/lf/fit2) 1.091, then 15 % back toward the earlier 0.6737 (Jyrki: the more trained voice) */;
+const float kTopStiff = param("STRING_TOPSTIFF", 0.9946f) /* cost 1814 whisper-run1-phon_err */ /* 2026-11-04 LF fit (tools/lf_fit.py, ref/lf/fit2) 1.091, then 15 % back toward the earlier 0.6737 (Jyrki: the more trained voice) */;
 // Shear coupling between the two layers relative to the wall spring
 // ("connected mildly"; below ~1 the layers do not drive each other enough
 // to oscillate against the static pressure).
-const float kShearRel = param("STRING_SHEAR", 3.23408f) /* 2026-11-04 LF fit (tools/lf_fit.py, ref/lf/fit2) 3.4412, then 15 % back toward the earlier 2.275 (Jyrki: the more trained voice) */;
+const float kShearRel = param("STRING_SHEAR", 6.412f) /* cost 5.3123456789012345 schwa-run2-kokoro-dB */ /* 2026-11-04 LF fit (tools/lf_fit.py, ref/lf/fit2) 3.4412, then 15 % back toward the earlier 2.275 (Jyrki: the more trained voice) */;
 // Damping ratios while open per layer; extra while touching the wall.
 constexpr float kZeta[L] = {0.1f, 0.4f};
-const float kZetaClosed = param("STRING_ZCLOSED", 0.204348f) /* 2026-11-04 LF fit (tools/lf_fit.py, ref/lf/fit2) 0.207612, then 15 % back toward the earlier 0.1868 (Jyrki: the more trained voice) */;
+const float kZetaClosed = param("STRING_ZCLOSED", 0.3158f) /* cost 5.3123456789012345 schwa-run2-kokoro-dB */ /* 2026-11-04 LF fit (tools/lf_fit.py, ref/lf/fit2) 0.207612, then 15 % back toward the earlier 0.1868 (Jyrki: the more trained voice) */;
 constexpr float kCollision = 3.0f;  // collision stiffness / the lane's total stiffness
 // The share of the air pressure on the surface that drives it.
-const float kKappa = param("STRING_KAPPA", 2.3491f) /* 2026-11-04 LF fit (tools/lf_fit.py, ref/lf/fit2) 2.24987, then 15 % back toward the earlier 3 (Jyrki: the more trained voice) */;
+const float kKappa = param("STRING_KAPPA", 1.283f) /* cost 5.3123456789012345 schwa-run2-kokoro-dB */ /* 2026-11-04 LF fit (tools/lf_fit.py, ref/lf/fit2) 2.24987, then 15 % back toward the earlier 3 (Jyrki: the more trained voice) */;
 // The cords' own sound: surface area times lateral velocity, both folds.
-const float kSurface = param("STRING_SURFACE", 0.02104f) /* cost 0.0431489781638616 n14-stringline-w1k-f */;
+const float kSurface = param("STRING_SURFACE", 0.07067f) /* cost 5.3123456789012345 schwa-run2-kokoro-dB */;
 // The abduction rest area scaled for this model's own amplitude.
-const float kRestScale = param("STRING_REST", 0.0528218f) /* 2026-11-04 LF fit (tools/lf_fit.py, ref/lf/fit2) 0.0539805, then 15 % back toward the earlier 0.04671 (Jyrki: the more trained voice) */;
+const float kRestScale = param("STRING_REST", 0.02204f) /* cost 5.3123456789012345 schwa-run2-kokoro-dB */ /* 2026-11-04 LF fit (tools/lf_fit.py, ref/lf/fit2) 0.0539805, then 15 % back toward the earlier 0.04671 (Jyrki: the more trained voice) */;
 // Rest width along the cord relative to the mean: front (anterior) against back.
-const float kRestFront = param("STRING_RESTFRONT", 1.57511f) /* 2026-11-04 LF fit (tools/lf_fit.py, ref/lf/fit2) 1.58689, then 15 % back toward the earlier 1.51 (Jyrki: the more trained voice) */, kRestBack = 2.0f - kRestFront;
+const float kRestFront = param("STRING_RESTFRONT", 1.544f) /* cost 1814 whisper-run1-phon_err */ /* 2026-11-04 LF fit (tools/lf_fit.py, ref/lf/fit2) 1.58689, then 15 % back toward the earlier 1.51 (Jyrki: the more trained voice) */, kRestBack = 2.0f - kRestFront;
 constexpr float kRho = 0.00113f;      // air density (g/cm^3)
 constexpr float kInertance = 0.005f;  // as folds.cc
 // Discharge coefficient of the glottal orifice (vena contracta): the flow
@@ -66,12 +66,14 @@ constexpr float kInertance = 0.005f;  // as folds.cc
 // Without it the folds passed ~2x a real glottis's flow and the pressure
 // above them swung by a third of the lung pressure (review 2026-11-01).
 const float kDischarge = param("STRING_CD", 0.92f);  // (Jyrki 2026-11-04: 0.92, a smooth converging glottis; 1.0 from the search)  // (0.65-0.85 with the folds as tuned: the closure is lost, 31 % -> 20 % -> 1 %, 2026-11-01)
+const float kRhoOver2Cd2 = 0.5f * kRho / (kDischarge * kDischarge);  // rho / (2 Cd^2): the Bernoulli head per (u / a)^2
 // Rounding of the heard area (cm^2): the flow fades over this much area as a
 // lane closes instead of cutting off (Jyrki 2026-11-01: "closing should be a
 // slow process ... or closing happens over a longer distance, i.e. the
 // frequencies are smeared"; with the line tract the step-like cut-off left
 // soft phrase ends as pure tones).
 const float kRound = param("STRING_ROUND", 0.002f);
+const float kRoundInv = 1.0f / kRound;
 // ... and in time: a lane's heard channel may close no faster than this time
 // constant (ms; 0: at once). It opens at once.
 const float kCloseMs = param("STRING_CLOSEMS", 0.0f);
@@ -83,10 +85,10 @@ constexpr int kMembranousEnd = kLast;
 // constants (ms; 0 = off), the forces mix (1 - s) of their own and s of the
 // neighbours' mean; a touching lane's velocity relaxes toward its layer's
 // mean velocity with kClosedSmoothMs.
-const float kSmoothMs = param("STRING_SMOOTHMS", 44.29f) /* cost 0.0431489781638616 n14-stringline-w1k-f */, kVSmoothMs = param("STRING_VSMOOTHMS", 43.49f) /* cost 0.0431489781638616 n14-stringline-w1k-f */;
-const float kForceSmooth = param("STRING_FSMOOTH", 0.0009663f) /* cost 0.0431489781638616 n14-stringline-w1k-f */, kClosedSmoothMs = param("STRING_CSMOOTHMS", 1.559f) /* cost 0.0431489781638616 n14-stringline-w1k-f */;
+const float kSmoothMs = param("STRING_SMOOTHMS", 43.4f) /* cost 1814 whisper-run1-phon_err */, kVSmoothMs = param("STRING_VSMOOTHMS", 43.49f) /* cost 1814 whisper-run1-phon_err */;
+const float kForceSmooth = param("STRING_FSMOOTH", 0.0009277f) /* cost 1814 whisper-run1-phon_err */, kClosedSmoothMs = param("STRING_CSMOOTHMS", 1.528f) /* cost 1814 whisper-run1-phon_err */;
 // The other layer's weight in the neighbour mean (the two along the cord weigh 1 each).
-const float kMixLayer = param("STRING_MIXLAYER", 0.007103f) /* cost 0.0431489781638616 n14-stringline-w1k-f */;
+const float kMixLayer = param("STRING_MIXLAYER", 0.007245f) /* cost 1814 whisper-run1-phon_err */;
 
 // The share of the way a value moves toward its target in one step of h
 // seconds with a time constant in milliseconds (the 0.001 is ms -> s).
@@ -131,12 +133,13 @@ void StringFolds::reset() {
 
 __attribute__((target_clones("avx512f", "avx2", "default")))
 float StringFolds::step(float h, const VocalFolds::Input& in) {
+  constexpr float kMovingInv = 1.0 / kMoving;
   const float q = std::max(in.q, 0.2f);
   // Rest slit width per lane (both folds together), plus the posterior chink
   // on the last moving lane.
   const float restMean = kRestScale * in.rest / kLength;  // area -> width
   for (int l = 0; l < N; ++l)
-    restW_[l] = restMean * (kRestFront + (kRestBack - kRestFront) * (l - kFirst + 0.5f) / kMoving);
+    restW_[l] = restMean * (kRestFront + (kRestBack - kRestFront) * (l - kFirst + 0.5f) * kMovingInv);
   restW_[kLast] += in.gap / kSeg;
   // Masses and stiffnesses. Stiffness ~ tension^2 (frequencies ~ tension).
   // Per layer: the lowest mode at w0 = 2 pi f0 q from the wall spring (share
@@ -145,20 +148,37 @@ float StringFolds::step(float h, const VocalFolds::Input& in) {
   // w^2 = 4 kS / m sin^2(pi / (2 (N - 1))), on the mean mass).
   const float w0 = 2 * kPi * kNaturalF0 * q;
   const float s1 = std::sin(kPi / (2.0f * (N - 1)));
-  alignas(64) float mass[L][N], invMass[L][N], kWall[L][N], damp[L][N];
+  // The masses depend only on the layer and the lane (the taper): computed
+  // once. (Rebuilt every substep they cost 32 sinf calls per substep, 8 % of
+  // a render, 2026-11-05.) Only the stiffnesses and the damping follow q.
+  struct Masses { alignas(64) float mass[L][N]; alignas(64) float invMass[L][N]; };
+  static const Masses masses = [] {
+    Masses t;
+    for (int j = 0; j < L; ++j) {
+      const float layerMass = kMass * (j == 0 ? 1.0f - kTopMass : kTopMass);
+      const float meanMass = layerMass * kMovingInv;
+      for (int l = 0; l < N; ++l) {
+        const float taper = 1.0f - kTaper + kTaper * std::sin(kPi * (l - kFirst + 0.5f) * kMovingInv);
+        t.mass[j][l] = meanMass * taper;
+        t.invMass[j][l] = 1.0f / t.mass[j][l];
+      }
+    }
+    return t;
+  }();
+  const auto& mass = masses.mass;
+  const auto& invMass = masses.invMass;
+  alignas(64) float kWall[L][N], damp[L][N];
   float kString[L], kShear[L];
   for (int j = 0; j < L; ++j) {
     const float layerMass = kMass * (j == 0 ? 1.0f - kTopMass : kTopMass);
     const float stiff = j == 0 ? 1.0f : kTopStiff;
-    const float meanMass = layerMass / kMoving;
+    const float sqrt_stiff = j == 0 ? 1.0f : std::sqrt(kTopStiff);
+    const float meanMass = layerMass * kMovingInv;
     kString[j] = (1.0f - kWallShare) * meanMass * w0 * w0 * stiff / (4.0f * s1 * s1);
     kShear[j] = kShearRel * kWallShare * meanMass * w0 * w0 * stiff;
     for (int l = 0; l < N; ++l) {
-      const float taper = 1.0f - kTaper + kTaper * std::sin(kPi * (l - kFirst + 0.5f) / kMoving);
-      mass[j][l] = meanMass * taper;
-      invMass[j][l] = 1.0f / mass[j][l];
       kWall[j][l] = kWallShare * mass[j][l] * w0 * w0 * stiff;
-      damp[j][l] = 2 * std::sqrt(mass[j][l] * mass[j][l] * w0 * w0 * stiff);  // x zeta: critical for the lane's total stiffness
+      damp[j][l] = 2 * mass[j][l] * w0 * sqrt_stiff;  // x zeta: critical for the lane's total stiffness
     }
   }
   closedNow_ = false;
@@ -190,7 +210,7 @@ float StringFolds::step(float h, const VocalFolds::Input& in) {
       u_[l] = 0;
     } else {
       openMask_ |= 1u << l;
-      const float A = 0.5f * kRho / (kDischarge * kDischarge * a * a);
+      const float A = kRhoOver2Cd2 / (a * a);
       const float C = B * u_[l] + drive;
       // (either direction: with the flow clamped at zero, air pushed into a
       // sealed mouth by the closure's own transient could never return, the
@@ -203,7 +223,7 @@ float StringFolds::step(float h, const VocalFolds::Input& in) {
     // 50 % of its mean through the closed phase, a dark breathy source,
     // 2026-11-02; shifted by its value at zero a shut lane passes nothing)
     constexpr float kLn2 = 0.69314718f;
-    float af = a > 30.0f * kRound ? a : std::max(kRound * (std::log1p(std::exp(a / kRound)) - kLn2), 0.0f);
+    float af = a > 30.0f * kRound ? a : std::max(kRound * (std::log1p(std::exp(a * kRoundInv)) - kLn2), 0.0f);
     // The heard channel closes no faster than kCloseMs (it opens at once):
     // the area lags, so the flow still answers the pressure instantly (a lag
     // on the flow itself ran away against the sealed tract of a b, 2026-11-01).
@@ -212,7 +232,7 @@ float StringFolds::step(float h, const VocalFolds::Input& in) {
       else aHeard_[l] = af;
       af = aHeard_[l];
     }
-    const float A = 0.5f * kRho / (kDischarge * kDischarge * af * af + 1e-12f);
+    const float A = kRhoOver2Cd2 / (af * af + 1e-12f);
     const float C = B * uOut_[l] + drive;
     uOut_[l] = C >= 0 ? 2 * C / (B + std::sqrt(B * B + 4 * A * C)) : -2 * C / (B + std::sqrt(B * B - 4 * A * C));
     uSum_ += u_[l];
@@ -296,7 +316,7 @@ float StringFolds::step(float h, const VocalFolds::Input& in) {
     for (int j = 0; j < L; ++j) {
       float sum = 0;
       for (int l = kFirst; l <= kLast; ++l) sum += v_[j][l];
-      const float m = sum / kMoving;
+      const float m = sum * kMovingInv;
       for (int l = 0; l < N; ++l) {
         const float touching = g[j][l] < 0 ? 1.0f : 0.0f;
         v_[j][l] += touching * mix * (m - v_[j][l]);

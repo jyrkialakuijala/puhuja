@@ -72,6 +72,7 @@ class TransmissionLine {
   void init(float length, float fs, int sections = 0);
   int sections() const { return n_; }
   float dx() const { return dx_; }
+  float invDx() const { return invDx_; }
   // The tract's length from this output sample on (the section count stays;
   // the section length follows, within the Courant limit).
   void setLength(float length);
@@ -121,7 +122,7 @@ class TransmissionLine {
   alignas(64) float uLp_[kMaxSections + kBlock] = {};  // the flow low-passed at LINE_HF_FC, per interface
   float hfK_ = 0, hfA_ = 0;
   int n_ = 0, blocks_ = 0;
-  float fs_ = 48000, dt_ = 0, dx_ = 0;
+  float fs_ = 48000, dt_ = 0, dx_ = 0, invDx_ = 0;  // invDx_ = 1 / dx_ (divisions in the per-substep loops are multiplications)
   alignas(64) float a_[kMaxSections] = {};      // areas (cm^2)
   alignas(64) float p_[kMaxSections + kBlock] = {};  // pressure per section (padded: the momentum loop reads p_[nb])
   alignas(64) float u_[kMaxSections + kBlock] = {};  // flow per interface (u_[0] glottis, u_[n] lips)
@@ -158,7 +159,7 @@ class TransmissionLine {
   float traceExtra2_ = 0;  // ... and another (the lung pressure)
   // A Helmholtz side branch (a paranasal sinus): a neck of area aN and length
   // lN into a volume v, opening at section k. Its flow is a sink there.
-  struct Sinus { int k = -1; float m = 0, cInv = 0, r = 0, u = 0, p = 0; };
+  struct Sinus { int k = -1; float m = 0, cInv = 0, r = 0, u = 0, p = 0, dtOverM = 0, invDen = 0; };  // dtOverM, invDen: per-substep factors, from m and r
   void addSinus(int k, float volume, float neckArea, float neckLength, float q);
   void sinusFlows();      // before substep: the neck flows from the old pressures
   void sinusPressures();  // after substep: the volumes and the sections move with them
@@ -200,7 +201,7 @@ class VocalTractLine {
   // gaps between lip and teeth, not one 0.3 mm sheet (2026-11-04).
   void setJetThickness(float d) { jetD_ = d; }
   void setFricLpRatio(float r) { fricLpr_ = r; }  // the frication band's low-pass / its corner (0: LINE_NOISE_LPR)
-  void setFricFade(float s) { fricFade_ = s; }  // the frication source's fade-out areas x this (voiced fricatives)
+  void setFricFade(float s) { fricFade_ = s; fricLogA0_ = 0; }  // the frication source's fade-out areas x this (voiced fricatives)
   // The glottal noise's low-pass ratio during a voiceless stop's puff (<= 0:
   // LINE_GLOTTAL_LPR / LINE_NOISE_LPR): the puff's hiss reaches 2-5 kHz while
   // an h keeps its darker band (2026-11-04).
@@ -246,6 +247,7 @@ class VocalTractLine {
   float closureSoft_ = 1.0f, closureExtra_ = 0.0f;
   int velumK_ = 0, noiseK_ = -1, noiseKc_ = 0;  // noiseK_: where the turbulence drives; noiseKc_: the constriction's centre
   float an_ = 0, uNasal_ = 0;
+  float velarG_ = 0, velarInv2A2_ = 0;  // dt an / (rho dx_nasal) and 1 / (2 an^2), set with an_
   float fricGain_ = 0, aspGain_ = 0, glotArea_ = 0.05f;
   float out_ = 0, aaNoise_ = 0, lpNoise_ = 0, lpNoise2_ = 0;
   float aspHpState_ = 0, aspHpA_ = 0, aspHpBaseA_ = 0;
@@ -255,7 +257,8 @@ class VocalTractLine {
   float stG_[4] = {}, stF_[4] = {}, stAlphaG_ = 0.1f, stAlphaF_ = 0.1f, stLpG_ = 0.5f, stLpF_ = 0.5f;  // the Strouhal-banded noises (glottis, slit)
   unsigned stCount_ = 0;
   float stLogFcG_ = 0, stLogFcF_ = 0;
-  float fricFade_ = 1.0f;  // x LINE_FRIC_A0 / A1 for the current sound  // the corners' smoothed log frequencies (0: not yet set)  // all the turbulence noise: a 2-pole high-pass (LINE_NOISE_HP)  // the glottal noise's high-pass (turbulence has little below ~500 Hz)
+  float fricFade_ = 1.0f;  // x LINE_FRIC_A0 / A1 for the current sound
+  float fricLogA0_ = 0;  // log(kFricA0 * fricFade_), cached (0: recompute)  // the corners' smoothed log frequencies (0: not yet set)  // all the turbulence noise: a 2-pole high-pass (LINE_NOISE_HP)  // the glottal noise's high-pass (turbulence has little below ~500 Hz)
   // Decimation: the lip + nostril flow through a 4th-order low-pass at 18 kHz
   // at the substep rate, averaged over the kSubsteps of a sample, then
   // differentiated at the output rate (the radiated pressure).
