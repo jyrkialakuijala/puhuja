@@ -495,7 +495,7 @@ float VocalTractLine::substep(float u0) {
       return 1.0f - std::exp(-2 * kPiL * fc * dt_);
     };
     stAlphaG_ = alphaOf(u0, glotArea_, kGlottisLength, &stLpG_, 0, puffLpr_ > 0 ? puffLpr_ : kGlottalLpRatio > 0 ? kGlottalLpRatio : kNoiseLpRatio, kGlottalLpMin, &stLogFcG_);
-    if (noiseK_ >= 0) stAlphaF_ = alphaOf(oral_.flowAt(noiseKc_), oral_.areaAt(noiseKc_), kSlitWidth, &stLpF_, jetD_, kNoiseLpRatio, 0, &stLogFcF_);
+    if (noiseK_ >= 0) stAlphaF_ = alphaOf(oral_.flowAt(noiseKc_), oral_.areaAt(noiseKc_), kSlitWidth, &stLpF_, jetD_, fricLpr_ > 0 ? fricLpr_ : kNoiseLpRatio, 0, &stLogFcF_);
   }
   // Each jet's band-limited noise from the shared low-passed white noise.
   auto band = [&](float* s, float a, float lp) {  // s: 2 low-pass then 2 high-pass states

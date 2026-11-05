@@ -248,6 +248,15 @@ static const struct {
 // of Reynolds number past critical, at the constriction and at the glottis).
 const float kLineGain = param("LINE_GAIN", 5.1e-6f) /* 2026-11-04: x2.55 for the LF-fitted folds (7 dB weaker) with the noise at -7 dB: Kennedy rms -23.6 dB as before the fit */;  // vowels ~-20 dB rms, kennedy.txt peaks under 1.0
 const float kLinePostHw = param("LINE_POST_HW", 2.5f);   // ʃ ʒ ʧ ʤ: the groove's half-width (cm)
+// ʃ ʒ ʧ ʤ: the jet's thickness for its noise band (cm; 0: the slit's
+// height). The slit's height (0.08 cm^2 over the slit's width, ~0.3 mm)
+// put the band's corner at the 12 kHz clamp: the hiss sat at 8-11 kHz,
+// 10-15 dB over the 2.5-4 kHz body where goog's ʃ is 10-14 dB under it
+// ("revolution", "station" sounded like -sn, Jyrki 2026-11-05).
+const float kLinePostJetD = param("LINE_POST_JET_D", 0.25f);
+// ... and their band's low-pass, x the corner (0: LINE_NOISE_LPR). Kokoro's ʃ
+// falls off above ~7 kHz; Jyrki 2026-11-05: "-tion could be slightly darker".
+const float kLinePostLpr = param("LINE_POST_LPR", 3.0f);  // ʃ ʒ only (Whisper SH 72 -> 70 of 106, within noise)
 const float kLinePostLip = param("LINE_POST_LIP", 1.5f);  // (0.5 -> 1.5 on 2026-11-04: medial ʃ heard 12 -> 20 of 40, Whisper) (0.7 put ʃ at -3..-7 dB under the vowel, Kokoro -5..-23; the ablation charged it 0.0007 on the 857 words)  // ... and their lip rounding (cm^2)
 const float kLineRestartMs = param("LINE_RESTART_MS", 0.0f);  // after a voiceless fricative: shut for this long, then voice (0: adduct only)
 const float kLineAdductMs = param("LINE_ADDUCT_MS", 15.0f);  // adduction into voice after a voiceless fricative
@@ -653,7 +662,8 @@ float linePlaceOf(Ph ph) {
     case Ph::N: { static const float x = param("LINE_N_X", 0.78f); return x; }
     case Ph::T: { static const float x = param("LINE_T_X", 0.87f); return x; }
     case Ph::D: case Ph::L: case Ph::R: return 0.87f;
-    case Ph::SH: case Ph::ZH: case Ph::CH: case Ph::JH: return 0.78f;
+    case Ph::SH: case Ph::ZH: { static const float x = param("LINE_SH_X", 0.78f); return x; }
+    case Ph::CH: case Ph::JH: return 0.78f;
     case Ph::RR: { static const float x = param("LINE_R_X", 0.68f); return x; }  // (its hump: LINE_R_AC; 0.75 until 2026-11-04: F3 1700-1800 with the wider hump)
     case Ph::J: { static const float x = param("LINE_J_X", 0.70f); return x; }  // (0.66 / 0.74: F2 within 50 Hz, 2026-11-04)
     case Ph::K: { static const float x = param("LINE_K_X", 0.62f); return x; }
@@ -2130,8 +2140,9 @@ void Synth::emit(const Token& tok, const Ph* next) {
   // (set so that r, w, l would not hiss), so voiced it had no hiss: z and v
   // were heard as n, l, d (2026-11-04). Its own, wider fade range.
   static const float kVFricFade = param("LINE_VFRIC_FADE", 1.0f);
+  static const float shFade = param("LINE_SH_FADE", 1.0f);  // ʃ: its frication's fade window's areas x this
   if (tract_ == Tract::Line)
-    e.lineFricFade = tok.ph == Ph::Z || tok.ph == Ph::ZH || tok.ph == Ph::VV || tok.ph == Ph::DH ? kVFricFade : 1.0f;
+    e.lineFricFade = tok.ph == Ph::Z || tok.ph == Ph::ZH || tok.ph == Ph::VV || tok.ph == Ph::DH ? kVFricFade : tok.ph == Ph::SH ? shFade : 1.0f;
   e.lineX = linePlaceOf(tok.ph);
   // Stress as a push of the diaphragm (Jyrki 2026-11-04: "a soft pulse in
   // the beginning of the syllable rather than ramping up during the
@@ -2145,7 +2156,13 @@ void Synth::emit(const Token& tok, const Ph* next) {
     const bool post = tok.ph == Ph::SH || tok.ph == Ph::ZH || tok.ph == Ph::CH || tok.ph == Ph::JH;
     e.lineHw = post ? kLinePostHw : tok.ph == Ph::F ? kLineFHw : 1.0f;
     e.lineLip = post ? kLinePostLip : 0.0f;
-    e.lineJetD = tok.ph == Ph::F ? kLineFJetD : 0.0f;
+    e.lineJetD = tok.ph == Ph::F ? kLineFJetD : post ? kLinePostJetD : 0.0f;
+    e.lineFricLpr = tok.ph == Ph::SH || tok.ph == Ph::ZH ? kLinePostLpr : 0.0f;  // (not ʧ ʤ: at 3 they lost 39 -> 34, 26 -> 23 of 54, 56)
+    // A sound without frication leaves the jet as it was (LINE_JET_KEEP): the
+    // n after ʃ snapped it back to the slit's height and the full band while
+    // the slit was still hissing, a +10 dB spike at the end of every -tion.
+    static const bool jetKeep = param("LINE_JET_KEEP", 0.0f) > 0;
+    if (jetKeep && in.cls != Cls::Fricative) e.lineJetD = e.lineFricLpr = -1.0f;
     // θ ð: the jet between the tongue tip and the teeth is a wide flat one,
     // not the slit's height (0.03 cm^2 / 1 cm = 0.3 mm put the noise band's
     // corner near 12 kHz; Kokoro's θ is loudest at 3-5 kHz). Thickness in
@@ -2290,6 +2307,16 @@ void Synth::emit(const Token& tok, const Ph* next) {
   // slow ramp a vowel-n-vowel n was half open (l-like) for most of its
   // ~45 ms, and Whisper heard "Any" as "elite" (2026-11-04).
   if (tract_ == Tract::Line && tok.ph == Ph::N && kLineNCloseMs >= 0) e.acMs = kLineNCloseMs;
+  // ʃ ʒ: the tongue rises to the palate and leaves it over this long
+  // (LINE_SH_ON_MS, LINE_SH_OFF_MS; 0: the 20 ms boundary). In 20 ms the slit
+  // passed the frication's 0.22-0.12 cm^2 window in ~1 ms: the hiss switched
+  // on and off; Kokoro's -tion ʃ fades out over 55-100 ms (Jyrki 2026-11-05:
+  // "good if it ramps up and down as the tongue moves to the palate and back").
+  if (tract_ == Tract::Line) {
+    static const float shOn = param("LINE_SH_ON_MS", 0.0f), shOff = param("LINE_SH_OFF_MS", 0.0f);
+    if ((tok.ph == Ph::SH || tok.ph == Ph::ZH) && shOn > 0) e.acMs = shOn;
+    if ((lastPh_ == Ph::SH || lastPh_ == Ph::ZH) && shOff > 0) e.acMs = std::max(e.acMs, shOff);
+  }
   e.ag = aero.ag;
   if (in.cls == Cls::Vowel) e.ag *= tok.shape.press;  // voice quality by prosody
   e.agMs = kGlottalMs;
@@ -2904,6 +2931,21 @@ void Synth::emit(const Token& tok, const Ph* next) {
     ap.lineX = linePlaceOf(tok.ph);
     addEventAt(ap);
   }
+  // ʃ ʒ after a vowel (LINE_SH_APPROACH_MS, 2026-11-05): the tongue rises
+  // toward the palate first (to LINE_SH_APPROACH_A cm^2, still above the
+  // frication's window), then narrows to the slit over LINE_SH_ON_MS, so
+  // the hiss grows as the slit closes in, as in Kokoro's -tion (rising
+  // over 20-25 ms); in one 20 ms move it jumped on within 5 ms.
+  {
+    static const float shApMs = param("LINE_SH_APPROACH_MS", 0.0f), shApA = param("LINE_SH_APPROACH_A", 0.4f);
+    if (tract_ == Tract::Line && shApMs > 0 && (tok.ph == Ph::SH || tok.ph == Ph::ZH) && prevWasVowel_ && !prevWasPlosive_) {
+      Event ap{std::max(e.t - shApMs * ms, phonemeStart_ + 1)};
+      ap.ac = shApA;
+      ap.acMs = static_cast<float>((e.t - ap.t) / ms);
+      ap.lineX = linePlaceOf(tok.ph);
+      addEventAt(ap);
+    }
+  }
   if (!prevWasPlosive_) {
     if (!events_.empty() && e.t < events_.back().t) addEventAt(e); else addEvent(e);
     if (hasVelLag) addEventAt(velLag);
@@ -3291,6 +3333,8 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     const bool post = tok.ph == Ph::CH || tok.ph == Ph::JH;
     close.lineHw = post ? kLinePostHw : 1.0f;
     close.lineLip = post ? kLinePostLip : 0.0f;
+    close.lineJetD = post ? kLinePostJetD : 0.0f;
+    close.lineFricLpr = 0.0f;
     close.lineSoft = pi.voiced ? kLineVoicedSoft : 1.0f;
     close.lineExtra = tok.ph == Ph::B ? kLineVoicedExtraCm : 0.0f;  // the lips only: they move forward off the teeth for b
   }
@@ -3409,6 +3453,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     const bool post = *next == Ph::SH || *next == Ph::ZH;
     rel.lineHw = post ? kLinePostHw : 1.0f;
     rel.lineLip = post ? kLinePostLip : 0.0f;
+    if (post) rel.lineJetD = kLinePostJetD, rel.lineFricLpr = kLinePostLpr;
   }
   // On the line a voiced stop opens more slowly than a voiceless one: the
   // lips part softly, the burst keeps all its frequencies but builds over a
@@ -3805,6 +3850,7 @@ float Synth::tick() {
     if (e.lineExtra >= 0) lineExtra_ = e.lineExtra;
     if (e.lineHw >= 0) lineHw_ = lineHwTarget_ = e.lineHw;
     if (e.lineJetD >= 0) line_.setJetThickness(e.lineJetD);
+    if (e.lineFricLpr >= 0) line_.setFricLpRatio(e.lineFricLpr);
     if (e.linePuffLpr >= 0) line_.setPuffLpRatio(e.linePuffLpr);
     if (e.lineLip >= 0) lineLip_ = lineLipTarget_ = e.lineLip;
     planUsed_ += e.planAir;

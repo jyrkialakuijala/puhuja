@@ -129,6 +129,7 @@ struct Event {
   float lineLevel = -1;  // the prosodic level as a lung-pressure factor on the line (< 0: unchanged)
   float lineSoft = -1, lineExtra = -1;  // a voiced closure's softness and extra length on the line (< 0: unchanged)
   float lineHw = -1, lineLip = -1;  // the constriction's half-width and lip cap on the line (< 0: unchanged / none)
+  float lineFricLpr = -1;  // the frication band's low-pass ratio on the line (0: LINE_NOISE_LPR; < 0: unchanged)
   float lineJetD = -1;  // the frication jet's thickness for its noise band on the line (cm; 0: slit area / width; < 0: unchanged)
   float lineX = -1;    // the constriction's place for the line tract (share of its length; < 0: keep)
   bool aspBurst = false;  // an aspirated release: the puff's noise starts

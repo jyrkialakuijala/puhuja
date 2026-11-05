@@ -199,6 +199,7 @@ class VocalTractLine {
   // slit's height, area / LINE_SLIT_W). f's air leaks through a few wider
   // gaps between lip and teeth, not one 0.3 mm sheet (2026-11-04).
   void setJetThickness(float d) { jetD_ = d; }
+  void setFricLpRatio(float r) { fricLpr_ = r; }  // the frication band's low-pass / its corner (0: LINE_NOISE_LPR)
   void setFricFade(float s) { fricFade_ = s; }  // the frication source's fade-out areas x this (voiced fricatives)
   // The glottal noise's low-pass ratio during a voiceless stop's puff (<= 0:
   // LINE_GLOTTAL_LPR / LINE_NOISE_LPR): the puff's hiss reaches 2-5 kHz while
@@ -233,6 +234,7 @@ class VocalTractLine {
   float lungPressure_ = 0, pSub_ = 0;   // the lung pressure set per sample; the pressure under the folds
   float humpHw_ = 1.0f, lipCap_ = -1.0f;
   float jetD_ = 0;
+  float fricLpr_ = 0;
   float puffLpr_ = 0;
   float expandFlow_ = 0;
   float humpAc_ = 2.0f;  // the constriction's own area: closes at once, releases slowly
