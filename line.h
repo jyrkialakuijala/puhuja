@@ -205,6 +205,9 @@ class VocalTractLine {
   // LINE_GLOTTAL_LPR / LINE_NOISE_LPR): the puff's hiss reaches 2-5 kHz while
   // an h keeps its darker band (2026-11-04).
   void setPuffLpRatio(float r) { puffLpr_ = r; }
+  // The aspiration's high-pass corner from now on (Hz; 0: LINE_ASP_HP's), with
+  // `poles` one-pole stages (0: LINE_ASP_HP_POLES): a t's own breath.
+  void setAspHp(float hz, int poles);
   // A voiced closure: softer (its sections lose soft times more) and longer by
   // extraLength cm (b against p: the lips compress and protrude; Jyrki
   // 2026-11-03: "b needs to be a softer, more damped closure ... two
@@ -213,7 +216,7 @@ class VocalTractLine {
   // A volume sink in the mouth (cm^3/s): the cavity expanding behind a voiced
   // closure (cheeks, larynx lowering), which keeps the pressure down so the
   // folds go on vibrating (the voice bar of b d g).
-  void setExpansion(float flow) { expandFlow_ = flow; }
+  void setExpansion(float flow, bool slow = false) { expandFlow_ = flow; expandSlow_ = slow; }  // slow: a planned (expanding) voiced closure, LINE_EXPAND_LP applies
   // Turbulence: gains for the constriction and the glottis, and the glottal
   // area the flow passes (cm^2).
   void setNoise(float fricGain, float aspGain, float glottalArea);
@@ -237,13 +240,17 @@ class VocalTractLine {
   float fricLpr_ = 0;
   float puffLpr_ = 0;
   float expandFlow_ = 0;
+  float expandPc_ = 0;  // the cavity pressure the expansion sees, low-passed (LINE_EXPAND_LP)
+  bool expandSlow_ = false;
   float humpAc_ = 2.0f;  // the constriction's own area: closes at once, releases slowly
   float closureSoft_ = 1.0f, closureExtra_ = 0.0f;
   int velumK_ = 0, noiseK_ = -1, noiseKc_ = 0;  // noiseK_: where the turbulence drives; noiseKc_: the constriction's centre
   float an_ = 0, uNasal_ = 0;
   float fricGain_ = 0, aspGain_ = 0, glotArea_ = 0.05f;
   float out_ = 0, aaNoise_ = 0, lpNoise_ = 0, lpNoise2_ = 0;
-  float aspHpState_ = 0, aspHpA_ = 0;
+  float aspHpState_ = 0, aspHpA_ = 0, aspHpBaseA_ = 0;
+  int aspHpPolesNow_ = 0;  // 0: LINE_ASP_HP_POLES
+  float aspHpMore_[4] = {0, 0, 0, 0};  // LINE_ASP_HP_POLES' extra stages
   float noiseHp1_ = 0, noiseHp2_ = 0, noiseHpA_ = 0;
   float stG_[4] = {}, stF_[4] = {}, stAlphaG_ = 0.1f, stAlphaF_ = 0.1f, stLpG_ = 0.5f, stLpF_ = 0.5f;  // the Strouhal-banded noises (glottis, slit)
   unsigned stCount_ = 0;
