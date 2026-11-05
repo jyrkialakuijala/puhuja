@@ -1275,8 +1275,18 @@ const float kDiphthongLength = param("kDiphthongLength", 0.8787f) /* cost 0.0307
 constexpr float kSyllabicNLength = 1.6f;
 constexpr float kSyllabicLLength = 1.8f;
 const float kInnerGlide = param("EN_INNER_GLIDE", 1.0f);  // w / j inside a word (0 off, 1 aʊ, 2 every high vowel or glide)
+// "to" before a vowel sound (see sayPhrase): 0 keeps the weak tə, 1 tʊ, 2 tu.
+const float kToBeforeVowel = param("EN_TO_VOWEL", 2.0f);
+const float kToVowelLength = param("EN_TO_VOWEL_LEN", 0.6f);  // ... its vowel's length then
+const float kToGlide = param("EN_TO_GLIDE", 1.0f);  // ... and its linking w (0: none)
+const float kToWeakOnly = param("EN_TO_VOWEL_WEAK", 1.0f);  // 1: only before an unstressed vowel ("to abolish", not "to ask")
 constexpr float kLinkGlideMs = 40, kLinkGlideLevel = 0.7f;  // w / j linking a vowel to the next word's
 constexpr float kGlideBeforeVowel = 0.4f;  // a diphthong's glide before a vowel: share of that vowel
+// EN_FLAP_SYLLABIC_L: only t d before a syllabic l ("mortal", "little"):
+// Kokoro and 11labs tap it; the full t released into the l's narrow side
+// opening left 25 ms of near silence after the burst (Jyrki 2026-11-05:
+// "mortal, the t is weird").
+const float kFlapSyllabicL = param("EN_FLAP_SYLLABIC_L", 1.0f);
 const float kFlapping = param("kFlapping", 0.0f);  // 1: the American flap of t/d between vowels
 const float kFlapMs = param("kFlapMs", 18.61) /* cost 0.0294516433593330 n13-timing-w30 */;  // a flap's closure  // the n of -tion (ʃn̩) carries the syllable
 // Vowel lengthening (see sayPhrase): factor at 50 ms, change per ms, floor.
@@ -1980,6 +1990,25 @@ void EnglishReader::sayPhrase(char end) {
       if (t.size() == 2 && t[0] == kDH) t[1] = kIY0;
     }
   }
+  // "to" before a vowel sound keeps a rounded vowel, tʊ / tu, and links into
+  // the next word through a short w ("the power to abolish": goog, 11labs and
+  // Kokoro start the vowel at F1 300-350, F2 850-1300 and rise into the ə;
+  // the weak tə ran into abolish's ə as one flat 160 ms schwa).
+  if (kToBeforeVowel > 0.5f) {
+    static const uint8_t kT = tokenOf("T"), kAH0 = tokenOf("AH0"), kUH0 = tokenOf("UH0"),
+                         kUW0 = tokenOf("UW0");
+    for (size_t w = 0; w + 1 < phrase_.size(); ++w) {
+      if (phrase_[w].text != "to" || phrase_[w + 1].tokens.empty()) continue;
+      const uint8_t nt = phrase_[w + 1].tokens[0];
+      if (!isVowelToken(nt)) continue;
+      if (kToWeakOnly > 0.5f) {
+        const char* nn = kEnglishTokens[nt - 0x80];
+        if (nn[strlen(nn) - 1] != '0') continue;
+      }
+      auto& t = phrase_[w].tokens;
+      if (t.size() == 2 && t[0] == kT && t[1] == kAH0) t[1] = kToBeforeVowel > 1.5f ? kUW0 : kUH0;
+    }
+  }
   // American flap: t or d after a vowel (or r) and before an unstressed
   // vowel in the same word ("city", "better", "water"): a quick voiced tap
   // instead of a full, aspirated t.
@@ -1987,7 +2016,7 @@ void EnglishReader::sayPhrase(char end) {
   // full t in "poverty", 65 ms of silence while the pressure builds and a
   // 30 ms puff at the release; the tap had neither, and the listener lost
   // the t. kFlapping 1 restores the American tap.)
-  if (kFlapping > 0.5f) {
+  if (kFlapping > 0.5f || kFlapSyllabicL > 0.5f) {
     static const uint8_t kT = tokenOf("T"), kD = tokenOf("D"), kR = tokenOf("R");
     auto unstressedVowel = [](uint8_t t) {
       if (!isVowelToken(t)) return false;
@@ -2003,6 +2032,7 @@ void EnglishReader::sayPhrase(char end) {
         // flap merged the words for listeners ("better than").
         // ... or a syllabic l or n ("little", "button"): the tap is there too.
         const bool syllabic = i + 2 == t.size() && (phrase_[w].syllabicL || phrase_[w].syllabicN);
+        if (kFlapping <= 0.5f && !(i + 2 == t.size() && phrase_[w].syllabicL)) continue;
         if (i + 1 >= t.size() || !(unstressedVowel(t[i + 1]) || syllabic)) continue;
         t[i] = kD;
         phrase_[w].flaps |= 1u << i;
@@ -2167,6 +2197,10 @@ void EnglishReader::sayPhrase(char end) {
         const float firstShare = s.ph[0] == Ph::ER ? (erOnset ? kErOnsetShare : 0.8f) : 0.6f;
         const float share = s.n == 1 ? 1.0f : k == 0 ? firstShare : 1.0f - firstShare;
         shape.ms = dur[w][i] * share * v.length;
+        const bool toLinked = kToBeforeVowel > 0.5f && phrase_[w].text == "to" && i == 1 &&
+                              (s.ph[0] == Ph::U || s.ph[0] == Ph::UH) && w + 1 < phrase_.size() &&
+                              !phrase_[w + 1].tokens.empty() && isVowelToken(phrase_[w + 1].tokens[0]);
+        if (toLinked) shape.ms *= kToVowelLength;
         if (s.n == 2 && s.ph[1] != Ph::RR) shape.ms *= kDiphthongLength;  // a true diphthong, not ɜ+ɹ
         // Vowels as long as in the Google reading of kennedy.txt (goog.wav):
         // short vowels are lengthened most (x1.46 at 50 ms), long ones less
@@ -2256,7 +2290,8 @@ void EnglishReader::sayPhrase(char end) {
         const Ph last = s.ph[s.n - 1];
         const Ph link = last == Ph::U || last == Ph::UH ? Ph::W
                         : last == Ph::I || last == Ph::IH ? Ph::J : Ph::Stop;
-        if (link != Ph::Stop) {
+        const bool toNoGlide = kToGlide < 0.5f && kToBeforeVowel > 0.5f && phrase_[w].text == "to";
+        if (link != Ph::Stop && !toNoGlide) {
           Synth::Shape ls;
           ls.ms = kLinkGlideMs;
           ls.level = kLinkGlideLevel * kEnglishShape[static_cast<int>(link)].level;

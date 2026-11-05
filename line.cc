@@ -273,6 +273,7 @@ void TransmissionLine::sinusPressures() {
 
 const float kNoiseAsPressure = param("LINE_NOISE_P", 3.0f);  // as a flow drive the hiss grew only 0.45 dB per dB of gain (s stuck 18 dB under the vowels); as a section pressure x2 it sits at -9, Kokoro -5..-7 (2026-11-02)  // > 0: inject the turbulence as a section pressure (scaled by this) instead of an interface flow
 const float kExpandHold = param("LINE_EXPAND_HOLD", 0.6f);  // a voiced closure's cavity pressure is held near this share of the lungs'
+const float kExpandLp = param("LINE_EXPAND_LP", 50.0f);  // > 0: the voiced closure's expansion follows the cavity pressure low-passed at this (Hz), not as an acoustic shunt; 0: the instantaneous pressure (b's voice bar silent)
 const float kHumpReleaseMs = param("LINE_HUMP_RELEASE_MS", 40.0f);  // the constriction's area releases with this time constant beyond kHumpFastTo
 const float kHumpFastTo = param("LINE_HUMP_FAST_TO", 2.0f);  // (2.0: off; 0.4 held F2 low through the vowel and affricated the t puff)        // ... after opening fast (6 ms) to this area (cm^2): the acoustic release
 const float kNoiseDx = param("LINE_NOISE_DX", 0.2f);  // the turbulence source this far (cm) past the hump's downstream edge
@@ -338,7 +339,7 @@ void VocalTractLine::init(float fs) {
   subCount_ = 0;
   {
     const float hp = param("LINE_ASP_HP", 0.0f);
-    aspHpA_ = hp > 0 ? 1.0f - std::exp(-2 * kPiL * hp * dt_) : 0.0f;
+    aspHpA_ = aspHpBaseA_ = hp > 0 ? 1.0f - std::exp(-2 * kPiL * hp * dt_) : 0.0f;
     const float nhp = param("LINE_NOISE_HP", 1500.0f);  // the turbulence noise's high-pass corner (Hz; 0: none; 1500 on 2026-11-04, Jyrki: the s's 0.5-2 kHz bands 4-8 dB toward Kokoro's)
     noiseHpA_ = nhp > 0 ? 1.0f - std::exp(-2 * kPiL * nhp * dt_) : 0.0f;
   }
@@ -498,23 +499,58 @@ float VocalTractLine::substep(float u0) {
     if (noiseK_ >= 0) stAlphaF_ = alphaOf(oral_.flowAt(noiseKc_), oral_.areaAt(noiseKc_), kSlitWidth, &stLpF_, jetD_, fricLpr_ > 0 ? fricLpr_ : kNoiseLpRatio, 0, &stLogFcF_);
   }
   // Each jet's band-limited noise from the shared low-passed white noise.
-  auto band = [&](float* s, float a, float lp) {  // s: 2 low-pass then 2 high-pass states
-    s[0] += lp * (white - s[0]);
+  // LINE_NOISE_ST_PRELP (2026-11-05): the jets' bands start from the noise
+  // under LINE_NOISE_LP (5 kHz, Jyrki's choice of 2026-11-04) instead of the
+  // white noise; with the Strouhal bands that low-pass was bypassed and every
+  // hiss reached 12+ kHz (Jyrki 2026-11-05: "s, sh, t, z, f, -tion ...
+  // excessively bright"). x LINE_NOISE_ST_PRELP_GAIN.
+  static const bool stPreLp = param("LINE_NOISE_ST_PRELP", 1.0f) > 0;
+  static const float stPreGain = param("LINE_NOISE_ST_PRELP_GAIN", 1.4f);
+  const float stSrc = stPreLp ? stPreGain * lpNoise2_ : white;
+  // ... for the glottal jet too (LINE_NOISE_ST_PRELP_G 1); 0: the glottis keeps
+  // the white source (x LINE_NOISE_ST_PRELP_GAIN_G): a t's aspiration is
+  // mostly 4-12 kHz (goog "to": 15-20 dB over 0.5-3 kHz); under 5 kHz the
+  // tract-filtered low part dominated, a "gr-hu" (Jyrki 2026-11-05).
+  static const bool stPreLpG = param("LINE_NOISE_ST_PRELP_G", 1.0f) > 0;
+  static const float stGainG = param("LINE_NOISE_ST_PRELP_GAIN_G", 1.0f);
+  const float stSrcG = stPreLp && !stPreLpG ? stGainG * white : stSrc;
+  auto band = [&](float* s, float a, float lp, float src) {  // s: 2 low-pass then 2 high-pass states
+    s[0] += lp * (src - s[0]);
     s[1] += lp * (s[0] - s[1]);
     float x = s[1];
     s[2] += a * (x - s[2]); x -= s[2];
     s[3] += a * (x - s[3]); x -= s[3];
     return x;
   };
-  const float noiseG = strouhal ? band(stG_, stAlphaG_, stLpG_) : noise;
-  const float noiseF = strouhal ? band(stF_, stAlphaF_, stLpF_) : noise;
+  const float noiseG = strouhal ? band(stG_, stAlphaG_, stLpG_, stSrcG) : noise;
+  const float noiseF = strouhal ? band(stF_, stAlphaF_, stLpF_, stSrc) : noise;
   if (aspGain_ > 0) {
-    const float re = 2.0f * TransmissionLine::kRho * std::fabs(u0) / (kMuAir * std::sqrt(kPiL * glotArea_));
+    // LINE_GLOT_RE_SLIT (2026-11-05): the glottis is a slit, Re = 2 rho |u| /
+    // (mu L) with L its length, independent of the gap; the round-duct form
+    // (gap -> 0: Re -> infinity) made the aspiration grow as the folds closed
+    // after a p t k (a crescendo into the vowel; goog's decays). x
+    // LINE_GLOT_RE_SLIT as a scale (the threshold is then LINE_RE_CRIT / it).
+    static const float reSlit = param("LINE_GLOT_RE_SLIT", 0.0f);
+    const float re = reSlit > 0 ? reSlit * 2.0f * TransmissionLine::kRho * std::fabs(u0) / (kMuAir * kGlottisLength)
+                                : 2.0f * TransmissionLine::kRho * std::fabs(u0) / (kMuAir * std::sqrt(kPiL * glotArea_));
     // High-passed: the white source drove the open tract's low resonances,
     // so a t's aspiration peaked under 200 Hz (the readers' at 3-5 kHz, 20 dB
     // less below 350 Hz; 2026-11-04).
-    aspHpState_ += aspHpA_ * (noiseG - aspHpState_);
-    const float n = aspHpA_ > 0 ? noiseG - aspHpState_ : noiseG;
+    // LINE_ASP_HP_POLES (2026-11-05): more one-pole stages. With one (6
+    // dB/octave) the tract's F1 still lifted the aspiration's low part to the
+    // level of its 2.5-12 kHz hiss after a t ("power to": 0 dB; goog and
+    // Kokoro: the hiss 15-22 dB over 0.3-2.5 kHz).
+    static const int aspHpPolesBase = static_cast<int>(param("LINE_ASP_HP_POLES", 1.0f));
+    const int aspHpPoles = aspHpPolesNow_ > 0 ? aspHpPolesNow_ : aspHpPolesBase;
+    float n = noiseG;
+    if (aspHpA_ > 0) {
+      aspHpState_ += aspHpA_ * (n - aspHpState_);
+      n -= aspHpState_;
+      for (int k = 1; k < aspHpPoles && k < 4; ++k) {
+        aspHpMore_[k] += aspHpA_ * (n - aspHpMore_[k]);
+        n -= aspHpMore_[k];
+      }
+    }
     if (re > kReynoldsCrit) oral_.addFlowDrive(1, aspGain_ * (re * re - reC2) / reC2 * n);
   }
   if (noiseK_ >= 0 && fricGain_ > 0) {
@@ -544,13 +580,24 @@ float VocalTractLine::substep(float u0) {
     }
   }
   oral_.traceExtra_ = nasal_.lipFlow();  // the nostril flow, for the trace
+  if (kExpandLp > 0 && !(expandFlow_ > 0 && expandSlow_)) expandPc_ = oral_.pressureAt(std::max(velumK_ - 4, 1));  // (tracks while idle)
   const float p1 = oral_.substep(u0);
   oral_.sink(velumK_, uNasal_);
   if (expandFlow_ > 0) {
     // The expanding cavity behind a voiced closure (cheeks, larynx lowering):
     // a leak that holds the cavity near kExpandHold of the lung pressure, so
     // less pressure gathers for b than for p (Jyrki 2026-11-03).
-    const float pc = oral_.pressureAt(std::max(velumK_ - 4, 1));
+    float pc = oral_.pressureAt(std::max(velumK_ - 4, 1));
+    if (kExpandLp > 0 && expandSlow_) {
+      // LINE_EXPAND_LP (Hz): the share follows the cavity's slow pressure
+      // only. Driven by the instantaneous pressure the sink was a resistive
+      // shunt of ~0.1 cm^5/(dyn s) at mid-tract (in its linear range, b's
+      // closure at share ~0.9): the folds lost their load, p0's AC was 55
+      // dyn/cm^2 (d's 510), voicing died within 5 ms and the closure was
+      // silent; d's bar kept only the 1.2 kHz closed-tube mode (2026-11-05).
+      expandPc_ += (1.0f - std::exp(-2.0f * kPiL * kExpandLp * dt_)) * (pc - expandPc_);
+      pc = expandPc_;
+    }
     const float hold = kExpandHold * lungPressure_;
     const float share = std::clamp((pc - hold) / std::max(0.2f * lungPressure_, 1.0f), 0.0f, 1.0f);
     oral_.sink(std::max(velumK_ - 4, 1), expandFlow_ * share);
@@ -568,6 +615,18 @@ float VocalTractLine::substep(float u0) {
   // (-50 dB re the word while the folds swung; the readers' -18..-24 dB,
   // 2026-11-04).
   float wall = kWallRadiate > 0 ? kWallRadiate * oral_.wallFlow() : 0.0f;
+  // ... and the tissue around the other airways (Jyrki 2026-11-05: "some
+  // sound leaks through facial tissue directly, through throat, through
+  // cheeks, through chest, forehead"): the trachea's walls through the neck
+  // and chest (LINE_TRACHEA_RADIATE, x its wall flow; their motion carries
+  // the subglottal resonances) and the nasal walls through the cheeks and
+  // nose (LINE_NASAL_WALL_RADIATE). 0: off. All of it through the tissue's
+  // low-pass, LINE_WALL_RAD_LP (Hz; 0: none).
+  {
+    static const float tracheaRad = param("LINE_TRACHEA_RADIATE", 0.0f), nasalRad = param("LINE_NASAL_WALL_RADIATE", 0.0f);
+    if (tracheaRad != 0) wall += tracheaRad * sub_.wallFlow();
+    if (nasalRad != 0) wall += nasalRad * nasal_.wallFlow();
+  }
   if (wallLpHz_ > 0) wall = wallLp_.process(wall);
   uAcc_ += aa2_.process(aa1_.process(oral_.lipFlow() + nasal_.lipFlow() + wall));
   if (++subCount_ == TransmissionLine::kSubsteps) {
@@ -578,6 +637,11 @@ float VocalTractLine::substep(float u0) {
     subCount_ = 0;
   }
   return p1;
+}
+
+void VocalTractLine::setAspHp(float hz, int poles) {
+  aspHpA_ = hz > 0 ? 1.0f - std::exp(-2 * kPiL * hz * dt_) : aspHpBaseA_;
+  aspHpPolesNow_ = hz > 0 ? poles : 0;
 }
 
 }  // namespace puhuja
