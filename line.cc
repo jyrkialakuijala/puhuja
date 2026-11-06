@@ -241,7 +241,7 @@ const float kVelumScale = param("LINE_VELUM", 6.01f) /* cost 1814 whisper-run1-p
 // perhaps 3 cm, than the mouth tract"); anatomical values 12-12.5 cm would
 // make it 4-4.6 cm longer.
 const float kNasalLength = param("LINE_NASAL_CM", 11.0f);
-const float kReynoldsCrit = param("LINE_RE_CRIT", 1800.0f);
+const float kReynoldsCrit = param("LINE_RE_CRIT", 1400.0f);  // 1800 until 2026-11-06: the voiced z's jet (Re 800-1600) never hissed, "is" heard as "in"; 1400 with LINE_AG_Z 0.16, LINE_Z_AC 1 (zA): Whisper 801 -> 853, Jyrki "sounded good"
 const float kFricA0 = param("LINE_FRIC_A0", 0.12f);  // the frication source at full strength below this constriction area (cm^2; the widest slit, ð, is 0.084) ...
 const float kFricA1 = param("LINE_FRIC_A1", 0.2156f) /* cost 1814 whisper-run1-phon_err */;  // ... and silent above this (the approximants: 0.25-0.35; at 0.3 the r after a vowel, 0.25 cm^2, still hissed +17 dB)
 constexpr float kMuAir = 1.86e-4f;

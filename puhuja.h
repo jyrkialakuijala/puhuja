@@ -555,7 +555,7 @@ class Synth {
   std::vector<ShapeDemand> shapeDemands_;
   std::vector<float> shapePlan_;  // kShapeCh values per frame, from t = 0
   double shapePlanEnd_ = 0;       // the planned horizon (samples)
-  void addShapeDemand(double tA, double tB, const TractShape& s, Ph ph, float wScale);
+  void addShapeDemand(double tA, double tB, const TractShape& s, Ph ph, float wScale, float placeFloor = 0.0f);
   void planShapes(double tEnd);
   bool shapePlanAt(double t, TractShape* s) const;
   // Sentence planner state: dense log2 F1, F2, F3 and the pitch multiplier

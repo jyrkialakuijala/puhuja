@@ -324,6 +324,10 @@ const float kRColourMix = param("LINE_RCOLOR_MIX", 0.8f);  // (0.3 also liked in
 const float kRColourAt = param("LINE_RCOLOR_AT", 0.6f);
 const float kRColourOpenMix = param("LINE_RCOLOR_OPEN_MIX", 0.4f);  // (2026-11-04: ɑ+r heard with ɜ 48 -> 31 of 60, with AT 0.85)
 const float kRColourOpenAt = param("LINE_RCOLOR_OPEN_AT", 0.85f);
+// A vowel before a coda r keeps its own bump place and area with at least this weight (SPLAN_PRE_R_VOWEL_W; 0: as any
+// vowel, a wide bump leaves them to the r). Its wide bump left the place to the r's bunched one through the whole
+// vowel: "dare" ɛ F2 1290 Hz flat ("den" 1780, Kokoro 1650 falling to 1540); Jyrki 2026-11-06: "dare sounds very strange".
+const float kPreRVowelW = param("SPLAN_PRE_R_VOWEL_W", 0.0f);
 // ɜ's own shape demand (2026-11-04): a short unstressed final -er (Water,
 // Never, Power, 173 ms) did not reach the r-coloured shape from the vowel or
 // t before it: F3 stayed 2200-2800 Hz (the stressed Her/Per reach ~1780,
@@ -778,6 +782,10 @@ float linePlaceOf(Ph ph) {
 // Areas in cm^2. Pressures are relative to the lung pressure (8 cmH2O).
 constexpr float kAcOpen = 2.0f;      // open vocal tract (vowels)
 const float kAgVoicedFric = param("LINE_AG_VFRIC", 0.08f);  // glottal area in z ʒ v ð (kAgVoice 0.045 for the vowels)
+// z's own (LINE_AG_Z; default = LINE_AG_VFRIC). The z of "is", "was" had no hiss: with 0.08 the folds opened to 0.03 cm^2 at
+// most, the jet's Re 800-1600 under the 1800 threshold ("is" heard as "in", Jyrki 2026-11-06); after an h ("his") they
+// stayed at 0.06-0.2 and the z hissed. v keeps 0.08: at 0.16 its voicing fell 16 dB.
+const float kAgZ = param("LINE_AG_Z", 0.16f);  // Jyrki 2026-11-06: "worldis-zA.wav sounded good" (with LINE_Z_AC 1, LINE_RE_CRIT 1400: Whisper 801 -> 853)
 const float kAgFricOpen = param("LINE_AG_FRIC", kAgOpen);  // ... and in s ʃ f θ (kAgOpen 0.3; a narrower glottis adds its own tract-coloured hiss under the fricative, Jyrki's blend exploration 2026-11-05)
 constexpr float kAnNasal = 0.25f;    // open velum (nasals)
 // Lung pressure and the compliance of the mouth cavity (air plus yielding
@@ -1406,7 +1414,7 @@ Aero aeroOf(Ph ph) {
         // flow through the groove: z had no hiss at all on the line, centroid
         // 330 Hz, and Whisper heard "is", "his" as "dead", 2026-11-02).
         case Ph::ZH: return {0.08f, kAgVoicedFric, 0};  // voiced: less pressure drop
-        case Ph::Z: return {0.05f, kAgVoicedFric, 0};
+        case Ph::Z: return {0.05f, kAgZ, 0};
         case Ph::DH: return {0.14f, kAgVoicedFric, 0};
         case Ph::VV: return {0.08f, kAgVoicedFric, 0};
         default: return {0.1f, kAgFricOpen, 0};        // F
@@ -1433,7 +1441,7 @@ float lineSlit(Ph ph, float ac) {
   // word's peak, Kokoro's z keeps a voice bar), heard as s f θ, medially t.
   // A wider slit keeps the voicing (x3.2: -15..-20 dB) at a weaker hiss
   // (2026-11-04).
-  if (ph == Ph::Z) { static const float zAc = param("LINE_Z_AC", 3.2f);  /* 1.0 until 2026-11-05: Jyrki wanted "hiz, soft without edges" and chose x3.2 (hih-Z1) */ ac *= zAc; }
+  if (ph == Ph::Z) { static const float zAc = param("LINE_Z_AC", 1.0f);  /* 3.2 2026-11-05..06 (the "his" choice); back to 1 with the z's own abduction LINE_AG_Z (zA, 2026-11-06) */  /* 1.0 until 2026-11-05: Jyrki wanted "hiz, soft without edges" and chose x3.2 (hih-Z1) */ ac *= zAc; }
   // v: the same lips-on-teeth slit question as z (2026-11-04, LINE_V_AC).
   if (ph == Ph::VV) { static const float vAc = param("LINE_V_AC", 2.0f); ac *= vAc; }
   // ɹ: the oral hump (0.25 cm^2 at 0.75) on top of the onset shape's own
@@ -2498,6 +2506,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
         {
           // The planner's demands: the held middle; an r-coloured end of its own.
           const bool rColoured = late.ac != sh.ac || late.xc != sh.xc || late.aLip != sh.aLip;
+          const float preR = isVowel(tok.ph) && next && *next == Ph::RR ? kPreRVowelW : 0.0f;  // see kPreRVowelW
           TractShape own;
           const bool borrowed = !isVowel(tok.ph) && !lineShapeOf(tok.ph, &own);  // f in the next vowel's shape
           const float ws = borrowed ? kShapeBorrowedW : 1.0f;
@@ -2524,12 +2533,12 @@ void Synth::emit(const Token& tok, const Ph* next) {
             // reached only ~1750 by its end; Kokoro holds 2100-2200 from the start).
             const float preMs = !prevWasPause_ ? (prevWasPlosive_ && isVowel(tok.ph) ? kLineAfterStopLeadMs : 0.0f) : tok.ph == Ph::J ? kLineJPreShapeMs : tok.ph == Ph::L ? kLineLPreShapeMs : 0.0f;
             const bool er = tok.ph == Ph::ER;
-            addShapeDemand(preMs > 0 ? t0 - preMs * ms : t0 + (er ? kLineErFrom : 0.3) * dur, t0 + (er ? kLineErTo : 0.7) * dur, sh, tok.ph, er ? ws * kLineErW : ws);
+            addShapeDemand(preMs > 0 ? t0 - preMs * ms : t0 + (er ? kLineErFrom : 0.3) * dur, t0 + (er ? kLineErTo : 0.7) * dur, sh, tok.ph, er ? ws * kLineErW : ws, preR);
           }
           else {
             const bool open = tok.ph == Ph::AA || tok.ph == Ph::A;
             const double at = open && kRColourOpenAt >= 0 ? kRColourOpenAt : kRColourAt;
-            addShapeDemand(t0 + 0.3 * dur, t0 + std::max(0.3, at - 0.15) * dur, sh, tok.ph, ws);
+            addShapeDemand(t0 + 0.3 * dur, t0 + std::max(0.3, at - 0.15) * dur, sh, tok.ph, ws, preR);
             addShapeDemand(t0 + at * dur, t0 + std::min(1.0, at + 0.15) * dur, late, tok.ph, ws);
           }
         }
@@ -5432,7 +5441,7 @@ void shapeNeeds(Ph ph, float w[kCh]) {
 
 }  // namespace
 
-void Synth::addShapeDemand(double tA, double tB, const TractShape& s, Ph ph, float wScale) {
+void Synth::addShapeDemand(double tA, double tB, const TractShape& s, Ph ph, float wScale, float placeFloor) {
   if (tract_ != Tract::Line || motion_ != FormantMotion::Planned) return;
   ShapeDemand d;
   d.tA = tA;
@@ -5448,14 +5457,14 @@ void Synth::addShapeDemand(double tA, double tB, const TractShape& s, Ph ph, flo
   // much as its bump is narrow (in a wide one the tongue can already move).
   {
     const float str = std::clamp(d.x[9], 0.0f, 1.0f);
-    d.w[1] *= std::max(kShapeOpenXcW, str);
-    d.w[2] *= std::max(kShapeOpenXcW, str);
+    d.w[1] *= std::max({kShapeOpenXcW, str, placeFloor});
+    d.w[2] *= std::max({kShapeOpenXcW, str, placeFloor});
     float place = str;
     if (isVowel(ph)) {
       const float open = std::log(kShapeOpenA), narrow = std::log(kShapeNarrowA);
       place *= std::clamp((open - d.x[1]) / (open - narrow), 0.0f, 1.0f);
     }
-    d.w[0] *= std::max(kShapeOpenXcW, place);
+    d.w[0] *= std::max({kShapeOpenXcW, place, placeFloor});
   }
   for (float& w : d.w) w *= wScale * kShapeW;
   shapeDemands_.push_back(d);
