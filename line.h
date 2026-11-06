@@ -38,6 +38,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <vector>
 
 namespace puhuja {
@@ -221,6 +222,7 @@ class VocalTractLine {
   // Turbulence: gains for the constriction and the glottis, and the glottal
   // area the flow passes (cm^2).
   void setNoise(float fricGain, float aspGain, float glottalArea);
+  void setNoiseAreaRef(float a) { noiseAreaRef_ = a; }
   void setGlottalArea(float a) { glotArea_ = std::max(a, 0.002f); }  // the folds' instantaneous area, per substep
   float substep(float u0);  // -> the pressure above the glottis
   // The lung pressure for the trachea (dyn/cm^2, per output sample), and the
@@ -256,6 +258,11 @@ class VocalTractLine {
   float noiseHp1_ = 0, noiseHp2_ = 0, noiseHpA_ = 0;
   float stG_[4] = {}, stF_[4] = {}, stAlphaG_ = 0.1f, stAlphaF_ = 0.1f, stLpG_ = 0.5f, stLpF_ = 0.5f;  // the Strouhal-banded noises (glottis, slit)
   unsigned stCount_ = 0;
+  float noiseAreaRef_ = -1.0f;  // the constriction area the glide comes from or goes to, whichever is smaller (LINE_NOISE_AREA_TARGET)
+  float areaGain_ = 1.0f;  // (LINE_NOISE_AREA_EXP) the constriction noise area factor, updated every 16 substeps
+  unsigned areaCount_ = 0;
+  float expandShare_ = 0.0f;  // the expansion sink's eased share (LINE_EXPAND_ON_MS)
+  bool fricActive_ = false, aspActive_ = false;  // the jets drove noise in the last substep (LINE_NOISE_ST_SNAP)
   float stLogFcG_ = 0, stLogFcF_ = 0;
   float fricFade_ = 1.0f;  // x LINE_FRIC_A0 / A1 for the current sound
   float fricLogA0_ = 0;  // log(kFricA0 * fricFade_), cached (0: recompute)  // the corners' smoothed log frequencies (0: not yet set)  // all the turbulence noise: a 2-pole high-pass (LINE_NOISE_HP)  // the glottal noise's high-pass (turbulence has little below ~500 Hz)
@@ -267,7 +274,7 @@ class VocalTractLine {
   float wallLpHz_ = 0;
   float uAcc_ = 0, prevMean_ = 0;
   int subCount_ = 0;
-  unsigned rng_ = 0x9e3779b9u;
+  int64_t rng_ = 1611686018427387904;
 };
 
 }  // namespace puhuja
