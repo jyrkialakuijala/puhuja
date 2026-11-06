@@ -52,7 +52,7 @@ constexpr float kZeta[L] = {0.1f, 0.4f};
 const float kZetaClosed = param("STRING_ZCLOSED", 0.3158f) /* cost 5.3123456789012345 schwa-run2-kokoro-dB */ /* 2026-11-04 LF fit (tools/lf_fit.py, ref/lf/fit2) 0.207612, then 15 % back toward the earlier 0.1868 (Jyrki: the more trained voice) */;
 constexpr float kCollision = 3.0f;  // collision stiffness / the lane's total stiffness
 // The share of the air pressure on the surface that drives it.
-const float kKappa = param("STRING_KAPPA", 1.283f) /* cost 5.3123456789012345 schwa-run2-kokoro-dB */ /* 2026-11-04 LF fit (tools/lf_fit.py, ref/lf/fit2) 2.24987, then 15 % back toward the earlier 3 (Jyrki: the more trained voice) */;
+const float kKappa = param("STRING_KAPPA", 1.8f) /* cost 5.3123456789012345 schwa-run2-kokoro-dB */ /* 2026-11-04 LF fit (tools/lf_fit.py, ref/lf/fit2) 2.24987, then 15 % back toward the earlier 3 (Jyrki: the more trained voice) */;
 // The cords' own sound: surface area times lateral velocity, both folds.
 const float kSurface = param("STRING_SURFACE", 0.07067f) /* cost 5.3123456789012345 schwa-run2-kokoro-dB */;
 // The abduction rest area scaled for this model's own amplitude.
@@ -60,7 +60,7 @@ const float kRestScale = param("STRING_REST", 0.02204f) /* cost 5.31234567890123
 // Rest width along the cord relative to the mean: front (anterior) against back.
 const float kRestFront = param("STRING_RESTFRONT", 1.544f) /* cost 1814 whisper-run1-phon_err */ /* 2026-11-04 LF fit (tools/lf_fit.py, ref/lf/fit2) 1.58689, then 15 % back toward the earlier 1.51 (Jyrki: the more trained voice) */, kRestBack = 2.0f - kRestFront;
 constexpr float kRho = 0.00113f;      // air density (g/cm^3)
-constexpr float kInertance = 0.005f;  // as folds.cc
+const float kInertance = param("STRING_INERTANCE", 0.005f);  // as folds.cc (a knob since 2026-11-06: it smooths the flow's cut-off, the return phase)
 // Discharge coefficient of the glottal orifice (vena contracta): the flow
 // through a slit of area a is that of an ideal orifice of kDischarge x a.
 // Without it the folds passed ~2x a real glottis's flow and the pressure
@@ -72,7 +72,7 @@ const float kRhoOver2Cd2 = 0.5f * kRho / (kDischarge * kDischarge);  // rho / (2
 // slow process ... or closing happens over a longer distance, i.e. the
 // frequencies are smeared"; with the line tract the step-like cut-off left
 // soft phrase ends as pure tones).
-const float kRound = param("STRING_ROUND", 0.002f);
+const float kRound = param("STRING_ROUND", 0.0005f);
 const float kRoundInv = 1.0f / kRound;
 // ... and in time: a lane's heard channel may close no faster than this time
 // constant (ms; 0: at once). It opens at once.

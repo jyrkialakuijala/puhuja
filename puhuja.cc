@@ -248,7 +248,7 @@ static const struct {
 };
 // The line's output level, and its turbulence gains (noise pressure per unit
 // of Reynolds number past critical, at the constriction and at the glottis).
-const float kLineGain = param("LINE_GAIN", 1.531e-5f) /* 2026-11-05: M90 = 90 % G1 + 10 % old defaults (geometric) */ /* 2026-11-05: x3.4 after the schwa fit to Kokoro (the vowels 10.6 dB weaker; G1, with LINE_FRIC 22 -> 11.5) */ /* 2026-11-04: x2.55 for the LF-fitted folds (7 dB weaker) with the noise at -7 dB: Kennedy rms -23.6 dB as before the fit */;  // vowels ~-20 dB rms, kennedy.txt peaks under 1.0
+const float kLineGain = param("LINE_GAIN", 9.2e-6f) /* 2026-11-05: M90 = 90 % G1 + 10 % old defaults (geometric) */ /* 2026-11-05: x3.4 after the schwa fit to Kokoro (the vowels 10.6 dB weaker; G1, with LINE_FRIC 22 -> 11.5) */ /* 2026-11-04: x2.55 for the LF-fitted folds (7 dB weaker) with the noise at -7 dB: Kennedy rms -23.6 dB as before the fit */;  // vowels ~-20 dB rms, kennedy.txt peaks under 1.0
 const float kLinePostHw = param("LINE_POST_HW", 2.5f);   // ʃ ʒ ʧ ʤ: the groove's half-width (cm)
 // ʃ ʒ ʧ ʤ: the jet's thickness for its noise band (cm; 0: the slit's
 // height). The slit's height (0.08 cm^2 over the slit's width, ~0.3 mm)
@@ -445,7 +445,7 @@ const float kLineNgApproachA = param("LINE_NG_APPROACH_A", 0.4f);
 const float kLineKBurstMs = param("LINE_K_BURST_MS", 0.0f);
 const float kLineKBurstA = param("LINE_K_BURST_A", 0.12f);
 // k's own puff noise (< 0: LINE_STOP_ASP), like LINE_T_STOP_ASP.
-const float kLineKStopAspMul = param("LINE_K_STOP_ASP", -1.0f);
+const float kLineKStopAspMul = param("LINE_K_STOP_ASP", 2.5f);
 // A vowel before k or g narrows at the velum this long before the closure
 // (to LINE_KG_APPROACH_A cm^2), as before ŋ; and before b or p at the lips,
 // as before m. 0: off.
@@ -490,7 +490,7 @@ const float kLineAbductMs = param("LINE_ABDUCT_MS", 15.0f);
 // frication gain while the stop opens, the cascade's burst noise gain).
 const float kLineVStopBurst = param("LINE_VSTOP_BURST", 1.0f);
 const float kLineXSnapArea = param("LINE_X_SNAP_AREA", 0.0f);  // the constriction place jumps to its target while the hump is wider than this (cm^2; 0: glides)
-const float kLineKRelFric = param("LINE_K_REL_FRIC", 1.0f);  // k's release hiss (x LINE_FRIC while the closure opens; 1: as before)
+const float kLineKRelFric = param("LINE_K_REL_FRIC", 0.3f);  // k's release hiss (x LINE_FRIC while the closure opens; 1: as before)
 const float kLinePRelFric = param("LINE_P_REL_FRIC", 1.0f);  // p's
 // t's (2026-11-06, Jyrki: in "torch has" "the t sounds off"): across kennedy puhuja's t bursts peaked -2.7 dB re the
 // vowel (p90 +3.4), Kokoro's -17.8 (p90 -9.1); the puffs (2.5 kHz+ over the vowel's first 40 ms) -12 vs -23.
@@ -615,8 +615,8 @@ const float kLinePulseFric = param("LINE_PULSE_FRIC", 1.0f);  // the pulse's siz
 const float kLinePulseStop = param("LINE_PULSE_STOP", 1.0f);  // ... before the stops' releases
 const float kLineBurstArea = param("LINE_BURST_AREA", 0.2f) /* cost 1814 whisper-run1-phon_err */;  // a stop's release opening before a fricative (cm^2)
 const float kLineBurstMs = param("LINE_BURST_MS", 20.0f) /* cost 1814 whisper-run1-phon_err */;     // ... for this long
-const float kLineFric = param("LINE_FRIC", 12.27f) /* 2026-11-05: 22 -> 11.5 with LINE_GAIN x3.4 (G1) */ /* 2026-11-04: 29 with the Strouhal bands, then 22 with the 10x wider band (LINE_NOISE_LPR 10): the fricatives' level kept (Same. s -14 dB re the vowel) */;  // (8.375 from the 30-word search was a metric exploit: the s hiss fell to -20..-26 dB under the vowels, the readers have -5..-7; "house" was "hou", 2026-11-02)  // dyn/cm^2 per unit of (Re^2 - Re_c^2) / Re_c^2 at the jet: s at the cascade's level
-const float kLineAsp = param("LINE_ASP", 28.0f) /* cost 5.3123456789012345 schwa-run2-kokoro-dB */ /* 2026-11-04: 30 x0.45 x1.25 with LINE_FRIC */;  // the same at the glottis (h between vowels is voiced and needs none)
+const float kLineFric = param("LINE_FRIC", 18.4f) /* 2026-11-05: 22 -> 11.5 with LINE_GAIN x3.4 (G1) */ /* 2026-11-04: 29 with the Strouhal bands, then 22 with the 10x wider band (LINE_NOISE_LPR 10): the fricatives' level kept (Same. s -14 dB re the vowel) */;  // (8.375 from the 30-word search was a metric exploit: the s hiss fell to -20..-26 dB under the vowels, the readers have -5..-7; "house" was "hou", 2026-11-02)  // dyn/cm^2 per unit of (Re^2 - Re_c^2) / Re_c^2 at the jet: s at the cascade's level
+const float kLineAsp = param("LINE_ASP", 42.0f) /* cost 5.3123456789012345 schwa-run2-kokoro-dB */ /* 2026-11-04: 30 x0.45 x1.25 with LINE_FRIC */;  // the same at the glottis (h between vowels is voiced and needs none)
 // How the line moves between two vowel shapes: 0 interpolates the shape
 // parameters (a constriction travels), 1 the area functions themselves,
 // section by section in log area (one constriction fades while the next
@@ -2260,7 +2260,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
   // v voiced through a wider slit (LINE_V_AC) has a weak hiss: its own gain
   // (2026-11-04; 1 = today's).
   static const float kLineVFric = param("LINE_V_FRIC", 1.0f);
-  static const float kLineZFric = param("LINE_Z_FRIC", 2.0f);
+  static const float kLineZFric = param("LINE_Z_FRIC", 1.0f);
   if (tract_ == Tract::Line) e.lineFricMul = tok.ph == Ph::VV ? kLineVFric : tok.ph == Ph::F ? kLineFFric : tok.ph == Ph::Z ? kLineZFric : tok.ph == Ph::ZH ? kLineZhFric : tok.ph == Ph::S ? kLineSFric : 1.0f;
   if (tract_ == Tract::Line && kLineCloseFric != 1.0f && in.cls == Cls::Nasal) e.lineFricMul = kLineCloseFric;  // (LINE_CLOSE_FRIC: the nasal's oral closure)
   // LINE_T_ASP_HP (2026-11-05): a t's breath alone is high-passed (Hz, with
@@ -3799,6 +3799,8 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // out as the burst; the glottis closes again and voicing restarts once the
   // pressure has fallen.
   Event rel{release};
+  bool dzRel = false;  // (LINE_DZ_REL_FRIC, below)
+  float dzBackFric = 1.0f;
   {
     static const float tAspHp = param("LINE_T_ASP_HP", 0.0f);
     if (tract_ == Tract::Line && tAspHp > 0) rel.lineAspHp = tok.ph == Ph::T ? tAspHp : 0.0f;
@@ -3829,8 +3831,17 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     // width, a +10 dB, 4-24 kHz burst where the readers' t is silent and their
     // f 25 dB under the vowel (2026-11-05).
     {
-      static const float zFric = param("LINE_Z_FRIC", 2.0f);
+      static const float zFric = param("LINE_Z_FRIC", 1.0f);
       if (*next == Ph::Z && zFric != 1.0f) rel.lineFricMul = zFric;
+      // d released into z ("deeds in", "needs it"; LINE_DZ_REL_FRIC, 2026-11-06, Jyrki: "end of deeds is too buzzy"):
+      // the d's pressure jets through the forming z groove over the 32 ms release at the z's full gain, a 20 ms hiss
+      // at the vowel's level (its 2 ms peak +9 dB re the vowel; Kokoro's z after d -6..-8, and its steady hiss 15
+      // dB under the vowel). The slit gain x this while the groove forms, the z's own (LINE_Z_FRIC) once it has
+      // (rel.acMs + 10 ms later). < 0: off.
+      static const float dzRelFric = param("LINE_DZ_REL_FRIC", 0.3f);
+      dzRel = tract_ == Tract::Line && dzRelFric >= 0 && *next == Ph::Z && pi.voiced;
+      if (dzRel) rel.lineFricMul = dzRelFric * zFric;
+      dzBackFric = zFric;
     }
     if (*next == Ph::F && kLineStopFOwn > 0) {
       rel.lineHw = kLineFHw;
@@ -3999,6 +4010,11 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     open.ac = rel.ac;
     open.acMs = rel.acMs;
     addEventAt(open);
+  }
+  if (dzRel) {  // (LINE_DZ_REL_FRIC: the z's own gain once the groove has formed)
+    Event back{release + (rel.acMs + 10.0f) * ms};
+    back.lineFricMul = dzBackFric;
+    addEventAt(back);
   }
   if (vstopBurst || relFricOn || nasalBurst) {
     Event back{release + (rel.acMs + 10.0f) * ms};
