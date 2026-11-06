@@ -1,4 +1,5 @@
 #include "puhuja.h"
+#include "prosody.h"
 #include "params.h"
 
 #include <cstdio>
@@ -2090,38 +2091,84 @@ const char* symbolOf(Ph ph) {
   return kSymbols[static_cast<int>(ph)];
 }
 
+// Kokoro mode (prosody.h): the guide's labels layer, one call per label the
+// token would add (addLabel's rule: pauses merge). The guide answers with the
+// planned length and a vowel's two pitches; anything it does not have keeps
+// puhuja's own.
 void Synth::prosodyOverride(Token* tok) {
-  if (!prosodyLoaded_) {
-    prosodyLoaded_ = true;
-    if (const char* path = std::getenv("PUHUJA_PROSODY")) {
-      if (FILE* f = std::fopen(path, "r")) {
-        char sym[32], a[32], b[32], c[32];
-        while (std::fscanf(f, "%31s %31s %31s %31s", sym, a, b, c) == 4) {
-          auto num = [](const char* s) { return s[0] == '-' && s[1] == 0 ? kNoPitch : static_cast<float>(std::atof(s)); };
-          prosody_.push_back({sym, a[0] == '-' && a[1] == 0 ? 0.0f : static_cast<float>(std::atof(a)), num(b), num(c)});
-        }
-        std::fclose(f);
-      }
+  if (!prosodyGuide_) return;
+  if (tok->ph == Ph::Stop) {
+    if (!prosodyGuide_->hasWords()) return;
+    prosodyCloseWord();
+    // The rhythm layer's pauses: the run of pause tokens (the reader's and the
+    // synth's own inhale) is cut to the reference's gap after the last word
+    // (its lead-in before the first, at least 80 ms for the onset): the tokens
+    // past it shrink to a millisecond. Puhuja's pause model keeps its events.
+    if (prosodyPauseT0_ < 0) prosodyPauseT0_ = timeline_;
+    const float gap = prosodyPauseMs(prosodyLastWord_);
+    if (gap >= 0) {
+      const double limit = std::max(gap, prosodyLastWord_ <= 0 ? 80.0f : 30.0f) * 0.001 * fs_;
+      if (timeline_ - prosodyPauseT0_ >= limit) tok->shape.ms = 1.0f / std::max(voice_.rate, 1e-3f);
     }
+    return;
   }
-  if (prosody_.empty() || prosodyAt_ >= prosody_.size()) return;
-  // The label this token would add (addLabel's rule: pauses merge).
-  if (tok->ph == Ph::Stop && !labelStarts_.empty() && labelStarts_.back().second == "_") return;
+  prosodyPauseT0_ = -1;
   std::string s = symbolOf(tok->ph);
   if (tok->isLong && tok->ph != Ph::Stop) s += "ː";
-  size_t k = prosodyAt_;
-  while (k < prosody_.size() && k < prosodyAt_ + 3 && prosody_[k].sym != s) ++k;  // resync over a few lines
-  if (k >= prosody_.size() || prosody_[k].sym != s) return;
-  const ProsodyLine& L = prosody_[k];
-  prosodyAt_ = k + 1;
-  if (tok->ph != Ph::Stop && L.ms > 0) {
-    tok->shape.ms = L.ms / std::max(voice_.rate, 1e-3f);  // (emit multiplies by the rate)
-    tok->doubled = false;
+  float ms, pitch, pitchEnd;
+  const bool labelled = prosodyGuide_->hasLabels() && prosodyGuide_->nextLabel(s, &ms, &pitch, &pitchEnd);
+  if (labelled) {
+    if (tok->ph != Ph::Stop && ms > 0) {
+      tok->shape.ms = ms / std::max(voice_.rate, 1e-3f);  // (emit multiplies by the rate)
+      tok->doubled = false;
+    }
+    if (isVowel(tok->ph)) {
+      if (pitch != ProsodyProfile::kNone) tok->pitch = pitch;
+      if (pitchEnd != ProsodyProfile::kNone) tok->pitchEnd = pitchEnd;
+    }
   }
-  if (isVowel(tok->ph)) {
-    if (L.pitch != kNoPitch) tok->pitch = L.pitch;
-    if (L.pitchEnd != kNoPitch) tok->pitchEnd = L.pitchEnd;
+  // The words layer: the word's tokens scaled to the reference word's length
+  // (the labels layer, where it matched, has set the lengths already), and the
+  // word's span registered for the tracks' time warp.
+  if (!prosodyGuide_->hasWords()) return;
+  // The level layer replaces puhuja's own prosodic level (accent, function
+  // word, arc: Shape.prosody), so the reference's word levels are not added on top of it.
+  if (prosodyGuide_->has(ProsodyGuide::kLevel) && tok->shape.prosody > 0 && tok->shape.prosody != 1.0f) {
+    tok->shape.level /= tok->shape.prosody;
+    tok->shape.prosody = 1.0f;
   }
+  if (tok->wordStart) {
+    prosodyCloseWord();
+    prosodyLastWord_ = tok->word;
+    // The English reader's planned total is the sum before its later
+    // lengthenings (vowels, stressed onsets, the f, the h): the final lengths
+    // run kPlannedToActual over it (measured 1.03-1.31 on kennedy's words).
+    static const float kPlannedToActual = param("PROSODY_PLANNED_TO_ACTUAL", 1.2f);
+    float sc;
+    const int iw = tok->word - 1;  // the synth counts words from 1
+    prosodyWordScale_ = !labelled && tok->shape.wordMs > 0 && prosodyGuide_->wordScale(iw, tok->shape.wordMs * kPlannedToActual * voice_.rate, &sc) ? sc : 1.0f;
+    prosodyWord_ = iw;
+    prosodyWordT0_ = timeline_;
+    static const bool trace = std::getenv("PUHUJA_PROSODY_TRACE") != nullptr;
+    if (trace) std::fprintf(stderr, "prosody word %d: wordMs %.0f scale %.2f at timeline %.3f s\n", iw, tok->shape.wordMs, prosodyWordScale_, timeline_ / fs_);
+  }
+  if (!labelled && prosodyWordScale_ != 1.0f) {
+    if (tok->shape.ms > 0) tok->shape.ms *= prosodyWordScale_; else tok->shape.length *= prosodyWordScale_;
+  }
+}
+
+float Synth::prosodyPauseMs(int sourceWord) const {
+  if (!prosodyGuide_ || !prosodyGuide_->hasWords()) return -1.0f;
+  if (sourceWord <= 0) return prosodyGuide_->leadInMs();
+  float ms;
+  return prosodyGuide_->pauseAfterMs(sourceWord - 1, &ms) ? ms : -1.0f;
+}
+
+// The open word's actual span on the timeline, registered for the tracks' warp.
+void Synth::prosodyCloseWord() {
+  if (prosodyWord_ < 0 || !prosodyGuide_) return;
+  prosodyGuide_->wordStart(prosodyWord_, prosodyWordT0_ / fs_, (timeline_ - prosodyWordT0_) / fs_ * 1000.0);
+  prosodyWord_ = -1;
 }
 
 void Synth::addLabel(const Token& tok) {
@@ -4735,6 +4782,22 @@ float Synth::tick() {
     // The folds' pitch target: the melody with the slow tension that
     // abduction adds; the fast aerodynamic effects are the folds' own.
     lc.f0 = baseF0_ * pitch2_ * jitter_ * (1.0f + kF0Tension * tension_);
+    // Kokoro mode: the reference's f0 track through the time warp replaces the melody (prosody.h).
+    // Smoothed over PROSODY_F0_MS and held through the reference's unvoiced frames for PROSODY_F0_HOLD_MS (Kokoro's
+    // creaky phrase ends jitter frame to frame; raw, they made the voice irregular).
+    if (prosodyGuide_) {
+      static const float f0A = 1.0f - std::exp(-1.0f / (param("PROSODY_F0_MS", 25.0f) * 0.001f * fs_));
+      static const double holdS = param("PROSODY_F0_HOLD_MS", 120.0f) * 0.001 * fs_;
+      float st;
+      if (prosodyGuide_->f0At(t_ / fs_, &st)) {
+        if (prosodyF0HeldT_ < 0) prosodyF0St_ = st;  // (a fresh start: no glide from the old value)
+        prosodyF0St_ += f0A * (st - prosodyF0St_);
+        prosodyF0HeldT_ = t_;
+      } else if (prosodyF0HeldT_ >= 0 && t_ - prosodyF0HeldT_ > holdS) {
+        prosodyF0HeldT_ = -1;
+      }
+      if (prosodyF0HeldT_ >= 0) lc.f0 = baseF0_ * std::exp2(prosodyF0St_ / 12.0f) * jitter_ * (1.0f + kF0Tension * tension_);
+    }
     lc.f0Wave = f0;
     lc.phase = phase_;
     lc.phaseStep = dt;
@@ -4747,6 +4810,17 @@ float Synth::tick() {
     const float dropForFolds = tract_ == Tract::Line ? 1.0f : drop;
     lc.ps = runFolds ? kLungPressure * lungFactor * dropForFolds * smoothstep(0.0f, 0.5f * kAgVoice, ag) * press_.tick() : 0.0f;
     if (tract_ == Tract::Line) lc.ps *= std::pow(lineLevel_, kLineLevelExp);  // voice amplitude ~ Ps^1.5: a level factor L needs Ps x L^(1/1.5)
+    // Kokoro mode: the reference's level track (dB re its voiced median) through the warp, as a pressure factor.
+    // Per word by default (Jyrki 2026-11-06: the 5 ms track made the level "bounce" where Kokoro is "continuous and
+    // nicely leveled"), eased over PROSODY_LEVEL_MS; no reference: back to 0 dB.
+    if (prosodyGuide_) {
+      static const bool perWord = param("PROSODY_LEVEL_WORD", 1.0f) > 0;
+      static const float levelA = 1.0f - std::exp(-1.0f / (param("PROSODY_LEVEL_MS", 60.0f) * 0.001f * fs_));
+      float db = 0;
+      prosodyGuide_->levelAt(t_ / fs_, &db, perWord);
+      prosodyLevelDb_ += levelA * (db - prosodyLevelDb_);
+      if (prosodyLevelDb_ != 0) lc.ps *= std::pow(std::pow(10.0f, prosodyLevelDb_ / 20.0f), kLineLevelExp);
+    }
     lc.ag = ag;
     creakNow_ += (creakTarget_ - creakNow_) * kCreakFollow_;
     lc.irregular = 1.0f + kCreakJitter * creakNow_;

@@ -24,6 +24,8 @@
 
 #include <unistd.h>
 
+#include "prosody.h"
+
 #include "english.h"
 #include "puhuja.h"
 
@@ -110,6 +112,9 @@ void usage(FILE* f) {
       "  -r            raw float32 samples to stdout instead of a WAV file\n"
       "  -female       female voice\n"
       "  -f0 Hz        base pitch (default 105 Hz male, 166 Hz female)\n"
+      "  -prosody FILE a reference reading's profile (JSON, tools/prosody_extract.py or\n"
+      "                prosody_from_ref.py --json) guides rhythm, pitch and level: Kokoro mode\n"
+      "  -prosody-mode L,L  which layers of it (rhythm, pitch, level; default all)\n"
       "  -rate x       English speaking rate, 0.9 = 10 % slower (default 0.95)\n"
       "  -room         a small room: early reflections and a short tail\n"
       "  -l file       write phoneme timings (start, end, symbol)\n"
@@ -174,6 +179,8 @@ int main(int argc, char** argv) {
   const char* outPath = "out.wav";
   bool raw = false;
   float f0 = 0;  // -f0 Hz: overrides the voice's base pitch
+  std::string prosodyPath;
+  int prosodyLayers = puhuja::ProsodyGuide::kAll;
   bool female = false;  // -female: female voice preset
   const char* labelPath = nullptr;  // -l file: phoneme timings (start end symbol)
   const char* wordsPath = nullptr;  // -words file: word timings (start end number)
@@ -200,7 +207,7 @@ int main(int argc, char** argv) {
         strcmp(argv[i], "-l") && strcmp(argv[i], "-words") && strcmp(argv[i], "-leak") && strcmp(argv[i], "-m") && strcmp(argv[i], "-t") &&
         strcmp(argv[i], "-room") && strcmp(argv[i], "-rate") && strcmp(argv[i], "-en") &&
         strcmp(argv[i], "-g2p") && strcmp(argv[i], "-g2p-raw") && strcmp(argv[i], "-female") &&
-        strcmp(argv[i], "-f0") && strcmp(argv[i], "-chunk")) {
+        strcmp(argv[i], "-f0") && strcmp(argv[i], "-chunk") && strcmp(argv[i], "-prosody") && strcmp(argv[i], "-prosody-mode")) {
       fprintf(stderr, "puhuja: unknown option %s\n\n", argv[i]);
       usage(stderr);
       return 2;
@@ -255,6 +262,19 @@ int main(int argc, char** argv) {
       female = true;
     } else if (!strcmp(argv[i], "-f0") && i + 1 < argc) {
       f0 = atof(argv[++i]);
+    } else if (!strcmp(argv[i], "-prosody") && i + 1 < argc) {
+      prosodyPath = argv[++i];
+    } else if (!strcmp(argv[i], "-prosody-mode") && i + 1 < argc) {
+      prosodyLayers = 0;
+      for (const char* m = argv[++i]; *m;) {
+        const char* e = strchr(m, ',');
+        const std::string name(m, e ? static_cast<size_t>(e - m) : strlen(m));
+        if (name == "rhythm") prosodyLayers |= puhuja::ProsodyGuide::kRhythm;
+        else if (name == "pitch") prosodyLayers |= puhuja::ProsodyGuide::kPitch;
+        else if (name == "level") prosodyLayers |= puhuja::ProsodyGuide::kLevel;
+        else { fprintf(stderr, "puhuja: -prosody-mode: unknown layer %s (rhythm, pitch, level)\n", name.c_str()); return 2; }
+        m = e ? e + 1 : m + strlen(m);
+      }
     } else {
       if (!text.empty()) text += ' ';
       text += argv[i];
@@ -271,6 +291,21 @@ int main(int argc, char** argv) {
   puhuja::Synth synth(48000);
   if (female) synth.setVoice(puhuja::VoicePreset::Female);
   if (f0 > 0) synth.setBaseF0(f0);
+  puhuja::ProsodyProfile prosodyProfile;
+  std::unique_ptr<puhuja::ProsodyGuide> prosodyGuide;
+  if (!prosodyPath.empty()) {
+    std::string err;
+    if (!prosodyProfile.load(prosodyPath, &err)) { fprintf(stderr, "puhuja: -prosody: %s\n", err.c_str()); return 2; }
+    prosodyGuide.reset(new puhuja::ProsodyGuide(prosodyProfile, prosodyLayers));
+    {  // the input text's words, for the words layer
+      std::vector<std::string> words;
+      std::string cur;
+      for (char c : text) { if (c == ' ' || c == '\n' || c == '\t') { if (!cur.empty()) words.push_back(cur), cur.clear(); } else cur.push_back(c); }
+      if (!cur.empty()) words.push_back(cur);
+      prosodyGuide->setInputWords(words);
+    }
+    synth.setProsodyGuide(prosodyGuide.get());
+  }
   synth.setCarrier(carrier);
   synth.setFormantMotion(motion);
   synth.setTract(tract);

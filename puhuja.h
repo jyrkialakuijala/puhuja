@@ -54,6 +54,8 @@
 
 namespace puhuja {
 
+class ProsodyGuide;  // prosody.h
+
 enum class Ph : uint8_t {
   // Vowels: Finnish (and shared), then the English-only ones
   // ɪ ɛ ʊ ɔ ʌ ɑ ɒ ɜ.
@@ -204,6 +206,10 @@ class Synth {
   // Call before pushing text; setBaseF0 afterwards overrides the pitch.
   void setVoice(VoicePreset preset);
   void setBaseF0(float f0) { baseF0_ = f0; }
+  // Kokoro mode: a reference reading's profile guides rhythm, pitch and level (prosody.h); nullptr: puhuja's own.
+  void setProsodyGuide(ProsodyGuide* g) { prosodyGuide_ = g; }
+  // Kokoro mode: the reference's gap after the given input word (1-based as setWord; 0: before the first word), ms; < 0: none.
+  float prosodyPauseMs(int sourceWord) const;
   float baseF0() const { return baseF0_; }
 
   // Part of the source that bypasses the formant cascade, relative to the
@@ -244,6 +250,7 @@ class Synth {
     float level = 1;   // voicing (and frication noise) multiplier
     float prosody = 1;  // the prosodic part of the level alone (arc, accent, stress, function word): the line's lung-pressure factor
     float ms = 0;      // absolute duration (plosives: closure), 0 = table
+    float wordMs = 0;  // the planned total of the word's tokens (same units; Kokoro mode's word rhythm, 0 unknown)
     float press = 1;   // vowels: glottal opening multiplier (< 1 pressed, > 1 lax)
     bool flap = false;  // a d said as a tap (English t/d between vowels)
   };
@@ -365,17 +372,19 @@ class Synth {
   float splineAt(int param, double t) const;
   void resolveF1(float target, double tTarget);
   void addLabel(const Token& tok);
-  // PUHUJA_PROSODY=file: imposed rhythm and melody, one line per label in -l
-  // order ("symbol ms pitch pitchEnd"; ms the segment's length, pitch and
-  // pitchEnd in semitones from the base pitch, "-" keeps the reader's own).
-  // Lets Zimtohrli compare the voice with Kokoro's own timing and melody
-  // (Jyrki 2026-11-05: "take the kokoro pitch and rhythm ... and optimize
-  // sound quality and color").
+  // Kokoro mode (prosody.h): a reference reading's rhythm and melody imposed on
+  // the tokens through the guide, for comparison. The hook is prosodyOverride.
   void prosodyOverride(Token* tok);
-  struct ProsodyLine { std::string sym; float ms, pitch, pitchEnd; };
-  std::vector<ProsodyLine> prosody_;
-  size_t prosodyAt_ = 0;
-  bool prosodyLoaded_ = false;
+  ProsodyGuide* prosodyGuide_ = nullptr;
+  float prosodyWordScale_ = 1.0f;  // the current word's rhythm factor (the words layer)
+  int prosodyWord_ = -1;           // the word whose span is open (registered for the warp when the next one starts)
+  double prosodyWordT0_ = 0;       // ... and its first token's timeline (samples)
+  float prosodyLevelDb_ = 0;       // the level layer, smoothed (PROSODY_LEVEL_MS)
+  float prosodyF0St_ = 0;          // the pitch layer, smoothed (PROSODY_F0_MS) and held through the reference's unvoiced frames
+  double prosodyF0HeldT_ = -1;     // ... since this render time (samples); -1: no value
+  double prosodyPauseT0_ = -1;     // the open run of pause tokens: its start on the timeline (samples), -1 none
+  int prosodyLastWord_ = 0;        // the last word started (1-based), for the gap after it
+  void prosodyCloseWord();
   float noise();
   float tick();
 
