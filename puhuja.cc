@@ -611,6 +611,10 @@ const float kLineFFric = param("LINE_F_FRIC", 1.5f);  // ... and f's frication g
 // vowel other than ə additionally LINE_SH_VOWEL_FRIC, and the place LINE_SH_VOWEL_X (< 0: LINE_SH_X).
 const float kLineShFric = param("LINE_SH_FRIC", 1.0f);
 const float kLineShVowelFric = param("LINE_SH_VOWEL_FRIC", 6.0f);
+// ... for a ʃ that does not start its word (a word-final ʃ linking into the next word's vowel, "abolish all": Jyrki
+// 2026-11-06 "sounds too sharp"): at 6 it ran 7 dB louder than Kokoro's (level +1.4 vs -3.8 re the vowel, > 5 kHz
+// -8.6 vs -16) while the word-initial ones ("shall") sat at Kokoro's. < 0: LINE_SH_VOWEL_FRIC.
+const float kLineShVowelFricLink = param("LINE_SH_VOWEL_FRIC_LINK", 2.2f);
 const float kLineShVowelX = param("LINE_SH_VOWEL_X", 0.84f);
 const float kLineShVowelAc = param("LINE_SH_VOWEL_AC", 1.0f);  // ... and its slit area x this (narrower: a faster jet, a higher band; it only lost level)
 const float kLineFinalPressMs = param("LINE_FINAL_PRESS_MS", 60.0f);  // (2026-11-04: final k heard 4 -> 8 of 80, Whisper; the "uh" after final p t k gone)
@@ -2283,7 +2287,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
   // (2026-11-04; 1 = today's).
   static const float kLineVFric = param("LINE_V_FRIC", 0.3f);
   static const float kLineZFric = param("LINE_Z_FRIC", 1.0f);
-  if (tract_ == Tract::Line) e.lineFricMul = tok.ph == Ph::VV ? kLineVFric : tok.ph == Ph::F ? (curStress_ ? kLineFFric : kLineFFricUnstr) : tok.ph == Ph::Z ? kLineZFric : tok.ph == Ph::ZH ? kLineZhFric : tok.ph == Ph::S ? kLineSFric : tok.ph == Ph::SH ? kLineShFric * (shFullVowel ? kLineShVowelFric : 1.0f) : 1.0f;
+  if (tract_ == Tract::Line) e.lineFricMul = tok.ph == Ph::VV ? kLineVFric : tok.ph == Ph::F ? (curStress_ ? kLineFFric : kLineFFricUnstr) : tok.ph == Ph::Z ? kLineZFric : tok.ph == Ph::ZH ? kLineZhFric : tok.ph == Ph::S ? kLineSFric : tok.ph == Ph::SH ? kLineShFric * (shFullVowel ? (tok.wordStart || kLineShVowelFricLink < 0 ? kLineShVowelFric : kLineShVowelFricLink) : 1.0f) : 1.0f;
   if (tract_ == Tract::Line && kLineCloseFric != 1.0f && in.cls == Cls::Nasal) e.lineFricMul = kLineCloseFric;  // (LINE_CLOSE_FRIC: the nasal's oral closure)
   // LINE_T_ASP_HP (2026-11-05): a t's breath alone is high-passed (Hz, with
   // LINE_T_ASP_HP_POLES stages); every other sound puts LINE_ASP_HP back.
