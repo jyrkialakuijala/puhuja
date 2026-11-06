@@ -33,6 +33,7 @@ class EnglishReader {
   // Speaking rate: 1 normal, 0.9 = 10 % slower (durations and pauses).
   void setRate(float rate) { rate_ = rate > 0.1f ? rate : 0.1f; }
   int sourceWord_ = 0;  // input words seen so far                      // end of input: say what is pending
+  int lastSourceWord_ = 0;  // the last word pushed (Kokoro mode's pauses)
 
   struct Word {
     std::vector<uint8_t> tokens;

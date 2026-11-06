@@ -2231,6 +2231,11 @@ void EnglishReader::sayPhrase(char end) {
                                  : s.n == 2 && s.ph[0] == Ph::A && s.ph[1] == Ph::UH ? kAwFirstShare : 0.6f;
         const float share = s.n == 1 ? 1.0f : k == 0 ? firstShare : 1.0f - firstShare;
         shape.ms = dur[w][i] * share * v.length;
+        {  // the word's planned total (Kokoro mode's word rhythm, prosody.h)
+          float total = 0;
+          for (size_t q = 0; q < dur[w].size(); ++q) total += dur[w][q];
+          shape.wordMs = total;
+        }
         const bool toLinked = kToBeforeVowel > 0.5f && phrase_[w].text == "to" && i == 1 &&
                               (s.ph[0] == Ph::U || s.ph[0] == Ph::UH) && w + 1 < phrase_.size() &&
                               !phrase_[w + 1].tokens.empty() && isVowelToken(phrase_[w + 1].tokens[0]);
@@ -2306,7 +2311,7 @@ void EnglishReader::sayPhrase(char end) {
           shape.prosody = std::pow(10.0f, db / 20.0f);
         }
         synth_.shapeNext(shape);
-        if (first) synth_.setWord(phrase_[w].source);
+        if (first) synth_.setWord(phrase_[w].source), lastSourceWord_ = phrase_[w].source;
         synth_.push(s.ph[k], first);
         first = false;
         // A stressed ɑ before another syllable of the same word is the short
