@@ -30,7 +30,7 @@ const float kNoiseAreaExp = param("LINE_NOISE_AREA_EXP", 1.5f);  // 2026-11-05: 
 const float kNoiseAreaRef = param("LINE_NOISE_AREA_REF", 0.05f);  // cm^2 (an s groove): no change there
 const float kNoiseAreaTarget = param("LINE_NOISE_AREA_TARGET", 0.001f);  // > 0: the reference is instead the constriction's own area (the smaller end of its glide, at least this many cm^2), and the factor never exceeds 1: every steady fricative keeps its level, only the glides out of and into a groove or a closure are damped (the absolute law cut z v ð by 15 dB and lifted f ʃ by 8: Whisper -45)
 const float kNoiseStSnap = param("LINE_NOISE_ST_SNAP", 0.0f);  // 2026-11-05: > 0: a smoothed corner follows its target at once while its jet is silent, so a hiss starts at its own corner and the smoothing shapes only the sweeps inside it (smoothed from the vowel floor, an s began 20 ms of dull f: Whisper -70 in round 6; the t release into ə swept 11 -> 4 kHz over 30 ms in the female voice)
-const float kExpandOnMs = param("LINE_EXPAND_ON_MS", 0.0f);  // the voiced closure sink's share eases in over this (ms; 0: a step)
+const float kExpandOnMs = param("LINE_EXPAND_ON_MS", 3.0f);  // the voiced closure sink's share eases in over this (ms; 0: a step)
 const float kNoiseStSmoothMs = param("LINE_NOISE_ST_SMOOTH_MS", 0.0f);  // ... the corners smoothed over this long (ms; 0: none)   // ... the low-pass corner at this times the high-pass one
 const float kGlottisLength = param("LINE_GLOTTIS_L", 1.3f);  // the glottis's length (cm): its width = area / this
 // The glottal jet's own low-pass ratio and floor (2026-11-04): at a p puff's
