@@ -447,6 +447,7 @@ class Synth {
   float aspBurst_ = 1, kAspBurstDecay_ = 1;  // p t k puff: x aspirationGain_, back to 1
   float kSpeechDecay_ = 0, kSpeechAttack_ = 0;
   bool prevVoiced_ = false;
+  int prevVoicedObstruent_ = 0;  // the previous phone was a voiced fricative (1) or plosive (2) (LINE_GD_VOICED_CTX)
   bool inAffricate_ = false;  // emitting the frication part of ʧ / ʤ
   double phonemeStart_ = 0;   // where the previous phoneme started (samples)
   // Once the input uses stress marks, they decide the raised syllables
