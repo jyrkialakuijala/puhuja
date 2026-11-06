@@ -20,8 +20,17 @@ constexpr float kM2PiL = -2.0f * kPiL;
 // resistance (dyn s/cm^3), stiffness (dyn/cm^3).
 const float kLungR = param("LINE_LUNG_R", 3.0f), kLungRInv = 1.0f / kLungR;  // the respiratory system's DC resistance (dyn s/cm^5)
 const float kWallMass = param("LINE_WALL_M", 1.5f), kWallMassInv = 1.0f / kWallMass;
-const float kNoiseSt = param("LINE_NOISE_ST", 0.1f);         // Strouhal number of the noise corners (0: the fixed LINE_NOISE_HP; 0.1 on 2026-11-04: the s spectrum near Kokoro's, Whisper neutral)
+const float kNoiseSt = param("LINE_NOISE_ST", 0.07f);         // Strouhal number of the noise corners (0: the fixed LINE_NOISE_HP; 0.1 on 2026-11-04: the s spectrum near Kokoro's, Whisper neutral)
 const float kNoiseLpRatio = param("LINE_NOISE_LPR", 10.0f);  // (2.5 -> 10 on 2026-11-04: in a 1.3-octave band the noise's peak hopped 0.30 octave per 10 ms frame, the readers' 0.06-0.08: the "zipping, zonking, pinging" Jyrki heard; at 10: 0.11; Whisper neutral)
+const float kNoiseStSmoothGMs = param("LINE_NOISE_ST_SMOOTH_G_MS", 15.0f);  // 2026-11-05: the glottal jet's corner smoothed over this alone (ms; < 0: LINE_NOISE_ST_SMOOTH_MS). Its corner zips 200 <-> 12000 Hz once per pitch period in every voiced sound.
+const float kNoiseStSmoothFMs = param("LINE_NOISE_ST_SMOOTH_F_MS", -1.0f);  // ... the constriction's jet's
+const float kNoiseFcMax = param("LINE_NOISE_FC_MAX", 8000.0f);  // the corners' ceiling (Hz; a closing constriction sat at the clamp: 8-12 ms pings at 12 kHz in d, t, m)
+const float kNoiseUMax = param("LINE_NOISE_U_MAX", 1.0f);  // > 0: the jet speed behind the corners and the constriction's Reynolds number capped at this x the Bernoulli speed sqrt(2 Ps / rho) (the line's flow lags a closing area: 1.3-1.4 x the limit into a p)
+const float kNoiseAreaExp = param("LINE_NOISE_AREA_EXP", 1.5f);  // 2026-11-05: the constriction noise drive x (LINE_NOISE_AREA_REF / area)^this. The Re^2 law (U^2 d^2 ~ u^2 / a) grows as a groove opens on the glottis-limited flow (u ~ a): the s of "save" rose 12 dB over its last 13 ms as its groove opened and its corner fell 8.8 -> 2.1 kHz, then the fade cut it (Kokoro: a 20 dB fade over the last 30 ms). Stevens: the source goes as U^3 / A^2.5. 0: as before.
+const float kNoiseAreaRef = param("LINE_NOISE_AREA_REF", 0.05f);  // cm^2 (an s groove): no change there
+const float kNoiseAreaTarget = param("LINE_NOISE_AREA_TARGET", 0.001f);  // > 0: the reference is instead the constriction's own area (the smaller end of its glide, at least this many cm^2), and the factor never exceeds 1: every steady fricative keeps its level, only the glides out of and into a groove or a closure are damped (the absolute law cut z v ð by 15 dB and lifted f ʃ by 8: Whisper -45)
+const float kNoiseStSnap = param("LINE_NOISE_ST_SNAP", 0.0f);  // 2026-11-05: > 0: a smoothed corner follows its target at once while its jet is silent, so a hiss starts at its own corner and the smoothing shapes only the sweeps inside it (smoothed from the vowel floor, an s began 20 ms of dull f: Whisper -70 in round 6; the t release into ə swept 11 -> 4 kHz over 30 ms in the female voice)
+const float kExpandOnMs = param("LINE_EXPAND_ON_MS", 0.0f);  // the voiced closure sink's share eases in over this (ms; 0: a step)
 const float kNoiseStSmoothMs = param("LINE_NOISE_ST_SMOOTH_MS", 0.0f);  // ... the corners smoothed over this long (ms; 0: none)   // ... the low-pass corner at this times the high-pass one
 const float kGlottisLength = param("LINE_GLOTTIS_L", 1.3f);  // the glottis's length (cm): its width = area / this
 // The glottal jet's own low-pass ratio and floor (2026-11-04): at a p puff's
@@ -50,7 +59,7 @@ constexpr float kMu = 1.86e-4f;
 // flow, du/dt = -2 pi B u_hp: B Hz of bandwidth well above the corner, half of
 // it at the corner, little at F1. Passive (Re{s/(s+wc)} >= 0), so stable.
 const float kHfBandwidth = param("LINE_HF_BW", 198.6f) /* cost 5.3123456789012345 schwa-run2-kokoro-dB */;  // Hz added well above the corner
-const float kHfCorner = param("LINE_HF_FC", 2000.0f) /* cost 1814 whisper-run1-phon_err */;    // Hz
+const float kHfCorner = param("LINE_HF_FC", 3000.0f) /* cost 1814 whisper-run1-phon_err */;    // Hz
 
 void TransmissionLine::hfLoss(int nb) {
   if (hfK_ <= 0) return;
@@ -241,9 +250,17 @@ const float kReSlitFactor = 2.0f * TransmissionLine::kRho / (kMuAir * kGlottisLe
 constexpr float kReRoundFactor = 2.0f * TransmissionLine::kRho / kMuAir;
 }  // namespace
 
+int64_t rot(int64_t a, int shift) {
+  return (a >> shift) | (a << (64 - shift));
+}
+
 float VocalTractLine::noise() {
-  rng_ ^= rng_ << 13; rng_ ^= rng_ >> 17; rng_ ^= rng_ << 5;
-  return static_cast<float>(rng_ & 0xffffff) * (2.0f / 16777216.0f) - 1.0f;
+  rng_ += rot(rng_, 15);
+  rng_ ^= rng_ >> 17;
+  rng_ += rot(rng_, 31);
+  rng_ ^= rot(rng_, 23);
+  rng_ += rot(rng_, 11);
+  return rng_ * (1.0f / 9223372036854775808.0f) - 1.0f;
 }
 
 void TransmissionLine::addSinus(int k, float volume, float neckArea, float neckLength, float q) {
@@ -495,22 +512,26 @@ float VocalTractLine::substep(float u0) {
     // narrow band swept 200 -> 12000 Hz at the pitch rate, a zip in the voice
     // and a ping or a zonk where a slit opened (Jyrki 2026-11-04: "ringing,
     // zipping, zonking, pinging").
-    const float smoothK = kNoiseStSmoothMs > 0 ? 1.0f - std::exp(-16.0f * dt_ / (0.001f * kNoiseStSmoothMs)) : 1.0f;
-    auto alphaOf = [&](float flow, float area, float width, float* lp, float jetD, float lpr, float lpMin, float* logFc) {
-      const float U = std::fabs(flow) / std::max(area, 1e-4f);
+    const float uMax = kNoiseUMax > 0 ? kNoiseUMax * std::sqrt(2.0f * std::max(lungPressure_, 1.0f) / TransmissionLine::kRho) : 0.0f;
+    auto alphaOf = [&](float flow, float area, float width, float* lp, float jetD, float lpr, float lpMin, float* logFc, float smoothMs, bool active) {
+      float U = std::fabs(flow) / std::max(area, 1e-4f);
+      if (uMax > 0) U = std::min(U, uMax);
       const float d = jetD > 0 ? jetD : std::max(area / width, 1e-3f);
-      float fc = std::clamp(kNoiseSt * U / d, 200.0f, 12000.0f);
-      if (kNoiseStSmoothMs > 0) {
+      float fc = std::clamp(kNoiseSt * U / d, 200.0f, kNoiseFcMax);
+      if (smoothMs > 0) {
+        const float smoothK = 1.0f - std::exp(-16.0f * dt_ / (0.001f * smoothMs));
         const float target = std::log(fc);
-        if (*logFc <= 0) *logFc = target;
+        if (*logFc <= 0 || (kNoiseStSnap > 0 && !active)) *logFc = target;
         *logFc += smoothK * (target - *logFc);
         fc = std::exp(*logFc);
       }
       *lp = 1.0f - std::exp(kM2PiL * std::min(std::max(lpr * fc, lpMin), 40000.0f) * dt_);
       return 1.0f - std::exp(kM2PiL * fc * dt_);
     };
-    stAlphaG_ = alphaOf(u0, glotArea_, kGlottisLength, &stLpG_, 0, puffLpr_ > 0 ? puffLpr_ : kGlottalLpRatio > 0 ? kGlottalLpRatio : kNoiseLpRatio, kGlottalLpMin, &stLogFcG_);
-    if (noiseK_ >= 0) stAlphaF_ = alphaOf(oral_.flowAt(noiseKc_), oral_.areaAt(noiseKc_), kSlitWidth, &stLpF_, jetD_, fricLpr_ > 0 ? fricLpr_ : kNoiseLpRatio, 0, &stLogFcF_);
+    stAlphaG_ = alphaOf(u0, glotArea_, kGlottisLength, &stLpG_, 0, puffLpr_ > 0 ? puffLpr_ : kGlottalLpRatio > 0 ? kGlottalLpRatio : kNoiseLpRatio, kGlottalLpMin, &stLogFcG_,
+                        kNoiseStSmoothGMs >= 0 ? kNoiseStSmoothGMs : kNoiseStSmoothMs, aspActive_);
+    if (noiseK_ >= 0) stAlphaF_ = alphaOf(oral_.flowAt(noiseKc_), oral_.areaAt(noiseKc_), kSlitWidth, &stLpF_, jetD_, fricLpr_ > 0 ? fricLpr_ : kNoiseLpRatio, 0, &stLogFcF_,
+                                         kNoiseStSmoothFMs >= 0 ? kNoiseStSmoothFMs : kNoiseStSmoothMs, fricActive_);
   }
   // Each jet's band-limited noise from the shared low-passed white noise.
   // LINE_NOISE_ST_PRELP (2026-11-05): the jets' bands start from the noise
@@ -565,12 +586,16 @@ float VocalTractLine::substep(float u0) {
         n -= aspHpMore_[k];
       }
     }
-    if (re > kReynoldsCrit) oral_.addFlowDrive(1, aspGain_ * (re * re - reC2) * invReC2 * n);
-  }
+    aspActive_ = re > kReynoldsCrit;
+    if (aspActive_) oral_.addFlowDrive(1, aspGain_ * (re * re - reC2) * invReC2 * n);
+  } else aspActive_ = false;
+  fricActive_ = false;
   if (noiseK_ >= 0 && fricGain_ > 0) {
     const float u = oral_.flowAt(noiseKc_);
     const float a = oral_.areaAt(noiseKc_);
-    const float re = kReRoundFactor * std::fabs(u) / std::sqrt(kPiL * a);
+    float re = kReRoundFactor * std::fabs(u) / std::sqrt(kPiL * a);
+    // (= rho U d / mu with d = 2 sqrt(a / pi); LINE_NOISE_U_MAX caps U at the Bernoulli speed)
+    if (kNoiseUMax > 0) re = std::min(re, kReRoundFactor * kNoiseUMax * std::sqrt(2.0f * std::max(lungPressure_, 1.0f) / TransmissionLine::kRho) * std::sqrt(a / kPiL));
     // Only a fricative-sized slit makes a jet that hisses: the source fades out
     // as the constriction widens past kFricA0..kFricA1 (log scale). The Re^2
     // law alone barely depends on the area at a given flow (Stevens' measured
@@ -582,8 +607,17 @@ float VocalTractLine::substep(float u0) {
     if (fricLogA0_ == 0) fricLogA0_ = std::log(kFricA0 * fricFade_);
     const float wide = std::clamp((std::log(a) - fricLogA0_) * invLogRatio, 0.0f, 1.0f);
     const float slit = 1.0f - wide * wide * (3.0f - 2.0f * wide);
-    if (re > kReynoldsCrit && slit > 0) {
-      const float drive = slit * fricGain_ * (re * re - reC2) * invReC2 * noiseF;
+    if (kNoiseAreaExp != 0 && (areaCount_++ & 15) == 0) {
+      if (kNoiseAreaTarget > 0 && noiseAreaRef_ >= 0) {
+        const float ref = std::max(noiseAreaRef_, kNoiseAreaTarget);
+        areaGain_ = std::min(1.0f, std::pow(ref / std::max(a, 0.005f), kNoiseAreaExp));
+      } else {
+        areaGain_ = std::pow(kNoiseAreaRef / std::max(a, 0.005f), kNoiseAreaExp);
+      }
+    }
+    fricActive_ = re > kReynoldsCrit && slit > 0;
+    if (fricActive_) {
+      const float drive = slit * fricGain_ * areaGain_ * (re * re - reC2) * invReC2 * noiseF;
       if (kNoiseAsPressure > 0) oral_.addPressureDrive(noiseK_, drive * kNoiseAsPressure);
       else oral_.addFlowDrive(noiseK_, drive);
     }
@@ -619,9 +653,19 @@ float VocalTractLine::substep(float u0) {
       pc = expandPc_;
     }
     const float hold = kExpandHold * lungPressure_;
-    const float share = std::clamp((pc - hold) / std::max(0.2f * lungPressure_, 1.0f), 0.0f, 1.0f);
+    float share = std::clamp((pc - hold) / std::max(0.2f * lungPressure_, 1.0f), 0.0f, 1.0f);
+    // LINE_EXPAND_ON_MS (2026-11-05): the sink's share eases in and out over
+    // this. As a voiced closure sealed, the cavity pressure reached the hold
+    // within a few ms and the 200 cm^3/s sink switched on as a step at
+    // mid-tract: a 2-8 kHz click 15 dB over the vowel's, the "blib" at the end
+    // of "of" in "hand of God" (Jyrki). 0: as before.
+    if (kExpandOnMs > 0) {
+      expandShare_ += (1.0f - std::exp(-dt_ / (0.001f * kExpandOnMs))) * (share - expandShare_);
+      share = expandShare_;
+    }
     oral_.sink(std::max(velumK_ - 4, 1), expandFlow_ * share);
   }
+  if (!(expandFlow_ > 0)) expandShare_ = 0.0f;  // (the eased share starts from zero at the next closure)
   oral_.traceExtra2_ = lungPressure_;
   nasal_.sinusFlows();
   nasal_.substep(uNasal_);

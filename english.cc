@@ -865,7 +865,7 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
       // the blend exploration: Kokoro's Kennedy has s 80 ms, ʃ 110, t 60, k 70,
       // p 70 against puhuja's 70, 73, 37, 43, 49; 1: unchanged).
       if (!vowel) {
-        static const float vfricLen = param("EN_VFRIC_LEN", 1.0f), vstopLen = param("EN_VSTOP_LEN", 1.0f);
+        static const float vfricLen = param("EN_VFRIC_LEN", 1.0f), vstopLen = param("EN_VSTOP_LEN", 1.3f);
         if (b == "S" || b == "SH" || b == "F" || b == "TH") whole *= vfricLen;
         else if (isVoicelessPlosive(b)) whole *= vstopLen;
       }

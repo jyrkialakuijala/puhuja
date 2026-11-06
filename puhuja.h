@@ -365,6 +365,17 @@ class Synth {
   float splineAt(int param, double t) const;
   void resolveF1(float target, double tTarget);
   void addLabel(const Token& tok);
+  // PUHUJA_PROSODY=file: imposed rhythm and melody, one line per label in -l
+  // order ("symbol ms pitch pitchEnd"; ms the segment's length, pitch and
+  // pitchEnd in semitones from the base pitch, "-" keeps the reader's own).
+  // Lets Zimtohrli compare the voice with Kokoro's own timing and melody
+  // (Jyrki 2026-11-05: "take the kokoro pitch and rhythm ... and optimize
+  // sound quality and color").
+  void prosodyOverride(Token* tok);
+  struct ProsodyLine { std::string sym; float ms, pitch, pitchEnd; };
+  std::vector<ProsodyLine> prosody_;
+  size_t prosodyAt_ = 0;
+  bool prosodyLoaded_ = false;
   float noise();
   float tick();
 

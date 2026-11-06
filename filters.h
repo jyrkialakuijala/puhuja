@@ -157,7 +157,7 @@ class FricationFilter {
 class Gesture {
  public:
   void set(float v) {
-    v_ = v;
+    v_ = from_ = to_ = v;
     left_ = 0;
     vel_ = m0_ = 0;
   }
@@ -174,6 +174,11 @@ class Gesture {
   }
   float tick();
   float value() const { return v_; }
+  // The smaller of where the movement started and where it goes (idle: the
+  // value): a constriction's own area through its opening and closing glides.
+  float glideMin() const { return left_ >= 1.0f ? std::min(from_, to_) : to_; }
+  float glideFrom() const { return left_ >= 1.0f ? from_ : v_; }
+  float glideTo() const { return to_; }
 
  private:
   float v_ = 0, from_ = 0, to_ = 0, len_ = 1, left_ = 0;
