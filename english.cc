@@ -543,7 +543,7 @@ constexpr size_t kMaxHeldSentence = 4000;  // ... and the longest sentence held 
 constexpr float kEnglishFricationGain = 4.5f;
 constexpr float kEnglishAspirationGain = 50.0f, kEnglishHGain = 20.0f;
 const float kEnglishVoicedHNoise = param("kEnglishVoicedHNoise", 0.4f);  // x the h gain, h between voiced sounds (readers' medial h is mostly breathy voice, 10-13 dB under the vowel; 1.0 put puhuja's at -1 dB, INPUT.md 2026-10-31) (0.3 with the h gain 0.7: "the hand" was heard as "the land": the h had the l's length, level and harmonicity; 3 was 12 dB louder than goog.wav)
-const float kEnglishVoicedHAg = param("kEnglishVoicedHAg", 0.25f);  // 0.25 until 2026-11-05: it stopped the folds, a 45 ms gap in "his"; Jyrki chose 0.15 (hih-Z1)  // (0.2 with the folds stopping above kAgBreathy: h-vowel -7.1 dB over kennedy.txt, 0.25: -8.7, readers -10..-13; round trip 8.6 -> 8.2 %, 2026-11-01)  // cm^2, h between voiced sounds (goog.wav's stays voiced)
+const float kEnglishVoicedHAg = param("kEnglishVoicedHAg", 0.17f);  // 0.25 until 2026-11-05: it stopped the folds, a 45 ms gap in "his"; Jyrki chose 0.15 (hih-Z1)  // (0.2 with the folds stopping above kAgBreathy: h-vowel -7.1 dB over kennedy.txt, 0.25: -8.7, readers -10..-13; round trip 8.6 -> 8.2 %, 2026-11-01)  // cm^2, h between voiced sounds (goog.wav's stays voiced)
 
 EnglishReader::EnglishReader(Synth& synth) : synth_(synth) {
   synth_.setSpellingRules(false);  // English phonemes come ready-made

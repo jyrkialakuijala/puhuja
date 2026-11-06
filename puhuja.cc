@@ -282,7 +282,7 @@ const float kLineVotHoldUnstressed = param("LINE_VOT_HOLD_UNSTR", 0.3f);  // x L
 const float kLineVotHoldMs = param("LINE_VOT_HOLD_MS", 35.0f);     // a voiceless stop's puff: the glottis held open this long after the release (stressed; 60 % unstressed)
 const float kLineAspAg = param("LINE_ASP_AG", 0.6f);  // the glottis during a voiceless stop's puff (cm^2)
 const float kLineStopAspMul = param("LINE_STOP_ASP", 22.5f);  // ... its glottal noise relative to LINE_ASP
-const float kLineTStopAspMul = param("LINE_T_STOP_ASP", 4.0f) /* 18 until 2026-11-05: Jyrki chose the softer, shorter puff (pta-R) for "power to abolish" */;  // t's own puff noise (< 0: LINE_STOP_ASP); 2026-11-04 with the release below: initial t 18 -> 27 of 90 (Whisper); 33 -> 18 with LINE_PUFF_LPR 10 (the wide band made the t puff -8 dB re the vowel, Kokoro -10..-15; now -12)
+const float kLineTStopAspMul = param("LINE_T_STOP_ASP", 7.0f) /* 18 until 2026-11-05: Jyrki chose the softer, shorter puff (pta-R) for "power to abolish" */;  // t's own puff noise (< 0: LINE_STOP_ASP); 2026-11-04 with the release below: initial t 18 -> 27 of 90 (Whisper); 33 -> 18 with LINE_PUFF_LPR 10 (the wide band made the t puff -8 dB re the vowel, Kokoro -10..-15; now -12)
 const float kLineTJetD = param("LINE_T_JET_D", 0.0f);  // t's jet thickness at its closure and release (cm; 0: the slit's height), below
 const float kLineTLpr = param("LINE_T_LPR", 0.0f);  // ... and its band's low-pass / its corner meanwhile (0: LINE_NOISE_LPR)
 const float kLineTSoftBurst = param("LINE_T_SOFT_BURST", 0.0f);  // t's burst area into f v θ ð x this (0: none; 1: as p k), below
@@ -446,7 +446,7 @@ const float kLineNgApproachA = param("LINE_NG_APPROACH_A", 0.4f);
 const float kLineKBurstMs = param("LINE_K_BURST_MS", 0.0f);
 const float kLineKBurstA = param("LINE_K_BURST_A", 0.12f);
 // k's own puff noise (< 0: LINE_STOP_ASP), like LINE_T_STOP_ASP.
-const float kLineKStopAspMul = param("LINE_K_STOP_ASP", 2.5f);
+const float kLineKStopAspMul = param("LINE_K_STOP_ASP", 10.0f);
 // A vowel before k or g narrows at the velum this long before the closure
 // (to LINE_KG_APPROACH_A cm^2), as before ŋ; and before b or p at the lips,
 // as before m. 0: off.
@@ -495,7 +495,7 @@ const float kLineKRelFric = param("LINE_K_REL_FRIC", 0.3f);  // k's release hiss
 const float kLinePRelFric = param("LINE_P_REL_FRIC", 0.3f);  // p's
 // t's (2026-11-06, Jyrki: in "torch has" "the t sounds off"): across kennedy puhuja's t bursts peaked -2.7 dB re the
 // vowel (p90 +3.4), Kokoro's -17.8 (p90 -9.1); the puffs (2.5 kHz+ over the vowel's first 40 ms) -12 vs -23.
-const float kLineTRelFric = param("LINE_T_REL_FRIC", 0.3f);
+const float kLineTRelFric = param("LINE_T_REL_FRIC", 0.25f);
 // ʧ's frication (x LINE_FRIC through its ʃ phase; 1: as ʃ). Kokoro's ʧ hiss is 7-9 dB louder than puhuja's
 // (2.5-5 kHz -10.7 vs -18.3 re the vowel, > 5 kHz -17.4 vs -26.9; "torch has", 2026-11-06).
 const float kLineChFric = param("LINE_CH_FRIC", 2.0f);
@@ -506,7 +506,7 @@ const float kLineChFric = param("LINE_CH_FRIC", 2.0f);
 const int kLineHVoicedCtx = param("LINE_H_VOICED_CTX", 2);
 // ... after a pause (LINE_H_VOICED_CTX 2) the folds start from the closed pause with the onset kick (LINE_ONSET_KICK_*)
 // and adduct to this glottal area (cm^2; < 0: the voiced h's 0.125, at which they did not start: the h was silent).
-const float kLineHPauseAg = param("LINE_H_PAUSE_AG", -1.0f);
+const float kLineHPauseAg = param("LINE_H_PAUSE_AG", 0.1f);
 // A phrase-initial b d g is prevoiced: the closure is formed in the pause and
 // the folds start to vibrate this long before the release (as a phrase-initial
 // nasal's lead). 0: off.
@@ -641,8 +641,8 @@ const float kLinePulseFric = param("LINE_PULSE_FRIC", 1.0f);  // the pulse's siz
 const float kLinePulseStop = param("LINE_PULSE_STOP", 1.0f);  // ... before the stops' releases
 const float kLineBurstArea = param("LINE_BURST_AREA", 0.2f) /* cost 1814 whisper-run1-phon_err */;  // a stop's release opening before a fricative (cm^2)
 const float kLineBurstMs = param("LINE_BURST_MS", 20.0f) /* cost 1814 whisper-run1-phon_err */;     // ... for this long
-const float kLineFric = param("LINE_FRIC", 18.4f) /* 2026-11-05: 22 -> 11.5 with LINE_GAIN x3.4 (G1) */ /* 2026-11-04: 29 with the Strouhal bands, then 22 with the 10x wider band (LINE_NOISE_LPR 10): the fricatives' level kept (Same. s -14 dB re the vowel) */;  // (8.375 from the 30-word search was a metric exploit: the s hiss fell to -20..-26 dB under the vowels, the readers have -5..-7; "house" was "hou", 2026-11-02)  // dyn/cm^2 per unit of (Re^2 - Re_c^2) / Re_c^2 at the jet: s at the cascade's level
-const float kLineAsp = param("LINE_ASP", 42.0f) /* cost 5.3123456789012345 schwa-run2-kokoro-dB */ /* 2026-11-04: 30 x0.45 x1.25 with LINE_FRIC */;  // the same at the glottis (h between vowels is voiced and needs none)
+const float kLineFric = param("LINE_FRIC", 4.7182f) /* 2026-11-05: 22 -> 11.5 with LINE_GAIN x3.4 (G1) */ /* 2026-11-04: 29 with the Strouhal bands, then 22 with the 10x wider band (LINE_NOISE_LPR 10): the fricatives' level kept (Same. s -14 dB re the vowel) */;  // (8.375 from the 30-word search was a metric exploit: the s hiss fell to -20..-26 dB under the vowels, the readers have -5..-7; "house" was "hou", 2026-11-02)  // dyn/cm^2 per unit of (Re^2 - Re_c^2) / Re_c^2 at the jet: s at the cascade's level
+const float kLineAsp = param("LINE_ASP", 6.7098f) /* cost 5.3123456789012345 schwa-run2-kokoro-dB */ /* 2026-11-04: 30 x0.45 x1.25 with LINE_FRIC */;  // the same at the glottis (h between vowels is voiced and needs none)
 // How the line moves between two vowel shapes: 0 interpolates the shape
 // parameters (a constriction travels), 1 the area functions themselves,
 // section by section in log area (one constriction fades while the next
