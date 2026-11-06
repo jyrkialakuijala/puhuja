@@ -18,8 +18,8 @@ constexpr float kPiL = 3.14159265f;
 constexpr float kM2PiL = -2.0f * kPiL;
 // Wall per unit area (Ishizaka, Flanagan & Matsudaira 1975): mass (g/cm^2),
 // resistance (dyn s/cm^3), stiffness (dyn/cm^3).
-const float kLungR = param("LINE_LUNG_R", 3.0f), kLungRInv = 1.0f / kLungR;  // the respiratory system's DC resistance (dyn s/cm^5)
-const float kWallMass = param("LINE_WALL_M", 1.5f), kWallMassInv = 1.0f / kWallMass;
+const float kLungR = param("LINE_LUNG_R", 10.7082f), kLungRInv = 1.0f / kLungR;  // the respiratory system's DC resistance (dyn s/cm^5)
+const float kWallMass = param("LINE_WALL_M", 2.14265f), kWallMassInv = 1.0f / kWallMass;
 const float kNoiseSt = param("LINE_NOISE_ST", 0.07f);         // Strouhal number of the noise corners (0: the fixed LINE_NOISE_HP; 0.1 on 2026-11-04: the s spectrum near Kokoro's, Whisper neutral)
 const float kNoiseLpRatio = param("LINE_NOISE_LPR", 10.0f);  // (2.5 -> 10 on 2026-11-04: in a 1.3-octave band the noise's peak hopped 0.30 octave per 10 ms frame, the readers' 0.06-0.08: the "zipping, zonking, pinging" Jyrki heard; at 10: 0.11; Whisper neutral)
 const float kNoiseStSmoothGMs = param("LINE_NOISE_ST_SMOOTH_G_MS", 15.0f);  // 2026-11-05: the glottal jet's corner smoothed over this alone (ms; < 0: LINE_NOISE_ST_SMOOTH_MS). Its corner zips 200 <-> 12000 Hz once per pitch period in every voiced sound.

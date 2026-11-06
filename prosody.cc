@@ -195,6 +195,18 @@ bool ProsodyProfile::load(const std::string& path, std::string* err) {
       words.push_back(w);
     }
   }
+  // Punctuation-only tokens (Kokoro's timestamps carry "." and "," as words of their own): their span and gap go to
+  // the word before them, so a sentence's end keeps its pause.
+  {
+    std::vector<Word> kept;
+    for (const Word& w : words) {
+      bool lettered = false;
+      for (unsigned char c : w.text) if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c >= 0x80) { lettered = true; break; }
+      if (lettered || kept.empty()) kept.push_back(w);
+      else kept.back().pauseAfter += static_cast<float>(w.t1 - w.t0) + w.pauseAfter + static_cast<float>(w.t0 - kept.back().t1);
+    }
+    words.swap(kept);
+  }
   if (const Json* j = root.get("tracks"); j && j->type == Json::kObject) {
     tracks.t0 = numberOr(j->get("t0"), 0.0f);
     tracks.hop = numberOr(j->get("hop"), 0.0f);
