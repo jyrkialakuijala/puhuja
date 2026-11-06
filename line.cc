@@ -588,6 +588,22 @@ float VocalTractLine::substep(float u0) {
     }
     aspActive_ = re > kReynoldsCrit;
     if (aspActive_) oral_.addFlowDrive(1, aspGain_ * (re * re - reC2) * invReC2 * n);
+    if (breathGain_ > 0) {  // (LINE_BREATH: no threshold; LINE_BREATH_MS smooths its envelope: Jyrki heard the instantaneous Re^2 drive as erratic)
+      static const float breathMs = param("LINE_BREATH_MS", 0.0f);
+      static const float breathA = breathMs > 0 ? 1.0f - std::exp(-1000.0f * dt_ / breathMs) : 1.0f;
+      breathEnv_ += breathA * (re * re * invReC2 - breathEnv_);
+      // LINE_BREATH_FC (Hz; 0: the aspiration's Strouhal band, whose corner moves with the flow): a fixed band, white
+      // noise through two one-pole high-passes at this corner, so the breath's colour does not change with every pulse.
+      static const float breathFc = param("LINE_BREATH_FC", 0.0f);
+      static const float breathHpA = breathFc > 0 ? 1.0f - std::exp(kM2PiL * breathFc * dt_) : 0.0f;
+      float bn = n;
+      if (breathFc > 0) {
+        bn = lpNoise2_;  // (the LINE_NOISE_LP low-passed source: white was +10 dB over Kokoro at 8-10 kHz)
+        breathHp_[0] += breathHpA * (bn - breathHp_[0]); bn -= breathHp_[0];
+        breathHp_[1] += breathHpA * (bn - breathHp_[1]); bn -= breathHp_[1];
+      }
+      oral_.addFlowDrive(1, breathGain_ * breathEnv_ * bn);
+    }
   } else aspActive_ = false;
   fricActive_ = false;
   if (noiseK_ >= 0 && fricGain_ > 0) {
@@ -687,9 +703,14 @@ float VocalTractLine::substep(float u0) {
   // nose (LINE_NASAL_WALL_RADIATE). 0: off. All of it through the tissue's
   // low-pass, LINE_WALL_RAD_LP (Hz; 0: none).
   {
-    static const float tracheaRad = param("LINE_TRACHEA_RADIATE", 0.0f), nasalRad = param("LINE_NASAL_WALL_RADIATE", 0.0f);
+    // The nasal walls at 40 (2026-11-06, "in his mortal hands": the murmur sat 4-6 dB under the next vowel, Kokoro's m n
+    // at the vowel's level; the nasal line's loss, viscosity, port, cavity and nostril knobs moved it < 1 dB). Only
+    // while the velum is open: the port never shuts fully (an_ >= 1e-3), and ungated the leak put a -22 dB copy of
+    // every vowel through the nasal walls. Full from LINE_NASAL_RAD_AN of opening (the line's an_, cm^2).
+    static const float tracheaRad = param("LINE_TRACHEA_RADIATE", 0.0f), nasalRad = param("LINE_NASAL_WALL_RADIATE", 20.0f);
+    static const float nasalRadAn = param("LINE_NASAL_RAD_AN", 0.1f), invNasalRadAn = 1.0f / std::max(nasalRadAn, 1e-4f);
     if (tracheaRad != 0) wall += tracheaRad * sub_.wallFlow();
-    if (nasalRad != 0) wall += nasalRad * nasal_.wallFlow();
+    if (nasalRad != 0) wall += nasalRad * std::min(1.0f, an_ * invNasalRadAn) * nasal_.wallFlow();
   }
   if (wallLpHz_ > 0) wall = wallLp_.process(wall);
   uAcc_ += aa2_.process(aa1_.process(oral_.lipFlow() + nasal_.lipFlow() + wall));

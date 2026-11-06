@@ -543,7 +543,7 @@ constexpr size_t kMaxHeldSentence = 4000;  // ... and the longest sentence held 
 constexpr float kEnglishFricationGain = 4.5f;
 constexpr float kEnglishAspirationGain = 50.0f, kEnglishHGain = 20.0f;
 const float kEnglishVoicedHNoise = param("kEnglishVoicedHNoise", 0.4f);  // x the h gain, h between voiced sounds (readers' medial h is mostly breathy voice, 10-13 dB under the vowel; 1.0 put puhuja's at -1 dB, INPUT.md 2026-10-31) (0.3 with the h gain 0.7: "the hand" was heard as "the land": the h had the l's length, level and harmonicity; 3 was 12 dB louder than goog.wav)
-const float kEnglishVoicedHAg = param("kEnglishVoicedHAg", 0.15f);  // 0.25 until 2026-11-05: it stopped the folds, a 45 ms gap in "his"; Jyrki chose 0.15 (hih-Z1)  // (0.2 with the folds stopping above kAgBreathy: h-vowel -7.1 dB over kennedy.txt, 0.25: -8.7, readers -10..-13; round trip 8.6 -> 8.2 %, 2026-11-01)  // cm^2, h between voiced sounds (goog.wav's stays voiced)
+const float kEnglishVoicedHAg = param("kEnglishVoicedHAg", 0.25f);  // 0.25 until 2026-11-05: it stopped the folds, a 45 ms gap in "his"; Jyrki chose 0.15 (hih-Z1)  // (0.2 with the folds stopping above kAgBreathy: h-vowel -7.1 dB over kennedy.txt, 0.25: -8.7, readers -10..-13; round trip 8.6 -> 8.2 %, 2026-11-01)  // cm^2, h between voiced sounds (goog.wav's stays voiced)
 
 EnglishReader::EnglishReader(Synth& synth) : synth_(synth) {
   synth_.setSpellingRules(false);  // English phonemes come ready-made
@@ -714,6 +714,10 @@ constexpr float kUnstressedConsonant = 0.85f;  // other consonants
 // alignment) puhuja's consonants were 20 % short across the board (median
 // 58 vs 70 ms, s 86 vs 121, n 51 vs 65, t 45 vs 60), the vowels not (105 vs
 // 99): function words, mostly consonants, ran at 137 ms against 240.
+// A word-initial nasal before a vowel x this (EN_NASAL_ONSET_LEN; 2026-11-06, Jyrki: "in his mortal hands -- m in mortal
+// becomes too weak or short"): Kokoro's word-initial m n run 80-90 ms ("mortal" 90, "Americans" 80, "nation" 80, "any"
+// 110) against puhuja's 44-52; its medial ones (50-55 ms) match puhuja's.
+const float kOnsetNasalLength = param("EN_NASAL_ONSET_LEN", 1.15f);
 const float kEnglishConsonantLength = param("kEnglishConsonantLength", 0.82f) /* 0.70 from the timing search cut every consonant 30 %: nasal murmurs 8-35 ms against Kokoro 40-75, words 20 % short (2026-11-02) */;
 // A sonorant cluster across a word boundary ("human life", "in love", "all
 // right"): the readers hold the first consonant as the coda of its word and
@@ -823,6 +827,7 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
           whole *= kClusterOnsetLength;
           clusterOnset = true;
         }
+        if (isNasal(b) && wordInitial && vowelAfter) whole *= kOnsetNasalLength;  // (EN_NASAL_ONSET_LEN)
         if (b == "L" && !clusterOnset) {
           if (wordInitial && vowelAfter) whole *= kOnsetLLength;
           else if (wordFinal && vowelBefore && !phraseFinal) whole *= kCodaLLength;
@@ -868,6 +873,22 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
         static const float vfricLen = param("EN_VFRIC_LEN", 1.0f), vstopLen = param("EN_VSTOP_LEN", 1.3f);
         if (b == "S" || b == "SH" || b == "F" || b == "TH") whole *= vfricLen;
         else if (isVoicelessPlosive(b)) whole *= vstopLen;
+        // ... and h's (EN_H_LEN; Jyrki 2026-11-06: "hand of God" sounds too close to "land of God", make h here
+        // more clear -- consider noise shaping, making it longer, or slightly stronger). Kokoro's h runs ~60 ms
+        // against puhuja's 41.
+        static const float hLen = param("EN_H_LEN", 2.0f);
+        if (b == "HH") whole *= hLen;
+        // ... and f's on top of EN_VFRIC_LEN (EN_F_LEN; Jyrki 2026-11-06: the f of "forms" "slightly artificial": Kokoro's
+        // 160 ms against puhuja's 94, with the l's voice tailing into it and a flat spectrum to 8 kHz).
+        // Only an f starting a stressed syllable: Kokoro's typical f is short and dark, its stressed one long and bright.
+        static const float fLen = param("EN_F_LEN", 1.5f), fLenUnstr = param("EN_F_LEN_UNSTR", 1.5f);
+        if (b == "F") {
+          size_t v = i + 1;
+          while (v < tok.size() && !isVowelToken(tok[v])) ++v;
+          const char* vn = v < tok.size() ? kEnglishTokens[tok[v] - 0x80] : nullptr;
+          const bool fStressed = vn && phrase_[w].accent && vn[strlen(vn) - 1] == '1';
+          whole *= fStressed ? fLen : fLenUnstr;
+        }
       }
       // Rate: vowels follow it, consonants less (a slow reader keeps the
       // consonants crisp); relative to the default rate, which stays as fitted.
