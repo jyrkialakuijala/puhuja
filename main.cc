@@ -138,17 +138,25 @@ void put32(FILE* f, uint32_t v) { fwrite(&v, 4, 1, f); }
 void put16(FILE* f, uint16_t v) { fwrite(&v, 2, 1, f); }
 
 // IEEE float WAV header. Sizes are patched at the end if the file is seekable.
+// A non-PCM format needs the 18-byte fmt chunk (cbSize 0) and a fact chunk
+// with the sample count; without them Praat refuses the file and sox warns
+// (Jyrki 2026-11-06: "praat cannot open those wav files").
+constexpr uint32_t kWavHeaderBytes = 58;  // RIFF(12) + fmt(8 + 18) + fact(8 + 4) + data(8)
 void writeWavHeader(FILE* f, uint32_t rate, uint32_t dataBytes) {
   fwrite("RIFF", 1, 4, f);
-  put32(f, 36 + dataBytes);
+  put32(f, kWavHeaderBytes - 8 + dataBytes);
   fwrite("WAVEfmt ", 1, 8, f);
-  put32(f, 16);
+  put32(f, 18);
   put16(f, 3);  // WAVE_FORMAT_IEEE_FLOAT
   put16(f, 1);  // mono
   put32(f, rate);
   put32(f, rate * 4);
   put16(f, 4);
   put16(f, 32);
+  put16(f, 0);  // cbSize
+  fwrite("fact", 1, 4, f);
+  put32(f, 4);
+  put32(f, dataBytes / 4);  // samples per channel
   fwrite("data", 1, 4, f);
   put32(f, dataBytes);
 }
@@ -272,7 +280,7 @@ int main(int argc, char** argv) {
     perror(outPath);
     return 1;
   }
-  if (!raw) writeWavHeader(out, 48000, 0xffffffffu - 36);
+  if (!raw) writeWavHeader(out, 48000, 0xffffffffu - (kWavHeaderBytes - 8));
 
   uint64_t total = 0;
   std::unique_ptr<Room> room;
