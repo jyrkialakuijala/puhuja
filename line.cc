@@ -315,7 +315,8 @@ void VocalTractLine::init(float fs) {
   dt_ = 1.0f / (TransmissionLine::kSubsteps * fs);
   oral_.init(17.5f, fs, kOralSections);
   nasal_.init(kNasalLength, fs, kNasalSections);
-  nasal_.setWallLoss(param("LINE_NASAL_LOSS", 1.0f));  // the nasal walls (mucosa, the sinuses) lose more than the mouth
+  static const float kNasalLoss = param("LINE_NASAL_LOSS", 1.0f);
+  nasal_.setWallLoss(kNasalLoss);  // the nasal walls (mucosa, the sinuses) lose more than the mouth
   // The turbinates split the nose into narrow slits: everything above the
   // murmur's low resonance is damped. With the mouth's losses the n kept its
   // overtones (1-5 kHz only 10-20 dB under the 250 Hz peak; the readers'
@@ -325,8 +326,10 @@ void VocalTractLine::init(float fs) {
   // nostrils and port to win the level back, 8 of 52. Lightly (300 Hz above
   // 1000), with the slower nasal release, 40 of 70 m words were heard
   // starting with m (24 without it; Whisper, 2026-11-04).
-  nasal_.setHfLoss(param("LINE_NASAL_HF_BW", 300.0f), param("LINE_NASAL_HF_FC", 1000.0f));
-  nasal_.setViscLoss(param("LINE_NASAL_VISC", 4.221f) /* cost 1814 whisper-run1-phon_err */);  // (30: the m of "his mortal", starting from the voiceless z, fell to -26 dB)  // the turbinates: far more surface per volume than a tube
+  static const float kNasalHfBw = param("LINE_NASAL_HF_BW", 300.0f), kNasalHfFc = param("LINE_NASAL_HF_FC", 1000.0f);
+  nasal_.setHfLoss(kNasalHfBw, kNasalHfFc);
+  static const float kNasalVisc = param("LINE_NASAL_VISC", 4.221f);
+  nasal_.setViscLoss(kNasalVisc);  // (30: the m of "his mortal", starting from the voiceless z, fell to -26 dB)  // the turbinates: far more surface per volume than a tube
   // The nasal passage: the port and nasopharynx, the cavity, the nostrils.
   std::vector<float> na(nasal_.sections());
   for (int k = 0; k < nasal_.sections(); ++k) {
@@ -339,9 +342,9 @@ void VocalTractLine::init(float fs) {
   // sphenoid ones near 1-1.5 kHz; without them the line's n carried 1-2 kHz
   // only 17 dB under its low band, Kokoro 27-45, and "known" was "whole").
   {
-    const float v1 = param("LINE_SINUS1_V", 24.0f), a1 = param("LINE_SINUS1_A", 0.1f), l1 = param("LINE_SINUS1_L", 0.6f);
-    const float v2 = param("LINE_SINUS2_V", 4.0f), a2 = param("LINE_SINUS2_A", 0.1f), l2 = param("LINE_SINUS2_L", 0.5f);
-    const float q = param("LINE_SINUS_Q", 5.0f);
+    static const float v1 = param("LINE_SINUS1_V", 24.0f), a1 = param("LINE_SINUS1_A", 0.1f), l1 = param("LINE_SINUS1_L", 0.6f);
+    static const float v2 = param("LINE_SINUS2_V", 4.0f), a2 = param("LINE_SINUS2_A", 0.1f), l2 = param("LINE_SINUS2_L", 0.5f);
+    static const float q = param("LINE_SINUS_Q", 5.0f);
     if (v1 > 0) nasal_.addSinus(static_cast<int>(5.0f / nasal_.dx()), v1, a1, l1, q);
     if (v2 > 0) nasal_.addSinus(static_cast<int>(7.0f / nasal_.dx()), v2, a2, l2, q);
   }
@@ -362,17 +365,19 @@ void VocalTractLine::init(float fs) {
   // the low frequencies. Unfiltered, b's voice bar under a strong expansion
   // had its 2-8 kHz only 6 dB under the whole band (Kokoro's: 35-45 dB under)
   // (2026-11-04; 0: off).
-  wallLpHz_ = param("LINE_WALL_RAD_LP", 0.0f);
+  static const float kWallRadLp = param("LINE_WALL_RAD_LP", 0.0f);
+  wallLpHz_ = kWallRadLp;
   if (wallLpHz_ > 0) wallLp_.set(wallLpHz_, TransmissionLine::kSubsteps * fs, 0.7071f);
   uAcc_ = prevMean_ = 0;
   subCount_ = 0;
   {
-    const float hp = param("LINE_ASP_HP", 0.0f);
+    static const float hp = param("LINE_ASP_HP", 0.0f);
     aspHpA_ = aspHpBaseA_ = hp > 0 ? 1.0f - std::exp(kM2PiL * hp * dt_) : 0.0f;
-    const float nhp = param("LINE_NOISE_HP", 1500.0f);  // the turbulence noise's high-pass corner (Hz; 0: none; 1500 on 2026-11-04, Jyrki: the s's 0.5-2 kHz bands 4-8 dB toward Kokoro's)
+    static const float nhp = param("LINE_NOISE_HP", 1500.0f);  // the turbulence noise's high-pass corner (Hz; 0: none; 1500 on 2026-11-04, Jyrki: the s's 0.5-2 kHz bands 4-8 dB toward Kokoro's)
     noiseHpA_ = nhp > 0 ? 1.0f - std::exp(kM2PiL * nhp * dt_) : 0.0f;
   }
-  aaNoise_ = 1.0f - std::exp(kM2PiL * param("LINE_NOISE_LP", 5000.0f) /* 2026-11-04: the search had 2265 (s heard as f); 6000: initial s 3 -> 8 of 10 (Whisper), 4000 matched Kokoro s level; Jyrki: 5000 */ * dt_);  // the readers' s peaks at 8-12 kHz (goog "house"); at 5.5 kHz the line's s had its energy at 4-6 kHz
+  static const float kNoiseLp = param("LINE_NOISE_LP", 5000.0f);
+  aaNoise_ = 1.0f - std::exp(kM2PiL * kNoiseLp /* 2026-11-04: the search had 2265 (s heard as f); 6000: initial s 3 -> 8 of 10 (Whisper), 4000 matched Kokoro s level; Jyrki: 5000 */ * dt_);  // the readers' s peaks at 8-12 kHz (goog "house"); at 5.5 kHz the line's s had its energy at 4-6 kHz
   out_ = uNasal_ = an_ = 0;
 }
 

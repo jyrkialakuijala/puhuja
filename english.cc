@@ -706,7 +706,7 @@ constexpr int kFastPhraseSyllables = 15, kShortPhraseTempoSyllables = 6;
 constexpr float kLongPhraseTempo = 0.94f, kShortPhraseTempo = 1.06f, kParagraphOpeningTempo = 1.06f;
 
 // Stress timing (on top of Klatt's rules).
-constexpr float kUnstressedVowel = 0.6f;       // Klatt: 0.5 (0.42: function words 137 ms against goog.wav's 240 on the same text, content words 431 vs 360: runs of function words lurched)
+const float kUnstressedVowel = param("EN_UNSTRESSED_VOWEL", 0.6f);  // (a knob since 2026-11-07: "Americans" ə 83/78/122 ms against Kokoro's 50/20/70)       // Klatt: 0.5 (0.42: function words 137 ms against goog.wav's 240 on the same text, content words 431 vs 360: runs of function words lurched)
 constexpr float kAccentedVowelTiming = 1.2f, kUnstressedVowelTiming = 0.85f;  // stress timing
 constexpr float kStressedOnset = 1.2f;         // consonants starting a stressed syllable
 constexpr float kUnstressedConsonant = 0.85f;  // other consonants
@@ -827,6 +827,34 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
           whole *= kClusterOnsetLength;
           clusterOnset = true;
         }
+        // l after a plosive in the same word ("pledge", "please", "black"): 59 ms
+        // here, Kokoro's "pledge," l 160 (Jyrki 2026-11-07: "'pledge' is
+        // mispronounced, compare with kokoro"); x EN_STOP_L_LEN (1: unchanged).
+        if (b == "L" && i > 0 && (isVoicelessPlosive(baseName(tok[i - 1])) || isVoicedPlosive(baseName(tok[i - 1])))) {
+          static const float kStopLLen = param("EN_STOP_L_LEN", 2.0f);  // Jyrki: "pledge-l20vr5.wav is the best" (l 59 -> 118 ms)
+          whole *= kStopLLen;
+        }
+        // h after a plosive across the word boundary ("at home"): 119 ms of
+        // bright noise after the t, heard as an f ("at phone", Jyrki 2026-11-07);
+        // Kokoro's t release carries a weak breath straight into the o. x EN_STOP_H_LEN.
+        if (b == "HH" && i == 0 && w > 0 && !phrase_[w - 1].tokens.empty() &&
+            (isVoicelessPlosive(baseName(phrase_[w - 1].tokens.back())) || isVoicedPlosive(baseName(phrase_[w - 1].tokens.back())))) {
+          static const float kStopHLen = param("EN_STOP_H_LEN", 0.6f);  // Jyrki 2026-11-07: "let's make that the default then own60" (h after a stop 119 -> 71 ms)
+          whole *= kStopHLen;
+        }
+        // w: x EN_W_LEN (1: unchanged). 72 ms here; after "by" its F2 reaches
+        // only ~860 Hz from the ɪ's 1900 in that time (Kokoro's w 520-570).
+        if (b == "W") {
+          static const float kWLen = param("EN_W_LEN", 1.0f);
+          whole *= kWLen;
+        }
+        // ɹ after a plosive in the same word ("proud", "tried", "great"): 53 ms
+        // with F3 at 2100-2900 Hz, no r-colour, heard as an l ("proud" ->
+        // "pollot", Jyrki 2026-11-07); Kokoro's ɹ 80 ms, F3 1800-2000. x EN_STOP_R_LEN.
+        if (b == "R" && i > 0 && (isVoicelessPlosive(baseName(tok[i - 1])) || isVoicedPlosive(baseName(tok[i - 1])))) {
+          static const float kStopRLen = param("EN_STOP_R_LEN", 1.7f);  // Jyrki: "proud-r15-cut.wav perhaps 17 would be ideal"
+          whole *= kStopRLen;
+        }
         if (isNasal(b) && wordInitial && vowelAfter) whole *= kOnsetNasalLength;  // (EN_NASAL_ONSET_LEN)
         if (b == "L" && !clusterOnset) {
           if (wordInitial && vowelAfter) whole *= kOnsetLLength;
@@ -869,7 +897,49 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
       // The voiceless fricatives' and stops' lengths x these (Jyrki 2026-11-05,
       // the blend exploration: Kokoro's Kennedy has s 80 ms, ʃ 110, t 60, k 70,
       // p 70 against puhuja's 70, 73, 37, 43, 49; 1: unchanged).
+      // The first of two adjacent voiceless fricatives ("beliefs": f 115 ms + s
+      // 63; Kokoro's f 27 + s 53, 2026-11-07, Jyrki: "the s sounds a bit odd")
+      // x this (1: unchanged).
+      if (!vowel && (b == "S" || b == "SH" || b == "F" || b == "TH") && i + 1 < tok.size()) {
+        const std::string nb = baseName(tok[i + 1]);
+        if (nb == "S" || nb == "SH" || nb == "F" || nb == "TH") {
+          static const float kFricClusterLen = param("EN_FRIC_CLUSTER_LEN", 1.0f);
+          whole *= kFricClusterLen;
+        }
+      }
+      // A z after a consonant ("holds", "hands"): 47 ms here, Kokoro's >= 70
+      // (Jyrki 2026-11-07: "the s/z in the end of 'holds' could be stronger").
+      if (!vowel && b == "Z" && i > 0 && !isVowelToken(tok[i - 1])) {
+        static const float kClusterZLen = param("EN_CLUSTER_Z_LEN", 1.35f);  // Jyrki 2026-11-07: "holds-Lag is best, but perhaps 15 % less of that", then "holds-Lag70.wav is better than 85": 1.5 and LINE_AG_Z 0.22 with 30 % of the step back
+        whole *= kClusterZLen;
+      }
       if (!vowel) {
+        // A voiced stop before a fricative ("and foe", "and foo", "United there"):
+        // 40 ms here, in which the seal never completed (the level stayed at
+        // the vowel's) and the release popped into the f; Kokoro's d 70 ms with
+        // a silent closure (Jyrki 2026-11-07: "end of and is very strange
+        // blib"). x EN_VSTOP_FRIC_LEN (1: unchanged).
+        if (isVoicedPlosive(b)) {
+          std::string nb;
+          if (i + 1 < tok.size()) nb = baseName(tok[i + 1]);
+          else if (w + 1 < phrase_.size() && !phrase_[w + 1].tokens.empty()) nb = baseName(phrase_[w + 1].tokens[0]);
+          if (nb == "S" || nb == "SH" || nb == "F" || nb == "TH" || isVoicedFricative(nb)) {
+            static const float kVstopFricLen = param("EN_VSTOP_FRIC_LEN", 1.0f);
+            whole *= kVstopFricLen;
+          }
+        }
+        // A voiced stop opening a stressed syllable after an unstressed one in
+        // the same word ("undoing", "about", "begin"): Kokoro's d in "undoing"
+        // is 90 ms with a 40 ms dip, puhuja's 39 (Jyrki 2026-11-07: "a small
+        // timing delay between un-doing"); x EN_STRESS_ONSET_VSTOP_LEN (1: unchanged).
+        size_t pv = i;  // the previous vowel of the word, past any consonants ("un-d")
+        while (pv > 0 && !isVowelToken(tok[pv - 1])) --pv;
+        if (isVoicedPlosive(b) && pv > 0 && i + 1 < tok.size() && isVowelToken(tok[i + 1]) &&
+            kEnglishTokens[tok[pv - 1] - 0x80][strlen(kEnglishTokens[tok[pv - 1] - 0x80]) - 1] == '0' &&
+            kEnglishTokens[tok[i + 1] - 0x80][strlen(kEnglishTokens[tok[i + 1] - 0x80]) - 1] == '1') {
+          static const float kStressOnsetVstopLen = param("EN_STRESS_ONSET_VSTOP_LEN", 1.0f);
+          whole *= kStressOnsetVstopLen;
+        }
         static const float vfricLen = param("EN_VFRIC_LEN", 1.0f), vstopLen = param("EN_VSTOP_LEN", 1.3f);
         if (b == "S" || b == "SH" || b == "F" || b == "TH") whole *= vfricLen;
         else if (isVoicelessPlosive(b)) whole *= vstopLen;
