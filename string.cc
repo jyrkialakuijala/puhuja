@@ -50,7 +50,7 @@ const float kShearRel = param("STRING_SHEAR", 6.08392f) /* cost 5.31234567890123
 // Damping ratios while open per layer; extra while touching the wall.
 constexpr float kZeta[L] = {0.1f, 0.4f};
 const float kZetaClosed = param("STRING_ZCLOSED", 0.0823445f) /* cost 5.3123456789012345 schwa-run2-kokoro-dB */ /* 2026-11-04 LF fit (tools/lf_fit.py, ref/lf/fit2) 0.207612, then 15 % back toward the earlier 0.1868 (Jyrki: the more trained voice) */;
-constexpr float kCollision = 3.0f;  // collision stiffness / the lane's total stiffness
+const float kCollision = param("STRING_COLLISION", 3.0f);  // collision stiffness / the lane's total stiffness (a knob since 2026-11-07: the closing phase)
 // The share of the air pressure on the surface that drives it.
 const float kKappa = param("STRING_KAPPA", 0.412386f) /* cost 5.3123456789012345 schwa-run2-kokoro-dB */ /* 2026-11-04 LF fit (tools/lf_fit.py, ref/lf/fit2) 2.24987, then 15 % back toward the earlier 3 (Jyrki: the more trained voice) */;
 // The cords' own sound: surface area times lateral velocity, both folds.
@@ -60,7 +60,11 @@ const float kRestScale = param("STRING_REST", 0.0359424f) /* cost 5.312345678901
 // Rest width along the cord relative to the mean: front (anterior) against back.
 const float kRestFront = param("STRING_RESTFRONT", 1.544f) /* cost 1814 whisper-run1-phon_err */ /* 2026-11-04 LF fit (tools/lf_fit.py, ref/lf/fit2) 1.58689, then 15 % back toward the earlier 1.51 (Jyrki: the more trained voice) */, kRestBack = 2.0f - kRestFront;
 constexpr float kRho = 0.00113f;      // air density (g/cm^3)
-const float kInertance = param("STRING_INERTANCE", 0.005f);  // as folds.cc (a knob since 2026-11-06: it smooths the flow's cut-off, the return phase)
+// 2026-11-07: 0.005 -> 0.035 (x7, Jyrki's number) with kRound 0.0005 -> 0.000125: the flow lags the area, the pulse
+// skews and its cut-off sharpens; the voiced spectrum's 9 dB deficit against Kokoro at 1-3 kHz closes to 0 and the
+// brightness is harmonic (HNR up in every band), where the fold-knob fits had made noise (ref/opt/zopt3/
+// ZIMTOHRLI_PROGRESS.md sections 11-13). Jyrki: "p12-i7r.25.wav was the best of these". 4-5 dB louder.
+const float kInertance = param("STRING_INERTANCE", 0.035f);  // as folds.cc (a knob since 2026-11-06: it smooths the flow's cut-off, the return phase)
 // Discharge coefficient of the glottal orifice (vena contracta): the flow
 // through a slit of area a is that of an ideal orifice of kDischarge x a.
 // Without it the folds passed ~2x a real glottis's flow and the pressure
@@ -72,7 +76,7 @@ const float kRhoOver2Cd2 = 0.5f * kRho / (kDischarge * kDischarge);  // rho / (2
 // slow process ... or closing happens over a longer distance, i.e. the
 // frequencies are smeared"; with the line tract the step-like cut-off left
 // soft phrase ends as pure tones).
-const float kRound = param("STRING_ROUND", 0.0005f);
+const float kRound = param("STRING_ROUND", 0.000125f);  // (0.0005 until 2026-11-07, see kInertance)
 const float kRoundInv = 1.0f / kRound;
 // ... and in time: a lane's heard channel may close no faster than this time
 // constant (ms; 0: at once). It opens at once.
@@ -245,7 +249,7 @@ float StringFolds::step(float h, const VocalFolds::Input& in) {
     if (strace && (scount++ & 3) == 0) {
       float aTot = 0;
       for (int l = kFirst; l <= kLast; ++l) aTot += std::max(aMin[l], 0.0f);
-      std::fprintf(strace, "%.5f\t%d\n", aTot, __builtin_popcount(openMask_));
+      std::fprintf(strace, "%.5f\t%d\t%.5f\n", aTot, __builtin_popcount(openMask_), uOutSum_);  // (heard flow since 2026-11-07)
     }
   }
   // Air pressure on each layer's surface: in an open lane the Bernoulli
