@@ -1289,6 +1289,7 @@ constexpr float kCreakBelow = -6.5f;  // st: statement endings this low get crea
 constexpr float kPressedAccent = 0.9f, kLaxUnstressed = 1.08f, kLaxFinal = 1.12f;  // glottal opening
 constexpr float kAccentDb = 1.5f, kFunctionWordDb = -1.5f;
 const float kSecondaryDb = param("kSecondaryDb", -4.0f), kUnstressedDb = param("kUnstressedDb", 2.0f);
+const float kSecondaryPreDb = param("kSecondaryPreDb", 3.0f);  // a secondary stress before the primary (see the level rule; Jyrki 2026-11-06: "gen-sp4 is the best, but probably sp3 would be better", then "sp3 is better"; kennedy Whisper 788 vs 798)
 const float kSecondaryVowelLength = param("kSecondaryVowelLength", 1.362f) /* cost 0.0307218938484690 wobble */ /* 1.19 from the timing search made the secondary-stress syllable as long as the primary */, kInitialRLength = 1.0f;
 // A word-initial ɹ before a vowel ("revolution", "republics", "rights") is a
 // full r: deeper (F3 1550 as the male readings' 1450-1600; puhuja's reached
@@ -1713,6 +1714,10 @@ void EnglishReader::sayPhrase(char end) {
     if (t == "are" && !phrase_[w - 1].tokens.empty() && isVowelToken(phrase_[w - 1].tokens.back())) continue;
     for (const WeakForm& f : kWeakForms)
       if (t == f.word) phrase_[w].tokens = arpaTokens(f.weak);
+    // "for": the weak ɜ (F2 ~1370 Hz) was heard as "fur" ("beliefs for which", Jyrki 2026-11-06); the readers' reduced
+    // "for" keeps the rounded back vowel under the r colour (Kokoro F2 865-1334, "beliefs for which" 1097): a short ɔ + ɹ.
+    static const float kForWeakRounded = param("EN_FOR_ROUNDED", 1.0f);  // Jyrki 2026-11-06: "forwhich-ro.wav is good" (kennedy Whisper 856, unchanged)
+    if (t == "for" && kForWeakRounded > 0.5f) phrase_[w].tokens = arpaTokens("F AO0 R");
   }
   // Demonstrative "that" (after a preposition, before a content word: "to
   // that day") is accented; the conjunction and relative "that" are not.
@@ -2265,6 +2270,15 @@ void EnglishReader::sayPhrase(char end) {
           shape.ms *= kInitialRLength;
           shape.f3 = kInitialRF3;
         }
+        // A coda ɹ before a consonant or a pause ("dare not", "first", "heirs") x EN_CODA_R_LEN: at 50 ms after a 148 ms
+        // vowel it ran into the n, "dare" heard as "don't" (Jyrki 2026-11-06; Kokoro's coda r 10-20 ms, its vowel 50-90).
+        {
+          static const float kCodaRLen = param("EN_CODA_R_LEN", 1.0f);
+          const bool codaR = s.ph[k] == Ph::RR && s.n == 1 && i > 0 && isVowelToken(tokens[i - 1]) &&
+                             !(i + 1 < tokens.size() && isVowelToken(tokens[i + 1])) &&
+                             !(i + 1 == tokens.size() && w + 1 < phrase_.size() && !phrase_[w + 1].tokens.empty() && isVowelToken(phrase_[w + 1].tokens[0]));
+          if (codaR) shape.ms *= kCodaRLen;
+        }
         if (phrase_[w].syllabicN && i + 1 == tokens.size()) shape.ms *= kSyllabicNLength;
         if (phrase_[w].syllabicL && i + 1 == tokens.size()) shape.ms *= kSyllabicLLength;
         if (i < 32 && (phrase_[w].flaps >> i & 1)) {
@@ -2274,6 +2288,10 @@ void EnglishReader::sayPhrase(char end) {
         // Plosives: Klatt's duration includes the release; this is the closure.
         if (isVoicelessPlosive(baseName(tokens[i])) || isVoicedPlosive(baseName(tokens[i])))
           shape.ms *= 0.75f;
+        // ʤ x EN_JH_LEN (Jyrki 2026-11-06: the g of "generosity" "too k like", should be "more of z-like, more voiced":
+        // its closure ran 92 ms against Kokoro's 70 ms voiced affricate).
+        static const float kJhLen = param("EN_JH_LEN", 1.0f);
+        if (baseName(tokens[i]) == "JH") shape.ms *= kJhLen;
         // The back offglide fades: about 3 dB weaker than a full vowel.
         shape.level = glide ? 0.7f * v.level : v.level;
         if (initialR) shape.level *= kInitialRLevel;
@@ -2300,7 +2318,15 @@ void EnglishReader::sayPhrase(char end) {
           // first syllable; here the last third was the loudest (2026-11-02).
           // An unstressed syllable, by contrast, was too weak (-18..-24 dB re
           // the word's peak against Kokoro's -13..-17).
-          if (vn[strlen(vn) - 1] == '2') db += kSecondaryDb;
+          // ... but a secondary stress BEFORE the word's primary ("generosity", "revolutionary", "generation") is the
+          // word's onset and Kokoro's loudest syllable there: its own level (kSecondaryPreDb; Jyrki 2026-11-06: "the
+          // voiced g in generosity is missing": its ʤɛ sat 10-13 dB under the following unstressed ɜ).
+          bool primaryLater = false;
+          for (size_t j = i + 1; j < tokens.size(); ++j) {
+            const char* tn = kEnglishTokens[tokens[j] - 0x80];
+            if (isVowelToken(tokens[j]) && tn[strlen(tn) - 1] == '1') primaryLater = true;
+          }
+          if (vn[strlen(vn) - 1] == '2') db += primaryLater ? kSecondaryPreDb : kSecondaryDb;
           else if (vn[strlen(vn) - 1] == '0') db += kUnstressedDb;
           // ... and the ɜ of "power", "hour" a step under its aʊ (EN_AW_ER_DB; with
           // kUnstressedDb +2 it was the louder syllable, -11 dB re the phrase

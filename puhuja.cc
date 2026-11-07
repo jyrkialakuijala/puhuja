@@ -250,7 +250,18 @@ static const struct {
 // The line's output level, and its turbulence gains (noise pressure per unit
 // of Reynolds number past critical, at the constriction and at the glottis).
 const float kLineGain = param("LINE_GAIN", 9.2e-6f) /* 2026-11-05: M90 = 90 % G1 + 10 % old defaults (geometric) */ /* 2026-11-05: x3.4 after the schwa fit to Kokoro (the vowels 10.6 dB weaker; G1, with LINE_FRIC 22 -> 11.5) */ /* 2026-11-04: x2.55 for the LF-fitted folds (7 dB weaker) with the noise at -7 dB: Kennedy rms -23.6 dB as before the fit */;  // vowels ~-20 dB rms, kennedy.txt peaks under 1.0
-const float kLinePostHw = param("LINE_POST_HW", 2.5f);   // ʃ ʒ ʧ ʤ: the groove's half-width (cm)
+// Output EQ of the line tract (2026-11-07). Kokoro's voiced spectrum is 9-14
+// dB above ours at 1-3 kHz (ref/opt/zopt3/rasp/eqtest.out); the line's losses
+// are not the cause (wall damping, HF loss: <= 2 dB), the source is. Jyrki
+// heard offline EQs on the paragraph (oracle, oracle/2, shelf 1 kHz +6, peak
+// 2 kHz +9): "all ... were good". A high shelf and a bell on the line's
+// output, voice and noise alike as in what he heard. Zimtohrli is nearly
+// blind to this (level-normalised NSIM): the ear decides it.
+// Off by default since the sharper closing phase (string.cc kInertance, the
+// same day): Jyrki chose the fold variant without the EQ over the EQ'd default.
+const float kLineEqShelfHz = param("LINE_EQ_SHELF_HZ", 1000.0f), kLineEqShelfDb = param("LINE_EQ_SHELF_DB", 0.0f);
+const float kLineEqPeakHz = param("LINE_EQ_PEAK_HZ", 2000.0f), kLineEqPeakBw = param("LINE_EQ_PEAK_BW", 2000.0f), kLineEqPeakDb = param("LINE_EQ_PEAK_DB", 0.0f);
+const float kLinePostHw = param("LINE_POST_HW", 4.0f) /* 2.5 until 2026-11-06: the ʃ a narrow hiss peaking at 4 kHz, "too scratchy" (Jyrki); 4 flattens it 1.6-6 kHz like Kokoro's, abolish-hw4nolp "is better"; kennedy Whisper 859 */;   // ʃ ʒ ʧ ʤ: the groove's half-width (cm)
 // ʃ ʒ ʧ ʤ: the jet's thickness for its noise band (cm; 0: the slit's
 // height). The slit's height (0.08 cm^2 over the slit's width, ~0.3 mm)
 // put the band's corner at the 12 kHz clamp: the hiss sat at 8-11 kHz,
@@ -328,6 +339,15 @@ const float kRColourOpenAt = param("LINE_RCOLOR_OPEN_AT", 0.85f);
 // vowel, a wide bump leaves them to the r). Its wide bump left the place to the r's bunched one through the whole
 // vowel: "dare" ɛ F2 1290 Hz flat ("den" 1780, Kokoro 1650 falling to 1540); Jyrki 2026-11-06: "dare sounds very strange".
 const float kPreRVowelW = param("SPLAN_PRE_R_VOWEL_W", 0.0f);
+// ... and the front vowels' own (ɪ ɛ e i æ: "dare", "their", "heirs", "here"; the back and open vowels of "for", "more",
+// "are" keep the colouring that fits them): SPLAN_PRE_R_FRONT_W, LINE_RCOLOR_FRONT_MIX / _AT (-1: as all vowels).
+const float kPreRFrontW = param("SPLAN_PRE_R_FRONT_W", 1.0f);  // Jyrki 2026-11-06: "ok, use your fix" ("dare" heard as "don't": ɛ F2 1290 -> 1546 Hz; kennedy Whisper 853 -> 854)
+const float kRColourFrontMix = param("LINE_RCOLOR_FRONT_MIX", 0.8f);
+const float kRColourFrontAt = param("LINE_RCOLOR_FRONT_AT", 0.85f);  // the colouring from 85 % of a front vowel (all vowels: 60 %)
+// ... and the r-coloured ɜ (ER) itself: its bunched tongue is a wide bump too, so before a labial ("for which", "for
+// progress") the lips' demand won and its F3 stayed at 2800 Hz, no r colour ("for" heard as "fur"/"fuh", Jyrki 2026-11-06).
+const float kErPlaceW = param("SPLAN_ER_PLACE_W", 1.0f);  // Jyrki 2026-11-06: "deploy the fix as default" ("for which" ɜ F3 2666 -> 1832 Hz; kennedy Whisper 854 -> 856)
+bool frontVowel(Ph p) { return p == Ph::E || p == Ph::I || p == Ph::IH || p == Ph::EH || p == Ph::AE || p == Ph::Y || p == Ph::OE; }
 // ɜ's own shape demand (2026-11-04): a short unstressed final -er (Water,
 // Never, Power, 173 ms) did not reach the r-coloured shape from the vowel or
 // t before it: F3 stayed 2200-2800 Hz (the stressed Her/Per reach ~1780,
@@ -397,7 +417,7 @@ const float kLineZhFric = param("LINE_ZH_FRIC", 0.7f);
 const float kLineVoicedSoft = param("LINE_VOICED_SOFT", 2.0f);     // a voiced stop's closure: its sections lose this many times more (soft tissue; 6 -> 2 on 2026-11-04 with the wall radiation, Whisper on d words)
 const float kLineVoicedExtraCm = param("LINE_VOICED_EXTRA_CM", 0.15f);  // b: the lip tube is this much longer (the lips move forward off the teeth; Jyrki: "perhaps 1.5 mm is correct")
 const float kLineLabialO = param("LINE_LABIAL_O", 1.0f);  // 0: labial stops keep the vowel's shape; 1: b takes o's; 2: b and p
-const float kLineBExtraMs = param("LINE_B_EXTRA_MS", 30.0f);  // b holds its closure this much longer than the table says
+const float kLineBExtraMs = param("LINE_B_EXTRA_MS", 0.0f);  /* 30 until 2026-11-06: Jyrki chose the 46 ms closure (beliefs-vb0bx0; Kokoro 20 ms); kennedy Whisper 856 -> 812 */  // b holds its closure this much longer than the table says
 const float kLineBExpandFlow = param("LINE_B_EXPAND_FLOW", -1.0f);  // b's own LINE_EXPAND_FLOW (the voice bar in its closure); < 0: the shared one (2026-11-04)
 const float kLineBVbarFlow = param("LINE_B_VBAR_FLOW", 400.0f);  // b's expansion flow in a voiced (expanding: between vowels) closure only, the English initial b left alone; < 0: off. With LINE_EXPAND_LP 50: 400 (2026-11-05)
 const float kLineOnsetMs = param("LINE_ONSET_MS", 80.0f);
@@ -493,7 +513,7 @@ const float kLineGdAgLagMs = param("LINE_GD_AG_LAG_MS", 0.0f);  // a devoiced b 
 const float kLineAbductMs = param("LINE_ABDUCT_MS", 35.0f);
 // The burst noise of b d g at their release, x this (1: today; the line's
 // frication gain while the stop opens, the cascade's burst noise gain).
-const float kLineVStopBurst = param("LINE_VSTOP_BURST", 1.0f);
+const float kLineVStopBurst = param("LINE_VSTOP_BURST", 0.0f);  // 1.0 until 2026-11-06 (Jyrki: the b of "belief" had "too much aspiration"; the vowel after it carried hiss at -18 dB above 5 kHz, Kokoro -42; chose beliefs-vb0bx0)
 const float kLineXSnapArea = param("LINE_X_SNAP_AREA", 0.0f);  // the constriction place jumps to its target while the hump is wider than this (cm^2; 0: glides)
 const float kLineKRelFric = param("LINE_K_REL_FRIC", 0.3f);  // k's release hiss (x LINE_FRIC while the closure opens; 1: as before)
 const float kLinePRelFric = param("LINE_P_REL_FRIC", 0.3f);  // p's
@@ -1636,6 +1656,8 @@ Synth::Synth(float sampleRate, float baseF0) : fs_(sampleRate), baseF0_(baseF0 >
   }
   lipGain_ = fs_ / (2.0f * kPi * kLipRadiationHz);
   headShelf_.highShelf(kHeadShelfHz, kHeadShelfDb, fs_);
+  lineEqShelf_.highShelf(kLineEqShelfHz, kLineEqShelfDb, fs_);
+  lineEqPeak_.peaking(kLineEqPeakHz, kLineEqPeakBw, kLineEqPeakDb, fs_);
   for (int i = 0; i < 3; ++i) polesHigh_[i].highShelf(kPolesHigh[i][0] * voice_.highFormants, kPolesHigh[i][1], fs_);
 }
 
@@ -2495,7 +2517,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
           // (0.5 in log area moved F3 only 2409 -> 2340; 0.8 gives 1937, the readers 1600-2000;
           // for ɑ it made "Part", "Card", "Start" heard as ɜ, 49 of 84, 2026-11-04: knobs)
           const bool open = tok.ph == Ph::AA || tok.ph == Ph::A;
-          const float mix = open && kRColourOpenMix >= 0 ? kRColourOpenMix : kRColourMix;
+          const float mix = open && kRColourOpenMix >= 0 ? kRColourOpenMix : frontVowel(tok.ph) && kRColourFrontMix >= 0 ? kRColourFrontMix : kRColourMix;
           if (lineShapeOf(Ph::ER, &r)) late = lineShapeMix(sh, r, mix);
         }
         if (isVowel(tok.ph) && next && *next == Ph::L && kLColourMix > 0) {
@@ -2506,7 +2528,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
         {
           // The planner's demands: the held middle; an r-coloured end of its own.
           const bool rColoured = late.ac != sh.ac || late.xc != sh.xc || late.aLip != sh.aLip;
-          const float preR = isVowel(tok.ph) && next && *next == Ph::RR ? kPreRVowelW : 0.0f;  // see kPreRVowelW
+          const float preR = isVowel(tok.ph) && next && *next == Ph::RR ? std::max(kPreRVowelW, frontVowel(tok.ph) ? kPreRFrontW : 0.0f) : 0.0f;  // see kPreRVowelW
           TractShape own;
           const bool borrowed = !isVowel(tok.ph) && !lineShapeOf(tok.ph, &own);  // f in the next vowel's shape
           const float ws = borrowed ? kShapeBorrowedW : 1.0f;
@@ -2533,11 +2555,11 @@ void Synth::emit(const Token& tok, const Ph* next) {
             // reached only ~1750 by its end; Kokoro holds 2100-2200 from the start).
             const float preMs = !prevWasPause_ ? (prevWasPlosive_ && isVowel(tok.ph) ? kLineAfterStopLeadMs : 0.0f) : tok.ph == Ph::J ? kLineJPreShapeMs : tok.ph == Ph::L ? kLineLPreShapeMs : 0.0f;
             const bool er = tok.ph == Ph::ER;
-            addShapeDemand(preMs > 0 ? t0 - preMs * ms : t0 + (er ? kLineErFrom : 0.3) * dur, t0 + (er ? kLineErTo : 0.7) * dur, sh, tok.ph, er ? ws * kLineErW : ws, preR);
+            addShapeDemand(preMs > 0 ? t0 - preMs * ms : t0 + (er ? kLineErFrom : 0.3) * dur, t0 + (er ? kLineErTo : 0.7) * dur, sh, tok.ph, er ? ws * kLineErW : ws, er ? std::max(preR, kErPlaceW) : preR);
           }
           else {
             const bool open = tok.ph == Ph::AA || tok.ph == Ph::A;
-            const double at = open && kRColourOpenAt >= 0 ? kRColourOpenAt : kRColourAt;
+            const double at = open && kRColourOpenAt >= 0 ? kRColourOpenAt : frontVowel(tok.ph) && kRColourFrontAt >= 0 ? kRColourFrontAt : kRColourAt;
             addShapeDemand(t0 + 0.3 * dur, t0 + std::max(0.3, at - 0.15) * dur, sh, tok.ph, ws, preR);
             addShapeDemand(t0 + at * dur, t0 + std::min(1.0, at + 0.15) * dur, late, tok.ph, ws);
           }
@@ -3782,6 +3804,13 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   }
   close.speech = 1;  // speaking again (after a pause the level had faded)
   close.ac = 0;
+  // ʤ: a leak through its "closure" (LINE_JH_CLOSE_AC, cm^2; 0: sealed). Sealed, the folds weaken 15 dB over the 18 ms
+  // seal ramp and restart behind it with a lone loud pulse and alternating weak ones ("a strange klik before g", Jyrki
+  // 2026-11-06) where Kokoro's ʤ is voiced throughout. Tested 0.02-0.1: the leak weakened the voicing further; 0 kept.
+  {
+    static const float jhCloseAc = param("LINE_JH_CLOSE_AC", 0.0f);
+    if (tok.ph == Ph::JH && jhCloseAc > 0) close.ac = jhCloseAc;
+  }
   // A tap on the line (LINE_FLAP_AC, 2026-11-05): the tongue touches without
   // sealing, the voice runs through it (Kokoro's "mortal": a 20 ms dip of
   // 15-28 dB, no burst); a full seal gave a 50 dB gap and two clicks.
@@ -5025,6 +5054,8 @@ float Synth::tick() {
     // Not gated by speechEnv_ (pauses are silent physically; the gate clipped
     // onsets) and no head shelf (the piston in a baffle is the half-space).
     y = line_.output() * kLineGain;
+    if (kLineEqShelfDb != 0) y = lineEqShelf_.process(y);
+    if (kLineEqPeakDb != 0) y = lineEqPeak_.process(y);
     cPar = 0;
   }
   float out = lowCut_.process(outHp_.process(y * kOutGain + cPar));

@@ -620,6 +620,7 @@ class Synth {
   Biquad trebleShelf_;  // per-voice output treble (Voice::treble)
   Biquad polesHigh_[3];  // higher-pole correction (physical source)
   Biquad headShelf_;    // head diffraction (physical source)
+  Biquad lineEqShelf_, lineEqPeak_;  // the line tract's output EQ (LINE_EQ_*)
   Biquad chestLp_;      // the voice heard straight from the chest (kChestDirect)
   Biquad midCut_;  // low-mid cut on the voice
   Biquad presence_;  // presence lift on the voice
