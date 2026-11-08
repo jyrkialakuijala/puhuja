@@ -388,14 +388,20 @@ const float kLineEyGlideFrom = param("LINE_EY_GLIDE_FROM", 0.1f);
 // (from 10 %: earlier glide, 410/1640 and 420/1045, Whisper the same within
 // noise, aɪ heard more as eɪ/iː); Whisper aɪ 1 -> 11 of 26, aʊ 4 -> 6 of 26 (2026-11-04).
 const float kLineAyGlideFrom = param("LINE_AY_GLIDE_FROM", 0.3f);
-const float kLineAwGlideFrom = param("LINE_AW_GLIDE_FROM", 0.0f) /* 0.3 until 2026-11-05: Jyrki chose the glide from the start (vdn-U) for "now" */;
+const float kLineAwGlideFrom = param("LINE_AW_GLIDE_FROM", 0.5f) /* 0.3 until 2026-11-05: Jyrki chose the glide from the start (vdn-U) for "now"; 0 until 2026-11-08: with the ɔ end (LINE_AW_END_AO) the end is reached late, now-ao100g50 */;
 // The ʊ end of aʊ takes o's shape (row 3); this mixes u's shape (row 4) into
 // it (0 = o, 1 = u). With o, "Now", "How" ended at F2 ~1100-1160 Hz, Kokoro
 // "Now" 370/870, "Power" 400/760 (2026-11-04).
 const float kLineAwOffU = param("LINE_AW_OFF_U", 0.5f) /* 0 until 2026-11-05: the u offglide, vdn-U; 1 -> 0.5 later that day: "the uu part feels too long", vdn-N1 */;
 // The aʊ end mixed back toward the a's shape by this share (Jyrki 2026-11-05: the
 // second part of "now" "more of a mixture of a and u"; 0: off).
-const float kLineAwEndA = param("LINE_AW_END_A", 0.0f);
+const float kLineAwEndA = param("LINE_AW_END_A", 0.3f) /* 0 until 2026-11-08: on the ɔ end, F1 stays nearer Kokoro's open end (553 vs 457 Hz at 80 %); Jyrki: a30 and a50 "also ok, choose yourself" */;
+// Jyrki 2026-11-08: "now sounds like 'na-o' and not 'nau' with a blend between a and u". Kokoro's
+// "now" keeps F1 open (650-680 Hz) to the end while F2 falls 1600 -> 1100; puhuja closed F1 to 420
+// (the o/u end) with F2 standing at ~1300. The end mixed toward ɔ's shape (open back) by this share,
+// and the a start toward æ (Kokoro starts at F2 ~1600; a's row gives 1350).
+const float kLineAwEndAo = param("LINE_AW_END_AO", 1.0f) /* Jyrki 2026-11-08: "now-ao100g50-cut.wav is ok" */;
+const float kLineAwStartAe = param("LINE_AW_START_AE", 0.0f);
 const float kLineVotAdductMs = param("LINE_VOT_ADDUCT_MS", 20.0f);  // ... then adducting into voice over this
 const float kLineExpandFlow = param("LINE_EXPAND_FLOW", 200.0f);  // cm^3/s drawn by the expanding cavity at full expansion behind a voiced closure
 const float kLineVoicedReleaseScale = param("LINE_VOICED_RELEASE", 2.5f);  // a voiced stop's release time relative to a voiceless one's
@@ -2499,9 +2505,17 @@ void Synth::emit(const Token& tok, const Ph* next) {
       TractShape u;  // aʊ's end: toward u (see kLineAwOffU)
       if (lineShapeOf(Ph::U, &u)) sh = lineShapeMix(sh, u, kLineAwOffU);
     }
+    if (have && tok.ph == Ph::UH && lastPh_ == Ph::A && shapePh == Ph::O && kLineAwEndAo > 0) {
+      TractShape ao;  // aʊ's end toward ɔ: open and back (see kLineAwEndAo)
+      if (lineShapeOf(Ph::AO, &ao)) sh = lineShapeMix(sh, ao, kLineAwEndAo);
+    }
     if (have && tok.ph == Ph::UH && lastPh_ == Ph::A && shapePh == Ph::O && kLineAwEndA > 0) {
       TractShape a;  // ... or stops short of it, part way back to the a (LINE_AW_END_A)
       if (lineShapeOf(Ph::A, &a)) sh = lineShapeMix(sh, a, kLineAwEndA);
+    }
+    if (have && tok.ph == Ph::A && next && *next == Ph::UH && kLineAwStartAe > 0) {
+      TractShape ae;  // aʊ's start toward æ (see kLineAwStartAe)
+      if (lineShapeOf(Ph::AE, &ae)) sh = lineShapeMix(sh, ae, kLineAwStartAe);
     }
     if (have && tok.ph == Ph::U && lastPh_ == Ph::J && kLineUAfterJ > 0) {
       TractShape front;
