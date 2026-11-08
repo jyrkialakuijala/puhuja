@@ -888,6 +888,12 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
       if (phraseFinal && !vowel && i > 0 && i > static_cast<size_t>(lastVowel) && (b == "S" || b == "SH" || b == "F" || b == "TH") &&
           !isVoicelessPlosive(baseName(tok[i - 1])) && !isVoicedPlosive(baseName(tok[i - 1])))
         prc *= kFinalCodaFricative;
+      // ... a phrase-final f x this on top (EN_FINAL_F_LEN; Jyrki 2026-11-08: "word ending f can be a little
+      // shorter, perhaps 20 % shorter, like 'life' or 'belief'": 264 and 249 ms here).
+      if (phraseFinal && !vowel && i > 0 && i > static_cast<size_t>(lastVowel) && b == "F" && i + 1 == tok.size()) {
+        static const float kFinalFLen = param("EN_FINAL_F_LEN", 0.8f);
+        whole *= kFinalFLen;
+      }
       // A phrase-final v after a vowel ("Have."): 50 ms, Kokoro holds ~150-200
       // of fading voiced frication (2026-11-04, EN_FINAL_V_LEN; 1 = today's).
       if (phraseFinal && !vowel && i > static_cast<size_t>(lastVowel) && b == "V") {
@@ -903,7 +909,7 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
       if (!vowel && (b == "S" || b == "SH" || b == "F" || b == "TH") && i + 1 < tok.size()) {
         const std::string nb = baseName(tok[i + 1]);
         if (nb == "S" || nb == "SH" || nb == "F" || nb == "TH") {
-          static const float kFricClusterLen = param("EN_FRIC_CLUSTER_LEN", 1.0f);
+          static const float kFricClusterLen = param("EN_FRIC_CLUSTER_LEN", 0.7f);
           whole *= kFricClusterLen;
         }
       }

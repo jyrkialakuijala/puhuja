@@ -1078,8 +1078,11 @@ constexpr float kCreakStart = 0.5f, kCreakMs = 60;
 constexpr float kCreakAg = 0.8f * kAgVoice;  // (0.5: pressed, squeezed)
 // Creak: micro-variation multiplier (+x3) and breath pressure.
 constexpr float kCreakJitter = 2.0f, kCreakPress = 0.6f;  // glottal onset: press before, release over
-constexpr float kEndPressure = 0.65f;  // breath pressure at a phrase end, relative (0.75)
-constexpr float kEndEaseMs = 220;     // eased off over this long before the pause (150: endings faded instead of releasing)
+// (a knob since 2026-11-08: Jyrki, "heritage is missing its end, it sounds like 'heriti'": the final ʤ's
+// frication ran inside this easing and came out 11-14 dB under a non-final one at the same slit, glottis
+// and gain; the hiss falls faster than the pressure past the Reynolds threshold)
+const float kEndPressure = param("LINE_END_PRESS", 0.65f);  // breath pressure at a phrase end, relative (0.75)
+const float kEndEaseMs = param("LINE_END_EASE_MS", 220.0f);     // eased off over this long before the pause (150: endings faded instead of releasing)
 constexpr float kPressResumeMs = 30;
 constexpr float kOnsetRiseVoiceless = 1.047f, kOnsetDipVoiced = 0.971f;  // +0.8 / -0.5 st
 constexpr float kPhraseOnsetDrop = 0.944f;  // a phrase starts 1 semitone below its first target
@@ -2386,6 +2389,23 @@ void Synth::emit(const Token& tok, const Ph* next) {
   static const float kLineVFric = param("LINE_V_FRIC", 0.3f);
   static const float kLineZFric = param("LINE_Z_FRIC", 1.0f);
   if (tract_ == Tract::Line) e.lineFricMul = tok.ph == Ph::VV ? kLineVFric : tok.ph == Ph::F ? (curStress_ ? kLineFFric : kLineFFricUnstr) : tok.ph == Ph::Z ? kLineZFric : tok.ph == Ph::ZH ? kLineZhFric : tok.ph == Ph::S ? kLineSFric : tok.ph == Ph::SH ? kLineShFric * (shFullVowel ? (tok.wordStart || kLineShVowelFricLink < 0 ? kLineShVowelFric : kLineShVowelFricLink) : 1.0f) : 1.0f;
+  // The f before another voiceless fricative ("beliefs") x this (LINE_F_CLUSTER_FRIC; Jyrki 2026-11-08: "in 'beliefs',
+  // the f and s could have roughly equal strength and duration": the f 6 dB under the s).
+  if (tract_ == Tract::Line && tok.ph == Ph::F && next && (*next == Ph::S || *next == Ph::SH || *next == Ph::TH) && e.lineFricMul > 0) {
+    static const float kLineFClusterFric = param("LINE_F_CLUSTER_FRIC", 1.41f);
+    e.lineFricMul *= kLineFClusterFric;
+  }
+  // ... and the s after an f/θ/ʃ x this (LINE_CLUSTER_S_FRIC; Jyrki: "better if f and s are both -42 db in beliefs").
+  if (tract_ == Tract::Line && tok.ph == Ph::S && (lastPh_ == Ph::F || lastPh_ == Ph::TH || lastPh_ == Ph::SH) && e.lineFricMul > 0) {
+    static const float kLineClusterSFric = param("LINE_CLUSTER_S_FRIC", 0.71f);
+    e.lineFricMul *= kLineClusterSFric;
+  }
+  // ... and a phrase-final f x this (LINE_FINAL_F_FRIC; Jyrki 2026-11-08: "the ending f could be less strong by 3 db
+  // in 'life'": that f -36 dB, 10 dB over the one of "belief").
+  if (tract_ == Tract::Line && tok.ph == Ph::F && (!next || *next == Ph::Stop) && e.lineFricMul > 0) {
+    static const float kLineFinalFFric = param("LINE_FINAL_F_FRIC", 0.71f);
+    e.lineFricMul *= kLineFinalFFric;
+  }
   if (tract_ == Tract::Line && kLineCloseFric != 1.0f && in.cls == Cls::Nasal) e.lineFricMul = kLineCloseFric;  // (LINE_CLOSE_FRIC: the nasal's oral closure)
   // LINE_T_ASP_HP (2026-11-05): a t's breath alone is high-passed (Hz, with
   // LINE_T_ASP_HP_POLES stages); every other sound puts LINE_ASP_HP back.
