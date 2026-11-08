@@ -1081,7 +1081,7 @@ constexpr float kCreakJitter = 2.0f, kCreakPress = 0.6f;  // glottal onset: pres
 // (a knob since 2026-11-08: Jyrki, "heritage is missing its end, it sounds like 'heriti'": the final ʤ's
 // frication ran inside this easing and came out 11-14 dB under a non-final one at the same slit, glottis
 // and gain; the hiss falls faster than the pressure past the Reynolds threshold)
-const float kEndPressure = param("LINE_END_PRESS", 0.65f);  // breath pressure at a phrase end, relative (0.75)
+const float kEndPressure = param("LINE_END_PRESS", 0.95f);  // breath pressure at a phrase end, relative (0.75)
 const float kEndEaseMs = param("LINE_END_EASE_MS", 220.0f);     // eased off over this long before the pause (150: endings faded instead of releasing)
 constexpr float kPressResumeMs = 30;
 constexpr float kOnsetRiseVoiceless = 1.047f, kOnsetDipVoiced = 0.971f;  // +0.8 / -0.5 st
