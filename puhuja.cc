@@ -625,7 +625,7 @@ const float kLineFLpr = param("LINE_F_LPR", 0.0f);
 // Kokoro's typical f is dark (median centroid 1.3 kHz, the voice bleeding in) and only its stressed f ("forms") is the
 // bright 5.3 kHz one, so the thin jet and the gain lift go to stressed onsets; the voice tail (LINE_ABDUCT_MS) is global.
 const float kLineFJetDUnstr = param("LINE_F_JET_D_UNSTR", 0.2f);
-const float kLineFFricUnstr = param("LINE_F_FRIC_UNSTR", 1.5f);
+const float kLineFFricUnstr = param("LINE_F_FRIC_UNSTR", 1.062f) /* cost Whisper 897 composite 24.46/27.74 96b-f-3db */;
 // v's jet (2026-11-06, Jyrki: "govern", "the v whisles a bit too much ... v has too much high frequency content I think,
 // not just too much power -- I'd like to have a strong v, but just not whistling"): Kokoro's v is a voiced approximant
 // whose spectrum falls steadily (2-3 kHz -36..-42 dB re its low peak, 4-5 kHz -46); puhuja's carried a flat noise
@@ -634,7 +634,7 @@ const float kLineFFricUnstr = param("LINE_F_FRIC_UNSTR", 1.5f);
 const float kLineVJetD = param("LINE_V_JET_D", 0.5f);
 const float kLineVLpr = param("LINE_V_LPR", 5.0f);
 const float kLineSFric = param("LINE_S_FRIC", 1.0f);  // s frication gain (x LINE_FRIC). 2026-11-05, the s of "save": its steady hiss -16 dB re the vowel, Kokoro -10 (Jyrki: "more open and less z like"); a t release into an s keeps it.
-const float kLineFFric = param("LINE_F_FRIC", 1.5f);  // ... and f's frication gain (x LINE_FRIC): the narrower band is quieter
+const float kLineFFric = param("LINE_F_FRIC", 1.062f) /* cost Whisper 897 composite 24.46/27.74 96b-f-3db */;  // ... and f's frication gain (x LINE_FRIC): the narrower band is quieter
 // ʃ (2026-11-06, Jyrki: "shall" -- "the sh sounds a little off"): puhuja's ʃ was 6 dB under Kokoro's across kennedy
 // (-9.2 vs -3.5 dB re the vowel), 4 dB under at 2.5-5 kHz and 13 dB under above 5 kHz; "shall" itself -10 / -14 / -30 dB
 // vs Kokoro -3.5 / -5.5 / -13 (centroid 2.8 vs 3.4 kHz). Kokoro's ʃ before a full vowel is bright (centroid 3-3.7 kHz),
