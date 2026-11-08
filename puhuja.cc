@@ -429,7 +429,7 @@ const float kLineBVbarFlow = param("LINE_B_VBAR_FLOW", 400.0f);  // b's expansio
 const float kLineOnsetMs = param("LINE_ONSET_MS", 80.0f);
 const float kLineOnsetShare = param("LINE_ONSET_SHARE", 0.5f);
 const float kLineOnsetKickAg = param("LINE_ONSET_KICK_AG", 0.02f);  // the soft onset starts the folds with a brief near-closure (cm^2; 0: none)
-const float kLineOnsetKickMs = param("LINE_ONSET_KICK_MS", 6.0f);  // ... at most this share of the sound's own length (2026-11-05: "It cannot." had a silent "It")  // a vowel after a pause: breathy opening adducting into voice over this long
+const float kLineOnsetKickMs = param("LINE_ONSET_KICK_MS", 3.6f) /* cost Whisper 898 composite 24.95/28.30 95d-all3 */;  // ... at most this share of the sound's own length (2026-11-05: "It cannot." had a silent "It")  // a vowel after a pause: breathy opening adducting into voice over this long
 const float kLineReleaseScale = param("LINE_RELEASE_SCALE", 1.3f) /* cost 1058 whisper-sens1-combo-phase1-err */;  // a stop's release time on the line, relative to the cascade's table
 const float kLineFinalFricMs = param("LINE_FINAL_FRIC_MS", 40.0f);  // a final voiceless fricative: the pause's glottal closing waits this long
 const float kLinePausePressMs = param("LINE_PAUSE_PRESS_MS", 80.0f);
@@ -536,7 +536,7 @@ const float kLineChFric = param("LINE_CH_FRIC", 2.0f);
 const int kLineHVoicedCtx = param("LINE_H_VOICED_CTX", 2);
 // ... after a pause (LINE_H_VOICED_CTX 2) the folds start from the closed pause with the onset kick (LINE_ONSET_KICK_*)
 // and adduct to this glottal area (cm^2; < 0: the voiced h's 0.125, at which they did not start: the h was silent).
-const float kLineHPauseAg = param("LINE_H_PAUSE_AG", 0.1f);
+const float kLineHPauseAg = param("LINE_H_PAUSE_AG", 0.14f) /* cost Whisper 898 composite 24.95/28.30 95d-all3 */;
 // A phrase-initial b d g is prevoiced: the closure is formed in the pause and
 // the folds start to vibrate this long before the release (as a phrase-initial
 // nasal's lead). 0: off.

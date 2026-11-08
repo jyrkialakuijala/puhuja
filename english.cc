@@ -940,7 +940,7 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
           static const float kStressOnsetVstopLen = param("EN_STRESS_ONSET_VSTOP_LEN", 1.0f);
           whole *= kStressOnsetVstopLen;
         }
-        static const float vfricLen = param("EN_VFRIC_LEN", 1.0f), vstopLen = param("EN_VSTOP_LEN", 1.3f);
+        static const float vfricLen = param("EN_VFRIC_LEN", 1.4f) /* cost Whisper 898 composite 24.95/28.30 95d-all3 */, vstopLen = param("EN_VSTOP_LEN", 1.3f);
         if (b == "S" || b == "SH" || b == "F" || b == "TH") whole *= vfricLen;
         else if (isVoicelessPlosive(b)) whole *= vstopLen;
         // ... and h's (EN_H_LEN; Jyrki 2026-11-06: "hand of God" sounds too close to "land of God", make h here
