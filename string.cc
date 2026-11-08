@@ -64,7 +64,7 @@ constexpr float kRho = 0.00113f;      // air density (g/cm^3)
 // skews and its cut-off sharpens; the voiced spectrum's 9 dB deficit against Kokoro at 1-3 kHz closes to 0 and the
 // brightness is harmonic (HNR up in every band), where the fold-knob fits had made noise (ref/opt/zopt3/
 // ZIMTOHRLI_PROGRESS.md sections 11-13). Jyrki: "p12-i7r.25.wav was the best of these". 4-5 dB louder.
-const float kInertance = param("STRING_INERTANCE", 0.0225f) /* cost Whisper 852 composite 23.90/26.04 92b-cheap9 */;  // as folds.cc (a knob since 2026-11-06: it smooths the flow's cut-off, the return phase)
+const float kInertance = param("STRING_INERTANCE", 0.01125f) /* cost Whisper 873 composite 24.46/27.24 93a-inert050 */;  // as folds.cc (a knob since 2026-11-06: it smooths the flow's cut-off, the return phase)
 // Discharge coefficient of the glottal orifice (vena contracta): the flow
 // through a slit of area a is that of an ideal orifice of kDischarge x a.
 // Without it the folds passed ~2x a real glottis's flow and the pressure
