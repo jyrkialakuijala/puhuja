@@ -267,7 +267,8 @@ const float kLinePostHw = param("LINE_POST_HW", 4.0f) /* 2.5 until 2026-11-06: t
 // put the band's corner at the 12 kHz clamp: the hiss sat at 8-11 kHz,
 // 10-15 dB over the 2.5-4 kHz body where goog's ʃ is 10-14 dB under it
 // ("revolution", "station" sounded like -sn, Jyrki 2026-11-05).
-const float kLinePostJetD = param("LINE_POST_JET_D", 0.25f);
+const float kLinePostJetD = param("LINE_POST_JET_D", 0.0f) /* cost words1000 941/892/927 vs 919/893/902 postjet */;
+// 2026-11-08: back to 0 (Jyrki: "let's go for best whisper scores"): words1000 ʃʒʧʤ words 110-120 -> 123-128 of 188 over three draws; 0.01-0.03 (a fixed thinner jet) do not help, 0.3 hurts.
 // ... and their band's low-pass, x the corner (0: LINE_NOISE_LPR). Kokoro's ʃ
 // falls off above ~7 kHz; Jyrki 2026-11-05: "-tion could be slightly darker".
 const float kLinePostLpr = param("LINE_POST_LPR", 3.0f);  // ʃ ʒ only (Whisper SH 72 -> 70 of 106, within noise)
