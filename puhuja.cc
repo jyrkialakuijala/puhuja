@@ -2521,7 +2521,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // Kokoro leave the l 60 ms before the h and breathe the h on the vowel's shape. Jyrki 2026-11-09:
     // "mortallllhaaands", "puhuja makes fast transition between a and n [h and a], while 11labs makes a smooth natural transition".
     {
-      static const float kLineHTakesVowel = param("LINE_H_TAKES_VOWEL", 0.0f);
+      static const float kLineHTakesVowel = param("LINE_H_TAKES_VOWEL", 1.0f);
       if (!have && tok.ph == Ph::H && kLineHTakesVowel > 0 && next && isVowel(*next)) have = lineShapeOf(*next, &sh);
     }
     // (only a word-initial r, after a pause or a vowel: in a cluster, "different",
