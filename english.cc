@@ -981,7 +981,7 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
       // "r in 'revolution' should be stronger ... longer or louder or more
       // active -- I don't know what I need".
       if (!vowel && baseName(tok[i]) == "R" && i + 1 < tok.size() && isVowelToken(tok[i + 1])) {
-        static const float kOnsetRMinMs = param("EN_ONSET_R_MIN_MS", 0.0f);
+        static const float kOnsetRMinMs = param("EN_ONSET_R_MIN_MS", 60.0f);
         if (kOnsetRMinMs > 0) out[w][i] = std::max(out[w][i], kOnsetRMinMs);
       }
     }
@@ -2163,7 +2163,10 @@ void EnglishReader::sayPhrase(char end) {
   // voicing and is heard as p t k ("world." ends like "worlt"); a voiced
   // release into silence sounded like an extra "də". After the durations:
   // the vowel before keeps its length, the cue that it is a d.
-  if (end == '.' || end == '!' || end == '?' || end == ';' || end == ':') {
+  // EN_FINAL_DEVOICE 0 keeps the b d g (Jyrki 2026-11-09: the t of "the hand of God." is "too sharp, too t like, it
+  // should be darker"; the dictionary hears 77 % of final voiced stops after a vowel as p t k).
+  static const float kFinalDevoice = param("EN_FINAL_DEVOICE", 1.0f);
+  if (kFinalDevoice > 0 && (end == '.' || end == '!' || end == '?' || end == ';' || end == ':')) {
     for (size_t w = phrase_.size(); w-- > 0;) {
       auto& t = phrase_[w].tokens;
       if (t.empty()) continue;
