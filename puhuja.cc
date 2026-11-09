@@ -4357,7 +4357,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // into the fricative's slit (LINE_VSTOP_FRIC_BURST 0; 1: the burst as for p t k). Kokoro's "and foe" has no burst at
   // all: -23 dB re the vowel through the d's release into the f; puhuja's 20 ms 0.2 cm^2 opening through the already
   // open glottis was a +4 dB puff and a second pop as the lips closed to the f (Jyrki 2026-11-09: "a strange snip").
-  static const float kVstopFricBurst = param("LINE_VSTOP_FRIC_BURST", 1.0f);
+  static const float kVstopFricBurst = param("LINE_VSTOP_FRIC_BURST", 0.0f);
   const bool vstopFricNoBurst = tract_ == Tract::Line && pi.voiced && next && info(*next).cls == Cls::Fricative &&
                                 *next != Ph::VV && *next != Ph::Z && *next != Ph::ZH && *next != Ph::DH && kVstopFricBurst <= 0;
   if (tract_ == Tract::Line && next && info(*next).cls == Cls::Fricative && !nextIsPause && !unreleased &&
