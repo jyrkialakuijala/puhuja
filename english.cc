@@ -2165,7 +2165,7 @@ void EnglishReader::sayPhrase(char end) {
   // the vowel before keeps its length, the cue that it is a d.
   // EN_FINAL_DEVOICE 0 keeps the b d g (Jyrki 2026-11-09: the t of "the hand of God." is "too sharp, too t like, it
   // should be darker"; the dictionary hears 77 % of final voiced stops after a vowel as p t k).
-  static const float kFinalDevoice = param("EN_FINAL_DEVOICE", 1.0f);
+  static const float kFinalDevoice = param("EN_FINAL_DEVOICE", 0.0f);
   if (kFinalDevoice > 0 && (end == '.' || end == '!' || end == '?' || end == ';' || end == ':')) {
     for (size_t w = phrase_.size(); w-- > 0;) {
       auto& t = phrase_[w].tokens;
