@@ -974,6 +974,16 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
       // The breath plan's tempo for this word (planBreaths), as the rate.
       const float g = w < wordTempo_.size() ? wordTempo_[w] : 1.0f;
       if (g != 1.0f) out[w][i] /= vowel ? g : std::sqrt(g);
+      // An onset ɹ before a vowel is at least this long (ms): in "the same
+      // revolutionary beliefs" every factor above left it 16 ms, the shortest
+      // r of the paragraph (the others 39-71), and the tongue never reached
+      // the r shape (F3 2500 Hz, Kokoro 1660 at 40 ms). Jyrki 2026-11-09:
+      // "r in 'revolution' should be stronger ... longer or louder or more
+      // active -- I don't know what I need".
+      if (!vowel && baseName(tok[i]) == "R" && i + 1 < tok.size() && isVowelToken(tok[i + 1])) {
+        static const float kOnsetRMinMs = param("EN_ONSET_R_MIN_MS", 0.0f);
+        if (kOnsetRMinMs > 0) out[w][i] = std::max(out[w][i], kOnsetRMinMs);
+      }
     }
   }
   return out;
