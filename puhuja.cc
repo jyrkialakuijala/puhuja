@@ -4195,7 +4195,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // LINE_FINAL_VSTOP_CUT_RAMP_MS, so no voicing follows the release (Jyrki 2026-11-09: "God" "sounds a bit like
   // 'God-a', perhaps the pressure could stop 15 ms earlier"); the stored mouth pressure still gives a soft release.
   if (tract_ == Tract::Line && nextIsPause && pi.voiced) {
-    static const float kLineFinalVstopCutMs = param("LINE_FINAL_VSTOP_CUT_MS", -15.0f);
+    static const float kLineFinalVstopCutMs = param("LINE_FINAL_VSTOP_CUT_MS", -1000.0f);
     static const float kLineFinalVstopCutRampMs = param("LINE_FINAL_VSTOP_CUT_RAMP_MS", 10.0f);
     if (kLineFinalVstopCutMs > -500.0f) {
       Event cut{std::max(release - kLineFinalVstopCutMs * ms, t_ + 1.0)};
