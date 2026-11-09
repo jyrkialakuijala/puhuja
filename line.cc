@@ -539,7 +539,7 @@ float VocalTractLine::substep(float u0) {
     stAlphaG_ = alphaOf(u0, glotArea_, kGlottisLength, &stLpG_, 0, 1, 1, puffLpr_ > 0 ? puffLpr_ : kGlottalLpRatio > 0 ? kGlottalLpRatio : kNoiseLpRatio, kGlottalLpMin, &stLogFcG_,
                         kNoiseStSmoothGMs >= 0 ? kNoiseStSmoothGMs : kNoiseStSmoothMs, aspActive_);
     if (noiseK_ >= 0) stAlphaF_ = alphaOf(oral_.flowAt(noiseKc_), oral_.areaAt(noiseKc_), kSlitWidth, &stLpF_, jetD_, jetMix_, slitScale_, fricLpr_ > 0 ? fricLpr_ : kNoiseLpRatio, 0, &stLogFcF_,
-                                         kNoiseStSmoothFMs >= 0 ? kNoiseStSmoothFMs : kNoiseStSmoothMs, fricActive_);
+                                         jetSmoothMs_ >= 0 ? jetSmoothMs_ : kNoiseStSmoothFMs >= 0 ? kNoiseStSmoothFMs : kNoiseStSmoothMs, fricActive_);
   }
   // Each jet's band-limited noise from the shared low-passed white noise.
   // LINE_NOISE_ST_PRELP (2026-11-05): the jets' bands start from the noise

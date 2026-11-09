@@ -273,8 +273,11 @@ const float kLinePostJetD = param("LINE_POST_JET_D", 0.25f);
 // alone heard 123-128 instead of 110-120 of the 188 ʃʒʧʤ clips in words1000 over three draws (totals
 // 941/892/927 vs 919/893/902); fixed thin jets 0.01-0.03 did not help (the corner pinned at LINE_NOISE_FC_MAX),
 // 0.3 hurt. Jyrki: "could there be a new fuzzy soft switch then? looks like this is important to get right".
-const float kLinePostJetMix = param("LINE_POST_JET_MIX", 0.0f);
+const float kLinePostJetMix = param("LINE_POST_JET_MIX", 1.0f);
 const float kLinePostSlitScale = param("LINE_POST_SLIT_SCALE", 1.0f);  // x the followed slit height for ʃ ʒ ʧ ʤ
+// ... and the smoothing of their noise corner alone (ms; < 0: the global one). The followed slit starts the ʃ with a
+// 5.6 kHz spike in its first 4 ms ("revolu[ping]ionary", Jyrki 2026-11-09); the global smoothing cost words1000 55-70 words.
+const float kLinePostStSmoothMs = param("LINE_POST_ST_SMOOTH_MS", -1.0f);
 // ... and their band's low-pass, x the corner (0: LINE_NOISE_LPR). Kokoro's ʃ
 // falls off above ~7 kHz; Jyrki 2026-11-05: "-tion could be slightly darker".
 const float kLinePostLpr = param("LINE_POST_LPR", 3.0f);  // ʃ ʒ only (Whisper SH 72 -> 70 of 106, within noise)
@@ -2450,7 +2453,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
     e.lineHw = post ? kLinePostHw : tok.ph == Ph::F ? kLineFHw : 1.0f;
     e.lineLip = post ? kLinePostLip : 0.0f;
     e.lineJetD = tok.ph == Ph::F ? (curStress_ ? kLineFJetD : kLineFJetDUnstr) : tok.ph == Ph::VV ? kLineVJetD : post ? kLinePostJetD : 0.0f;
-    if (post) e.lineJetMix = kLinePostJetMix, e.lineSlitScale = kLinePostSlitScale;
+    if (post) e.lineJetMix = kLinePostJetMix, e.lineSlitScale = kLinePostSlitScale, e.lineJetSmoothMs = kLinePostStSmoothMs;
     e.lineFricLpr = tok.ph == Ph::SH || tok.ph == Ph::ZH ? kLinePostLpr : tok.ph == Ph::F ? kLineFLpr : tok.ph == Ph::VV ? kLineVLpr : 0.0f;  // (not ʧ ʤ: at 3 they lost 39 -> 34, 26 -> 23 of 54, 56)
     // A sound without frication leaves the jet as it was (LINE_JET_KEEP): the
     // n after ʃ snapped it back to the slit's height and the full band while
@@ -3843,7 +3846,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     close.lineHw = post ? kLinePostHw : 1.0f;
     close.lineLip = post ? kLinePostLip : 0.0f;
     close.lineJetD = post ? kLinePostJetD : 0.0f;
-    if (post) close.lineJetMix = kLinePostJetMix, close.lineSlitScale = kLinePostSlitScale;
+    if (post) close.lineJetMix = kLinePostJetMix, close.lineSlitScale = kLinePostSlitScale, close.lineJetSmoothMs = kLinePostStSmoothMs;
     // t's jet (LINE_T_JET_D, cm; 0: the slit's height): the tongue tip closing
     // on and leaving the ridge made its noise through a slit of a few
     // hundredths of a mm, the band's corner at the 12 kHz clamp: a 12-24 kHz
@@ -4029,7 +4032,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     const bool post = *next == Ph::SH || *next == Ph::ZH;
     rel.lineHw = post ? kLinePostHw : 1.0f;
     rel.lineLip = post ? kLinePostLip : 0.0f;
-    if (post) rel.lineJetD = kLinePostJetD, rel.lineJetMix = kLinePostJetMix, rel.lineSlitScale = kLinePostSlitScale, rel.lineFricLpr = kLinePostLpr;
+    if (post) rel.lineJetD = kLinePostJetD, rel.lineJetMix = kLinePostJetMix, rel.lineSlitScale = kLinePostSlitScale, rel.lineJetSmoothMs = kLinePostStSmoothMs, rel.lineFricLpr = kLinePostLpr;
     // ... and f's own jet, band, lip width and gain (LINE_STOP_F_OWN): the f
     // of "not forget", "at first" was made with the slit's jet and the full
     // width, a +10 dB, 4-24 kHz burst where the readers' t is silent and their
@@ -4559,7 +4562,7 @@ float Synth::tick() {
     if (e.lineExtra >= 0) lineExtra_ = e.lineExtra;
     if (e.lineExpand >= 0) lineExpand_ = e.lineExpand;
     if (e.lineHw >= 0) lineHw_ = lineHwTarget_ = e.lineHw;
-    if (e.lineJetD >= 0) line_.setJetThickness(e.lineJetD, e.lineJetMix, e.lineSlitScale);
+    if (e.lineJetD >= 0) line_.setJetThickness(e.lineJetD, e.lineJetMix, e.lineSlitScale, e.lineJetSmoothMs);
     if (e.lineFricLpr >= 0) line_.setFricLpRatio(e.lineFricLpr);
     if (e.lineAspHp >= 0) {
       static const int tAspPoles = static_cast<int>(param("LINE_T_ASP_HP_POLES", 3.0f));
