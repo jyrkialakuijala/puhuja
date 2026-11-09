@@ -433,7 +433,7 @@ const float kLineJhAg = param("LINE_JH_AG", 0.4f);  // (0.4 for an hour on 2026-
 // expansion flow (cm^3/s; 0: the shared one), closing hiss x this, ʒ noise x this.
 const float kLineJhExpandFlow = param("LINE_JH_EXPAND_FLOW", 800.0f) /* vil-J4, Jyrki 2026-11-05 */;
 const float kLineJhCloseFric = param("LINE_JH_CLOSE_FRIC", 0.3f);
-const float kLineZhFric = param("LINE_ZH_FRIC", 0.7f);
+const float kLineZhFric = param("LINE_ZH_FRIC", 1.5f);
 const float kLineVoicedSoft = param("LINE_VOICED_SOFT", 2.0f);     // a voiced stop's closure: its sections lose this many times more (soft tissue; 6 -> 2 on 2026-11-04 with the wall radiation, Whisper on d words)
 const float kLineVoicedExtraCm = param("LINE_VOICED_EXTRA_CM", 0.15f);  // b: the lip tube is this much longer (the lips move forward off the teeth; Jyrki: "perhaps 1.5 mm is correct")
 const float kLineLabialO = param("LINE_LABIAL_O", 1.0f);  // 0: labial stops keep the vowel's shape; 1: b takes o's; 2: b and p
