@@ -543,7 +543,7 @@ const float kLineChFric = param("LINE_CH_FRIC", 2.0f);
 const int kLineHVoicedCtx = param("LINE_H_VOICED_CTX", 2);
 // ... after a pause (LINE_H_VOICED_CTX 2) the folds start from the closed pause with the onset kick (LINE_ONSET_KICK_*)
 // and adduct to this glottal area (cm^2; < 0: the voiced h's 0.125, at which they did not start: the h was silent).
-const float kLineHPauseAg = param("LINE_H_PAUSE_AG", 0.14f) /* cost Whisper 898 composite 24.95/28.30 95d-all3 */;
+const float kLineHPauseAg = param("LINE_H_PAUSE_AG", 0.3f) /* cost words1000 935/934 h-words 33/36 of 94 vs 30/28 pauseag30 */;
 // A phrase-initial b d g is prevoiced: the closure is formed in the pause and
 // the folds start to vibrate this long before the release (as a phrase-initial
 // nasal's lead). 0: off.
