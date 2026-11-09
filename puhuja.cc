@@ -240,7 +240,7 @@ static const struct {
     {8, param("LINE_V8_XC", 0.2969f) /* cost 5.3123456789012345 schwa-run2-kokoro-dB */, param("LINE_V8_AC", 2.156f) /* cost 5.3123456789012345 schwa-run2-kokoro-dB */, param("LINE_V8_WC", 0.8017f) /* cost 5.3123456789012345 schwa-run2-kokoro-dB */, param("LINE_V8_ALIP", 2.0f) /* cost 5.3123456789012345 schwa-run2-kokoro-dB */, param("LINE_V8_APH", 9.094f) /* cost 5.3123456789012345 schwa-run2-kokoro-dB */, param("LINE_V8_AOR", 2.246f) /* cost 5.3123456789012345 schwa-run2-kokoro-dB */, param("LINE_V8_LLIP", 1.298f) /* cost 5.3123456789012345 schwa-run2-kokoro-dB */, param("LINE_V8_ALAR", 2.641f) /* cost 5.3123456789012345 schwa-run2-kokoro-dB */, param("LINE_V8_LEN", 17.55f), 309.0f, 1491.0f, 2152.0f},  // ə: wider mouth, narrower pharynx (2026-11-04; was ALIP 2.55 APH 5.74 AOR 1.85, F1/F2 ~430/1600, a front vowel heard as ɪ; now ~490/1450, Kokoro ~520/1500; Whisper medial ə 12 -> 18 of 42)
     {9, param("LINE_V9_XC", 0.3742f), param("LINE_V9_AC", 5.945f), param("LINE_V9_WC", 3.347f), param("LINE_V9_ALIP", 8.144f), param("LINE_V9_APH", 3.955f), param("LINE_V9_AOR", 0.7924f), param("LINE_V9_LLIP", 2.756f), param("LINE_V9_ALAR", 0.5738f), param("LINE_V9_LEN", 17.46f), 323.0f, 2197.0f, 2348.0f},  // ɪ
     {10, param("LINE_V10_XC", 0.1734f), param("LINE_V10_AC", 1.402f), param("LINE_V10_WC", 1.959f), param("LINE_V10_ALIP", 10.27f), param("LINE_V10_APH", 3.99f), param("LINE_V10_AOR", 2.227f), param("LINE_V10_LLIP", 2.541f), param("LINE_V10_ALAR", 0.3034f), param("LINE_V10_LEN", 17.39f), 550.0f, 1943.0f, 2497.0f},  // ɛ: 2026-11-04 refit (linefit) to 560/1800/2500: the searched shape (XC 0.83, big mouth) had drifted to F2 1585, below ə, a central ʌ-like vowel heard as ɪ/ə/æ; rendered male F2 1495 -> 1556 (Kokoro 1660-1710). Whisper 30 ɛ words m+f: medial ɛ 18 -> 28 of 60, guards same
-    {11, param("LINE_V11_XC", 0.4271f) /* cost 0.0367746817152231 n13-vowel11-c */, param("LINE_V11_AC", 1.185f) /* cost 0.0367746817152231 n13-vowel11-c */, param("LINE_V11_WC", 1.917f) /* cost 0.0367746817152231 n13-vowel11-c */, param("LINE_V11_ALIP", 1.759f) /* cost 0.0367746817152231 n13-vowel11-c */, param("LINE_V11_APH", 3.906f) /* cost 0.0367746817152231 n13-vowel11-c */, param("LINE_V11_AOR", 5.916f) /* cost 0.0367746817152231 n13-vowel11-c */, param("LINE_V11_LLIP", 0.9542f) /* cost 0.0367746817152231 n13-vowel11-c */, param("LINE_V11_ALAR", 1.032f) /* cost 0.0367746817152231 n13-vowel11-c */, param("LINE_V11_LEN", 17.5f), 559.0f, 1486.0f, 2480.0f},  // ʊ
+    {11, param("LINE_V11_XC", 0.4271f) /* cost 0.0367746817152231 n13-vowel11-c */, param("LINE_V11_AC", 1.185f) /* cost 0.0367746817152231 n13-vowel11-c */, param("LINE_V11_WC", 1.917f) /* cost 0.0367746817152231 n13-vowel11-c */, param("LINE_V11_ALIP", 1.759f) /* cost 0.0367746817152231 n13-vowel11-c */, param("LINE_V11_APH", 3.906f) /* cost 0.0367746817152231 n13-vowel11-c */, param("LINE_V11_AOR", 5.916f) /* cost 0.0367746817152231 n13-vowel11-c */, param("LINE_V11_LLIP", 0.9542f) /* cost 0.0367746817152231 n13-vowel11-c */, param("LINE_V11_ALAR", 1.032f) /* cost 0.0367746817152231 n13-vowel11-c */, param("LINE_V11_LEN", 17.5f), 462.0f, 1039.0f, 2300.0f},  // ʊ (2026-11-09: refit toward Kokoro male 462/1039, ref/opt/lab/UH/fit.py; the old 537/1379 render aimed at a wrong 1486)
     {12, param("LINE_V12_XC", 0.3935f) /* cost 0.0365812236825875 n13-vowel12-c */, param("LINE_V12_AC", 1.121f) /* cost 0.0365812236825875 n13-vowel12-c */, param("LINE_V12_WC", 4.349f) /* cost 0.0365812236825875 n13-vowel12-c */, param("LINE_V12_ALIP", 2.616f) /* cost 0.0365812236825875 n13-vowel12-c */, param("LINE_V12_APH", 3.436f) /* cost 0.0365812236825875 n13-vowel12-c */, param("LINE_V12_AOR", 8.741f) /* cost 0.0365812236825875 n13-vowel12-c */, param("LINE_V12_LLIP", 2.157f) /* cost 0.0365812236825875 n13-vowel12-c */, param("LINE_V12_ALAR", 2.412f) /* cost 0.0365812236825875 n13-vowel12-c */, param("LINE_V12_LEN", 17.51f), 488.0f, 903.0f, 2760.0f},  // ɔ
     {13, param("LINE_V13_XC", 0.9141f), param("LINE_V13_AC", 2.893f), param("LINE_V13_WC", 2.8f), param("LINE_V13_ALIP", 2.98f), param("LINE_V13_APH", 2.285f), param("LINE_V13_AOR", 4.138f), param("LINE_V13_LLIP", 0.9681f), param("LINE_V13_ALAR", 1.077f), param("LINE_V13_LEN", 17.5f), 551.0f, 1356.0f, 2569.0f},  // ʌ: 2026-11-04 refit (linefit) to 620/1200/2550: the searched shape (open pharynx APH 4.1, AOR 3.8) gave F1 too low, rendered male ~470/1340, next to today's ə (426/1441), heard as ER/UH/ə; now ~600/1250 (narrow pharynx, open mouth). Whisper 31 ʌ words m+f: ʌ heard 26 -> 39 of 62, words 6 -> 12
     {14, param("LINE_V14_XC", 0.6073f) /* cost 0.0360966861522094 n13-vowel14-c */, param("LINE_V14_AC", 3.119f) /* cost 0.0360966861522094 n13-vowel14-c */, param("LINE_V14_WC", 3.603f) /* cost 0.0360966861522094 n13-vowel14-c */, param("LINE_V14_ALIP", 3.816f), param("LINE_V14_APH", 1.108f), param("LINE_V14_AOR", 5.494f), param("LINE_V14_LLIP", 0.5711f) /* cost 0.0360966861522094 n13-vowel14-c */, param("LINE_V14_ALAR", 0.4972f) /* cost 0.0360966861522094 n13-vowel14-c */, param("LINE_V14_LEN", 17.51f), 722.0f, 1338.0f, 2461.0f},  // ɑ  // 2026-11-04: narrow pharynx, wide mouth, smaller lips (was ALIP 2.6 APH 1.6 AOR 3.6, F2 ~1310: heard as ʌ); Whisper medial ɑ 6 -> 45, words 11 -> 21 of 110
@@ -1493,6 +1493,10 @@ Aero aeroOf(Ph ph) {
 float lineSlit(Ph ph, float ac) {
   if (info(ph).cls == Cls::Fricative) ac *= kLineFricAc;
   if (ph == Ph::TH || ph == Ph::DH) ac *= kLineDentalAc;
+  // ... and ð's slit wider than θ's (x this; 1: the same). At 0.044 cm^2 the mouth pressure behind the ð rose so far that
+  // the folds did not start for 40 ms after a pause ("The": voiceless for its first 40 ms, heard as v t d; Kokoro's ð is
+  // voiced and dark from its first ms, nearly an approximant), 2026-11-09.
+  { static const float kLineDhAc = param("LINE_DH_AC", 1.0f); if (ph == Ph::DH) ac *= kLineDhAc; }
   if (ph == Ph::F) ac *= kLineFAc;
   // ʃ ʒ ʧ ʤ: how much the groove opens (x the table's 0.08 cm^2; Jyrki 2026-11-08: "how wide the opening is vs
   // how much the opening is -- if these matter"; its width along the tract is LINE_POST_HW, the jet follows its height)
@@ -2481,6 +2485,9 @@ void Synth::emit(const Token& tok, const Ph* next) {
     {
       static const float dentalJetD = param("LINE_DENTAL_JET_D", 0.0f);
       if (tok.ph == Ph::TH || tok.ph == Ph::DH) e.lineJetD = dentalJetD;
+      // ... and θ's own hiss gain (x LINE_FRIC; Kokoro's θ is 4-8 dB under its s, puhuja's equal to it; 2026-11-09)
+      static const float kLineThFric = param("LINE_TH_FRIC", 0.3f);
+      if (tok.ph == Ph::TH && kLineThFric != 1.0f && e.lineFricMul != 0) e.lineFricMul = (e.lineFricMul < 0 ? 1.0f : e.lineFricMul) * kLineThFric;
     }
     // A pause leaves the groove as it is: snapping ʃ's 2.5 cm groove to a
     // 1 cm one while the hiss still ran put a +14 dB blip at the end of
@@ -3686,6 +3693,14 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   const bool englishGD = kLineEnGdDevoice > 0 && aspirate_ && (tok.ph == Ph::G || tok.ph == Ph::D) && !prevWasVowel_ &&
                          !voicedBefore;
   if (englishGD) pi.closureAg = kAgVoice + kLineEnGdDevoice * (kAgOpen - kAgVoice);
+  // ... and the same for an English ʤ not after a voiced sound (LINE_EN_JH_DEVOICE, 0: off): after a pause its closure
+  // carried a voice bar at -5..-15 dB re the vowel for 30-40 ms, the cue of a d ("just" -> "dust", 80 % of initial ʤ
+  // misheard in the dictionary, 2026-11-09); Kokoro's initial ʤ is 50-65 ms of voiceless hiss.
+  {
+    static const float kLineEnJhDevoice = param("LINE_EN_JH_DEVOICE", 0.0f);
+    if (kLineEnJhDevoice > 0 && aspirate_ && tok.ph == Ph::JH && !prevWasVowel_ && !voicedBefore)
+      pi.closureAg = kAgVoice + kLineEnJhDevoice * (kAgOpen - kAgVoice);
+  }
   if (englishB) {
     pi.closureAg = kAgVoice + kEnglishBOpening * (kAgOpen - kAgVoice);
     pi.noiseGain = kEnglishBNoise;
