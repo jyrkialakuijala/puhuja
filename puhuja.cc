@@ -645,7 +645,7 @@ const float kLineFFricUnstr = param("LINE_F_FRIC_UNSTR", 1.062f) /* cost Whisper
 // whose spectrum falls steadily (2-3 kHz -36..-42 dB re its low peak, 4-5 kHz -46); puhuja's carried a flat noise
 // shelf -25..-30 dB from 1.6 to 6.3 kHz and, in "governments", a 3.1 kHz hump at -9 dB. Thickness in cm (0: the slit's
 // height) and the band's low-pass ratio (0: LINE_NOISE_LPR), as LINE_F_JET_D / LINE_F_LPR.
-const float kLineVJetD = param("LINE_V_JET_D", 0.5f);
+const float kLineVJetD = param("LINE_V_JET_D", 0.1f);
 const float kLineVLpr = param("LINE_V_LPR", 5.0f);
 const float kLineSFric = param("LINE_S_FRIC", 1.0f);  // s frication gain (x LINE_FRIC). 2026-11-05, the s of "save": its steady hiss -16 dB re the vowel, Kokoro -10 (Jyrki: "more open and less z like"); a t release into an s keeps it.
 const float kLineFFric = param("LINE_F_FRIC", 1.062f) /* cost Whisper 897 composite 24.46/27.74 96b-f-3db */;  // ... and f's frication gain (x LINE_FRIC): the narrower band is quieter
@@ -832,7 +832,7 @@ float linePlaceOf(Ph ph) {
 // --- Aerodynamics ---------------------------------------------------------
 // Areas in cm^2. Pressures are relative to the lung pressure (8 cmH2O).
 constexpr float kAcOpen = 2.0f;      // open vocal tract (vowels)
-const float kAgVoicedFric = param("LINE_AG_VFRIC", 0.08f);  // glottal area in z ʒ v ð (kAgVoice 0.045 for the vowels)
+const float kAgVoicedFric = param("LINE_AG_VFRIC", 0.25f);  // glottal area in z ʒ v ð (kAgVoice 0.045 for the vowels)
 // z's own (LINE_AG_Z; default = LINE_AG_VFRIC). The z of "is", "was" had no hiss: with 0.08 the folds opened to 0.03 cm^2 at
 // most, the jet's Re 800-1600 under the 1800 threshold ("is" heard as "in", Jyrki 2026-11-06); after an h ("his") they
 // stayed at 0.06-0.2 and the z hissed. v keeps 0.08: at 0.16 its voicing fell 16 dB.
@@ -2407,7 +2407,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
   if (tract_ == Tract::Line) e.ac = lineSlit(tok.ph, e.ac);
   // v voiced through a wider slit (LINE_V_AC) has a weak hiss: its own gain
   // (2026-11-04; 1 = today's).
-  static const float kLineVFric = param("LINE_V_FRIC", 0.3f);
+  static const float kLineVFric = param("LINE_V_FRIC", 1.0f);
   static const float kLineZFric = param("LINE_Z_FRIC", 1.0f);
   if (tract_ == Tract::Line) e.lineFricMul = tok.ph == Ph::VV ? kLineVFric : tok.ph == Ph::F ? (curStress_ ? kLineFFric : kLineFFricUnstr) : tok.ph == Ph::Z ? kLineZFric : tok.ph == Ph::ZH ? kLineZhFric : tok.ph == Ph::S ? kLineSFric : tok.ph == Ph::SH ? kLineShFric * (shFullVowel ? (tok.wordStart || kLineShVowelFricLink < 0 ? kLineShVowelFric : kLineShVowelFricLink) : 1.0f) : 1.0f;
   // The f before another voiceless fricative ("beliefs") x this (LINE_F_CLUSTER_FRIC; Jyrki 2026-11-08: "in 'beliefs',
