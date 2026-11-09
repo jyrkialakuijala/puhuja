@@ -3884,6 +3884,16 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     addEventAt(breath);
   }
   close.speech = 1;  // speaking again (after a pause the level had faded)
+  // A voiced stop before a pause ("the hand of God."): the lung pressure eases to this share from the
+  // closure on, so its voice bar and release come out softer (Jyrki 2026-11-09, with the final d kept
+  // voiced: "d in God can be a bit less loud, perhaps -3 db"; 0.7 is about -3 dB).
+  {
+    static const float kLineFinalVstopPress = param("LINE_FINAL_VSTOP_PRESS", 0.8f);
+    if (tract_ == Tract::Line && nextIsPause && pi.voiced && kLineFinalVstopPress < 1.0f && close.press < 0) {
+      close.press = kLineFinalVstopPress;
+      close.pressMs = 30;
+    }
+  }
   close.ac = 0;
   // ʤ: a leak through its "closure" (LINE_JH_CLOSE_AC, cm^2; 0: sealed). Sealed, the folds weaken 15 dB over the 18 ms
   // seal ramp and restart behind it with a lone loud pulse and alternating weak ones ("a strange klik before g", Jyrki
