@@ -240,7 +240,7 @@ static const struct {
     {8, param("LINE_V8_XC", 0.2969f) /* cost 5.3123456789012345 schwa-run2-kokoro-dB */, param("LINE_V8_AC", 2.156f) /* cost 5.3123456789012345 schwa-run2-kokoro-dB */, param("LINE_V8_WC", 0.8017f) /* cost 5.3123456789012345 schwa-run2-kokoro-dB */, param("LINE_V8_ALIP", 2.0f) /* cost 5.3123456789012345 schwa-run2-kokoro-dB */, param("LINE_V8_APH", 9.094f) /* cost 5.3123456789012345 schwa-run2-kokoro-dB */, param("LINE_V8_AOR", 2.246f) /* cost 5.3123456789012345 schwa-run2-kokoro-dB */, param("LINE_V8_LLIP", 1.298f) /* cost 5.3123456789012345 schwa-run2-kokoro-dB */, param("LINE_V8_ALAR", 2.641f) /* cost 5.3123456789012345 schwa-run2-kokoro-dB */, param("LINE_V8_LEN", 17.55f), 309.0f, 1491.0f, 2152.0f},  // ə: wider mouth, narrower pharynx (2026-11-04; was ALIP 2.55 APH 5.74 AOR 1.85, F1/F2 ~430/1600, a front vowel heard as ɪ; now ~490/1450, Kokoro ~520/1500; Whisper medial ə 12 -> 18 of 42)
     {9, param("LINE_V9_XC", 0.3742f), param("LINE_V9_AC", 5.945f), param("LINE_V9_WC", 3.347f), param("LINE_V9_ALIP", 8.144f), param("LINE_V9_APH", 3.955f), param("LINE_V9_AOR", 0.7924f), param("LINE_V9_LLIP", 2.756f), param("LINE_V9_ALAR", 0.5738f), param("LINE_V9_LEN", 17.46f), 323.0f, 2197.0f, 2348.0f},  // ɪ
     {10, param("LINE_V10_XC", 0.1734f), param("LINE_V10_AC", 1.402f), param("LINE_V10_WC", 1.959f), param("LINE_V10_ALIP", 10.27f), param("LINE_V10_APH", 3.99f), param("LINE_V10_AOR", 2.227f), param("LINE_V10_LLIP", 2.541f), param("LINE_V10_ALAR", 0.3034f), param("LINE_V10_LEN", 17.39f), 550.0f, 1943.0f, 2497.0f},  // ɛ: 2026-11-04 refit (linefit) to 560/1800/2500: the searched shape (XC 0.83, big mouth) had drifted to F2 1585, below ə, a central ʌ-like vowel heard as ɪ/ə/æ; rendered male F2 1495 -> 1556 (Kokoro 1660-1710). Whisper 30 ɛ words m+f: medial ɛ 18 -> 28 of 60, guards same
-    {11, param("LINE_V11_XC", 0.6521f) /* cost 0.0367746817152231 n13-vowel11-c */, param("LINE_V11_AC", 2.81f) /* cost 0.0367746817152231 n13-vowel11-c */, param("LINE_V11_WC", 2.769f) /* cost 0.0367746817152231 n13-vowel11-c */, param("LINE_V11_ALIP", 3.127f) /* cost 0.0367746817152231 n13-vowel11-c */, param("LINE_V11_APH", 2.5f) /* cost 0.0367746817152231 n13-vowel11-c */, param("LINE_V11_AOR", 3.786f) /* cost 0.0367746817152231 n13-vowel11-c */, param("LINE_V11_LLIP", 0.6107f) /* cost 0.0367746817152231 n13-vowel11-c */, param("LINE_V11_ALAR", 0.7551f) /* cost 0.0367746817152231 n13-vowel11-c */, param("LINE_V11_LEN", 17.5f), 559.0f, 1486.0f, 2480.0f},  // ʊ
+    {11, param("LINE_V11_XC", 0.4271f) /* cost 0.0367746817152231 n13-vowel11-c */, param("LINE_V11_AC", 1.185f) /* cost 0.0367746817152231 n13-vowel11-c */, param("LINE_V11_WC", 1.917f) /* cost 0.0367746817152231 n13-vowel11-c */, param("LINE_V11_ALIP", 1.759f) /* cost 0.0367746817152231 n13-vowel11-c */, param("LINE_V11_APH", 3.906f) /* cost 0.0367746817152231 n13-vowel11-c */, param("LINE_V11_AOR", 5.916f) /* cost 0.0367746817152231 n13-vowel11-c */, param("LINE_V11_LLIP", 0.9542f) /* cost 0.0367746817152231 n13-vowel11-c */, param("LINE_V11_ALAR", 1.032f) /* cost 0.0367746817152231 n13-vowel11-c */, param("LINE_V11_LEN", 17.5f), 559.0f, 1486.0f, 2480.0f},  // ʊ
     {12, param("LINE_V12_XC", 0.3935f) /* cost 0.0365812236825875 n13-vowel12-c */, param("LINE_V12_AC", 1.121f) /* cost 0.0365812236825875 n13-vowel12-c */, param("LINE_V12_WC", 4.349f) /* cost 0.0365812236825875 n13-vowel12-c */, param("LINE_V12_ALIP", 2.616f) /* cost 0.0365812236825875 n13-vowel12-c */, param("LINE_V12_APH", 3.436f) /* cost 0.0365812236825875 n13-vowel12-c */, param("LINE_V12_AOR", 8.741f) /* cost 0.0365812236825875 n13-vowel12-c */, param("LINE_V12_LLIP", 2.157f) /* cost 0.0365812236825875 n13-vowel12-c */, param("LINE_V12_ALAR", 2.412f) /* cost 0.0365812236825875 n13-vowel12-c */, param("LINE_V12_LEN", 17.51f), 488.0f, 903.0f, 2760.0f},  // ɔ
     {13, param("LINE_V13_XC", 0.9141f), param("LINE_V13_AC", 2.893f), param("LINE_V13_WC", 2.8f), param("LINE_V13_ALIP", 2.98f), param("LINE_V13_APH", 2.285f), param("LINE_V13_AOR", 4.138f), param("LINE_V13_LLIP", 0.9681f), param("LINE_V13_ALAR", 1.077f), param("LINE_V13_LEN", 17.5f), 551.0f, 1356.0f, 2569.0f},  // ʌ: 2026-11-04 refit (linefit) to 620/1200/2550: the searched shape (open pharynx APH 4.1, AOR 3.8) gave F1 too low, rendered male ~470/1340, next to today's ə (426/1441), heard as ER/UH/ə; now ~600/1250 (narrow pharynx, open mouth). Whisper 31 ʌ words m+f: ʌ heard 26 -> 39 of 62, words 6 -> 12
     {14, param("LINE_V14_XC", 0.6073f) /* cost 0.0360966861522094 n13-vowel14-c */, param("LINE_V14_AC", 3.119f) /* cost 0.0360966861522094 n13-vowel14-c */, param("LINE_V14_WC", 3.603f) /* cost 0.0360966861522094 n13-vowel14-c */, param("LINE_V14_ALIP", 3.816f), param("LINE_V14_APH", 1.108f), param("LINE_V14_AOR", 5.494f), param("LINE_V14_LLIP", 0.5711f) /* cost 0.0360966861522094 n13-vowel14-c */, param("LINE_V14_ALAR", 0.4972f) /* cost 0.0360966861522094 n13-vowel14-c */, param("LINE_V14_LEN", 17.51f), 722.0f, 1338.0f, 2461.0f},  // ɑ  // 2026-11-04: narrow pharynx, wide mouth, smaller lips (was ALIP 2.6 APH 1.6 AOR 3.6, F2 ~1310: heard as ʌ); Whisper medial ɑ 6 -> 45, words 11 -> 21 of 110
@@ -2515,6 +2515,15 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // (Jyrki 2026-11-03: "in 'forget' the f is already in the 'o' space").
     // Without a key of its own the f glided between the vowels around it.
     if (!have && tok.ph == Ph::F && next && isVowel(*next)) have = lineShapeOf(*next, &sh);
+    // The h takes the next vowel's shape, as the cascade's formants do (hTakesVowel_): with no keys of its own the
+    // line glided from the previous sound's last key to the vowel's first in one straight move, ~200 ms for
+    // "mortal hands" (the l held to 70 % of its 175 ms, F2 1040 -> 1400 only by 70 ms into the æ); 11labs and
+    // Kokoro leave the l 60 ms before the h and breathe the h on the vowel's shape. Jyrki 2026-11-09:
+    // "mortallllhaaands", "puhuja makes fast transition between a and n [h and a], while 11labs makes a smooth natural transition".
+    {
+      static const float kLineHTakesVowel = param("LINE_H_TAKES_VOWEL", 0.0f);
+      if (!have && tok.ph == Ph::H && kLineHTakesVowel > 0 && next && isVowel(*next)) have = lineShapeOf(*next, &sh);
+    }
     // (only a word-initial r, after a pause or a vowel: in a cluster, "different",
     // the shape's pharyngeal narrowing glided in from the f as a chirp, F1
     // 1500 -> 470 Hz over 80 ms; Jyrki: "a wild spectral event, a swirp")
@@ -2591,7 +2600,11 @@ void Synth::emit(const Token& tok, const Ph* next) {
           TractShape l;
           if (lineShapeOf(Ph::L, &l)) late = lineShapeMix(late, l, kLColourMix);
         }
-        lineKeys_.push_back({t0 + (hold ? 0.7 : 0.5) * dur, late});
+        // A coda l before a vowel or h across the word boundary ("mortal hands") leaves its shape at this share of
+        // its length instead of 0.7 (LINE_CODA_L_KEY; the readers' l moves toward the vowel over its last 60 ms).
+        static const float kLineCodaLKey = param("LINE_CODA_L_KEY", 0.7f);
+        const bool codaLRelease = tok.ph == Ph::L && next && *next == Ph::H;  // (a vowel next: no word-boundary knowledge here, so only before h)
+        lineKeys_.push_back({t0 + (codaLRelease ? kLineCodaLKey : hold ? 0.7 : 0.5) * dur, late});
         {
           // The planner's demands: the held middle; an r-coloured end of its own.
           const bool rColoured = late.ac != sh.ac || late.xc != sh.xc || late.aLip != sh.aLip;
