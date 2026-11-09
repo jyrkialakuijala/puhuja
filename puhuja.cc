@@ -1473,7 +1473,7 @@ Aero aeroOf(Ph ph) {
         // 330 Hz, and Whisper heard "is", "his" as "dead", 2026-11-02).
         case Ph::ZH: { static const float acZh = param("LINE_AC_ZH", 0.08f); return {acZh, kAgVoicedFric, 0}; }  // voiced: less pressure drop (a knob since 2026-11-07: the ʤ's frication)
         case Ph::Z: return {0.05f, kAgZ, 0};
-        case Ph::DH: return {0.14f, kAgVoicedFric, 0};
+        case Ph::DH: { static const float agDh = param("LINE_AG_DH", -1.0f); return {0.14f, agDh >= 0 ? agDh : kAgVoicedFric, 0}; }  // ð's own glottis (< 0: LINE_AG_VFRIC; at 0.25 the pause-initial ð lost its voice, 2026-11-09)
         case Ph::VV: return {0.08f, kAgVoicedFric, 0};
         default: return {0.1f, kAgFricOpen, 0};        // F
       }
