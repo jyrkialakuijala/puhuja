@@ -4190,6 +4190,20 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     pendingKick_ = back;
     hasPendingKick_ = true;
   }
+  // A final voiced stop before a pause: the breath stops this long before the release (ms; negative: after it;
+  // <= -500: off), ramping down over
+  // LINE_FINAL_VSTOP_CUT_RAMP_MS, so no voicing follows the release (Jyrki 2026-11-09: "God" "sounds a bit like
+  // 'God-a', perhaps the pressure could stop 15 ms earlier"); the stored mouth pressure still gives a soft release.
+  if (tract_ == Tract::Line && nextIsPause && pi.voiced) {
+    static const float kLineFinalVstopCutMs = param("LINE_FINAL_VSTOP_CUT_MS", -15.0f);
+    static const float kLineFinalVstopCutRampMs = param("LINE_FINAL_VSTOP_CUT_RAMP_MS", 10.0f);
+    if (kLineFinalVstopCutMs > -500.0f) {
+      Event cut{std::max(release - kLineFinalVstopCutMs * ms, t_ + 1.0)};
+      cut.press = 0.0f;
+      cut.pressMs = kLineFinalVstopCutRampMs;
+      addEventAt(cut);
+    }
+  }
   if (tract_ == Tract::Line && nextIsPause && !pi.voiced) {
     // A final voiceless stop before a pause: the glottis stays open through
     // the release and its aspiration, then closes (the release event closed it
