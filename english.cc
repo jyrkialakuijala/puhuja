@@ -962,8 +962,8 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
         // ... and the dentals on top (EN_TH_LEN): puhuja's initial θ ran 90-115 ms against Kokoro's 55-65 (its s 130
         // against 70-80), as long and as loud as an s, and the dictionary hears 68 % of θ as s or z (2026-11-09).
         { static const float kZhLen = param("EN_ZH_LEN", 2.0f); if (b == "ZH") whole *= kZhLen; }
-        { static const float kVLen = param("EN_V_LEN", 1.0f); if (b == "V") whole *= kVLen; }  // the v's own length (lab 2026-11-09; 1: unchanged)  // the ʒ's own length (2026-11-09: 50 ms against Kokoro's ~100)
-        { static const float kThLen = param("EN_TH_LEN", 0.6f), kDhLen = param("EN_DH_LEN", 1.0f); if (b == "TH") whole *= kThLen; else if (b == "DH") whole *= kDhLen; }  // (ð separately: shortened with the θ it lost, 2026-11-09)
+        { static const float kVLen = param("EN_V_LEN", 1.8f); if (b == "V") whole *= kVLen; }  // the v's own length (lab 2026-11-09; 1: unchanged)  // the ʒ's own length (2026-11-09: 50 ms against Kokoro's ~100)
+        { static const float kThLen = param("EN_TH_LEN", 0.6f), kDhLen = param("EN_DH_LEN", 0.7f); if (b == "TH") whole *= kThLen; else if (b == "DH") whole *= kDhLen; }  // (ð separately: shortened with the θ it lost, 2026-11-09)
         // ... and h's (EN_H_LEN; Jyrki 2026-11-06: "hand of God" sounds too close to "land of God", make h here
         // more clear -- consider noise shaping, making it longer, or slightly stronger). Kokoro's h runs ~60 ms
         // against puhuja's 41.
