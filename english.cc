@@ -799,6 +799,8 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
           prc *= n == "ZH" ? kPreZhVowel : isVoicedFricative(n) ? 1.4f : isVoicedPlosive(n) ? 1.2f
                : isNasal(n) ? 0.9f : isVoicelessPlosive(n) ? 0.75f : 1.0f;
         }
+        // The ʊ's own length (EN_UH_LEN; 2026-11-09 UH agent: in isolated words puhuja's ʊ ran 220-260 ms, Kokoro's 150-280).
+        { static const float kUhLen = param("EN_UH_LEN", 1.0f); if (b == "UH") whole *= kUhLen; }
       } else {
         if (i > 0) prc *= 0.85f;  // not word-initial
         const bool consBefore = i > 0 && !isVowelToken(tok[i - 1]);
@@ -897,6 +899,11 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
         static const float kFinalFLen = param("EN_FINAL_F_LEN", 0.8f);
         whole *= kFinalFLen;
       }
+      // ... and a phrase-final θ x this (EN_FINAL_TH_LEN; lab 2026-11-09: "month" 77 ms against Kokoro's ~80 but weak).
+      if (phraseFinal && !vowel && i > 0 && i > static_cast<size_t>(lastVowel) && b == "TH" && i + 1 == tok.size()) {
+        static const float kFinalThLen = param("EN_FINAL_TH_LEN", 1.0f);
+        whole *= kFinalThLen;
+      }
       // A phrase-final v after a vowel ("Have."): 50 ms, Kokoro holds ~150-200
       // of fading voiced frication (2026-11-04, EN_FINAL_V_LEN; 1 = today's).
       if (phraseFinal && !vowel && i > static_cast<size_t>(lastVowel) && b == "V") {
@@ -954,7 +961,8 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
         else if (isVoicelessPlosive(b)) whole *= vstopLen;
         // ... and the dentals on top (EN_TH_LEN): puhuja's initial θ ran 90-115 ms against Kokoro's 55-65 (its s 130
         // against 70-80), as long and as loud as an s, and the dictionary hears 68 % of θ as s or z (2026-11-09).
-        { static const float kZhLen = param("EN_ZH_LEN", 2.0f); if (b == "ZH") whole *= kZhLen; }  // the ʒ's own length (2026-11-09: 50 ms against Kokoro's ~100)
+        { static const float kZhLen = param("EN_ZH_LEN", 2.0f); if (b == "ZH") whole *= kZhLen; }
+        { static const float kVLen = param("EN_V_LEN", 1.0f); if (b == "V") whole *= kVLen; }  // the v's own length (lab 2026-11-09; 1: unchanged)  // the ʒ's own length (2026-11-09: 50 ms against Kokoro's ~100)
         { static const float kThLen = param("EN_TH_LEN", 0.6f), kDhLen = param("EN_DH_LEN", 1.0f); if (b == "TH") whole *= kThLen; else if (b == "DH") whole *= kDhLen; }  // (ð separately: shortened with the θ it lost, 2026-11-09)
         // ... and h's (EN_H_LEN; Jyrki 2026-11-06: "hand of God" sounds too close to "land of God", make h here
         // more clear -- consider noise shaping, making it longer, or slightly stronger). Kokoro's h runs ~60 ms
@@ -2429,6 +2437,9 @@ void EnglishReader::sayPhrase(char end) {
           // against the aʊ's -13; Kokoro and 11labs: 2-5 dB under).
           static const float kAwErDb = param("EN_AW_ER_DB", 0.0f);
           if (i > 0 && baseName(tokens[i]) == "ER" && baseName(tokens[i - 1]) == "AW") db += kAwErDb;
+          // The ʊ half of aʊ x this (EN_AW_UH_DB, dB; 2026-11-09 AW agent: Kokoro's aʊ fades 4-6 dB from the a to the ʊ end, puhuja's is flat).
+          static const float kAwUhDb = param("EN_AW_UH_DB", 0.0f);
+          if (s.n == 2 && s.ph[0] == Ph::A && s.ph[1] == Ph::UH && k == 1) db += kAwUhDb;
           shape.level *= std::pow(10.0f, db / 20.0f);
           shape.prosody = std::pow(10.0f, db / 20.0f);
         }

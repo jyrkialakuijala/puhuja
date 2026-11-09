@@ -526,6 +526,7 @@ class Synth {
   float lineAspMul_ = 1.0f;  // the glottal noise gain factor (a stop's puff)
   float lineFricFade_ = 1.0f;
   float lineFricMul_ = 1.0f;  // the slit noise gain factor (LINE_V_FRIC during a v)
+  float thCarry_ = -1.0f;  // the θ's hiss gain carried into the next token / pause (LINE_TH_FRIC_CARRY; < 0: none)
   bool lineHAsp_ = false;  // a voiceless h set lineAspMul: the next sound resets it
   float lineLevel_ = 1.0f, lineLevelTarget_ = 1.0f;  // the prosodic level (shape.level) as a lung-pressure factor on the line
   float lineSoft_ = 1.0f, lineExtra_ = 0.0f, lineExpand_ = 0.0f;
