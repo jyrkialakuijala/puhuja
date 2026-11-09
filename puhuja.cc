@@ -773,7 +773,7 @@ bool lineShapeOf(Ph ph, TractShape* out) {
       // 1130-1230 Hz), so the w's F2 sat at 1050-1170: an l ("by war" -> "by
       // loor", Jyrki 2026-11-07). Kokoro's w: F2 520-570. Its own rounding and
       // back constriction on top of the row (1 / -1: the row's).
-      static const float kWLipA = param("LINE_W_LIPA", 1.0f), kWXc = param("LINE_W_XC", -1.0f), kWShapeAc = param("LINE_W_SHAPE_AC", 1.0f), kWLipL = param("LINE_W_LIPL", 1.0f);
+      static const float kWLipA = param("LINE_W_LIPA", 0.7031f), kWXc = param("LINE_W_XC", 0.25f), kWShapeAc = param("LINE_W_SHAPE_AC", 0.05f), kWLipL = param("LINE_W_LIPL", 1.0f);
       out->aLip *= kWLipA;
       out->lLip *= kWLipL;
       out->ac *= kWShapeAc;
