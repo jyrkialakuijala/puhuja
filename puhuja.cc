@@ -267,7 +267,7 @@ const float kLinePostHw = param("LINE_POST_HW", 4.0f) /* 2.5 until 2026-11-06: t
 // put the band's corner at the 12 kHz clamp: the hiss sat at 8-11 kHz,
 // 10-15 dB over the 2.5-4 kHz body where goog's ʃ is 10-14 dB under it
 // ("revolution", "station" sounded like -sn, Jyrki 2026-11-05).
-const float kLinePostJetD = param("LINE_POST_JET_D", 0.25f);
+const float kLinePostJetD = param("LINE_POST_JET_D", 0.1f);
 // ... and the soft switch between that fixed thickness (1) and the slit's own height (0), which sweeps the
 // noise corner with the gesture. 2026-11-08 (Jyrki: "let's go for best whisper scores"): the slit's height
 // alone heard 123-128 instead of 110-120 of the 188 ʃʒʧʤ clips in words1000 over three draws (totals
@@ -278,9 +278,13 @@ const float kLinePostSlitScale = param("LINE_POST_SLIT_SCALE", 1.0f);  // x the 
 // ... and the smoothing of their noise corner alone (ms; < 0: the global one). The followed slit starts the ʃ with a
 // 5.6 kHz spike in its first 4 ms ("revolu[ping]ionary", Jyrki 2026-11-09); the global smoothing cost words1000 55-70 words.
 const float kLinePostStSmoothMs = param("LINE_POST_ST_SMOOTH_MS", -1.0f);
+// ... and the range of their noise corner (Hz; 0: the global 200 / LINE_NOISE_FC_MAX): a floor keeps the followed slit's
+// smoothed corner from starting the ʃ as a low thud, a ceiling from spiking (the "t pling" of "revolu[t]ionary").
+const float kLinePostFcMin = param("LINE_POST_FC_MIN", 0.0f);
+const float kLinePostFcMax = param("LINE_POST_FC_MAX", 0.0f);
 // ... and their band's low-pass, x the corner (0: LINE_NOISE_LPR). Kokoro's ʃ
 // falls off above ~7 kHz; Jyrki 2026-11-05: "-tion could be slightly darker".
-const float kLinePostLpr = param("LINE_POST_LPR", 3.0f);  // ʃ ʒ only (Whisper SH 72 -> 70 of 106, within noise)
+const float kLinePostLpr = param("LINE_POST_LPR", 2.0f);  // ʃ ʒ only (Whisper SH 72 -> 70 of 106, within noise)
 const float kLinePostLip = param("LINE_POST_LIP", 1.5f);  // (0.5 -> 1.5 on 2026-11-04: medial ʃ heard 12 -> 20 of 40, Whisper) (0.7 put ʃ at -3..-7 dB under the vowel, Kokoro -5..-23; the ablation charged it 0.0007 on the 857 words)  // ... and their lip rounding (cm^2)
 const float kLineRestartMs = param("LINE_RESTART_MS", 0.0f);  // after a voiceless fricative: shut for this long, then voice (0: adduct only)
 const float kLineAdductMs = param("LINE_ADDUCT_MS", 30.0f) /* cost 1814 whisper-run1-phon_err */;  // adduction into voice after a voiceless fricative
@@ -2453,7 +2457,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
     e.lineHw = post ? kLinePostHw : tok.ph == Ph::F ? kLineFHw : 1.0f;
     e.lineLip = post ? kLinePostLip : 0.0f;
     e.lineJetD = tok.ph == Ph::F ? (curStress_ ? kLineFJetD : kLineFJetDUnstr) : tok.ph == Ph::VV ? kLineVJetD : post ? kLinePostJetD : 0.0f;
-    if (post) e.lineJetMix = kLinePostJetMix, e.lineSlitScale = kLinePostSlitScale, e.lineJetSmoothMs = kLinePostStSmoothMs;
+    if (post) e.lineJetMix = kLinePostJetMix, e.lineSlitScale = kLinePostSlitScale, e.lineJetSmoothMs = kLinePostStSmoothMs, e.lineJetFcMin = kLinePostFcMin, e.lineJetFcMax = kLinePostFcMax;
     e.lineFricLpr = tok.ph == Ph::SH || tok.ph == Ph::ZH ? kLinePostLpr : tok.ph == Ph::F ? kLineFLpr : tok.ph == Ph::VV ? kLineVLpr : 0.0f;  // (not ʧ ʤ: at 3 they lost 39 -> 34, 26 -> 23 of 54, 56)
     // A sound without frication leaves the jet as it was (LINE_JET_KEEP): the
     // n after ʃ snapped it back to the slit's height and the full band while
@@ -3846,7 +3850,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     close.lineHw = post ? kLinePostHw : 1.0f;
     close.lineLip = post ? kLinePostLip : 0.0f;
     close.lineJetD = post ? kLinePostJetD : 0.0f;
-    if (post) close.lineJetMix = kLinePostJetMix, close.lineSlitScale = kLinePostSlitScale, close.lineJetSmoothMs = kLinePostStSmoothMs;
+    if (post) close.lineJetMix = kLinePostJetMix, close.lineSlitScale = kLinePostSlitScale, close.lineJetSmoothMs = kLinePostStSmoothMs, close.lineJetFcMin = kLinePostFcMin, close.lineJetFcMax = kLinePostFcMax;
     // t's jet (LINE_T_JET_D, cm; 0: the slit's height): the tongue tip closing
     // on and leaving the ridge made its noise through a slit of a few
     // hundredths of a mm, the band's corner at the 12 kHz clamp: a 12-24 kHz
@@ -4032,7 +4036,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     const bool post = *next == Ph::SH || *next == Ph::ZH;
     rel.lineHw = post ? kLinePostHw : 1.0f;
     rel.lineLip = post ? kLinePostLip : 0.0f;
-    if (post) rel.lineJetD = kLinePostJetD, rel.lineJetMix = kLinePostJetMix, rel.lineSlitScale = kLinePostSlitScale, rel.lineJetSmoothMs = kLinePostStSmoothMs, rel.lineFricLpr = kLinePostLpr;
+    if (post) rel.lineJetD = kLinePostJetD, rel.lineJetMix = kLinePostJetMix, rel.lineSlitScale = kLinePostSlitScale, rel.lineJetSmoothMs = kLinePostStSmoothMs, rel.lineJetFcMin = kLinePostFcMin, rel.lineJetFcMax = kLinePostFcMax, rel.lineFricLpr = kLinePostLpr;
     // ... and f's own jet, band, lip width and gain (LINE_STOP_F_OWN): the f
     // of "not forget", "at first" was made with the slit's jet and the full
     // width, a +10 dB, 4-24 kHz burst where the readers' t is silent and their
@@ -4349,8 +4353,15 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   const bool tSoft = dSoft || (tract_ == Tract::Line && tok.ph == Ph::T && kLineTSoftBurst < 1.0f && next &&
                      (*next == Ph::F || *next == Ph::VV || *next == Ph::TH || *next == Ph::DH));
   const float softBurst = dSoft ? dSoftBurst : kLineTSoftBurst;
+  // A voiced stop into a voiceless fricative ("and foe", "absolute"): no burst opening, the closure opens straight
+  // into the fricative's slit (LINE_VSTOP_FRIC_BURST 0; 1: the burst as for p t k). Kokoro's "and foe" has no burst at
+  // all: -23 dB re the vowel through the d's release into the f; puhuja's 20 ms 0.2 cm^2 opening through the already
+  // open glottis was a +4 dB puff and a second pop as the lips closed to the f (Jyrki 2026-11-09: "a strange snip").
+  static const float kVstopFricBurst = param("LINE_VSTOP_FRIC_BURST", 1.0f);
+  const bool vstopFricNoBurst = tract_ == Tract::Line && pi.voiced && next && info(*next).cls == Cls::Fricative &&
+                                *next != Ph::VV && *next != Ph::Z && *next != Ph::ZH && *next != Ph::DH && kVstopFricBurst <= 0;
   if (tract_ == Tract::Line && next && info(*next).cls == Cls::Fricative && !nextIsPause && !unreleased &&
-      !(tok.ph == Ph::CH || tok.ph == Ph::JH) && !(tSoft && softBurst <= 0)) {
+      !(tok.ph == Ph::CH || tok.ph == Ph::JH) && !(tSoft && softBurst <= 0) && !vstopFricNoBurst) {
     // ks, ts, ps on the line: the stop bursts open before the tongue forms
     // the fricative's groove (released straight into 0.05 cm^2 there was no
     // burst at all: "picks", "ask" 2026-11-02). The affricates keep their
@@ -4562,7 +4573,7 @@ float Synth::tick() {
     if (e.lineExtra >= 0) lineExtra_ = e.lineExtra;
     if (e.lineExpand >= 0) lineExpand_ = e.lineExpand;
     if (e.lineHw >= 0) lineHw_ = lineHwTarget_ = e.lineHw;
-    if (e.lineJetD >= 0) line_.setJetThickness(e.lineJetD, e.lineJetMix, e.lineSlitScale, e.lineJetSmoothMs);
+    if (e.lineJetD >= 0) line_.setJetThickness(e.lineJetD, e.lineJetMix, e.lineSlitScale, e.lineJetSmoothMs, e.lineJetFcMin, e.lineJetFcMax);
     if (e.lineFricLpr >= 0) line_.setFricLpRatio(e.lineFricLpr);
     if (e.lineAspHp >= 0) {
       static const int tAspPoles = static_cast<int>(param("LINE_T_ASP_HP_POLES", 3.0f));

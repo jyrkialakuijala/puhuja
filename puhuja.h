@@ -138,6 +138,7 @@ struct Event {
   float lineJetMix = 1;  // ... how much of that fixed thickness the jet uses (1: fixed; 0: the slit's height; between: geometric blend), applied with lineJetD
   float lineSlitScale = 1;  // ... x the slit's height when it is followed, applied with lineJetD
   float lineJetSmoothMs = -1;  // ... the noise corner's smoothing for this jet (ms; < 0: the global LINE_NOISE_ST_SMOOTH_F_MS), applied with lineJetD
+  float lineJetFcMin = 0, lineJetFcMax = 0;  // ... and the corner's range for this jet (Hz; 0: the global 200 / LINE_NOISE_FC_MAX), applied with lineJetD
   float lineX = -1;    // the constriction's place for the line tract (share of its length; < 0: keep)
   bool aspBurst = false;  // an aspirated release: the puff's noise starts
   float creak = -1;       // creaky voice from now on (0..1; < 0: unchanged)

@@ -518,14 +518,14 @@ float VocalTractLine::substep(float u0) {
     // and a ping or a zonk where a slit opened (Jyrki 2026-11-04: "ringing,
     // zipping, zonking, pinging").
     const float uMax = kNoiseUMax > 0 ? kNoiseUMax * std::sqrt(2.0f * std::max(lungPressure_, 1.0f) / TransmissionLine::kRho) : 0.0f;
-    auto alphaOf = [&](float flow, float area, float width, float* lp, float jetD, float jetMix, float slitScale, float lpr, float lpMin, float* logFc, float smoothMs, bool active) {
+    auto alphaOf = [&](float flow, float area, float width, float* lp, float jetD, float jetMix, float slitScale, float lpr, float lpMin, float* logFc, float smoothMs, bool active, float fcMin, float fcMax) {
       float U = std::fabs(flow) / std::max(area, 1e-4f);
       if (uMax > 0) U = std::min(U, uMax);
       // The jet: a fixed thickness (jetMix 1), the slit's own height x slitScale (jetMix 0; the corner then
       // sweeps with the closing gesture, Whisper +8..13 of 188 ʃʒʧʤ clips on 2026-11-08), or a geometric blend.
       const float s = std::max(area / width, 1e-3f) * slitScale;
       const float d = jetD > 0 && jetMix > 0 ? (jetMix >= 1 ? jetD : std::exp(jetMix * std::log(jetD) + (1.0f - jetMix) * std::log(s))) : s;
-      float fc = std::clamp(kNoiseSt * U / d, 200.0f, kNoiseFcMax);
+      float fc = std::clamp(kNoiseSt * U / d, fcMin > 0 ? fcMin : 200.0f, fcMax > 0 ? fcMax : kNoiseFcMax);  // (a jet's own range: ʃ ʒ ʧ ʤ, LINE_POST_FC_MIN/MAX)
       if (smoothMs > 0) {
         const float smoothK = 1.0f - std::exp(-16.0f * dt_ / (0.001f * smoothMs));
         const float target = std::log(fc);
@@ -537,9 +537,9 @@ float VocalTractLine::substep(float u0) {
       return 1.0f - std::exp(kM2PiL * fc * dt_);
     };
     stAlphaG_ = alphaOf(u0, glotArea_, kGlottisLength, &stLpG_, 0, 1, 1, puffLpr_ > 0 ? puffLpr_ : kGlottalLpRatio > 0 ? kGlottalLpRatio : kNoiseLpRatio, kGlottalLpMin, &stLogFcG_,
-                        kNoiseStSmoothGMs >= 0 ? kNoiseStSmoothGMs : kNoiseStSmoothMs, aspActive_);
+                        kNoiseStSmoothGMs >= 0 ? kNoiseStSmoothGMs : kNoiseStSmoothMs, aspActive_, 0, 0);
     if (noiseK_ >= 0) stAlphaF_ = alphaOf(oral_.flowAt(noiseKc_), oral_.areaAt(noiseKc_), kSlitWidth, &stLpF_, jetD_, jetMix_, slitScale_, fricLpr_ > 0 ? fricLpr_ : kNoiseLpRatio, 0, &stLogFcF_,
-                                         jetSmoothMs_ >= 0 ? jetSmoothMs_ : kNoiseStSmoothFMs >= 0 ? kNoiseStSmoothFMs : kNoiseStSmoothMs, fricActive_);
+                                         jetSmoothMs_ >= 0 ? jetSmoothMs_ : kNoiseStSmoothFMs >= 0 ? kNoiseStSmoothFMs : kNoiseStSmoothMs, fricActive_, jetFcMin_, jetFcMax_);
   }
   // Each jet's band-limited noise from the shared low-passed white noise.
   // LINE_NOISE_ST_PRELP (2026-11-05): the jets' bands start from the noise
