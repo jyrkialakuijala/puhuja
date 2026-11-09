@@ -424,7 +424,7 @@ const float kLineVoicedReleaseScale = param("LINE_VOICED_RELEASE", 2.5f);  // a 
 // LINE_JH_RELEASE: ʤ's own release time scale (< 0: shared x voiced); LINE_JH_AG: the glottal area
 // during its frication (< 0: LINE_AG_VFRIC; English ʤ is largely devoiced, a wider glottis hisses).
 const float kLineJhReleaseScale = param("LINE_JH_RELEASE", 0.3f);  // 2026-11-07: -1 (the plosive's 49 ms) -> 0.3 (15 ms): the ʒ of ʤ then holds its slit for ~40 ms as Kokoro's does, instead of gliding shut-to-open through it
-const float kLineJhAg = param("LINE_JH_AG", -1.0f);  // (0.4 for an hour on 2026-11-07: the devoiced hiss measured like Kokoro's but Jyrki preferred the voiced one, "it could be more dzenerosity": the hiss comes from LINE_JH_REL_FRIC instead)  // 2026-11-07: -1 (voiced, 0.05: the ʒ of ʤ got no flow for its hiss, -22..-35 dB re the s) -> 0.4 (hiss -9..-3 re the s for ~35 ms; Kokoro -5..+5 for 50)
+const float kLineJhAg = param("LINE_JH_AG", 0.4f);  // (0.4 for an hour on 2026-11-07: the devoiced hiss measured like Kokoro's but Jyrki preferred the voiced one, "it could be more dzenerosity": the hiss comes from LINE_JH_REL_FRIC instead)  // 2026-11-07: -1 (voiced, 0.05: the ʒ of ʤ got no flow for its hiss, -22..-35 dB re the s) -> 0.4 (hiss -9..-3 re the s for ~35 ms; Kokoro -5..+5 for 50)
 // ʤ between vowels (Jyrki 2026-11-05: the g of "villages" "too separate and buzzy"):
 // its closure drew the shared LINE_EXPAND_FLOW (200) and the folds stalled, a
 // 50 ms hole at -40 dB where Kokoro keeps a voice bar at -12 dB; the tongue
