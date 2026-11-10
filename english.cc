@@ -2387,8 +2387,12 @@ void EnglishReader::sayPhrase(char end) {
         // already halfway down ("right.", "now.": the fall came late, all of
         // it after the glide's centre).
         const bool fallingGlide = vowel && k > 0 && k == lastPart && pitchEnd != Synth::kNoPitch;
+        // aɪ's open start: its pitch x EN_AY_A_PITCH, its level + EN_AY_A_DB, both parts' glottis x EN_AY_PRESS (AY agent
+        // 2026-11-10; 1 / 0 / 1: as before).
+        static const float kAyAPitch = param("EN_AY_A_PITCH", 1.0f), kAyADb = param("EN_AY_A_DB", 0.0f), kAyPress = param("EN_AY_PRESS", 1.0f);
+        const bool ay = s.n == 2 && s.ph[0] == Ph::A && s.ph[1] == Ph::IH;
         if (vowel && s.ph[k] != Ph::RR)  // ER = vowel + ɹ
-          synth_.setPitch(fallingGlide ? pitch + kGlideFallShare * (pitchEnd - pitch) : pitch);
+          synth_.setPitch(fallingGlide ? pitch + kGlideFallShare * (pitchEnd - pitch) : ay && k == 0 && kAyAPitch != 1.0f ? pitch * kAyAPitch : pitch);
         if (vowel && k == lastPart && pitchEnd != Synth::kNoPitch) synth_.setPitchEnd(pitchEnd);
         // English variant of this phoneme (tools/tune_english.py).
         const auto& v = kEnglishShape[static_cast<int>(s.ph[k])];
@@ -2442,8 +2446,16 @@ void EnglishReader::sayPhrase(char end) {
         // ɔɪ's own split and length (EN_OY_FIRST_SHARE, EN_OY_LEN; OY agent 2026-11-10, lab: 0.6 and 1 = as before).
         static const float kOyFirstShare = param("EN_OY_FIRST_SHARE", 0.6f), kOyLen = param("EN_OY_LEN", 1.0f);
         const bool oy = s.n == 2 && s.ph[0] == Ph::AO && s.ph[1] == Ph::IH;
+        // aɪ's own split and length (EN_AY_FIRST_SHARE, < 0: 0.6; EN_AY_LEN x the whole; AY agent 2026-11-10: Kokoro
+        // holds the open start longer and glides late).
+        static const float kAyFirstShare = param("EN_AY_FIRST_SHARE", -1.0f), kAyLen = param("EN_AY_LEN", 1.0f);
+        // eɪ's own split and length (EN_EY_FIRST_SHARE, EN_EY_LEN; a word-final eɪ x EN_EY_FINAL_LEN as well; EY agent
+        // 2026-11-10 lab knobs, 0.6 / 1 / 1 as before).
+        static const float kEyFirstShare = param("EN_EY_FIRST_SHARE", 0.6f), kEyLen = param("EN_EY_LEN", 1.0f), kEyFinalLen = param("EN_EY_FINAL_LEN", 1.0f);
+        const bool ey = s.n == 2 && s.ph[0] == Ph::E && s.ph[1] == Ph::IH;
         const float firstShare = s.ph[0] == Ph::ER ? (erOnset ? kErOnsetShare : 0.8f)
-                                 : s.n == 2 && s.ph[0] == Ph::A && s.ph[1] == Ph::UH ? kAwFirstShare : oy ? kOyFirstShare : 0.6f;
+                                 : s.n == 2 && s.ph[0] == Ph::A && s.ph[1] == Ph::UH ? kAwFirstShare : oy ? kOyFirstShare : ey ? kEyFirstShare
+                                 : s.n == 2 && s.ph[0] == Ph::A && s.ph[1] == Ph::IH && kAyFirstShare >= 0 ? kAyFirstShare : 0.6f;
         const float share = s.n == 1 ? 1.0f : k == 0 ? firstShare : 1.0f - firstShare;
         shape.ms = dur[w][i] * share * v.length;
         {  // the word's planned total (Kokoro mode's word rhythm, prosody.h)
@@ -2457,6 +2469,13 @@ void EnglishReader::sayPhrase(char end) {
         if (toLinked) shape.ms *= kToVowelLength;
         if (s.n == 2 && s.ph[1] != Ph::RR) shape.ms *= kDiphthongLength;  // a true diphthong, not ɜ+ɹ
         if (oy) shape.ms *= kOyLen;
+        if (s.n == 2 && s.ph[0] == Ph::A && s.ph[1] == Ph::IH && kAyLen != 1.0f) shape.ms *= kAyLen;
+        // ... and in a closed syllable only (a consonant follows in the word: "time", "like"; EN_AY_CLOSED_LEN).
+        static const float kAyClosedLen = param("EN_AY_CLOSED_LEN", 1.0f);
+        if (s.n == 2 && s.ph[0] == Ph::A && s.ph[1] == Ph::IH && kAyClosedLen != 1.0f && i + 1 < tokens.size() &&
+            !isVowelToken(tokens[i + 1]))
+          shape.ms *= kAyClosedLen;
+        if (ey) shape.ms *= kEyLen * (i + 1 == tokens.size() ? kEyFinalLen : 1.0f);
         // The unstressed ɜ after aʊ ("power", "hour", "flower") x this (EN_AW_ER_LEN;
         // Jyrki 2026-11-05: "the rhythm of the words is a little off, first
         // syllable should be stressed, 2nd unstressed": its ɜ ran 115 ms at the
@@ -2514,6 +2533,7 @@ void EnglishReader::sayPhrase(char end) {
           shape.press = accented ? kPressedAccent
                         : si == syl.size() ? kLaxFinal : kLaxUnstressed;
         }
+        if (ay && kAyPress != 1.0f) shape.press *= kAyPress;
         // Loudness: an arc over the phrase (louder at the start, softer
         // toward its end), accents louder, function words softer. Vowels
         // only (the consonants keep their calibrated levels).
@@ -2525,6 +2545,7 @@ void EnglishReader::sayPhrase(char end) {
           if (phrase_[w].accent && vn[strlen(vn) - 1] == '1') db += kAccentDb;
           else if (!phrase_[w].accent) db += kFunctionWordDb;
           { static const float kEmoDb = param("EN_EMOTIVE_DB", 1.5f); if (kEmoDb != 0 && isEmotiveWord(phrase_[w].text)) db += kEmoDb; }
+          if (ay && k == 0) db += kAyADb;
           // Secondary stress is a step down from the primary, not its equal:
           // Kokoro's "robot", "habitat", "antibody" end 5-15 dB under their
           // first syllable; here the last third was the loudest (2026-11-02).
@@ -2551,6 +2572,9 @@ void EnglishReader::sayPhrase(char end) {
           // The ɔ and ɪ halves of ɔɪ, dB (EN_OY_AO_DB, EN_OY_IH_DB; OY agent 2026-11-10, lab: 0 = as before).
           static const float kOyAoDb = param("EN_OY_AO_DB", 0.0f), kOyIhDb = param("EN_OY_IH_DB", 0.0f);
           if (s.n == 2 && s.ph[0] == Ph::AO && s.ph[1] == Ph::IH) db += k == 0 ? kOyAoDb : kOyIhDb;
+          // eɪ's halves x these (EN_EY_E_DB, EN_EY_I_DB, dB; EY agent 2026-11-10 lab knobs, 0: as before).
+          static const float kEyEDb = param("EN_EY_E_DB", 0.0f), kEyIDb = param("EN_EY_I_DB", 0.0f);
+          if (s.n == 2 && s.ph[0] == Ph::E && s.ph[1] == Ph::IH) db += k == 0 ? kEyEDb : kEyIDb;
           shape.level *= std::pow(10.0f, db / 20.0f);
           shape.prosody = std::pow(10.0f, db / 20.0f);
         }

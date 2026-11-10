@@ -455,6 +455,29 @@ const float kLineOyAoFrom = param("LINE_OY_AO_FROM", -1.0f);
 const float kLinePauseRunPlanMs = param("LINE_PAUSE_RUN_PLAN_MS", 0.0f);
 // ... 1: only when an ɔɪ ended inside the part the hold would leave unplanned (0: after every sound).
 const float kLinePauseRunOy = param("LINE_PAUSE_RUN_OY", 0.0f);
+// aɪ's own shape and timing (AY agent, 2026-11-10; every default reproduces the sound before). Whisper heard aɪ as eɪ
+// 677 times of 5292 (dictionary rank 8): against ten Kokoro voices puhuja's aɪ starts front (male F2 1275 Hz at the
+// start, 1714 at 40 %; Kokoro 988 and 1219) and glides from the a's 30 % on, a straight ramp where Kokoro holds the
+// open back start and rises late (F2 1510 at 60 %, 1813 at 80 %; tools in ref/opt/lab/AY/agent2).
+// The a mixed toward the row LINE_AY_START_ROW (a Ph index: 14 ɑ, 12 ɔ, 13 ʌ) by LINE_AY_START_MIX (0: off), and its
+// pharynx and lip areas scaled, its tract lengthened (cm):
+const float kLineAyStartMix = param("LINE_AY_START_MIX", 0.0f);
+const int kLineAyStartRow = static_cast<int>(param("LINE_AY_START_ROW", 14.0f));
+const float kLineAyAAph = param("LINE_AY_A_APH", 1.0f), kLineAyALip = param("LINE_AY_A_ALIP", 1.0f), kLineAyALen = param("LINE_AY_A_LEN", 0.0f);
+// The ɪ end mixed toward the row LINE_AY_END_ROW (2 i: closer and fronter; 10 ɛ, 1 e: less close) by LINE_AY_END_MIX.
+const float kLineAyEndMix = param("LINE_AY_END_MIX", 0.0f);
+const int kLineAyEndRow = static_cast<int>(param("LINE_AY_END_ROW", 2.0f));
+// The a demanded until this share of it (< 0: SPLAN_GLIDE_START, 0.3), the ɪ until this share (< 0: 0.9), and the
+// weights of the two demands (x SPLAN_GLIDE_W).
+const float kLineAyHold = param("LINE_AY_HOLD", -1.0f), kLineAyGlideTo = param("LINE_AY_GLIDE_TO", -1.0f);
+const float kLineAyAW = param("LINE_AY_A_W", 1.0f), kLineAyIW = param("LINE_AY_I_W", 1.0f);
+const float kLineAyPreMs = param("LINE_AY_PRE_MS", 0.0f), kLineAyStopLeadMs = param("LINE_AY_STOP_LEAD_MS", 0.0f);
+// The a's tongue place and area count in the plan at least this much (the planner's placeFloor; 0: by the bump's
+// strength, which leaves the open a's place free) and the ɪ end's lip area x LINE_AY_END_ALIP (> 1: spread).
+const float kLineAyPlaceFloor = param("LINE_AY_PLACE_FLOOR", 0.0f), kLineAyEndALip = param("LINE_AY_END_ALIP", 1.0f);
+// A lazy whole-vowel glide (see its use): the number of points (0: off), the progress exponent, the a's share, weight.
+const float kLineAyRamp = param("LINE_AY_RAMP", 0.0f), kLineAyRampPow = param("LINE_AY_RAMP_POW", 1.0f);
+const float kLineAyRampSplit = param("LINE_AY_RAMP_SPLIT", 0.6f), kLineAyRampW = param("LINE_AY_RAMP_W", 1.0f);
 const float kLineVotAdductMs = param("LINE_VOT_ADDUCT_MS", 20.0f);  // ... then adducting into voice over this
 const float kLineExpandFlow = param("LINE_EXPAND_FLOW", 200.0f);  // cm^3/s drawn by the expanding cavity at full expansion behind a voiced closure
 const float kLineVoicedReleaseScale = param("LINE_VOICED_RELEASE", 2.5f);  // a voiced stop's release time relative to a voiceless one's
@@ -902,6 +925,21 @@ TractShape lineShapeMix(const TractShape& a, const TractShape& b, float w) {
   s.aPharynx = lg(a.aPharynx, b.aPharynx); s.aOral = lg(a.aOral, b.aOral); s.lLip = lin(a.lLip, b.lLip);
   s.aLarynx = lg(a.aLarynx, b.aLarynx); s.length = lin(a.length, b.length);
   return s;
+}
+// aɪ's start (see kLineAyStartMix): from a's row toward an open back row, a wider or narrower pharynx and lips, a
+// longer tract; and its end (kLineAyEndMix, kLineAyEndALip) from ɪ's row.
+void ayStartShape(TractShape* sh) {
+  TractShape o;
+  if (kLineAyStartMix > 0 && lineShapeOf(static_cast<Ph>(kLineAyStartRow), &o)) *sh = lineShapeMix(*sh, o, kLineAyStartMix);
+  sh->aPharynx *= kLineAyAAph;
+  sh->aLip *= kLineAyALip;
+  sh->length += kLineAyALen;
+  if (kLineAyALen != 0.0f) sh->sc = lineVowelStrength(sh->xc, sh->wc, sh->length);
+}
+void ayEndShape(TractShape* sh) {
+  sh->aLip *= kLineAyEndALip;
+  TractShape o;
+  if (kLineAyEndMix > 0 && lineShapeOf(static_cast<Ph>(kLineAyEndRow), &o)) *sh = lineShapeMix(*sh, o, kLineAyEndMix);
 }
 
 // Where a consonant constricts the line (share of the tract's length).
@@ -2397,6 +2435,43 @@ std::vector<Synth::Label> Synth::labels() const {
 }
 
 
+namespace {
+
+// eɪ lab knobs (EY agent 2026-11-10; the defaults reproduce the previous sound). Whisper heard eɪ as iː 733 times in
+// 6980 (dict rank 8); against ten Kokoro voices the e start sits low in F1 (male 410-470 vs 480-560 Hz, female
+// 430-610 vs 500-850) and back in F2.
+// The e start: mixed toward ɛ (LINE_EY_START_EH) or æ (LINE_EY_START_AE), its place moved by LINE_EY_START_DX, its
+// opening, pharynx and lip area x LINE_EY_START_AC / _APH / _LIP.
+void eyStartShape(TractShape* sh) {
+  static const float kEyStartEh = param("LINE_EY_START_EH", 0.0f), kEyStartAe = param("LINE_EY_START_AE", 0.0f),
+                     kEyStartDx = param("LINE_EY_START_DX", 0.0f), kEyStartAc = param("LINE_EY_START_AC", 1.0f),
+                     kEyStartAph = param("LINE_EY_START_APH", 1.0f), kEyStartLip = param("LINE_EY_START_LIP", 1.0f);
+  TractShape o;
+  if (kEyStartEh > 0 && lineShapeOf(Ph::EH, &o)) *sh = lineShapeMix(*sh, o, kEyStartEh);
+  if (kEyStartAe > 0 && lineShapeOf(Ph::AE, &o)) *sh = lineShapeMix(*sh, o, kEyStartAe);
+  if (kEyStartAc != 1.0f) sh->ac *= kEyStartAc;
+  if (kEyStartAph != 1.0f) sh->aPharynx *= kEyStartAph;
+  if (kEyStartLip != 1.0f) sh->aLip *= kEyStartLip;
+  if (kEyStartDx != 0) { sh->xc += kEyStartDx; sh->sc = lineVowelStrength(sh->xc, sh->wc, sh->length); }
+}
+// The ɪ end (i's shape): mixed back toward ɪ's own row by LINE_EY_OFF_IH (lab 2026-11-10: the i-shaped end is what
+// Whisper hears as iː; 0.7 took the lab's eɪ errors 119 -> 39 of 1224 and words1000 1151 -> 1179); its place moved by
+// LINE_EY_OFF_DX, its opening, lip area, pharynx and bump half-width x LINE_EY_OFF_AC / _LIP / _APH / _WC.
+void eyEndShape(TractShape* sh) {
+  static const float kEyOffDx = param("LINE_EY_OFF_DX", 0.0f), kEyOffAc = param("LINE_EY_OFF_AC", 1.0f),
+                     kEyOffLip = param("LINE_EY_OFF_LIP", 1.0f), kEyOffAph = param("LINE_EY_OFF_APH", 1.0f),
+                     kEyOffWc = param("LINE_EY_OFF_WC", 1.0f), kEyOffIh = param("LINE_EY_OFF_IH", 0.0f);
+  TractShape ih;
+  if (kEyOffIh > 0 && lineShapeOf(Ph::IH, &ih)) *sh = lineShapeMix(*sh, ih, kEyOffIh);
+  if (kEyOffWc != 1.0f) sh->wc *= kEyOffWc;
+  if (kEyOffAc != 1.0f) sh->ac *= kEyOffAc;
+  if (kEyOffLip != 1.0f) sh->aLip *= kEyOffLip;
+  if (kEyOffAph != 1.0f) sh->aPharynx *= kEyOffAph;
+  if (kEyOffDx != 0 || kEyOffWc != 1.0f) { sh->xc += kEyOffDx; sh->sc = lineVowelStrength(sh->xc, sh->wc, sh->length); }
+}
+
+}  // namespace
+
 void Synth::emit(const Token& tok, const Ph* next) {
   Info in = info(tok.ph);
   curPh_ = tok.ph;
@@ -2776,6 +2851,8 @@ void Synth::emit(const Token& tok, const Ph* next) {
       sh.aOral *= kLineOyIhAor;
       sh.aLip *= kLineOyIhLipA;
     }
+    if (have && tok.ph == Ph::A && next && *next == Ph::IH) ayStartShape(&sh);
+    if (have && tok.ph == Ph::IH && lastPh_ == Ph::A) ayEndShape(&sh);
     if (have && tok.ph == Ph::AA && next && *next == Ph::RR) {
       // The ɑ before an r mixed toward ɔ over its whole length (LINE_AA_R_AO_MIX; 2026-11-10 AA agent: "part, card, start").
       static const float kLineAaRAoMix = param("LINE_AA_R_AO_MIX", 0.0f);
@@ -2789,6 +2866,8 @@ void Synth::emit(const Token& tok, const Ph* next) {
       TractShape o;
       if (kLineAaAoMix > 0 && lineShapeOf(Ph::AO, &o)) sh = lineShapeMix(sh, o, kLineAaAoMix);
     }
+    if (have && tok.ph == Ph::E && next && *next == Ph::IH) eyStartShape(&sh);
+    if (have && tok.ph == Ph::IH && lastPh_ == Ph::E) eyEndShape(&sh);
     if (have && tok.ph == Ph::U && lastPh_ == Ph::J && kLineUAfterJ > 0) {
       TractShape front;
       if (lineShapeOf(Ph::I, &front)) sh = lineShapeMix(sh, front, kLineUAfterJ);
@@ -2873,12 +2952,72 @@ void Synth::emit(const Token& tok, const Ph* next) {
             const bool awGlide = chainEnd && tok.ph == Ph::UH && lastPh_ == Ph::A && kLineAwGlideFrom >= 0;
             const bool oyEnd = chainEnd && tok.ph == Ph::IH && lastPh_ == Ph::AO;
             const bool oyStart = chainStart && tok.ph == Ph::AO && *next == Ph::IH;
+            // eɪ's planner demands (EY agent 2026-11-10 lab knobs; -1 / 1 / 0: as before): the e demanded from LINE_EY_E_FROM
+            // (else 0.1) to LINE_EY_HOLD_TO of its length (else SPLAN_GLIDE_START), the ɪ demanded to LINE_EY_GLIDE_TO of its
+            // length (else 0.9; > 1 runs into the next sound), its weight x LINE_EY_GLIDE_W; the tongue place's least weight in
+            // the e and the ɪ demands (LINE_EY_E_PLACE_W, LINE_EY_PLACE_W; the ɪ's place weighs only 0.14, its 2 cm^2 opening
+            // counting as half open).
+            static const float kEyHoldTo = param("LINE_EY_HOLD_TO", -1.0f), kEyGlideTo = param("LINE_EY_GLIDE_TO", -1.0f),
+                               kEyGlideW = param("LINE_EY_GLIDE_W", 1.0f), kEyPlaceW = param("LINE_EY_PLACE_W", 0.0f),
+                               kEyEPlaceW = param("LINE_EY_E_PLACE_W", 0.0f), kEyEFrom = param("LINE_EY_E_FROM", -1.0f);
+            const bool eyStart = chainStart && tok.ph == Ph::E && *next == Ph::IH;
             const double a = owGlide ? kLineOwGlideFrom : eyGlide ? kLineEyGlideFrom :
                              ayGlide ? kLineAyGlideFrom : awGlide ? kLineAwGlideFrom :
                              oyEnd && kLineOyGlideFrom >= 0 ? kLineOyGlideFrom :
-                             chainEnd ? kShapeGlideEnd : oyStart && kLineOyAoFrom >= 0 ? kLineOyAoFrom : 0.1, b = oyStart && kLineOyHoldTo >= 0 ? kLineOyHoldTo : chainStart ? kShapeGlideStart : 0.9;
-            const float oyW = oyStart ? kLineOyAoW : oyEnd ? kLineOyIhW : 1.0f;
-            addShapeDemand(t0 + std::min(a, b) * dur, t0 + std::max(a, b) * dur, sh, tok.ph, ws * kShapeGlideW * oyW);
+                             chainEnd ? kShapeGlideEnd : oyStart && kLineOyAoFrom >= 0 ? kLineOyAoFrom : eyStart && kEyEFrom >= 0 ? kEyEFrom : 0.1;
+            const bool ayStart = chainStart && tok.ph == Ph::A && *next == Ph::IH;  // aɪ's a (kLineAyHold, kLineAyAW)
+            const double b = oyStart && kLineOyHoldTo >= 0 ? kLineOyHoldTo : ayStart && kLineAyHold >= 0 ? kLineAyHold
+                             : chainStart ? (eyStart && kEyHoldTo >= 0 ? kEyHoldTo : kShapeGlideStart)
+                             : ayGlide && kLineAyGlideTo >= 0 ? kLineAyGlideTo : eyGlide && kEyGlideTo >= 0 ? kEyGlideTo : 0.9;
+            const float oyW = oyStart ? kLineOyAoW : oyEnd ? kLineOyIhW : ayStart ? kLineAyAW : ayGlide ? kLineAyIW : 1.0f;
+            // aɪ's a wanted before its start after a pause (LINE_AY_PRE_MS: "I", "item" start from the pause's ə) or
+            // in a plosive's closure (LINE_AY_STOP_LEAD_MS: "time", "type"); 0: from 10 % of the a, as before.
+            const float ayLead = !ayStart ? 0.0f : prevWasPause_ ? kLineAyPreMs : prevWasPlosive_ ? kLineAyStopLeadMs : 0.0f;
+            addShapeDemand(ayLead > 0 ? t0 - ayLead * ms : t0 + std::min(a, b) * dur, t0 + std::max(a, b) * dur, sh, tok.ph,
+                           ws * kShapeGlideW * oyW * (eyGlide ? kEyGlideW : 1.0f),
+                           ayStart ? kLineAyPlaceFloor : eyGlide ? kEyPlaceW : eyStart ? kEyEPlaceW : 0.0f);
+            if ((ayStart || ayGlide) && kLineAyRamp > 1) {
+              // A lazy aɪ (LINE_AY_RAMP points over the whole diphthong, 0: off): point demands on the straight path
+              // from the a's shape to the ɪ's, progress x^LINE_AY_RAMP_POW of the diphthong's time (the a taken as
+              // LINE_AY_RAMP_SPLIT of it). Jyrki 2026-11-10: Kokoro's diphthongs move steadily through the whole
+              // vowel; puhuja's "holds, rushes, holds".
+              TractShape s0, s1;
+              if (lineShapeOf(Ph::A, &s0) && lineShapeOf(Ph::IH, &s1)) {
+                ayStartShape(&s0);
+                ayEndShape(&s1);
+                const int n = static_cast<int>(kLineAyRamp);
+                for (int q = 1; q < n; ++q) {
+                  const double x = static_cast<double>(q) / n;  // the diphthong's time
+                  const double u = ayStart ? x / kLineAyRampSplit : (x - kLineAyRampSplit) / (1.0 - kLineAyRampSplit);  // this part's
+                  if (u < 0 || u > 1) continue;
+                  const float frac = static_cast<float>(std::pow(x, static_cast<double>(kLineAyRampPow)));
+                  const double t = t0 + u * dur;
+                  addShapeDemand(t, t, lineShapeMix(s0, s1, frac), tok.ph, ws * kShapeGlideW * kLineAyRampW);
+                }
+              }
+            }
+            // A lazy eɪ (LINE_EY_RAMP points over the whole diphthong, 0: off; the aɪ agent's LINE_AY_RAMP): point demands
+            // on the straight path from the e's shape to the ɪ's, progress x^LINE_EY_RAMP_POW of the diphthong's time (the
+            // e taken as LINE_EY_RAMP_SPLIT of it), weight x LINE_EY_RAMP_W. Jyrki 2026-11-10: "the planning module cannot
+            // make a good formant run for a single word sentence like 'Day.' but makes a very rapid formant change";
+            // Kokoro's "Day." F2 rises steadily 1590 -> 2370 over ~350 ms, puhuja's dipped, held, rushed ~100 ms, held.
+            static const float kEyRamp = param("LINE_EY_RAMP", 0.0f), kEyRampPow = param("LINE_EY_RAMP_POW", 1.0f),
+                               kEyRampSplit = param("LINE_EY_RAMP_SPLIT", 0.6f), kEyRampW = param("LINE_EY_RAMP_W", 1.0f);
+            if ((eyStart || eyGlide) && kEyRamp > 1) {
+              TractShape s0, s1;
+              if (lineShapeOf(Ph::E, &s0) && lineShapeOf(Ph::I, &s1)) {
+                eyStartShape(&s0);
+                eyEndShape(&s1);
+                const int n = static_cast<int>(kEyRamp);
+                for (int q = 1; q < n; ++q) {
+                  const double x = static_cast<double>(q) / n;  // the diphthong's time
+                  const double u = eyStart ? x / kEyRampSplit : (x - kEyRampSplit) / (1.0 - kEyRampSplit);  // this part's
+                  if (u < 0 || u > 1) continue;
+                  const float frac = static_cast<float>(std::pow(x, static_cast<double>(kEyRampPow)));
+                  addShapeDemand(t0 + u * dur, t0 + u * dur, lineShapeMix(s0, s1, frac), tok.ph, ws * kShapeGlideW * kEyRampW);
+                }
+              }
+            }
           } else if (!rColoured) {
             // A phrase-initial j or l: the tongue in its place before the voice
             // (2026-11-04: the j's F2 rose from the pause's ə, 1550 Hz, and
