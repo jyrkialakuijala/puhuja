@@ -1007,7 +1007,7 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
         // ... and f's on top of EN_VFRIC_LEN (EN_F_LEN; Jyrki 2026-11-06: the f of "forms" "slightly artificial": Kokoro's
         // 160 ms against puhuja's 94, with the l's voice tailing into it and a flat spectrum to 8 kHz).
         // Only an f starting a stressed syllable: Kokoro's typical f is short and dark, its stressed one long and bright.
-        static const float fLen = param("EN_F_LEN", 1.5f), fLenUnstr = param("EN_F_LEN_UNSTR", 1.5f);
+        static const float fLen = param("EN_F_LEN", 1.15f), fLenUnstr = param("EN_F_LEN_UNSTR", 0.75f);
         if (b == "F") {
           size_t v = i + 1;
           while (v < tok.size() && !isVowelToken(tok[v])) ++v;
