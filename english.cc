@@ -876,6 +876,13 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
           whole *= kStopRLen;
         }
         if (isNasal(b) && wordInitial && vowelAfter) whole *= kOnsetNasalLength;  // (EN_NASAL_ONSET_LEN)
+        // A word-final voiceless stop linked to a vowel-initial next word ("not out" as "no-tout"): x EN_LINK_STOP_LEN.
+        // Jyrki 2026-11-10: "plan for 'notout' with a little longer t".
+        if (wordFinal && vowelBefore && isVoicelessPlosive(b) && w + 1 < phrase_.size() && !phrase_[w + 1].tokens.empty() &&
+            isVowelToken(phrase_[w + 1].tokens.front())) {
+          static const float kLinkStopLen = param("EN_LINK_STOP_LEN", 1.3f);
+          whole *= kLinkStopLen;
+        }
         if (b == "L" && !clusterOnset) {
           if (wordInitial && vowelAfter) whole *= kOnsetLLength;
           else if (wordFinal && vowelBefore && !phraseFinal) whole *= kCodaLLength;
@@ -2297,6 +2304,15 @@ void EnglishReader::sayPhrase(char end) {
       anticipate = !fitsToEnd && !reachesNext && air <= kCommaBreathBelow;
     }
     if (phrase_[w].repeat == 2) pause(kRepeatPauseStops);  // "help them | help themselves"
+    // A word-final voiceless stop before a vowel-initial word ("not | out"): a short pause (EN_STOP_VOWEL_PAUSE_STOPS,
+    // ~15 ms each; 0: none), so the stop is released as a final one (the breath eased, LINE_FINAL_PRESS_*) and the vowel
+    // starts afresh. Jyrki 2026-11-10: "between 'Not' and 'out' open the mouth and neutralize pressure in the lungs".
+    {
+      static const int kStopVowelPause = static_cast<int>(param("EN_STOP_VOWEL_PAUSE_STOPS", 0));
+      if (kStopVowelPause > 0 && w > 0 && !phrase_[w].tokens.empty() && !phrase_[w - 1].tokens.empty() &&
+          isVowelToken(phrase_[w].tokens.front()) && isVoicelessPlosive(baseName(phrase_[w - 1].tokens.back())))
+        pause(kStopVowelPause);
+    }
     // A word-final fricative straight into a word-initial h ("of half"): a short pause between them
     // (EN_FRIC_H_PAUSE_STOPS, ~15 ms each; 0: none). Jyrki 2026-11-10: "changing directly from f to h creates an
     // unnecessary event of sound color change activity".
