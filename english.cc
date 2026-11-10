@@ -796,11 +796,15 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
           // (EN_PRE_ZH_VOWEL: before a ʒ the vowel x this instead of 1.4; "television", "decision": the stressed ɪ ran
           // 240-310 ms against a 50 ms ʒ, Jyrki 2026-11-09: "the vi could be shorter, the ci could be shorter")
           static const float kPreZhVowel = param("EN_PRE_ZH_VOWEL", 0.5f);
+          // (EN_AA_PRE_VLESS: the ɑ before a voiceless plosive x this instead of 0.75; 2026-11-10 AA agent: "not, got, hot, stop")
+          static const float kAaPreVless = param("EN_AA_PRE_VLESS", 0.75f);
           prc *= n == "ZH" ? kPreZhVowel : isVoicedFricative(n) ? 1.4f : isVoicedPlosive(n) ? 1.2f
-               : isNasal(n) ? 0.9f : isVoicelessPlosive(n) ? 0.75f : 1.0f;
+               : isNasal(n) ? 0.9f : isVoicelessPlosive(n) ? (b == "AA" ? kAaPreVless : 0.75f) : 1.0f;
         }
         // The ʊ's own length (EN_UH_LEN; 2026-11-09 UH agent: in isolated words puhuja's ʊ ran 220-260 ms, Kokoro's 150-280).
         { static const float kUhLen = param("EN_UH_LEN", 1.0f); if (b == "UH") whole *= kUhLen; }
+        // The ɑ's own length (EN_AA_LEN; 2026-11-10 AA agent: a short ɑ is heard as ʌ / ə).
+        { static const float kAaLen = param("EN_AA_LEN", 1.4f); if (b == "AA") whole *= kAaLen; }
       } else {
         if (i > 0) prc *= 0.85f;  // not word-initial
         const bool consBefore = i > 0 && !isVowelToken(tok[i - 1]);
@@ -904,6 +908,17 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
         static const float kFinalThLen = param("EN_FINAL_TH_LEN", 1.0f);
         whole *= kFinalThLen;
       }
+      // ... and a phrase-final p x this (EN_FINAL_P_LEN, lab knob 2026-11-10, P agent: final p 50 % errors; 1: as before).
+      if (phraseFinal && !vowel && i > 0 && i > static_cast<size_t>(lastVowel) && b == "P" && i + 1 == tok.size()) {
+        static const float kFinalPLen = param("EN_FINAL_P_LEN", 1.0f);
+        whole *= kFinalPLen;
+      }
+      // ... and a phrase-final d after a vowel ("Bad.", "Good."; EN_FINAL_D_LEN, lab knob 2026-11-10, D agent): 47 ms here,
+      // Kokoro's closure 12-22 ms with a soft release (1: as before).
+      if (phraseFinal && !vowel && i > 0 && i > static_cast<size_t>(lastVowel) && b == "D" && i + 1 == tok.size()) {
+        static const float kFinalDLen = param("EN_FINAL_D_LEN", 1.0f);
+        whole *= kFinalDLen;
+      }
       // A phrase-final v after a vowel ("Have."): 50 ms, Kokoro holds ~150-200
       // of fading voiced frication (2026-11-04, EN_FINAL_V_LEN; 1 = today's).
       if (phraseFinal && !vowel && i > static_cast<size_t>(lastVowel) && b == "V") {
@@ -959,10 +974,12 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
         static const float vfricLen = param("EN_VFRIC_LEN", 1.4f) /* cost Whisper 898 composite 24.95/28.30 95d-all3 */, vstopLen = param("EN_VSTOP_LEN", 1.3f);
         if (b == "S" || b == "SH" || b == "F" || b == "TH") whole *= vfricLen;
         else if (isVoicelessPlosive(b)) whole *= vstopLen;
+        else if (b == "D") { static const float kDLen = param("EN_D_LEN", 1.0f); whole *= kDLen; }  // (lab knob 2026-11-10, D agent)
         // ... and the dentals on top (EN_TH_LEN): puhuja's initial θ ran 90-115 ms against Kokoro's 55-65 (its s 130
         // against 70-80), as long and as loud as an s, and the dictionary hears 68 % of θ as s or z (2026-11-09).
         { static const float kZhLen = param("EN_ZH_LEN", 2.0f); if (b == "ZH") whole *= kZhLen; }
-        { static const float kVLen = param("EN_V_LEN", 1.8f); if (b == "V") whole *= kVLen; }  // the v's own length (lab 2026-11-09; 1: unchanged)  // the ʒ's own length (2026-11-09: 50 ms against Kokoro's ~100)
+        { static const float kVLen = param("EN_V_LEN", 1.8f); if (b == "V") whole *= kVLen; }
+        { static const float kPLen = param("EN_P_LEN", 1.0f); if (b == "P") whole *= kPLen; }  // the p's own length (P lab 2026-11-10; 1: unchanged)  // the v's own length (lab 2026-11-09; 1: unchanged)  // the ʒ's own length (2026-11-09: 50 ms against Kokoro's ~100)
         { static const float kThLen = param("EN_TH_LEN", 0.6f), kDhLen = param("EN_DH_LEN", 0.7f); if (b == "TH") whole *= kThLen; else if (b == "DH") whole *= kDhLen; }  // (ð separately: shortened with the θ it lost, 2026-11-09)
         // ... and h's (EN_H_LEN; Jyrki 2026-11-06: "hand of God" sounds too close to "land of God", make h here
         // more clear -- consider noise shaping, making it longer, or slightly stronger). Kokoro's h runs ~60 ms
@@ -996,7 +1013,7 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
       // "r in 'revolution' should be stronger ... longer or louder or more
       // active -- I don't know what I need".
       if (!vowel && baseName(tok[i]) == "R" && i + 1 < tok.size() && isVowelToken(tok[i + 1])) {
-        static const float kOnsetRMinMs = param("EN_ONSET_R_MIN_MS", 60.0f);
+        static const float kOnsetRMinMs = param("EN_ONSET_R_MIN_MS", 90.0f);
         if (kOnsetRMinMs > 0) out[w][i] = std::max(out[w][i], kOnsetRMinMs);
       }
     }
