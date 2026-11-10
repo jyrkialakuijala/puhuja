@@ -928,7 +928,7 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
       }
       // ... and a phrase-final p x this (EN_FINAL_P_LEN, lab knob 2026-11-10, P agent: final p 50 % errors; 1: as before).
       if (phraseFinal && !vowel && i > 0 && i > static_cast<size_t>(lastVowel) && b == "P" && i + 1 == tok.size()) {
-        static const float kFinalPLen = param("EN_FINAL_P_LEN", 1.0f);
+        static const float kFinalPLen = param("EN_FINAL_P_LEN", 1.6f);
         whole *= kFinalPLen;
       }
       // ... and a phrase-final d after a vowel ("Bad.", "Good."; EN_FINAL_D_LEN, lab knob 2026-11-10, D agent): 47 ms here,
