@@ -601,12 +601,23 @@ constexpr float kPhraseVariation = 0.5f;     // +- deterministic variation of ac
 const char* const kEmphatic[] = {"every", "only", "never", "all", "not", "no", "nothing", "none",
                                  "always", "first", "most", "very", "must", "don't", "can't", "cannot"};
 constexpr float kEmphasisBoost = 2.0f;   // st
+// Loaded, frightening words ("a far more iron tyranny"): EN_EMOTIVE 1 accents them like the emphatic words;
+// EN_EMOTIVE_DB / EN_EMOTIVE_LEN / EN_EMOTIVE_PITCH (st) make them louder, slower, darker (Jyrki 2026-11-10: the
+// raised pitch alone sounded "like question for a recipe for a cake").
+bool isEmotiveWord(const std::string& t) {
+  static const char* const kWords[] = {"iron", "tyranny", "brutal", "terror", "evil", "deadly", "destruction",
+                                       "slaughter", "oppression", "savage", "cruel", "doom", "annihilation"};
+  for (const char* e : kWords)
+    if (t == e) return true;
+  return false;
+}
 // A content word repeated within this many words: the first +kRepeatRise
 // st, the second at least kRepeatSecondAbove above it, falling kRepeatFall
 // within its vowel, after a pause of kRepeatPauseStops (~15 ms each).
 constexpr size_t kRepeatWithin = 5;
-constexpr float kRepeatRise = 2.0f, kRepeatSecondAbove = 1.0f, kRepeatFall = 3.0f;
-constexpr int kRepeatPauseStops = 3;
+const float kRepeatRise = param("EN_REPEAT_RISE", 2.0f), kRepeatSecondAbove = param("EN_REPEAT_ABOVE", 1.0f), kRepeatFall = param("EN_REPEAT_FALL", 3.0f);
+const int kRepeatPauseStops = static_cast<int>(param("EN_REPEAT_PAUSE_STOPS", 3));  // Jyrki 2026-11-10: "to help them help themselves" confusing
+const float kRepeatSecondLen = param("EN_REPEAT_LEN", 1.0f);  // the repeated word's length x this
 constexpr float kQuoteLift = 1.0f;       // st: quoted speech
 constexpr float kEmphaticFloor = 0.8f;   // share of the first accent's height emphasis words reach
 constexpr float kLetScale = 0.8f;        // phrase-initial imperative "let"
@@ -1003,6 +1014,8 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
       const float r = rate_ / kDefaultRate;
       const float rateDiv = kDefaultRate * (vowel ? r : std::sqrt(r));
       out[w][i] = (mn + (k.inh - mn) * prc) * whole * kEnglishTempo * structure / rateDiv;
+      if (phrase_[w].repeat == 2) out[w][i] *= kRepeatSecondLen;  // (EN_REPEAT_LEN)
+      { static const float kEmoLen = param("EN_EMOTIVE_LEN", 1.25f); if (kEmoLen != 1.0f && isEmotiveWord(phrase_[w].text)) out[w][i] *= kEmoLen; }
       // The breath plan's tempo for this word (planBreaths), as the rate.
       const float g = w < wordTempo_.size() ? wordTempo_[w] : 1.0f;
       if (g != 1.0f) out[w][i] /= vowel ? g : std::sqrt(g);
@@ -2014,6 +2027,12 @@ void EnglishReader::sayPhrase(char end) {
       float scale = 1.0f;
       bool emphatic = phrase_[w].contrast;
       for (const char* e : kEmphatic) emphatic = emphatic || text == e;
+      // Loaded, frightening words carry emphasis already as modifiers ("a far more iron tyranny": "iron" is not the
+      // metal; Jyrki 2026-11-10: "it cannot be read without some emphasis already on 'iron'"). EN_EMOTIVE 1: on.
+      {
+        static const float kEmotive = param("EN_EMOTIVE", 0.0f);
+        if (kEmotive > 0 && isEmotiveWord(text)) emphatic = true;
+      }
       if (!parallel && repeats == 0 && std::find(recent_.begin(), recent_.end(), text) != recent_.end())
         scale *= kGivenScale;
       if (w + 1 < phrase_.size() && phrase_[w + 1].accent && static_cast<int>(k) != lastAccent)
@@ -2034,9 +2053,18 @@ void EnglishReader::sayPhrase(char end) {
       // A repeated word: the first rises, the second starts above it and falls.
       if (phrase_[w].repeat == 1) p += kRepeatRise;
       if (phrase_[w].repeat == 2) {
-        p = std::max(p, wordPitch[phrase_[w].repeatOf] + kRepeatSecondAbove);
-        syl[k].end = p - kRepeatFall;
+        // EN_REPEAT_LEVEL > 0: the whole second word sits this many semitones above the first one's level, held flat
+        // (Jyrki 2026-11-10: "the whole 2nd 'help' could be a whole tone higher ... instead of just the beginning").
+        static const float kRepeatLevel = param("EN_REPEAT_LEVEL", 0.0f);
+        if (kRepeatLevel > 0) {
+          p = wordPitch[phrase_[w].repeatOf] + kRepeatLevel;
+          syl[k].end = p;
+        } else {
+          p = std::max(p, wordPitch[phrase_[w].repeatOf] + kRepeatSecondAbove);
+          syl[k].end = p - kRepeatFall;
+        }
       }
+      { static const float kEmoPitch = param("EN_EMOTIVE_PITCH", -2.0f); if (kEmoPitch != 0 && isEmotiveWord(text)) p += kEmoPitch; }
       wordPitch[w] = p;
       accentHeight = std::max(accentHeight * kDownstep, kMinAccent);
     } else if (k > 0 && syl[k - 1].accent) {
@@ -2074,6 +2102,30 @@ void EnglishReader::sayPhrase(char end) {
       const float f = static_cast<float>(k - ka) / static_cast<float>(kb - ka);
       const float line = syl[ka].pitch + f * (syl[kb].pitch - syl[ka].pitch);
       syl[k].pitch = line - sag * std::sin(static_cast<float>(M_PI) * f);
+    }
+  }
+  // EN_REPEAT_WHOLE 1: every syllable of a repeated word (repeat 2) sits flat on the EN_REPEAT_LEVEL pedestal, not
+  // only its stressed one (Jyrki 2026-11-10: "try it with a much longer word, let me listen if the whole word needs
+  // to [be] higher").
+  {
+    static const float kRepeatWhole = param("EN_REPEAT_WHOLE", 0.0f), kRepeatLevelW = param("EN_REPEAT_LEVEL", 0.0f);
+    // EN_REPEAT_FIRST_FALL > 0: the first word glides down this many semitones over its syllables, from its accent
+    // pitch (Jyrki 2026-11-10: "the first repeating word could have a pitch that lowers by a semitone or so, and the
+    // second time ... remain flat"); the second sits flat at the first's start + EN_REPEAT_LEVEL (may be 0).
+    static const float kRepeatFirstFall = param("EN_REPEAT_FIRST_FALL", 0.0f);
+    if (kRepeatWhole > 0 && (kRepeatLevelW > 0 || kRepeatFirstFall > 0)) {
+      for (size_t i = 0; i < syl.size(); ++i) {
+        Syl& s2 = syl[i];
+        if (phrase_[s2.word].repeat == 2) { s2.pitch = wordPitch[phrase_[s2.word].repeatOf] + kRepeatLevelW; s2.end = s2.pitch; }
+        else if (phrase_[s2.word].repeat == 1 && kRepeatFirstFall > 0) {
+          size_t a0 = i, n = 0;
+          while (a0 > 0 && syl[a0 - 1].word == s2.word) --a0;
+          for (size_t j = a0; j < syl.size() && syl[j].word == s2.word; ++j) ++n;
+          const float p0 = wordPitch[s2.word], k0 = static_cast<float>(i - a0);
+          s2.pitch = p0 - kRepeatFirstFall * k0 / n;
+          s2.end = p0 - kRepeatFirstFall * (k0 + 1) / n;
+        } else if (phrase_[s2.word].repeat == 1 && !s2.accent) { s2.pitch += kRepeatRise; if (s2.end != Synth::kNoPitch) s2.end += kRepeatRise; }  // the first word moves as a whole too
+      }
     }
   }
   // Phrase ending: from the last accent the pitch moves to the end target.
@@ -2434,6 +2486,7 @@ void EnglishReader::sayPhrase(char end) {
           if (sentenceEnd_ && lastEnd_ == '!') db += kExclaimDb;
           if (phrase_[w].accent && vn[strlen(vn) - 1] == '1') db += kAccentDb;
           else if (!phrase_[w].accent) db += kFunctionWordDb;
+          { static const float kEmoDb = param("EN_EMOTIVE_DB", 1.5f); if (kEmoDb != 0 && isEmotiveWord(phrase_[w].text)) db += kEmoDb; }
           // Secondary stress is a step down from the primary, not its equal:
           // Kokoro's "robot", "habitat", "antibody" end 5-15 dB under their
           // first syllable; here the last third was the loudest (2026-11-02).

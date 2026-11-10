@@ -4327,7 +4327,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
       if (!tok.wordStart) rel.lineAspMul *= kLinePuffMedial;
       // A p before l ɹ w j (LINE_P_LIQ_VOT x the puff's hold, LINE_P_LIQ_ASP x its noise; lab knobs 2026-11-10, P agent:
       // "price" -> "lice", "provide" -> "revived"; 1: as before).
-      static const float kLinePLiqVot = param("LINE_P_LIQ_VOT", 1.0f), kLinePLiqAsp = param("LINE_P_LIQ_ASP", 10.0f);
+      static const float kLinePLiqVot = param("LINE_P_LIQ_VOT", 1.0f), kLinePLiqAsp = param("LINE_P_LIQ_ASP", 3.0f);
       const bool pLiq = tok.ph == Ph::P && !isVowel(*next);
       if (pLiq) rel.lineAspMul *= kLinePLiqAsp;
       Event adductLine{release + (tok.ph == Ph::P && kLinePVotHoldMs >= 0 ? kLinePVotHoldMs : kLineVotHoldMs) * (curStress_ ? 1.0f : kLineVotHoldUnstressed) * (pLiq ? kLinePLiqVot : 1.0f) * ms};
