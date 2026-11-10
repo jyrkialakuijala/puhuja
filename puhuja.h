@@ -125,6 +125,8 @@ struct Event {
   float press = -1, pressMs = 0;
   float aspGain = -1;  // breath-noise strength from now on (< 0: unchanged)
   float lineAspMul = -1;  // the glottal noise gain factor on the line (a stop's puff; < 0: unchanged)
+  float lineGlotFc = -1;  // the glottal noise band's corner x this on the line (an h's breath colour, LINE_H_GFC; < 0: unchanged)
+  float lineHBreath = -1;  // an h's unthresholded breath gain on the line (x LINE_ASP; LINE_H_BREATH; < 0: unchanged)
   float linePuffLpr = -1;  // the glottal noise low-pass ratio on the line during a stop's puff (0: off; < 0: unchanged)
   float lineFricFade = -1;  // the frication source's fade-out areas x this (voiced fricatives; < 0: unchanged)
   float lineFricMul = -1;  // the slit noise gain factor on the line (v; < 0: unchanged)
@@ -549,6 +551,8 @@ class Synth {
   float lineFricFade_ = 1.0f;
   float lineFricMul_ = 1.0f;  // the slit noise gain factor (LINE_V_FRIC during a v)
   float thCarry_ = -1.0f;  // the θ's hiss gain carried into the next token / pause (LINE_TH_FRIC_CARRY; < 0: none)
+  bool lineHSpec_ = false;  // an h set its own breath colour / gain / press (LINE_H_GFC, LINE_H_BREATH, LINE_H_LPR, LINE_H_PRESS): the next sound resets them
+  float lineHBreath_ = 0;
   bool lineHAsp_ = false;  // a voiceless h set lineAspMul: the next sound resets it
   float lineLevel_ = 1.0f, lineLevelTarget_ = 1.0f;  // the prosodic level (shape.level) as a lung-pressure factor on the line
   float lineSoft_ = 1.0f, lineExtra_ = 0.0f, lineExpand_ = 0.0f;

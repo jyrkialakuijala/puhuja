@@ -593,6 +593,37 @@ const int kLineHVoicedCtx = param("LINE_H_VOICED_CTX", 2);
 // ... after a pause (LINE_H_VOICED_CTX 2) the folds start from the closed pause with the onset kick (LINE_ONSET_KICK_*)
 // and adduct to this glottal area (cm^2; < 0: the voiced h's 0.125, at which they did not start: the h was silent).
 const float kLineHPauseAg = param("LINE_H_PAUSE_AG", 0.37f) /* cost words1000 935/934 h-words 33/36 of 94 vs 30/28 pauseag30 */;
+// The h's breath on the line (HH agent, 2026-11-10). Against Kokoro (am_adam, af_heart; isolated words, the h's mean
+// spectrum re the word peak) puhuja's initial h is 10-25 dB weaker under 2 kHz and its 4.5-7 kHz hiss stands alone
+// (female "hope": -19.5 there, every other band -35..-45): Whisper hears f (h before ʌ 86 % errors, 69 of them f;
+// ɝ 72 %, eɪ 79 %, oʊ 38 %). Kokoro's h is the vowel's formants on a dark breath (bands 0.3-3 kHz -19..-30).
+// LINE_H_GFC: the glottal noise band's corner (Strouhal, St U / d) x this during an h (1: as every aspiration).
+const float kLineHGfc = param("LINE_H_GFC", 1.0f);
+// LINE_H_LPR: the glottal noise band's low-pass ratio during an h (0: LINE_GLOTTAL_LPR / LINE_NOISE_LPR).
+const float kLineHLpr = param("LINE_H_LPR", 0.0f);
+// LINE_H_BREATH: an unthresholded breath (the LINE_BREATH mechanism, x LINE_ASP, its band LINE_BREATH_FC) during an
+// h, whatever the glottis's width (0: off).
+const float kLineHBreath = param("LINE_H_BREATH", 0.0f);
+// LINE_H_PRESS: the lung pressure eases to (< 1) or rises to (> 1) this share through an h, back on the next sound (1: off).
+const float kLineHPress = param("LINE_H_PRESS", 1.0f);
+// LINE_H_PAUSE_KICK: the onset kick of an h after a pause (1; 0: the folds adduct to LINE_H_PAUSE_AG directly). The
+// kick is a voiced LF thump at the h's start (male "have": 0-1 kHz -22 dB re the vowel 15 ms before the breath).
+const float kLineHPauseKick = param("LINE_H_PAUSE_KICK", 1.0f);
+// LINE_H_VOWEL_AG_MS: how fast the folds adduct into the vowel after an h (ms; 0: LINE_ADDUCT_MS, 30). Kokoro's h runs
+// into the vowel as a breathy crescendo over ~30 ms; puhuja's vowel switched on in 10-15 ms.
+const float kLineHVowelAgMs = param("LINE_H_VOWEL_AG_MS", 0.0f);
+// LINE_H_LIP / LINE_H_AC: the h's tract (the next vowel's shape) with its lip opening / tongue constriction area x
+// this (1: the vowel's own); LINE_H_OPEN_MIX: the h's shape mixed this far toward the open a (0: off).
+const float kLineHLip = param("LINE_H_LIP", 1.0f), kLineHAc = param("LINE_H_AC", 1.0f), kLineHOpenMix = param("LINE_H_OPEN_MIX", 0.0f);
+// LINE_H_APH: the h's pharynx area x this (1: the vowel's own); LINE_H_GFC_F: the female voice's LINE_H_GFC x this
+// (her h's 4.5-7 kHz band stands 6-8 dB over the male's, -29 vs -37 re the word peak; Kokoro af_heart -36).
+const float kLineHAph = param("LINE_H_APH", 1.0f), kLineHGfcF = param("LINE_H_GFC_F", 1.0f);
+// In a sentence (Kennedy, koko-0006-m vs puhuja, 16 / 30 h's, the h's mean spectrum re the next vowel's peak) the
+// medial h is the other way round: puhuja -18.7 -18.8 -22.8 -29.5 -33.4 -36.0 -42.2 dB (0.1-0.3 ... 4.5-7 kHz),
+// Kokoro -15.1 -22.5 -27.1 -25.9 -25.9 -34.2 -40.5: too much voice under 1.2 kHz, 4-7 dB too little F2/F3 breath.
+// LINE_H_GFC_MED: LINE_H_GFC for an h not after a pause (< 0: LINE_H_GFC); LINE_H_PAUSE_ASP: the noise gain of an
+// h after a pause (< 0: LINE_VH_ASP, as the medial h's).
+const float kLineHGfcMed = param("LINE_H_GFC_MED", -1.0f), kLineHPauseAsp = param("LINE_H_PAUSE_ASP", -1.0f);
 // A phrase-initial b d g is prevoiced: the closure is formed in the pause and
 // the folds start to vibrate this long before the release (as a phrase-initial
 // nasal's lead). 0: off.
@@ -2648,6 +2679,13 @@ void Synth::emit(const Token& tok, const Ph* next) {
     {
       static const float kLineHTakesVowel = param("LINE_H_TAKES_VOWEL", 1.0f);
       if (!have && tok.ph == Ph::H && kLineHTakesVowel > 0 && next && isVowel(*next)) have = lineShapeOf(*next, &sh);
+      if (have && tok.ph == Ph::H) {  // (LINE_H_LIP, LINE_H_AC, LINE_H_OPEN_MIX)
+        TractShape a;
+        if (kLineHOpenMix > 0 && lineShapeOf(Ph::A, &a)) sh = lineShapeMix(sh, a, kLineHOpenMix);
+        if (kLineHLip != 1.0f) sh.aLip *= kLineHLip;
+        if (kLineHAc != 1.0f) sh.ac *= kLineHAc;
+        if (kLineHAph != 1.0f) sh.aPharynx *= kLineHAph;
+      }
     }
     // (only a word-initial r, after a pause or a vowel: in a cluster, "different",
     // the shape's pharyngeal narrowing glided in from the f as a chirp, F1
@@ -2892,6 +2930,13 @@ void Synth::emit(const Token& tok, const Ph* next) {
   if (lineHAsp_ && in.cls != Cls::H) {  // after a voiceless h: the noise gain back
     e.lineAspMul = 1.0f;
     lineHAsp_ = false;
+  }
+  if (lineHSpec_ && in.cls != Cls::H) {  // after an h with its own breath (LINE_H_GFC ...): back to the shared values
+    e.lineGlotFc = 1.0f;
+    if (kLineHBreath > 0) e.lineHBreath = 0.0f;
+    if (kLineHLpr > 0) e.linePuffLpr = 0.0f;
+    if (kLineHPress != 1.0f && e.press < 0) { e.press = 1.0f; e.pressMs = 20; }
+    lineHSpec_ = false;
   }
   e.creak = 0;  // a creak lasts until the next sound
   // After an aspirated release the glottis is already closing slowly into
@@ -3271,11 +3316,13 @@ void Synth::emit(const Token& tok, const Ph* next) {
         hp[kAV] *= tok.shape.level;
         addKeyframe(hp, t0 + kHVowelAt * dur);
         for (int k = 0; k < 3; ++k) p[kF1 + k] = hp[kF1 + k];
-        e.ac = kPalatalHAc;
+        // LINE_HJ_AC / LINE_HJ_LEVEL (HH agent 2026-11-10: h before j is 51 % wrong in the dictionary, 18 of 37 deleted).
+        static const float kLineHjAc = param("LINE_HJ_AC", kPalatalHAc), kLineHjLevel = param("LINE_HJ_LEVEL", kPalatalHLevel);
+        e.ac = tract_ == Tract::Line ? kLineHjAc : kPalatalHAc;
         e.setNoise = true;
         e.shape = kPalatalHShape;
         e.noiseGain = fricationGain_;
-        e.noisePost = tok.shape.level * kPalatalHLevel;
+        e.noisePost = tok.shape.level * (tract_ == Tract::Line ? kLineHjLevel : kPalatalHLevel);
         e.noiseTract = fricTract(Ph::SH).share;
         e.noiseTractGain = kBurstTractNorm[fricTract(Ph::SH).place];
       }
@@ -3286,7 +3333,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
         e.aspGain *= voicedHNoise_;
         if (tract_ == Tract::Line && prevWasPause_) {  // (LINE_H_VOICED_CTX 2: the kick starts the folds, as a phrase-initial vowel's)
           if (kLineHPauseAg >= 0) e.ag = kLineHPauseAg;
-          if (kLineOnsetKickAg > 0 && kLineOnsetKickMs > 0) {
+          if (kLineOnsetKickAg > 0 && kLineOnsetKickMs > 0 && kLineHPauseKick > 0) {
             Event kick{e.t};
             kick.ag = kLineOnsetKickAg;
             kick.agMs = kLineOnsetKickMs;
@@ -3307,12 +3354,24 @@ void Synth::emit(const Token& tok, const Ph* next) {
           e.lineAspMul = kLineVHAspMul;
           lineHAsp_ = true;
         }
+        if (tract_ == Tract::Line && prevWasPause_ && kLineHPauseAsp >= 0) {  // (LINE_H_PAUSE_ASP)
+          e.lineAspMul = kLineHPauseAsp;
+          lineHAsp_ = true;
+        }
       }
       if (tract_ == Tract::Line && !voicedH && !beforeJ) {
         e.ag = kLineHAg;
         e.agMs = kLineHRiseMs;
         e.lineAspMul = kLineHAspMul;
         lineHAsp_ = true;
+      }
+      const float hGfc = (prevWasPause_ || kLineHGfcMed < 0 ? kLineHGfc : kLineHGfcMed) * (female_ ? kLineHGfcF : 1.0f);
+      if (tract_ == Tract::Line && (hGfc != 1.0f || kLineHBreath > 0 || kLineHLpr > 0 || kLineHPress != 1.0f)) {
+        if (hGfc != 1.0f) e.lineGlotFc = hGfc;
+        if (kLineHBreath > 0) e.lineHBreath = kLineHBreath;
+        if (kLineHLpr > 0) e.linePuffLpr = kLineHLpr;
+        if (kLineHPress != 1.0f) { e.press = kLineHPress; e.pressMs = 20; }
+        lineHSpec_ = true;
       }
       break;
     }
@@ -3416,6 +3475,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // cm^3/s for the whole vowel, 10 dB under a vowel after a pause), while
     // the h -> vowel path, which ends breathy, voiced at once (2026-11-02).
     e.agMs = kLineAdductMs;
+    if (kLineHVowelAgMs > 0 && lastPh_ == Ph::H && isVowel(tok.ph)) e.agMs = kLineHVowelAgMs;  // (LINE_H_VOWEL_AG_MS; the h path lands here, 30 ms)
     if (kLineRestartMs > 0) {
       // ... or, what the string folds actually need: a moment pressed shut
       // first, as after a pause, from which they start within a cycle (the
@@ -4907,6 +4967,8 @@ float Synth::tick() {
       line_.setAspHp(e.lineAspHp, tAspPoles);
     }
     if (e.linePuffLpr >= 0) line_.setPuffLpRatio(e.linePuffLpr);
+    if (e.lineGlotFc >= 0) line_.setGlotFcScale(e.lineGlotFc);
+    if (e.lineHBreath >= 0) lineHBreath_ = e.lineHBreath;
     if (e.lineLip >= 0) lineLip_ = lineLipTarget_ = e.lineLip;
     planUsed_ += e.planAir;
     if (e.creak >= 0) creakTarget_ = e.creak;
@@ -5283,7 +5345,7 @@ float Synth::tick() {
     // LINE_BREATH (x LINE_ASP): the continuous breath of a lax voice, fading out as the glottis opens past the voicing range
     // (the thresholded aspiration takes over there).
     static const float kLineBreath = param("LINE_BREATH", 0.0f);
-    line_.setBreath(kLineBreath > 0 ? kLineBreath * kLineAsp * lineAspMul_ * (1.0f - smoothstep(kAgVoice, kAgBreathy, ag)) : 0.0f);
+    line_.setBreath(lineHBreath_ > 0 ? lineHBreath_ * kLineAsp : kLineBreath > 0 ? kLineBreath * kLineAsp * lineAspMul_ * (1.0f - smoothstep(kAgVoice, kAgBreathy, ag)) : 0.0f);  // (LINE_H_BREATH: an h's own)
     // The voiced closure's expansion (expand_ runs 1 -> kVoicedExpansion over
     // the closure and back after the release): as a sink flow, since the line
     // has no compliance knob. The folds stalled 10 ms into every b, d, g

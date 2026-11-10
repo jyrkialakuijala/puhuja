@@ -546,7 +546,7 @@ float VocalTractLine::substep(float u0) {
       *lp = 1.0f - std::exp(kM2PiL * std::min(std::max(lpr * fc, lpMin), 40000.0f) * dt_);
       return 1.0f - std::exp(kM2PiL * fc * dt_);
     };
-    stAlphaG_ = alphaOf(u0, glotArea_, kGlottisLength, &stLpG_, 0, 1, 1, puffLpr_ > 0 ? puffLpr_ : kGlottalLpRatio > 0 ? kGlottalLpRatio : kNoiseLpRatio, kGlottalLpMin, &stLogFcG_,
+    stAlphaG_ = alphaOf(u0, glotArea_, kGlottisLength, &stLpG_, 0, 1, glotSlitScale_, puffLpr_ > 0 ? puffLpr_ : kGlottalLpRatio > 0 ? kGlottalLpRatio : kNoiseLpRatio, kGlottalLpMin, &stLogFcG_,
                         kNoiseStSmoothGMs >= 0 ? kNoiseStSmoothGMs : kNoiseStSmoothMs, aspActive_, 0, 0);
     if (noiseK_ >= 0) stAlphaF_ = alphaOf(oral_.flowAt(noiseKc_), oral_.areaAt(noiseKc_), kSlitWidth, &stLpF_, jetD_, jetMix_, slitScale_, fricLpr_ > 0 ? fricLpr_ : kNoiseLpRatio, 0, &stLogFcF_,
                                          jetSmoothMs_ >= 0 ? jetSmoothMs_ : kNoiseStSmoothFMs >= 0 ? kNoiseStSmoothFMs : kNoiseStSmoothMs, fricActive_, jetFcMin_, jetFcMax_);

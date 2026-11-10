@@ -210,6 +210,7 @@ class VocalTractLine {
   // LINE_GLOTTAL_LPR / LINE_NOISE_LPR): the puff's hiss reaches 2-5 kHz while
   // an h keeps its darker band (2026-11-04).
   void setPuffLpRatio(float r) { puffLpr_ = r; }
+  void setGlotFcScale(float s) { glotSlitScale_ = s > 0 ? 1.0f / s : 1.0f; }  // the glottal noise band's corner x s (LINE_H_GFC)
   // The aspiration's high-pass corner from now on (Hz; 0: LINE_ASP_HP's), with
   // `poles` one-pole stages (0: LINE_ASP_HP_POLES): a t's own breath.
   void setAspHp(float hz, int poles);
@@ -250,6 +251,7 @@ class VocalTractLine {
   float jetD_ = 0, jetMix_ = 1, slitScale_ = 1, jetSmoothMs_ = -1, jetFcMin_ = 0, jetFcMax_ = 0;
   float fricLpr_ = 0;
   float puffLpr_ = 0;
+  float glotSlitScale_ = 1;  // (setGlotFcScale)
   float expandFlow_ = 0;
   float expandPc_ = 0;  // the cavity pressure the expansion sees, low-passed (LINE_EXPAND_LP)
   bool expandSlow_ = false;
