@@ -348,7 +348,7 @@ void VocalTractLine::init(float fs) {
     // The maxillary pair as two cavities, one LINE_SINUS1_SPLIT times the other's volume (0: one cavity for both).
     // Jyrki 2026-11-10: "make one sinus 12 % larger in volume than the other". Each half gets half the neck, so the
     // pair's mean resonance stays near the single cavity's and the two zeros part by sqrt(split).
-    static const float split = param("LINE_SINUS1_SPLIT", 0.0f);
+    static const float split = param("LINE_SINUS1_SPLIT", 1.12f);
     nasal_.clearSinuses();
     if (v1 > 0 && split > 0) {
       nasal_.addSinus(static_cast<int>(5.0f / nasal_.dx()), v1 * split / (1.0f + split), 0.5f * a1, l1, q);
