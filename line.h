@@ -162,9 +162,10 @@ class TransmissionLine {
   // lN into a volume v, opening at section k. Its flow is a sink there.
   struct Sinus { int k = -1; float m = 0, cInv = 0, r = 0, u = 0, p = 0, dtOverM = 0, invDen = 0; };  // dtOverM, invDen: per-substep factors, from m and r
   void addSinus(int k, float volume, float neckArea, float neckLength, float q);
+  void clearSinuses() { nSinus_ = 0; }  // (init runs more than once: without this the slots filled up and later sets were dropped)
   void sinusFlows();      // before substep: the neck flows from the old pressures
   void sinusPressures();  // after substep: the volumes and the sections move with them
-  Sinus sinus_[2]; int nSinus_ = 0;
+  Sinus sinus_[4]; int nSinus_ = 0;  // (4, not 3: the members after keep their 64-byte phase, the sound stays bit-exact)
 
  private:
   float lungDc_ = 0;  // the slow part of the lung-to-trachea pressure difference (driven through kLungR)

@@ -264,7 +264,7 @@ float VocalTractLine::noise() {
 }
 
 void TransmissionLine::addSinus(int k, float volume, float neckArea, float neckLength, float q) {
-  if (nSinus_ >= 2) return;
+  if (nSinus_ >= 4) return;
   Sinus& s = sinus_[nSinus_++];
   s.k = k;
   s.m = kRho * neckLength / neckArea;             // inertance of the neck
@@ -345,7 +345,17 @@ void VocalTractLine::init(float fs) {
     static const float v1 = param("LINE_SINUS1_V", 24.0f), a1 = param("LINE_SINUS1_A", 0.1f), l1 = param("LINE_SINUS1_L", 0.6f);
     static const float v2 = param("LINE_SINUS2_V", 4.0f), a2 = param("LINE_SINUS2_A", 0.1f), l2 = param("LINE_SINUS2_L", 0.5f);
     static const float q = param("LINE_SINUS_Q", 5.0f);
-    if (v1 > 0) nasal_.addSinus(static_cast<int>(5.0f / nasal_.dx()), v1, a1, l1, q);
+    // The maxillary pair as two cavities, one LINE_SINUS1_SPLIT times the other's volume (0: one cavity for both).
+    // Jyrki 2026-11-10: "make one sinus 12 % larger in volume than the other". Each half gets half the neck, so the
+    // pair's mean resonance stays near the single cavity's and the two zeros part by sqrt(split).
+    static const float split = param("LINE_SINUS1_SPLIT", 0.0f);
+    nasal_.clearSinuses();
+    if (v1 > 0 && split > 0) {
+      nasal_.addSinus(static_cast<int>(5.0f / nasal_.dx()), v1 * split / (1.0f + split), 0.5f * a1, l1, q);
+      nasal_.addSinus(static_cast<int>(5.0f / nasal_.dx()), v1 / (1.0f + split), 0.5f * a1, l1, q);
+    } else if (v1 > 0) {
+      nasal_.addSinus(static_cast<int>(5.0f / nasal_.dx()), v1, a1, l1, q);
+    }
     if (v2 > 0) nasal_.addSinus(static_cast<int>(7.0f / nasal_.dx()), v2, a2, l2, q);
   }
   velumK_ = static_cast<int>(0.55f * oral_.sections());
