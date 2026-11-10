@@ -404,14 +404,14 @@ const float kLineOwGlideFrom = param("LINE_OW_GLIDE_FROM", 0.1f);
 // "Day", "Make", "Name", "Take", "Say" stayed at ~470/1500 Hz through the whole
 // ɪ (Kokoro rises to 2100-2300), heard as ɛ or "nerd" (2026-11-04). From 10 %:
 // "Day" ends 368/2187, "Make" 363/2286 (Kokoro 361/2272); Whisper eɪ 10 -> 34 of 54.
-const float kLineEyGlideFrom = param("LINE_EY_GLIDE_FROM", 0.1f);
+const float kLineEyGlideFrom = param("LINE_EY_GLIDE_FROM", 0.85f);
 // The same for aɪ (a + ɪ) and aʊ (a + ʊ) (<0: SPLAN_GLIDE_END). From 80 %
 // "Time", "My", "Now", "How" stayed on the a (~650/1290 Hz) to the very end:
 // no glide at all (Kokoro "My" 580/1150 -> 390/2300, "Now" 600/1550 -> 370/870).
 // From 30 %: the a is held ~60 %, then "My" ends 428/1612, "Now" 431/1094
 // (from 10 %: earlier glide, 410/1640 and 420/1045, Whisper the same within
 // noise, aɪ heard more as eɪ/iː); Whisper aɪ 1 -> 11 of 26, aʊ 4 -> 6 of 26 (2026-11-04).
-const float kLineAyGlideFrom = param("LINE_AY_GLIDE_FROM", 0.3f);
+const float kLineAyGlideFrom = param("LINE_AY_GLIDE_FROM", 0.85f);
 const float kLineAwGlideFrom = param("LINE_AW_GLIDE_FROM", 0.35f) /* 0.3 until 2026-11-05: Jyrki chose the glide from the start (vdn-U) for "now"; 0 until 2026-11-08: with the ɔ end (LINE_AW_END_AO) the end is reached late, now-ao100g50 */;
 // The ʊ end of aʊ takes o's shape (row 3); this mixes u's shape (row 4) into
 // it (0 = o, 1 = u). With o, "Now", "How" ended at F2 ~1100-1160 Hz, Kokoro
@@ -461,7 +461,7 @@ const float kLinePauseRunOy = param("LINE_PAUSE_RUN_OY", 0.0f);
 // open back start and rises late (F2 1510 at 60 %, 1813 at 80 %; tools in ref/opt/lab/AY/agent2).
 // The a mixed toward the row LINE_AY_START_ROW (a Ph index: 14 ɑ, 12 ɔ, 13 ʌ) by LINE_AY_START_MIX (0: off), and its
 // pharynx and lip areas scaled, its tract lengthened (cm):
-const float kLineAyStartMix = param("LINE_AY_START_MIX", 0.0f);
+const float kLineAyStartMix = param("LINE_AY_START_MIX", 0.6f);
 const int kLineAyStartRow = static_cast<int>(param("LINE_AY_START_ROW", 14.0f));
 const float kLineAyAAph = param("LINE_AY_A_APH", 1.0f), kLineAyALip = param("LINE_AY_A_ALIP", 1.0f), kLineAyALen = param("LINE_AY_A_LEN", 0.0f);
 // The ɪ end mixed toward the row LINE_AY_END_ROW (2 i: closer and fronter; 10 ɛ, 1 e: less close) by LINE_AY_END_MIX.
@@ -469,14 +469,14 @@ const float kLineAyEndMix = param("LINE_AY_END_MIX", 0.0f);
 const int kLineAyEndRow = static_cast<int>(param("LINE_AY_END_ROW", 2.0f));
 // The a demanded until this share of it (< 0: SPLAN_GLIDE_START, 0.3), the ɪ until this share (< 0: 0.9), and the
 // weights of the two demands (x SPLAN_GLIDE_W).
-const float kLineAyHold = param("LINE_AY_HOLD", -1.0f), kLineAyGlideTo = param("LINE_AY_GLIDE_TO", -1.0f);
+const float kLineAyHold = param("LINE_AY_HOLD", 0.15f), kLineAyGlideTo = param("LINE_AY_GLIDE_TO", 1.0f);
 const float kLineAyAW = param("LINE_AY_A_W", 1.0f), kLineAyIW = param("LINE_AY_I_W", 1.0f);
 const float kLineAyPreMs = param("LINE_AY_PRE_MS", 0.0f), kLineAyStopLeadMs = param("LINE_AY_STOP_LEAD_MS", 0.0f);
 // The a's tongue place and area count in the plan at least this much (the planner's placeFloor; 0: by the bump's
 // strength, which leaves the open a's place free) and the ɪ end's lip area x LINE_AY_END_ALIP (> 1: spread).
 const float kLineAyPlaceFloor = param("LINE_AY_PLACE_FLOOR", 0.0f), kLineAyEndALip = param("LINE_AY_END_ALIP", 1.0f);
 // A lazy whole-vowel glide (see its use): the number of points (0: off), the progress exponent, the a's share, weight.
-const float kLineAyRamp = param("LINE_AY_RAMP", 0.0f), kLineAyRampPow = param("LINE_AY_RAMP_POW", 1.0f);
+const float kLineAyRamp = param("LINE_AY_RAMP", 12.0f), kLineAyRampPow = param("LINE_AY_RAMP_POW", 2.0f);
 const float kLineAyRampSplit = param("LINE_AY_RAMP_SPLIT", 0.6f), kLineAyRampW = param("LINE_AY_RAMP_W", 1.0f);
 const float kLineVotAdductMs = param("LINE_VOT_ADDUCT_MS", 20.0f);  // ... then adducting into voice over this
 const float kLineExpandFlow = param("LINE_EXPAND_FLOW", 200.0f);  // cm^3/s drawn by the expanding cavity at full expansion behind a voiced closure
@@ -2460,7 +2460,7 @@ void eyStartShape(TractShape* sh) {
 void eyEndShape(TractShape* sh) {
   static const float kEyOffDx = param("LINE_EY_OFF_DX", 0.0f), kEyOffAc = param("LINE_EY_OFF_AC", 1.0f),
                      kEyOffLip = param("LINE_EY_OFF_LIP", 1.0f), kEyOffAph = param("LINE_EY_OFF_APH", 1.0f),
-                     kEyOffWc = param("LINE_EY_OFF_WC", 1.0f), kEyOffIh = param("LINE_EY_OFF_IH", 0.0f);
+                     kEyOffWc = param("LINE_EY_OFF_WC", 1.0f), kEyOffIh = param("LINE_EY_OFF_IH", 0.7f);
   TractShape ih;
   if (kEyOffIh > 0 && lineShapeOf(Ph::IH, &ih)) *sh = lineShapeMix(*sh, ih, kEyOffIh);
   if (kEyOffWc != 1.0f) sh->wc *= kEyOffWc;
@@ -2957,9 +2957,9 @@ void Synth::emit(const Token& tok, const Ph* next) {
             // length (else 0.9; > 1 runs into the next sound), its weight x LINE_EY_GLIDE_W; the tongue place's least weight in
             // the e and the ɪ demands (LINE_EY_E_PLACE_W, LINE_EY_PLACE_W; the ɪ's place weighs only 0.14, its 2 cm^2 opening
             // counting as half open).
-            static const float kEyHoldTo = param("LINE_EY_HOLD_TO", -1.0f), kEyGlideTo = param("LINE_EY_GLIDE_TO", -1.0f),
+            static const float kEyHoldTo = param("LINE_EY_HOLD_TO", 0.15f), kEyGlideTo = param("LINE_EY_GLIDE_TO", 1.0f),
                                kEyGlideW = param("LINE_EY_GLIDE_W", 1.0f), kEyPlaceW = param("LINE_EY_PLACE_W", 0.0f),
-                               kEyEPlaceW = param("LINE_EY_E_PLACE_W", 0.0f), kEyEFrom = param("LINE_EY_E_FROM", -1.0f);
+                               kEyEPlaceW = param("LINE_EY_E_PLACE_W", 0.0f), kEyEFrom = param("LINE_EY_E_FROM", 0.0f);
             const bool eyStart = chainStart && tok.ph == Ph::E && *next == Ph::IH;
             const double a = owGlide ? kLineOwGlideFrom : eyGlide ? kLineEyGlideFrom :
                              ayGlide ? kLineAyGlideFrom : awGlide ? kLineAwGlideFrom :
@@ -3001,7 +3001,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
             // e taken as LINE_EY_RAMP_SPLIT of it), weight x LINE_EY_RAMP_W. Jyrki 2026-11-10: "the planning module cannot
             // make a good formant run for a single word sentence like 'Day.' but makes a very rapid formant change";
             // Kokoro's "Day." F2 rises steadily 1590 -> 2370 over ~350 ms, puhuja's dipped, held, rushed ~100 ms, held.
-            static const float kEyRamp = param("LINE_EY_RAMP", 0.0f), kEyRampPow = param("LINE_EY_RAMP_POW", 1.0f),
+            static const float kEyRamp = param("LINE_EY_RAMP", 8.0f), kEyRampPow = param("LINE_EY_RAMP_POW", 1.5f),
                                kEyRampSplit = param("LINE_EY_RAMP_SPLIT", 0.6f), kEyRampW = param("LINE_EY_RAMP_W", 1.0f);
             if ((eyStart || eyGlide) && kEyRamp > 1) {
               TractShape s0, s1;
