@@ -598,7 +598,7 @@ const float kLineHPauseAg = param("LINE_H_PAUSE_AG", 0.37f) /* cost words1000 93
 // (female "hope": -19.5 there, every other band -35..-45): Whisper hears f (h before ʌ 86 % errors, 69 of them f;
 // ɝ 72 %, eɪ 79 %, oʊ 38 %). Kokoro's h is the vowel's formants on a dark breath (bands 0.3-3 kHz -19..-30).
 // LINE_H_GFC: the glottal noise band's corner (Strouhal, St U / d) x this during an h (1: as every aspiration).
-const float kLineHGfc = param("LINE_H_GFC", 1.0f);
+const float kLineHGfc = param("LINE_H_GFC", 0.4f);
 // LINE_H_LPR: the glottal noise band's low-pass ratio during an h (0: LINE_GLOTTAL_LPR / LINE_NOISE_LPR).
 const float kLineHLpr = param("LINE_H_LPR", 0.0f);
 // LINE_H_BREATH: an unthresholded breath (the LINE_BREATH mechanism, x LINE_ASP, its band LINE_BREATH_FC) during an
@@ -608,13 +608,13 @@ const float kLineHBreath = param("LINE_H_BREATH", 0.0f);
 const float kLineHPress = param("LINE_H_PRESS", 1.0f);
 // LINE_H_PAUSE_KICK: the onset kick of an h after a pause (1; 0: the folds adduct to LINE_H_PAUSE_AG directly). The
 // kick is a voiced LF thump at the h's start (male "have": 0-1 kHz -22 dB re the vowel 15 ms before the breath).
-const float kLineHPauseKick = param("LINE_H_PAUSE_KICK", 1.0f);
+const float kLineHPauseKick = param("LINE_H_PAUSE_KICK", 0.0f);
 // LINE_H_VOWEL_AG_MS: how fast the folds adduct into the vowel after an h (ms; 0: LINE_ADDUCT_MS, 30). Kokoro's h runs
 // into the vowel as a breathy crescendo over ~30 ms; puhuja's vowel switched on in 10-15 ms.
 const float kLineHVowelAgMs = param("LINE_H_VOWEL_AG_MS", 0.0f);
 // LINE_H_LIP / LINE_H_AC: the h's tract (the next vowel's shape) with its lip opening / tongue constriction area x
 // this (1: the vowel's own); LINE_H_OPEN_MIX: the h's shape mixed this far toward the open a (0: off).
-const float kLineHLip = param("LINE_H_LIP", 1.0f), kLineHAc = param("LINE_H_AC", 1.0f), kLineHOpenMix = param("LINE_H_OPEN_MIX", 0.0f);
+const float kLineHLip = param("LINE_H_LIP", 1.0f), kLineHAc = param("LINE_H_AC", 1.0f), kLineHOpenMix = param("LINE_H_OPEN_MIX", 0.4f);
 // LINE_H_APH: the h's pharynx area x this (1: the vowel's own); LINE_H_GFC_F: the female voice's LINE_H_GFC x this
 // (her h's 4.5-7 kHz band stands 6-8 dB over the male's, -29 vs -37 re the word peak; Kokoro af_heart -36).
 const float kLineHAph = param("LINE_H_APH", 1.0f), kLineHGfcF = param("LINE_H_GFC_F", 1.0f);
