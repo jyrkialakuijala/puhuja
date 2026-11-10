@@ -346,6 +346,22 @@ class Synth {
   };
   std::vector<Label> labels() const;
 
+  // The articulation of the rendered audio (the line tract only), for animation and analysis: every frameMs
+  // a snapshot of what the tract does. t: seconds from the first output sample (as labels()); f0 (Hz);
+  // glottis: the glottal opening (cm^2; ~0 voicing, 0.1-0.3 breathy / voiceless, 0.6 the open h and puffs);
+  // velum: the velopharyngeal port (cm^2; ~0 shut, nasals open); place: the consonant constriction's place
+  // (share of the tract length from the glottis; < 0 none) and constriction: its area (cm^2; 0 closed, >= 1
+  // none); length: the oral tract (cm); areas: the oral area function (cm^2), glottis to lips, sections of
+  // length/areas.size() -- the tongue's shape is in it and the lips' opening is its last sections.
+  // Call recordArticulation before synthesising; complete after finish() and pulling all audio.
+  struct ArticulationFrame {
+    double t;
+    float f0, glottis, velum, place, constriction, length;
+    std::vector<float> areas;
+  };
+  void recordArticulation(float frameMs) { artFrameMs_ = frameMs; }
+  std::vector<ArticulationFrame> articulation() const;
+
  private:
   struct Token {
     Ph ph;
@@ -462,6 +478,7 @@ class Synth {
   bool prevVoiced_ = false;
   int prevVoicedObstruent_ = 0;  // the previous phone was a voiced fricative (1) or plosive (2) (LINE_GD_VOICED_CTX)
   bool inAffricate_ = false;  // emitting the frication part of ʧ / ʤ
+  bool closurePressEased_ = false;  // LINE_CLOSURE_PRESS eased the breath for the current closure
   double phonemeStart_ = 0;   // where the previous phoneme started (samples)
   // Once the input uses stress marks, they decide the raised syllables
   // instead of the Finnish first-syllable rule.
@@ -520,6 +537,9 @@ class Synth {
   FormantMotion motion_ = FormantMotion::Damped;
   Tract tract_ = Tract::Line;
   VocalTractLine line_;        // the line tract (Tract::Line)
+  float artFrameMs_ = 0;       // recordArticulation: the frame (ms; 0: off)
+  double artNext_ = 0;         // the next frame's time (samples, t_)
+  std::vector<ArticulationFrame> art_;  // t in samples (t_) until articulation() converts it
   float lineX_ = 0.86f, lineXTarget_ = 0.86f;  // the constriction's place, smoothed
   Event pendingAspEnd_{0};  // a stop's puff: its hiss ends once the folds have closed
   bool hasPendingAspEnd_ = false;

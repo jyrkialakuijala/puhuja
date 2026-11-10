@@ -25,3 +25,7 @@ test: puhuja
 # How close the string folds' glottal airflow is to the LF model in relaxed speech (a report).
 lftest: puhuja
 	python3 -I tools/test_lf.py
+
+# Snappiness of the transients at the places in tests/snaps.tsv (tools/snap.py; Jyrki 2026-11-10).
+snaptest: puhuja
+	tools/venv/bin/python -I tools/snap.py --check

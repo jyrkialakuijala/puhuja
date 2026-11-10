@@ -1106,7 +1106,10 @@ bool isNoSplitAfter(const std::string& w) {
 void EnglishReader::addWord(const std::string& raw) {
   size_t a = raw.find_first_not_of('\''), b = raw.find_last_not_of('\'');
   if (a == std::string::npos) return;
-  const std::string w = raw.substr(a, b - a + 1);
+  std::string w = raw.substr(a, b - a + 1);
+  // Respellings: "puhuja" is read as "puhuyah" (Jyrki 2026-11-10: "Puhuja will be pronounced better if puhuja tries to
+  // pronounce 'puhuyah'"; the letter rules gave P UW1 HH UW2 Y AH0).
+  if (w == "puhuja") w = "puhuyah";
   std::vector<uint8_t> t = pronounce(w);
   // Long phrases are split at a seam (before a conjunction, a relative word
   // or a preposition) once they have kSplitSyllables syllables, and at
@@ -2294,6 +2297,17 @@ void EnglishReader::sayPhrase(char end) {
       anticipate = !fitsToEnd && !reachesNext && air <= kCommaBreathBelow;
     }
     if (phrase_[w].repeat == 2) pause(kRepeatPauseStops);  // "help them | help themselves"
+    // A word-final fricative straight into a word-initial h ("of half"): a short pause between them
+    // (EN_FRIC_H_PAUSE_STOPS, ~15 ms each; 0: none). Jyrki 2026-11-10: "changing directly from f to h creates an
+    // unnecessary event of sound color change activity".
+    {
+      static const int kFricHPause = static_cast<int>(param("EN_FRIC_H_PAUSE_STOPS", 0));
+      if (kFricHPause > 0 && w > 0 && !phrase_[w].tokens.empty() && !phrase_[w - 1].tokens.empty() &&
+          baseName(phrase_[w].tokens.front()) == "HH") {
+        const std::string f = baseName(phrase_[w - 1].tokens.back());
+        if (f == "F" || f == "V" || f == "S" || f == "Z" || f == "SH" || f == "ZH" || f == "TH" || f == "DH") pause(kFricHPause);
+      }
+    }
     const bool allowed = w > 0 && !isNoSplitAfter(phrase_[w - 1].text);  // not "any | friend", "of | God"
     // The breath plan (planBreaths) says where; without a plan (BREATH_OFF)
     // the thresholds above decide. The emergency threshold stays in force.

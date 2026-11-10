@@ -730,6 +730,17 @@ const float kLineAirScale = param("LINE_AIR", 1.1f);  // (1.75 before the discha
 float lineVowelStrength(float xc, float wc, float length) {
   return xc * length - std::max(wc, 0.2f) >= length ? 0.0f : 1.0f;
 }
+// The epilarynx: the tube from the vocal folds to where the pharynx widens (Jyrki 2026-11-10: "make the first 3 cm
+// after vocal coords to have a small constriction, then an expansion where the tongue starts"). The fitted vowel
+// shapes give it ~1.9 cm2 over 2 cm, about no narrowing; MRI shows ~0.3-0.5 cm2 over 2-3 cm. LINE_LARYNX_AREA scales
+// its area (1: as fitted), LINE_LARYNX_LEN sets its length (cm). A narrowing at the closed (glottis) end, where every
+// formant has its pressure maximum, raises the formants, F1 most (puhuja's F1 is 2-5 st under Kokoro's).
+void epilarynx(TractShape& s) {
+  static const float kArea = param("LINE_LARYNX_AREA", 1.0f), kLen = param("LINE_LARYNX_LEN", 2.0f);
+  s.aLarynx *= kArea;
+  s.lLarynx = kLen;
+}
+
 TractShape lineShapeFor(float f1, float f2, float f3) {
   const int n = sizeof(kLineVowels) / sizeof(kLineVowels[0]);
   const float l1 = std::log(std::max(f1, 100.0f)), l2 = std::log(std::max(f2, 300.0f)), l3 = std::log(std::max(f3, 1000.0f));
@@ -2303,6 +2314,17 @@ void Synth::addLabel(const Token& tok) {
   labelStarts_.push_back({timeline_, s});
   labelWordStarts_.push_back(tok.ph == Ph::Stop ? 0 : tok.wordJoin ? 2 : tok.wordStart ? 1 : 0);
   labelWords_.push_back(tok.ph == Ph::Stop ? -1 : tok.word);
+}
+
+std::vector<Synth::ArticulationFrame> Synth::articulation() const {
+  std::vector<ArticulationFrame> out;
+  const double start = outputStart_ < 0 ? 0 : outputStart_;
+  for (const auto& f : art_) {
+    if (f.t < start) continue;
+    out.push_back(f);
+    out.back().t = (f.t - start) / fs_;
+  }
+  return out;
 }
 
 std::vector<Synth::Label> Synth::labels() const {
@@ -4066,6 +4088,17 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     addEventAt(breath);
   }
   close.speech = 1;  // speaking again (after a pause the level had faded)
+  // The diaphragm does not keep pushing against a closed tract (Jyrki 2026-11-10: "probably the diaphragm senses the
+  // pressure and doesn't keep building more pressure when a limit is achieved -- this might help with the
+  // snappiness"): inside a full closure the lung pressure eases to LINE_CLOSURE_PRESS (1: off) over
+  // LINE_CLOSURE_PRESS_MS, and comes back with the release (closurePressEased_).
+  static const float kLineClosurePress = param("LINE_CLOSURE_PRESS", 1.0f), kLineClosurePressMs = param("LINE_CLOSURE_PRESS_MS", 30.0f);
+  closurePressEased_ = false;
+  if (tract_ == Tract::Line && kLineClosurePress < 1.0f && !nextIsPause && close.press < 0) {
+    close.press = kLineClosurePress;
+    close.pressMs = kLineClosurePressMs;
+    closurePressEased_ = true;
+  }
   // A voiced stop before a pause ("the hand of God."): the lung pressure eases to this share from the
   // closure on, so its voice bar and release come out softer (Jyrki 2026-11-09, with the final d kept
   // voiced: "d in God can be a bit less loud, perhaps -3 db"; 0.7 is about -3 dB).
@@ -4473,6 +4506,12 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // ʧ's ʃ phase: its emit() adds no airway event after the plosive (the release carries the targets), so the gain
   // rides on the release; the next sound's emit() sets its own (LINE_CH_FRIC).
   if (tract_ == Tract::Line && tok.ph == Ph::CH && kLineChFric != 1.0f) rel.lineFricMul = kLineChFric;
+  if (closurePressEased_) {  // (LINE_CLOSURE_PRESS: the breath comes back with the release)
+    static const float kLineClosurePressBackMs = param("LINE_CLOSURE_PRESS_BACK_MS", 15.0f);
+    rel.press = 1.0f;
+    rel.pressMs = kLineClosurePressBackMs;
+    closurePressEased_ = false;
+  }
   addEvent(rel);
   // k and g into a vowel in two steps (LINE_K_BURST_MS, 2026-11-04): the
   // closure opens first to a slit at the velum, its hiss the burst, and only
@@ -5144,6 +5183,8 @@ float Synth::tick() {
           // length grow by lineExtra_, everything behind stays put.
           a.lLip += lineExtra_; a.length += lineExtra_;
           b.lLip += lineExtra_; b.length += lineExtra_;
+          epilarynx(a);
+          epilarynx(b);
           const int n = line_.oral().sections();
           std::vector<float> va = a.sections(n), vb = b.sections(n);
           for (int k = 0; k < n; ++k) va[k] = std::exp(std::log(va[k]) + (std::log(vb[k]) - std::log(va[k])) * w);
@@ -5156,8 +5197,17 @@ float Synth::tick() {
       // The female voice: a shorter tract in place of the formant multipliers.
       sh.length /= (voice_.formant[0] + voice_.formant[1] + voice_.formant[2]) / 3.0f;
       sh.lLip += lineExtra_; sh.length += lineExtra_;  // (as above)
+      epilarynx(sh);
       line_.setShape(sh, lineX_, ac, an);
     lineShapeDone:;
+    }
+    if (artFrameMs_ > 0 && t_ >= artNext_) {  // recordArticulation: a snapshot (reads only)
+      artNext_ = t_ + artFrameMs_ * 0.001 * fs_;
+      const TransmissionLine& o = line_.oral();
+      ArticulationFrame f{t_, f0, ag, line_.velumArea(), ac < 1.0f ? lineX_ : -1.0f, ac, o.dx() * o.sections(), {}};
+      f.areas.resize(o.sections());
+      for (int k = 0; k < o.sections(); ++k) f.areas[k] = o.areaAt(k);
+      art_.push_back(std::move(f));
     }
     // Glottal turbulence mostly with the glottis apart (h, aspiration, a
     // breathy voice): in modal voicing the Reynolds gate alone put 2-8 kHz

@@ -118,6 +118,7 @@ void usage(FILE* f) {
       "  -rate x       English speaking rate, 0.9 = 10 % slower (default 0.95)\n"
       "  -room         a small room: early reflections and a short tail\n"
       "  -l file       write phoneme timings (start, end, symbol)\n"
+      "  -a file       write the articulation every 5 ms (t f0 glottis velum place constriction length n areas...)\n"
       "  -words file   write word timings (start, end, word number from 1)\n"
       "  -w source     voice source: string (default; one fold of two 16-lane strings against a mirror wall),\n"
       "                grid (4x8 multi-mass folds), block (2x2x6 body-cover folds), physical,\n"
@@ -183,6 +184,7 @@ int main(int argc, char** argv) {
   int prosodyLayers = puhuja::ProsodyGuide::kAll;
   bool female = false;  // -female: female voice preset
   const char* labelPath = nullptr;  // -l file: phoneme timings (start end symbol)
+  const char* artPath = nullptr;    // -a file: the articulation (Synth::articulation), every 5 ms
   const char* wordsPath = nullptr;  // -words file: word timings (start end number)
   float leak = 0.03f;    // -leak x: part of the source bypassing the formants
   // -w string|grid|block|physical|triangle|square|glottal: voice source (default string).
@@ -204,7 +206,7 @@ int main(int argc, char** argv) {
     }
     if (argv[i][0] == '-' && argv[i][1] && !(argv[i][1] >= '0' && argv[i][1] <= '9') &&
         strcmp(argv[i], "-o") && strcmp(argv[i], "-r") && strcmp(argv[i], "-w") &&
-        strcmp(argv[i], "-l") && strcmp(argv[i], "-words") && strcmp(argv[i], "-leak") && strcmp(argv[i], "-m") && strcmp(argv[i], "-t") &&
+        strcmp(argv[i], "-l") && strcmp(argv[i], "-a") && strcmp(argv[i], "-words") && strcmp(argv[i], "-leak") && strcmp(argv[i], "-m") && strcmp(argv[i], "-t") &&
         strcmp(argv[i], "-room") && strcmp(argv[i], "-rate") && strcmp(argv[i], "-en") &&
         strcmp(argv[i], "-g2p") && strcmp(argv[i], "-g2p-raw") && strcmp(argv[i], "-female") &&
         strcmp(argv[i], "-f0") && strcmp(argv[i], "-chunk") && strcmp(argv[i], "-prosody") && strcmp(argv[i], "-prosody-mode")) {
@@ -233,6 +235,8 @@ int main(int argc, char** argv) {
       wordsPath = argv[++i];
     } else if (!strcmp(argv[i], "-l") && i + 1 < argc) {
       labelPath = argv[++i];
+    } else if (!strcmp(argv[i], "-a") && i + 1 < argc) {
+      artPath = argv[++i];
     } else if (!strcmp(argv[i], "-leak") && i + 1 < argc) {
       leak = atof(argv[++i]);
     } else if (!strcmp(argv[i], "-m") && i + 1 < argc) {
@@ -309,6 +313,7 @@ int main(int argc, char** argv) {
   synth.setCarrier(carrier);
   synth.setFormantMotion(motion);
   synth.setTract(tract);
+  if (artPath) synth.recordArticulation(5.0f);
   synth.setLeak(leak);
   FILE* out = raw ? stdout : fopen(outPath, "wb");
   if (!out) {
@@ -377,6 +382,22 @@ int main(int argc, char** argv) {
     }
   }
 
+  if (artPath) {
+    FILE* af = fopen(artPath, "w");
+    if (!af) {
+      perror(artPath);
+      return 1;
+    }
+    // One frame per line: t f0 glottis velum place constriction length n area_0 .. area_n-1 (glottis to lips).
+    fprintf(af, "# t\tf0\tglottis\tvelum\tplace\tconstriction\tlength\tn\tareas (cm^2, glottis to lips)\n");
+    for (const auto& f : synth.articulation()) {
+      fprintf(af, "%.4f\t%.1f\t%.4f\t%.4f\t%.3f\t%.4f\t%.2f\t%zu", f.t, f.f0, f.glottis, f.velum, f.place, f.constriction,
+              f.length, f.areas.size());
+      for (float a : f.areas) fprintf(af, "\t%.3f", a);
+      fputc('\n', af);
+    }
+    fclose(af);
+  }
   if (labelPath) {
     FILE* lf = fopen(labelPath, "w");
     if (!lf) {

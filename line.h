@@ -238,6 +238,7 @@ class VocalTractLine {
   float subglottalPressure() const { return pSub_; }
   float output() const { return out_; }  // the radiated sound, anti-aliased
   const TransmissionLine& oral() const { return oral_; }
+  float velumArea() const { return an_; }  // the velum's opening as the nasal branch sees it (cm^2)
 
  private:
   float noise();
