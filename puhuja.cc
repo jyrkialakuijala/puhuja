@@ -429,6 +429,32 @@ const float kLineAwStartAe = param("LINE_AW_START_AE", 0.0f);
 // ... and toward ɛ's shape (LINE_AW_START_E; 2026-11-09 AW agent: the æ mix lowered F1 760 -> 620 but left F2 at 1390,
 // the mix keeps the a's bump place; Kokoro's aʊ starts at ~600/1600, between æ and ɛ).
 const float kLineAwStartE = param("LINE_AW_START_E", 0.0f);
+// ɔɪ lab knobs (OY agent 2026-11-10; the defaults reproduce the previous sound). Whisper heard the ɔɪ of the dictionary
+// words as aɪ / eɪ (a fronted onset: in "voice" the plan glided from the ɔ's 10-30 % straight to the ɪ's 80 %, F2 rising
+// from the ɔ's middle) or as ɔ / ɑ ("boys" -> "boss": the ɪ of a phrase-final ɔɪ was demanded only at 80-90 % of it,
+// beyond the pause's plan horizon, and never reached). LINE_OY_GLIDE_FROM: the ɪ's demand from this share of it (<0:
+// SPLAN_GLIDE_END); LINE_OY_HOLD_TO: the ɔ's demand to this share of it (<0: SPLAN_GLIDE_START); LINE_OY_AO_W /
+// LINE_OY_IH_W: the two demands' weights x these.
+const float kLineOyGlideFrom = param("LINE_OY_GLIDE_FROM", -1.0f);
+const float kLineOyHoldTo = param("LINE_OY_HOLD_TO", -1.0f);
+const float kLineOyAoW = param("LINE_OY_AO_W", 1.0f), kLineOyIhW = param("LINE_OY_IH_W", 1.0f);
+// The shapes: the ɔ's lip area / lip length / pharynx area x these, mixed toward o (LINE_OY_START_O) or ɑ
+// (LINE_OY_START_AA); the ɪ mixed toward i (LINE_OY_END_I) or ɛ (LINE_OY_END_E) (0 = none).
+const float kLineOyLipA = param("LINE_OY_LIPA", 1.0f), kLineOyLipL = param("LINE_OY_LIPL", 1.0f), kLineOyAph = param("LINE_OY_APH", 1.0f);
+const float kLineOyStartO = param("LINE_OY_START_O", 0.0f), kLineOyStartAa = param("LINE_OY_START_AA", 0.0f);
+const float kLineOyEndI = param("LINE_OY_END_I", 0.0f), kLineOyEndE = param("LINE_OY_END_E", 0.0f);
+// ... the ɔ's tongue constriction place / area x these, the ɪ's oral cavity area / lip area x these, and the ɔ's demand
+// from this share of it (<0: 0.1 as every chain start).
+const float kLineOyXc = param("LINE_OY_XC", 1.0f), kLineOyAc = param("LINE_OY_AC", 1.0f);
+const float kLineOyIhAor = param("LINE_OY_IH_AOR", 1.0f), kLineOyIhLipA = param("LINE_OY_IH_LIPA", 1.0f);
+const float kLineOyAoFrom = param("LINE_OY_AO_FROM", -1.0f);
+// The first pause after speech plans this far into itself instead of stopping LINE_PAUSE_PLAN_HOLD_MS before the end of
+// the pause token (<0: off). In a pause run that stop fell ~135 ms before the speech's end, so the last sound's late
+// demands (a final ɔɪ's ɪ) were planned three frames at a time, too late to be reached: "Boy." held F2 ~890 Hz to the
+// last 30 ms of its ɪ.
+const float kLinePauseRunPlanMs = param("LINE_PAUSE_RUN_PLAN_MS", -1.0f);
+// ... 1: only when an ɔɪ ended inside the part the hold would leave unplanned (0: after every sound).
+const float kLinePauseRunOy = param("LINE_PAUSE_RUN_OY", 0.0f);
 const float kLineVotAdductMs = param("LINE_VOT_ADDUCT_MS", 20.0f);  // ... then adducting into voice over this
 const float kLineExpandFlow = param("LINE_EXPAND_FLOW", 200.0f);  // cm^3/s drawn by the expanding cavity at full expansion behind a voiced closure
 const float kLineVoicedReleaseScale = param("LINE_VOICED_RELEASE", 2.5f);  // a voiced stop's release time relative to a voiceless one's
@@ -2692,6 +2718,26 @@ void Synth::emit(const Token& tok, const Ph* next) {
       TractShape e;  // aʊ's start toward ɛ (see kLineAwStartE)
       if (lineShapeOf(Ph::E, &e)) sh = lineShapeMix(sh, e, kLineAwStartE);
     }
+    if (have && tok.ph == Ph::AO && next && *next == Ph::IH) {  // ɔɪ's start (see kLineOyLipA)
+      TractShape o;
+      if (kLineOyStartO > 0 && lineShapeOf(Ph::O, &o)) sh = lineShapeMix(sh, o, kLineOyStartO);
+      if (kLineOyStartAa > 0 && lineShapeOf(Ph::AA, &o)) sh = lineShapeMix(sh, o, kLineOyStartAa);
+      sh.aLip *= kLineOyLipA;
+      sh.lLip *= kLineOyLipL;
+      sh.aPharynx *= kLineOyAph;
+      if (kLineOyXc != 1.0f || kLineOyAc != 1.0f) {
+        sh.xc *= kLineOyXc;
+        sh.ac *= kLineOyAc;
+        sh.sc = lineVowelStrength(sh.xc, sh.wc, sh.length);
+      }
+    }
+    if (have && tok.ph == Ph::IH && lastPh_ == Ph::AO) {  // ɔɪ's end
+      TractShape o;
+      if (kLineOyEndI > 0 && lineShapeOf(Ph::I, &o)) sh = lineShapeMix(sh, o, kLineOyEndI);
+      if (kLineOyEndE > 0 && lineShapeOf(Ph::E, &o)) sh = lineShapeMix(sh, o, kLineOyEndE);
+      sh.aOral *= kLineOyIhAor;
+      sh.aLip *= kLineOyIhLipA;
+    }
     if (have && tok.ph == Ph::AA && next && *next == Ph::RR) {
       // The ɑ before an r mixed toward ɔ over its whole length (LINE_AA_R_AO_MIX; 2026-11-10 AA agent: "part, card, start").
       static const float kLineAaRAoMix = param("LINE_AA_R_AO_MIX", 0.0f);
@@ -2787,10 +2833,14 @@ void Synth::emit(const Token& tok, const Ph* next) {
             const bool eyGlide = chainEnd && tok.ph == Ph::IH && lastPh_ == Ph::E && kLineEyGlideFrom >= 0;
             const bool ayGlide = chainEnd && tok.ph == Ph::IH && lastPh_ == Ph::A && kLineAyGlideFrom >= 0;
             const bool awGlide = chainEnd && tok.ph == Ph::UH && lastPh_ == Ph::A && kLineAwGlideFrom >= 0;
+            const bool oyEnd = chainEnd && tok.ph == Ph::IH && lastPh_ == Ph::AO;
+            const bool oyStart = chainStart && tok.ph == Ph::AO && *next == Ph::IH;
             const double a = owGlide ? kLineOwGlideFrom : eyGlide ? kLineEyGlideFrom :
                              ayGlide ? kLineAyGlideFrom : awGlide ? kLineAwGlideFrom :
-                             chainEnd ? kShapeGlideEnd : 0.1, b = chainStart ? kShapeGlideStart : 0.9;
-            addShapeDemand(t0 + std::min(a, b) * dur, t0 + std::max(a, b) * dur, sh, tok.ph, ws * kShapeGlideW);
+                             oyEnd && kLineOyGlideFrom >= 0 ? kLineOyGlideFrom :
+                             chainEnd ? kShapeGlideEnd : oyStart && kLineOyAoFrom >= 0 ? kLineOyAoFrom : 0.1, b = oyStart && kLineOyHoldTo >= 0 ? kLineOyHoldTo : chainStart ? kShapeGlideStart : 0.9;
+            const float oyW = oyStart ? kLineOyAoW : oyEnd ? kLineOyIhW : 1.0f;
+            addShapeDemand(t0 + std::min(a, b) * dur, t0 + std::max(a, b) * dur, sh, tok.ph, ws * kShapeGlideW * oyW);
           } else if (!rColoured) {
             // A phrase-initial j or l: the tongue in its place before the voice
             // (2026-11-04: the j's F2 rose from the pause's ə, 1550 Hz, and
@@ -3637,6 +3687,9 @@ void Synth::emit(const Token& tok, const Ph* next) {
   prevWasVowel_ = in.cls == Cls::Vowel;
   prevWasPlosive_ = false;
   prevWasNasal_ = in.cls == Cls::Nasal;
+  const bool pauseRunFirst = in.cls == Cls::Stop && !prevWasPause_ &&
+                             (kLinePauseRunOy < 0.5f || oyEndT_ > timeline_ - kLinePausePlanHoldMs * 0.001 * fs_);  // (see kLinePauseRunPlanMs)
+  if (tok.ph == Ph::IH && lastPh_ == Ph::AO) oyEndT_ = timeline_;
   prevWasPause_ = in.cls == Cls::Stop;
   if (!prevWasPause_) relaxAt_ = -1;
   // The new phrase's pitch takes over from the last 15 ms of the pause (from
@@ -3654,7 +3707,10 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // vowels and nasals the shapes in the pause changed their starts, guards
     // 10 -> 6 words of 24)
     const bool hold = next && (*next == Ph::Stop || (*next == Ph::J && kLineJPreShapeMs > 0) || (*next == Ph::L && kLineLPreShapeMs > 0) || (*next == Ph::W && kLineWPreShapeMs > 0) || (*next == Ph::RR && kLineRPreShapeMs > 0));
-    planShapes(timeline_ - (hold ? kLinePausePlanHoldMs * 0.001 * fs_ : 0.0));
+    double planEnd = timeline_ - (hold ? kLinePausePlanHoldMs * 0.001 * fs_ : 0.0);
+    if (hold && kLinePauseRunPlanMs >= 0 && pauseRunFirst)  // the run's first pause: the speech's own demands (see kLinePauseRunPlanMs)
+      planEnd = std::min(timeline_, std::max(planEnd, t0 + kLinePauseRunPlanMs * 0.001 * fs_));
+    planShapes(planEnd);
     planSentence();
   }
 }

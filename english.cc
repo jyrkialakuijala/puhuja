@@ -471,7 +471,11 @@ Sound soundOf(const char* tok) {
   if (t == "IH") return {{Ph::IH}, 1, false};
   if (t == "IY") return {{Ph::I}, 1, stressed};
   if (t == "OW") return {{Ph::O, Ph::UH}, 2, false, true, kMidBackStart};
-  if (t == "OY") return {{Ph::AO, Ph::IH}, 2, false, false, kOpenBackStart};
+  if (t == "OY") {
+    // Lab (OY agent 2026-11-10; 0 = ɔ + ɪ as before): EN_OY_START 1 starts on o, 2 on ɑ; EN_OY_END 1 ends on i.
+    static const int kOyStart = static_cast<int>(param("EN_OY_START", 0.0f)), kOyEnd = static_cast<int>(param("EN_OY_END", 0.0f));
+    return {{kOyStart == 1 ? Ph::O : kOyStart == 2 ? Ph::AA : Ph::AO, kOyEnd == 1 ? Ph::I : Ph::IH}, 2, false, false, kOpenBackStart};
+  }
   if (t == "UH") return {{Ph::UH}, 1, false};
   if (t == "UW") return {{Ph::U}, 1, stressed};
   static const struct {
@@ -2435,8 +2439,11 @@ void EnglishReader::sayPhrase(char end) {
         // the ʊ part too long (a 203, ʊ 171 ms with 0.6: the short-vowel
         // lengthening below favours the shorter half).
         static const float kAwFirstShare = param("EN_AW_FIRST_SHARE", 0.6f);
+        // ɔɪ's own split and length (EN_OY_FIRST_SHARE, EN_OY_LEN; OY agent 2026-11-10, lab: 0.6 and 1 = as before).
+        static const float kOyFirstShare = param("EN_OY_FIRST_SHARE", 0.6f), kOyLen = param("EN_OY_LEN", 1.0f);
+        const bool oy = s.n == 2 && s.ph[0] == Ph::AO && s.ph[1] == Ph::IH;
         const float firstShare = s.ph[0] == Ph::ER ? (erOnset ? kErOnsetShare : 0.8f)
-                                 : s.n == 2 && s.ph[0] == Ph::A && s.ph[1] == Ph::UH ? kAwFirstShare : 0.6f;
+                                 : s.n == 2 && s.ph[0] == Ph::A && s.ph[1] == Ph::UH ? kAwFirstShare : oy ? kOyFirstShare : 0.6f;
         const float share = s.n == 1 ? 1.0f : k == 0 ? firstShare : 1.0f - firstShare;
         shape.ms = dur[w][i] * share * v.length;
         {  // the word's planned total (Kokoro mode's word rhythm, prosody.h)
@@ -2449,6 +2456,7 @@ void EnglishReader::sayPhrase(char end) {
                               !phrase_[w + 1].tokens.empty() && isVowelToken(phrase_[w + 1].tokens[0]);
         if (toLinked) shape.ms *= kToVowelLength;
         if (s.n == 2 && s.ph[1] != Ph::RR) shape.ms *= kDiphthongLength;  // a true diphthong, not ɜ+ɹ
+        if (oy) shape.ms *= kOyLen;
         // The unstressed ɜ after aʊ ("power", "hour", "flower") x this (EN_AW_ER_LEN;
         // Jyrki 2026-11-05: "the rhythm of the words is a little off, first
         // syllable should be stressed, 2nd unstressed": its ɜ ran 115 ms at the
@@ -2540,6 +2548,9 @@ void EnglishReader::sayPhrase(char end) {
           // The ʊ half of aʊ x this (EN_AW_UH_DB, dB; 2026-11-09 AW agent: Kokoro's aʊ fades 4-6 dB from the a to the ʊ end, puhuja's is flat).
           static const float kAwUhDb = param("EN_AW_UH_DB", 0.0f);
           if (s.n == 2 && s.ph[0] == Ph::A && s.ph[1] == Ph::UH && k == 1) db += kAwUhDb;
+          // The ɔ and ɪ halves of ɔɪ, dB (EN_OY_AO_DB, EN_OY_IH_DB; OY agent 2026-11-10, lab: 0 = as before).
+          static const float kOyAoDb = param("EN_OY_AO_DB", 0.0f), kOyIhDb = param("EN_OY_IH_DB", 0.0f);
+          if (s.n == 2 && s.ph[0] == Ph::AO && s.ph[1] == Ph::IH) db += k == 0 ? kOyAoDb : kOyIhDb;
           shape.level *= std::pow(10.0f, db / 20.0f);
           shape.prosody = std::pow(10.0f, db / 20.0f);
         }

@@ -455,6 +455,7 @@ class Synth {
   bool prevWasPlosive_ = false;
   bool prevWasNasal_ = false;
   bool prevWasPause_ = false;  // the last emitted phoneme was a pause
+  double oyEndT_ = -1;  // the end of the last ɔɪ's ɪ (samples; LINE_PAUSE_RUN_OY)
   float lastVowelF_[3] = {0, 0, 0};  // previous vowel's own targets (for sharpening)
   // Lungs: air left for speaking (cm^3), as planned while phonemes are
   // queued (for breathing decisions) and as simulated while rendering.
