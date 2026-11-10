@@ -652,8 +652,25 @@ float VocalTractLine::substep(float u0) {
     fricActive_ = re > kReynoldsCrit && slit > 0;
     if (fricActive_) {
       const float drive = slit * fricGain_ * areaGain_ * (re * re - reC2) * invReC2 * noiseF;
-      if (kNoiseAsPressure > 0) oral_.addPressureDrive(noiseK_, drive * kNoiseAsPressure);
-      else oral_.addFlowDrive(noiseK_, drive);
+      // When the source moves (a new constriction takes over, "forebears fought"), the old place keeps a share that
+      // fades over LINE_NOISE_MOVE_MS (0: the source jumps), so the hiss's colour does not switch in one substep.
+      static const float kNoiseMoveMs = param("LINE_NOISE_MOVE_MS", 0.0f);
+      if (kNoiseMoveMs > 0) {
+        if (lastNoiseK_ >= 0 && noiseK_ != lastNoiseK_) {
+          moveFromK_ = lastNoiseK_;
+          moveW_ = 1.0f;
+        }
+        lastNoiseK_ = noiseK_;
+        moveW_ *= std::exp(-dt_ * 1000.0f / kNoiseMoveMs);
+      }
+      const float wOld = kNoiseMoveMs > 0 && moveFromK_ >= 0 ? moveW_ : 0.0f;
+      if (kNoiseAsPressure > 0) {
+        oral_.addPressureDrive(noiseK_, drive * kNoiseAsPressure * (1.0f - wOld));
+        if (wOld > 0.001f) oral_.addPressureDrive(moveFromK_, drive * kNoiseAsPressure * wOld);
+      } else {
+        oral_.addFlowDrive(noiseK_, drive * (1.0f - wOld));
+        if (wOld > 0.001f) oral_.addFlowDrive(moveFromK_, drive * wOld);
+      }
     }
     static FILE* ntrace = std::getenv("PUHUJA_NOISE_TRACE") ? std::fopen(std::getenv("PUHUJA_NOISE_TRACE"), "w") : nullptr;
     static long ncount = 0;

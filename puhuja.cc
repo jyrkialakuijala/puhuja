@@ -5218,7 +5218,12 @@ float Synth::tick() {
     // between the pulses by noise (its 3-6 kHz harmonic-to-noise ratio -3.4 dB against puhuja's -0.3), a lax voice's breath.
     static const float kLineAspVoiced = param("LINE_ASP_VOICED", 0.15f);
     const float aspGate = kLineAspVoiced + (1.0f - kLineAspVoiced) * smoothstep(kAgVoice, kAgBreathy, ag);
-    line_.setNoise(kLineFric * lineFricMul_, kLineAsp * aspGate * lineAspMul_, std::max(ag, 0.005f));
+    // The per-phoneme frication gain glides over LINE_FRIC_GLIDE_MS instead of stepping at the token (0: steps).
+    // Jyrki 2026-11-10: "\"forebears fought\" has a snap in between" (the z's and the f's gains differ).
+    static const float kLineFricGlideMs = param("LINE_FRIC_GLIDE_MS", 0.0f);
+    static const float kFricGlideK = kLineFricGlideMs > 0 ? 1.0f - std::exp(-1000.0f / (kLineFricGlideMs * fs_)) : 1.0f;
+    lineFricMulS_ += (lineFricMul_ - lineFricMulS_) * kFricGlideK;
+    line_.setNoise(kLineFric * (kLineFricGlideMs > 0 ? lineFricMulS_ : lineFricMul_), kLineAsp * aspGate * lineAspMul_, std::max(ag, 0.005f));
     // LINE_BREATH (x LINE_ASP): the continuous breath of a lax voice, fading out as the glottis opens past the voicing range
     // (the thresholded aspiration takes over there).
     static const float kLineBreath = param("LINE_BREATH", 0.0f);
