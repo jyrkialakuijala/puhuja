@@ -436,7 +436,7 @@ const float kLineAwStartE = param("LINE_AW_START_E", 0.0f);
 // SPLAN_GLIDE_END); LINE_OY_HOLD_TO: the ɔ's demand to this share of it (<0: SPLAN_GLIDE_START); LINE_OY_AO_W /
 // LINE_OY_IH_W: the two demands' weights x these.
 const float kLineOyGlideFrom = param("LINE_OY_GLIDE_FROM", -1.0f);
-const float kLineOyHoldTo = param("LINE_OY_HOLD_TO", -1.0f);
+const float kLineOyHoldTo = param("LINE_OY_HOLD_TO", 0.8f);
 const float kLineOyAoW = param("LINE_OY_AO_W", 1.0f), kLineOyIhW = param("LINE_OY_IH_W", 1.0f);
 // The shapes: the ɔ's lip area / lip length / pharynx area x these, mixed toward o (LINE_OY_START_O) or ɑ
 // (LINE_OY_START_AA); the ɪ mixed toward i (LINE_OY_END_I) or ɛ (LINE_OY_END_E) (0 = none).
@@ -452,7 +452,7 @@ const float kLineOyAoFrom = param("LINE_OY_AO_FROM", -1.0f);
 // the pause token (<0: off). In a pause run that stop fell ~135 ms before the speech's end, so the last sound's late
 // demands (a final ɔɪ's ɪ) were planned three frames at a time, too late to be reached: "Boy." held F2 ~890 Hz to the
 // last 30 ms of its ɪ.
-const float kLinePauseRunPlanMs = param("LINE_PAUSE_RUN_PLAN_MS", -1.0f);
+const float kLinePauseRunPlanMs = param("LINE_PAUSE_RUN_PLAN_MS", 0.0f);
 // ... 1: only when an ɔɪ ended inside the part the hold would leave unplanned (0: after every sound).
 const float kLinePauseRunOy = param("LINE_PAUSE_RUN_OY", 0.0f);
 const float kLineVotAdductMs = param("LINE_VOT_ADDUCT_MS", 20.0f);  // ... then adducting into voice over this
