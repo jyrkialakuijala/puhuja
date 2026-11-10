@@ -736,7 +736,7 @@ float lineVowelStrength(float xc, float wc, float length) {
 // its area (1: as fitted), LINE_LARYNX_LEN sets its length (cm). A narrowing at the closed (glottis) end, where every
 // formant has its pressure maximum, raises the formants, F1 most (puhuja's F1 is 2-5 st under Kokoro's).
 void epilarynx(TractShape& s) {
-  static const float kArea = param("LINE_LARYNX_AREA", 1.0f), kLen = param("LINE_LARYNX_LEN", 2.0f);
+  static const float kArea = param("LINE_LARYNX_AREA", 0.82f), kLen = param("LINE_LARYNX_LEN", 2.5f);
   s.aLarynx *= kArea;
   s.lLarynx = kLen;
 }
