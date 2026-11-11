@@ -2854,7 +2854,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // -> "fruit", "term" -> "room", "were" -> "wu"; ER -> UW 234 of 1312 errors): its F1 sat 4.5 (male) and 6.0
     // (female) semitones under ten Kokoro voices' on the ɜ frames, 1.5-2 more than the other vowels' offset.
     if (have && tok.ph == Ph::ER) {
-      static const float kErAph = param("LINE_ER_APH", 1.0f), kErAc = param("LINE_ER_AC", 1.0f), kErLipA = param("LINE_ER_LIPA", 1.0f),
+      static const float kErAph = param("LINE_ER_APH", 0.6f), kErAc = param("LINE_ER_AC", 1.0f), kErLipA = param("LINE_ER_LIPA", 1.0f),
                          kErLipL = param("LINE_ER_LIPL", 1.0f), kErSchwaMix = param("LINE_ER_SCHWA_MIX", 0.0f),
                          kErLongAph = param("LINE_ER_LONG_APH", 1.0f), kErFAph = param("LINE_ER_F_APH", 1.0f),
                          kErFLipA = param("LINE_ER_F_LIPA", 1.0f), kErXc = param("LINE_ER_XC", 1.0f), kErAor = param("LINE_ER_AOR", 1.0f);
