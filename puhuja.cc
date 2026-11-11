@@ -5207,7 +5207,7 @@ float Synth::tick() {
     // has\" has a strange sound between the words": the ʧ's ʃ (a 4-wide slit, LINE_POST_HW) went to width 1 in one step as
     // it opened toward the h; the slit's air mass (1240 erg of the line's kinetic energy) vanished in 1 ms and the
     // pressure behind it jumped 1450 dyn/cm^2.
-    static const float kLineHwGlideMs = param("LINE_HW_GLIDE_MS", 0.0f);
+    static const float kLineHwGlideMs = param("LINE_HW_GLIDE_MS", 10.0f);
     if (e.lineHw >= 0) {
       lineHwTarget_ = e.lineHw;
       if (!(kLineHwGlideMs > 0)) lineHw_ = e.lineHw;
@@ -5524,7 +5524,7 @@ float Synth::tick() {
     else lineX_ += (lineXTarget_ - lineX_) * lineXFollow_;
     lineLevel_ += (lineLevelTarget_ - lineLevel_) * lineXFollow_;
     {
-      static const float kHwGlideMs = param("LINE_HW_GLIDE_MS", 0.0f);
+      static const float kHwGlideMs = param("LINE_HW_GLIDE_MS", 10.0f);
       static const float kHwK = kHwGlideMs > 0 ? 1.0f - std::exp(-1000.0f / (kHwGlideMs * fs_)) : 0.0f;
       lineHw_ += (lineHwTarget_ - lineHw_) * (kHwGlideMs > 0 ? kHwK : lineXFollow_);
     }
