@@ -2684,7 +2684,7 @@ void eyEndShape(TractShape* sh) {
 // (547/2106): F2 at puhuja's own iː (1969) and eɪ's end (1923), F1 2-4 st low; Whisper heard ɪ as eɪ 361 and iː 178
 // times in one-syllable words (dict rank 9: 45 % wrong).
 void ihShape(TractShape* sh) {
-  static const float kIhE = param("LINE_IH_MIX_E", 0.0f), kIhEh = param("LINE_IH_MIX_EH", 0.0f),
+  static const float kIhE = param("LINE_IH_MIX_E", 0.3f), kIhEh = param("LINE_IH_MIX_EH", 0.0f),
                      kIhSchwa = param("LINE_IH_MIX_SCHWA", 0.0f), kIhDx = param("LINE_IH_DX", 0.0f),
                      kIhAc = param("LINE_IH_AC", 1.0f);
   TractShape o;
