@@ -1027,7 +1027,7 @@ float linePlaceOf(Ph ph) {
     case Ph::J: { static const float x = param("LINE_J_X", 0.70f); return x; }  // (0.66 / 0.74: F2 within 50 Hz, 2026-11-04)
     case Ph::K: { static const float x = param("LINE_K_X", 0.62f); return x; }
     case Ph::G: { static const float x = param("LINE_G_X", 0.72f); return x; }  // (a lab knob 2026-11-09, G agent)
-    case Ph::NG: return 0.62f;
+    case Ph::NG: { static const float x = param("LINE_NG_X", 0.62f); return x; }  // (a lab knob 2026-11-11, NG agent 3)
     default: return -1.0f;
   }
 }
@@ -1061,6 +1061,22 @@ float lineKPlace(Ph ph, Ph vowel) {
     default: break;
   }
   return linePlaceOf(ph);
+}
+
+// ŋ's place (lab knobs 2026-11-11, NG agent 3). The dictionary heard ŋ as n 314 of 571 errors: Kokoro's vowel before ŋ
+// ends with F2 and F3 converging (the velar pinch, "sing": F2 2320 / F3 2450 at its end), puhuja's kept them 1100 Hz
+// apart (2350 / 3450). LINE_NG_X_FRONT: the place after i ɪ e ɛ æ y ø j (< 0: LINE_NG_X); LINE_NG_X_KG: the share of
+// the way to a following k's or g's own place (0: none, 1: homorganic; the k after ŋ sits at LINE_K_X_FRONT after a
+// front vowel, the g at LINE_G_X, while ŋ was at 0.62).
+float lineNgPlace(Ph prev, const Ph* next) {
+  static const float front = param("LINE_NG_X_FRONT", -1.0f), kg = param("LINE_NG_X_KG", 0.0f);
+  float x = linePlaceOf(Ph::NG);
+  const bool frontV = prev == Ph::I || prev == Ph::E || prev == Ph::AE || prev == Ph::Y || prev == Ph::OE ||
+                      prev == Ph::IH || prev == Ph::EH || prev == Ph::J;
+  if (front >= 0 && frontV) x = front;
+  if (kg > 0 && next && (*next == Ph::K || *next == Ph::G))
+    x += kg * ((*next == Ph::K ? lineKPlace(Ph::K, prev) : linePlaceOf(Ph::G)) - x);
+  return x;
 }
 
 // --- Aerodynamics ---------------------------------------------------------
@@ -2815,7 +2831,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
   if (tract_ == Tract::Line && kLineZReScale != 1.0f) e.lineFricReMul = tok.ph == Ph::Z || (tok.ph == Ph::Stop && zBeforePause_) ? kLineZReScale : 1.0f;  // (kept into the pause while the slit is still narrow)
   if (tract_ == Tract::Line)
     e.lineFricFade = tok.ph == Ph::ZH && !inAffricate_ && kLineZhFade >= 0 ? kLineZhFade : tok.ph == Ph::Z && kLineZFade >= 0 ? kLineZFade : tok.ph == Ph::Z || tok.ph == Ph::ZH || tok.ph == Ph::VV || tok.ph == Ph::DH ? kVFricFade : tok.ph == Ph::SH ? shFade : 1.0f;
-  e.lineX = linePlaceOf(tok.ph);
+  e.lineX = tok.ph == Ph::NG ? lineNgPlace(lastPh_, next) : linePlaceOf(tok.ph);
   if (tok.ph == Ph::SH && shFullVowel && kLineShVowelX > 0) e.lineX = kLineShVowelX;  // (LINE_SH_VOWEL_X)
   if (tok.ph == Ph::SH && shFullVowel && kLineShVowelAc != 1.0f && e.ac > 0) e.ac *= kLineShVowelAc;  // (LINE_SH_VOWEL_AC)
   // Stress as a push of the diaphragm (Jyrki 2026-11-04: "a soft pulse in
@@ -2826,10 +2842,20 @@ void Synth::emit(const Token& tok, const Ph* next) {
   float stressExtra = 0;
   if (lineLevelNow > 1.0f && isVowel(tok.ph) && kStressPulse > 0) stressExtra = lineLevelNow - 1.0f;
   e.lineLevel = stressExtra > 0 ? 1.0f + kStressHold * stressExtra : lineLevelNow;
+  // ŋ's breath x LINE_NG_PRESS over 20 ms, back to 1 at the next sound (lab knob 2026-11-11, NG agent 3; 1: as
+  // before): in isolated words puhuja's ŋ murmur was 3 dB under the word's peak, Kokoro's 13 (male) and 9 (female).
+  {
+    static const float kLineNgPress = param("LINE_NG_PRESS", 1.0f);
+    if (tract_ == Tract::Line && kLineNgPress != 1.0f) {
+      if (tok.ph == Ph::NG) { e.press = kLineNgPress; e.pressMs = 20; }
+      else if (lastPh_ == Ph::NG && e.press < 0) { e.press = 1.0f; e.pressMs = 20; }
+    }
+  }
   {
     const bool post = tok.ph == Ph::SH || tok.ph == Ph::ZH || tok.ph == Ph::CH || tok.ph == Ph::JH;
     static const float kLineZHw = param("LINE_Z_HW", 1.0f);  // the z's constriction width along the tract (lab 2026-11-11)
-    e.lineHw = post ? kLinePostHw : tok.ph == Ph::F ? kLineFHw : tok.ph == Ph::Z ? kLineZHw : 1.0f;
+    static const float kLineNgHw = param("LINE_NG_HW", 1.0f);  // ŋ's constriction half-width (lab knob 2026-11-11, NG agent 3; 1: as before)
+    e.lineHw = post ? kLinePostHw : tok.ph == Ph::F ? kLineFHw : tok.ph == Ph::Z ? kLineZHw : tok.ph == Ph::NG ? kLineNgHw : 1.0f;
     e.lineLip = post ? kLinePostLip : 0.0f;
     static const float kLineZJetD = param("LINE_Z_JET_D", 0.0f), kLineZLpr = param("LINE_Z_LPR", 0.0f);  // z's jet and band (0: the shared ones; lab 2026-11-11)
     e.lineJetD = tok.ph == Ph::Z && kLineZJetD > 0 ? kLineZJetD : tok.ph == Ph::F ? (curStress_ ? kLineFJetD : kLineFJetDUnstr) : tok.ph == Ph::VV ? kLineVJetD : tok.ph == Ph::ZH && !inAffricate_ && kLineZhJetD >= 0 ? kLineZhJetD : post ? kLinePostJetD : 0.0f;
@@ -3027,6 +3053,13 @@ void Synth::emit(const Token& tok, const Ph* next) {
       sh.aLip *= kLineOyIhLipA;
     }
     if (have && tok.ph == Ph::A && next && *next == Ph::IH) ayStartShape(&sh);
+    if (have && next && *next == Ph::NG && (tok.ph == Ph::IH || tok.ph == Ph::EH || tok.ph == Ph::AE)) {
+      // A front vowel before ŋ mixed toward i over its whole length (LINE_NG_PRE_I_MIX, lab knob 2026-11-11, NG agent 3;
+      // 0: off): English raises it there ("sing" ~ [siŋ]).
+      static const float kLineNgPreIMix = param("LINE_NG_PRE_I_MIX", 0.0f);
+      TractShape o;
+      if (kLineNgPreIMix > 0 && lineShapeOf(Ph::I, &o)) sh = lineShapeMix(sh, o, kLineNgPreIMix);
+    }
     if (have && tok.ph == Ph::IH && lastPh_ == Ph::A) ayEndShape(&sh);
     if (have && tok.ph == Ph::AA && next && *next == Ph::RR) {
       // The ɑ before an r mixed toward ɔ over its whole length (LINE_AA_R_AO_MIX; 2026-11-10 AA agent: "part, card, start").
@@ -3239,6 +3272,10 @@ void Synth::emit(const Token& tok, const Ph* next) {
   }
   e.ag = aero.ag;
   if (in.cls == Cls::Vowel) e.ag *= tok.shape.press;  // voice quality by prosody
+  {  // ŋ's glottis (cm^2; LINE_NG_AG, lab knob 2026-11-11, NG agent 3; < 0: the voicing rest)
+    static const float kLineNgAg = param("LINE_NG_AG", -1.0f);
+    if (tract_ == Tract::Line && tok.ph == Ph::NG && kLineNgAg >= 0) e.ag = kLineNgAg;
+  }
   e.agMs = tract_ == Tract::Line && in.cls == Cls::Fricative && aero.ag > kAgBreathy ? kLineAbductMs : kGlottalMs;
   if (tract_ == Tract::Line && tok.ph == Ph::Z && kZAbductMs >= 0 && aero.ag > kAgBreathy) e.agMs = kZAbductMs;
   e.aspGain = in.cls == Cls::H ? hAspirationGain_ * kHGain : kAspirationGain * kAspirationTiltGain;
@@ -3268,11 +3305,27 @@ void Synth::emit(const Token& tok, const Ph* next) {
   }
   e.an = aero.an;
   e.anMs = kBoundaryMs;
+  // A phrase-final ŋ's breath eases to LINE_NG_FINAL_PRESS over the ŋ (lab knob 2026-11-11, NG agent 3; 1: as
+  // before): Kokoro's final ŋ fades ~10 dB through its murmur, puhuja's held its level to the end.
+  {
+    static const float kLineNgFinalPress = param("LINE_NG_FINAL_PRESS", 1.0f);
+    if (tract_ == Tract::Line && tok.ph == Ph::NG && (!next || *next == Ph::Stop) && kLineNgFinalPress != 1.0f && e.press < 0) {
+      e.press = kLineNgFinalPress;
+      e.pressMs = static_cast<float>(dur / ms);
+    }
+  }
+  // ŋ's velum port x LINE_NG_AN (lab knob 2026-11-11, NG agent 3; 1: as m n).
+  {
+    static const float kLineNgAn = param("LINE_NG_AN", 1.0f);
+    if (tract_ == Tract::Line && tok.ph == Ph::NG) e.an *= kLineNgAn;
+  }
   // English nasalizes a vowel before a nasal through most of it: the velum
   // opens part way during the vowel ("man", "and", "on"); on the line the
   // port was shut until the nasal's own event (2026-11-02; set after the aero default, which had overwritten it).
   if (tract_ == Tract::Line && isVowel(tok.ph) && next && info(*next).cls == Cls::Nasal) {
-    e.an = kAnNasal * kLineAnticipNasal;
+    // (before ŋ: LINE_NG_ANTICIP instead, lab knob 2026-11-11, NG agent 3; < 0: LINE_ANTICIP_NASAL)
+    static const float kLineNgAnticip = param("LINE_NG_ANTICIP", -1.0f);
+    e.an = kAnNasal * (*next == Ph::NG && kLineNgAnticip >= 0 ? kLineNgAnticip : kLineAnticipNasal);
     e.anMs = static_cast<float>(dur / ms);
   }
   // The release of a nasal into a vowel: how fast the mouth opens and the
@@ -3794,6 +3847,14 @@ void Synth::emit(const Token& tok, const Ph* next) {
         // final n fades over ~60 ms). The breath out through the nose is
         // what the speaker does anyway; the next phrase's sound sets it.
         if (prevWasNasal_ && kLineFinalNasalOpen > 0) e.anMs = kLineFinalNasalOpen;
+        // ... and after a final ŋ the tongue leaves the velum at the pause, to LINE_NG_FINAL_REL_A cm^2 over
+        // LINE_NG_FINAL_REL_MS (lab knobs 2026-11-11, NG agent 3; 0: shut until the relax, 80 ms after the breath
+        // stopped): Kokoro's final ŋ ("sing") ends in a faint release, F2 2300 / F3 3450 25-30 dB under the vowel.
+        static const float kLineNgFinalRelMs = param("LINE_NG_FINAL_REL_MS", 0.0f), kLineNgFinalRelA = param("LINE_NG_FINAL_REL_A", 0.5f);
+        if (prevWasNasal_ && lastPh_ == Ph::NG && kLineNgFinalRelMs > 0 && !prevWasPause_) {
+          e.ac = kLineNgFinalRelA;
+          e.acMs = kLineNgFinalRelMs;
+        }
       }
       syllable_ = 0;
       resolveRanges(nullptr, -1);  // no vowel follows: they hold the last one's
@@ -3976,13 +4037,54 @@ void Synth::emit(const Token& tok, const Ph* next) {
     }
   }
   const bool isM = tok.ph == Ph::M;
-  const float approachMs = isM ? kLineMApproachMs : tok.ph == Ph::NG ? kLineNgApproachMs : 0.0f;
+  // ŋ's approach (lab knobs 2026-11-11, NG agent 3): LINE_NG_APPROACH_SHARE > 0 starts it at least this share of
+  // the vowel's length before the ŋ (a lazy pinch through the whole vowel); LINE_NG_APPROACH_HW its half-width
+  // (< 0: unchanged); LINE_NG_APPROACH_X its place (< 0: the ŋ's own).
+  static const float kNgApShare = param("LINE_NG_APPROACH_SHARE", 0.0f), kNgApHw = param("LINE_NG_APPROACH_HW", -1.0f),
+                     kNgApX = param("LINE_NG_APPROACH_X", -1.0f);
+  float approachMs = isM ? kLineMApproachMs : tok.ph == Ph::NG ? kLineNgApproachMs : 0.0f;
+  if (tok.ph == Ph::NG && kNgApShare > 0) approachMs = std::max(approachMs, kNgApShare * static_cast<float>((e.t - phonemeStart_) / ms));
   if (tract_ == Tract::Line && approachMs > 0 && prevWasVowel_ && !prevWasPlosive_) {
     Event ap{std::max(e.t - approachMs * ms, phonemeStart_ + 1)};
     ap.ac = isM ? kLineMApproachA : kLineNgApproachA;
     ap.acMs = static_cast<float>((e.t - ap.t) / ms);
-    ap.lineX = linePlaceOf(tok.ph);
+    ap.lineX = tok.ph == Ph::NG ? (kNgApX >= 0 ? kNgApX : lineNgPlace(lastPh_, next)) : linePlaceOf(tok.ph);
+    if (tok.ph == Ph::NG && kNgApHw >= 0) ap.lineHw = kNgApHw;
     addEventAt(ap);
+  }
+  // The velar pinch into ŋ as the tongue body's own move (LINE_NG_PRE_SHAPE, lab knob 2026-11-11, NG agent 3; 0: off):
+  // the approach above narrows a hump on top of the vowel's shape, and the ɪ's own front constriction kept F3 at
+  // 3450-3550 Hz to the closure (approach area 0.1 or place 0.55-0.75: F2 / F3 within 100 Hz). As after k g
+  // (LINE_KG_REL_SHAPE), the vowel's last LINE_NG_PRE_MS and the ŋ are asked for the vowel's shape with its tongue
+  // hump at the ŋ's place (LINE_NG_PRE_X, < 0: the ŋ's own), LINE_NG_PRE_AC cm^2, half-width 2 cm. Lab (300 hard ŋ
+  // words, 2 voices, three independent pairs of draws): weight 1 at 0.70 with LINE_NG_PRE_BACK_W 0: ŋ errors 69 / 72
+  // (base 101 / 94), heard as n 40 -> 28, words1000 1205 (1199), snap -1.5 sigma; "Long." F2 830 -> 1160 and F3
+  // 2750 -> 2050 over its last 50 ms (Kokoro 1150 -> 1880, F3 2420).
+  {
+    static const float kNgPreW = param("LINE_NG_PRE_SHAPE", 0.0f), kNgPreMs = param("LINE_NG_PRE_MS", 60.0f),
+                       kNgPreAc = param("LINE_NG_PRE_AC", 0.6f), kNgPreX = param("LINE_NG_PRE_X", -1.0f);
+    TractShape v;
+    if (tract_ == Tract::Line && tok.ph == Ph::NG && kNgPreW > 0 && prevWasVowel_ && lineShapeOf(lastPh_, &v)) {
+      v.xc = kNgPreX >= 0 ? kNgPreX : lineNgPlace(lastPh_, next);
+      v.ac = kNgPreAc;
+      v.wc = 2.0f;
+      v.sc = 1.0f;
+      // After ɔ ɑ ɒ o u ʊ the weight is LINE_NG_PRE_BACK_W instead (< 0: the same): the pinch's low F3 there was
+      // heard as r + m ("Strong" -> "storm", "Wrong" -> "storm", "Hong" -> "harm", "Belong" -> "velorm").
+      static const float kNgPreBackW = param("LINE_NG_PRE_BACK_W", -1.0f);
+      const bool back = lastPh_ == Ph::AO || lastPh_ == Ph::AA || lastPh_ == Ph::OH || lastPh_ == Ph::O ||
+                        lastPh_ == Ph::U || lastPh_ == Ph::UH;
+      const float w = back && kNgPreBackW >= 0 ? kNgPreBackW : kNgPreW;
+      if (w > 0) addShapeDemand(std::max(e.t - kNgPreMs * ms, phonemeStart_ + 1), e.t + dur, v, Ph::J, w);
+    }
+    // ... or the vowel's whole shape mixed LINE_NG_PRE_MIX toward the row LINE_NG_PRE_ROW (a Ph index; 16: ɜ, whose
+    // low F3 the pinch needs) over the same window, weighted LINE_NG_PRE_MIX_W (0: off).
+    static const float kNgPreMix = param("LINE_NG_PRE_MIX", 0.0f), kNgPreMixW = param("LINE_NG_PRE_MIX_W", 1.0f);
+    static const int kNgPreRow = static_cast<int>(param("LINE_NG_PRE_ROW", 16.0f));
+    TractShape o;
+    if (tract_ == Tract::Line && tok.ph == Ph::NG && kNgPreMix > 0 && prevWasVowel_ && lineShapeOf(lastPh_, &v) &&
+        lineShapeOf(static_cast<Ph>(kNgPreRow), &o))
+      addShapeDemand(std::max(e.t - kNgPreMs * ms, phonemeStart_ + 1), e.t + dur, lineShapeMix(v, o, kNgPreMix), lastPh_, kNgPreMixW);
   }
   // ʃ ʒ after a vowel (LINE_SH_APPROACH_MS, 2026-11-05): the tongue rises
   // toward the palate first (to LINE_SH_APPROACH_A cm^2, still above the

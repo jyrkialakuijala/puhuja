@@ -825,6 +825,12 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
           prc *= n == "ZH" ? kPreZhVowel : n == "Z" ? kPreZVowel : isVoicedFricative(n) ? 1.4f : isVoicedPlosive(n) ? 1.2f
                : isNasal(n) ? 0.9f : isVoicelessPlosive(n) ? (b == "AA" ? kAaPreVless : 0.75f) : 1.0f;
         }
+        // The vowel before a ŋ in the same word x EN_PRE_NG_VOWEL_LEN (lab knob 2026-11-11, NG agent 3; 1: as before): the
+        // vowel carries the velar pinch (F2 and F3 converging into the ŋ), the cue that tells ŋ from n.
+        if (i + 1 < tok.size() && baseName(tok[i + 1]) == "NG") {
+          static const float kPreNgVowel = param("EN_PRE_NG_VOWEL_LEN", 1.0f);
+          whole *= kPreNgVowel;
+        }
         // The ʊ's own length (EN_UH_LEN; 2026-11-09 UH agent: in isolated words puhuja's ʊ ran 220-260 ms, Kokoro's 150-280).
         { static const float kUhLen = param("EN_UH_LEN", 1.0f); if (b == "UH") whole *= kUhLen; }
         // The ɑ's own length (EN_AA_LEN; 2026-11-10 AA agent: a short ɑ is heard as ʌ / ə).
@@ -877,6 +883,11 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
         }
         // w: x EN_W_LEN (1: unchanged). 72 ms here; after "by" its F2 reaches
         // only ~860 Hz from the ɪ's 1900 in that time (Kokoro's w 520-570).
+        // ŋ x EN_NG_LEN (lab knob 2026-11-11, NG agent 3; 1: as before).
+        if (b == "NG") {
+          static const float kNgLen = param("EN_NG_LEN", 1.0f);
+          whole *= kNgLen;
+        }
         if (b == "W") {
           static const float kWLen = param("EN_W_LEN", 1.0f);
           whole *= kWLen;
@@ -920,8 +931,11 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
                : lastEnd_ == ';' || lastEnd_ == ':' ? kFinalLengthClause : kFinalLengthPhrase;
       // A final l, m, n or ŋ before the pause is held: the voice carries on
       // through it (goog.wav "well or ill,": the l ~150 ms, here it was 68).
-      if (phraseFinal && !vowel && i > static_cast<size_t>(lastVowel) && (b == "L" || isNasal(b)))
-        prc *= kFinalCodaSonorant;
+      if (phraseFinal && !vowel && i > static_cast<size_t>(lastVowel) && (b == "L" || isNasal(b))) {
+        // ... a final ŋ x EN_FINAL_NG_LEN on top (lab knob 2026-11-11, NG agent 3; 1: as before).
+        static const float kFinalNgLen = param("EN_FINAL_NG_LEN", 1.0f);
+        prc *= kFinalCodaSonorant * (b == "NG" ? kFinalNgLen : 1.0f);
+      }
       // A phrase-final voiceless fricative after a vowel or sonorant is held
       // too (goog/11labs "house.": the s 120-125 ms, here 60: "hou"; after a
       // plosive, "votes", theirs is 30-40 ms, so not then).
