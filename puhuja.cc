@@ -5268,9 +5268,9 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // table's 0.25 cm^2 (then LINE_R_AC's 0.6 from the second event, still at the plosive's place): the ɹ of "bring",
   // "price" was a lip constriction at x 0.97 (a w), of "tree", "dry" one at the ridge (0.90), of "great" at the velum
   // (0.62), instead of the bunched hump at LINE_R_X. Its place x LINE_R_REL_X (< 0: the ɹ's own), its hump x LINE_R_REL_AC.
-  static const float kRRelOwn = param("LINE_R_REL_OWN", 0.0f);
+  static const float kRRelOwn = param("LINE_R_REL_OWN", 1.0f);
   if (tract_ == Tract::Line && kRRelOwn > 0 && next && *next == Ph::RR) {
-    static const float kRRelAc = param("LINE_R_REL_AC", 1.0f), kRRelX = param("LINE_R_REL_X", -1.0f);
+    static const float kRRelAc = param("LINE_R_REL_AC", 1.5f), kRRelX = param("LINE_R_REL_X", -1.0f);
     rel.ac = lineSlit(Ph::RR, rel.ac) * kRRelAc;
     rel.lineX = kRRelX >= 0 ? kRRelX : linePlaceOf(Ph::RR);
   }
@@ -5878,7 +5878,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     narrow.ac = tract_ == Tract::Line ? lineSlit(*next, nextAero.ac) : nextAero.ac;  // (the table's 0.1 cm^2 left the f of "not forget" leaking 380 cm^3/s)
     narrow.acMs = 8;
     {  // (LINE_R_REL_OWN: this step also takes the ɹ's hump x LINE_R_REL_AC)
-      static const float kRRelOwn2 = param("LINE_R_REL_OWN", 0.0f), kRRelAc2 = param("LINE_R_REL_AC", 1.0f);
+      static const float kRRelOwn2 = param("LINE_R_REL_OWN", 1.0f), kRRelAc2 = param("LINE_R_REL_AC", 1.5f);
       if (tract_ == Tract::Line && kRRelOwn2 > 0 && *next == Ph::RR) narrow.ac *= kRRelAc2;
     }
     addEvent(narrow);
