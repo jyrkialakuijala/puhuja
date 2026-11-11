@@ -691,15 +691,20 @@ float VocalTractLine::substep(float u0) {
       // smoothed, the voicing's modulation of the noise (real in voiced fricatives) kept. At 4 ms: ʒ +5..+19 dB, ZH lab
       // errors 78 -> 58, V 151 -> 134, Z 62 -> 59, DH 57 -> 58; pclick on the snap list unchanged (2026-11-11).
       static const float kReEnvMs = param("LINE_NOISE_RE_ENV_MS", 0.0f);
-      if (kReEnvMs > 0) {
-        static const float kEnvK = 1.0f - std::exp(-dt_ * 1000.0f / kReEnvMs);
+      // (LINE_V_RE_ENV_MS, V agent round F: the envelope through a v alone while LINE_NOISE_RE_ENV_MS is 0; with the
+      // global one the female Kennedy passage gained a 17-19 dB click at a z, a t and an s)
+      static const float kVReEnvMs = param("LINE_V_RE_ENV_MS", 4.0f);
+      if (kReEnvMs > 0 || (fricReSmooth_ > 0 && kVReEnvMs > 0)) {
+        static const float kEnvK = 1.0f - std::exp(-dt_ * 1000.0f / (kReEnvMs > 0 ? kReEnvMs : kVReEnvMs));
         reMean_ += (re - reMean_) * kEnvK;
         reLp_ = opening || (reMean_ < reLp_ && !fricReBoth_) ? reMean_ : reLp_ + (reMean_ - reLp_) * kReK;
         if (reMean_ > 1.0f) re *= std::min(1.0f, reLp_ / reMean_);
         else re = reLp_;  // (no flow to speak of: as without the envelope)
+        if (fricReSmooth_ > 0) re += fricReSmooth_ * (std::min(reMean_, reLp_) - re);  // (a v: toward the lagged mean, LINE_V_RE_SMOOTH)
       } else {
         reLp_ = opening || (re < reLp_ && !fricReBoth_) ? re : reLp_ + (re - reLp_) * kReK;  // (and down at once: only the rise lags; both ways for a z, LINE_Z_RE_BOTH)
         re = reLp_;
+        reMean_ = re;  // (the v's envelope, LINE_V_RE_ENV_MS, starts from here)
       }
       reA_ = a;
       reK_ = noiseKc_;

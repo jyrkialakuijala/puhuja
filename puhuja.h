@@ -130,6 +130,7 @@ struct Event {
   float linePuffLpr = -1;  // the glottal noise low-pass ratio on the line during a stop's puff (0: off; < 0: unchanged)
   float lineFricFade = -1;  // the frication source's fade-out areas x this (voiced fricatives; < 0: unchanged)
   float lineFricReBoth = -1;  // > 0: the jet's Reynolds number low-passed both ways, 0: only its rise (LINE_Z_RE_BOTH; < 0: unchanged)
+  float lineFricReSmooth = -1;  // the frication jet's Re pulled this share toward its pitch-period mean (LINE_V_RE_SMOOTH; < 0: unchanged)
   float lineFricReMul = -1;  // the frication jet's Reynolds number x this (LINE_Z_RE_SCALE; < 0: unchanged)
   float lineFricMul = -1;  // the slit noise gain factor on the line (v; < 0: unchanged)
   float lineLevel = -1;  // the prosodic level as a lung-pressure factor on the line (< 0: unchanged)
@@ -472,6 +473,7 @@ class Synth {
   bool prevWasPlosive_ = false;
   bool prevWasNasal_ = false;
   bool prevWasPause_ = false;  // the last emitted phoneme was a pause
+  bool vAfterFric_ = false;  // this v follows a fricative (LINE_V_FRIC_AFTER_FRIC)
   double oyEndT_ = -1;  // the end of the last ɔɪ's ɪ (samples; LINE_PAUSE_RUN_OY)
   float lastVowelF_[3] = {0, 0, 0};  // previous vowel's own targets (for sharpening)
   // Lungs: air left for speaking (cm^3), as planned while phonemes are
