@@ -1033,6 +1033,16 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
         if (b == "S" || b == "SH" || b == "F" || b == "TH") whole *= vfricLen;
         else if (isVoicelessPlosive(b)) whole *= vstopLen;
         else if (b == "D") { static const float kDLen = param("EN_D_LEN", 1.0f); whole *= kDLen; }  // (lab knob 2026-11-10, D agent)
+        // b d g before l ɹ (EN_VSTOP_LIQ_LEN) and the l ɹ after one (EN_LIQ_AFTER_VSTOP_LEN): the cluster's timing
+        // (BDG agent 2026-11-11; dictionary: b d g before l/ɹ 44 % errors against 26 % overall; 1: unchanged).
+        {
+          static const float kVstopLiqLen = param("EN_VSTOP_LIQ_LEN", 1.0f), kLiqAfterVstopLen = param("EN_LIQ_AFTER_VSTOP_LEN", 1.0f);
+          if (isVoicedPlosive(b) && i + 1 < tok.size()) {
+            const std::string n = baseName(tok[i + 1]);
+            if (n == "L" || n == "R") whole *= kVstopLiqLen;
+          }
+          if ((b == "L" || b == "R") && i > 0 && isVoicedPlosive(baseName(tok[i - 1]))) whole *= kLiqAfterVstopLen;
+        }
         // ... and the dentals on top (EN_TH_LEN): puhuja's initial θ ran 90-115 ms against Kokoro's 55-65 (its s 130
         // against 70-80), as long and as loud as an s, and the dictionary hears 68 % of θ as s or z (2026-11-09).
         { static const float kZhLen = param("EN_ZH_LEN", 2.0f); if (b == "ZH") whole *= kZhLen; }
