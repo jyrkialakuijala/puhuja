@@ -567,14 +567,14 @@ const float kLineNgApproachA = param("LINE_NG_APPROACH_A", 0.4f);
 // k and g into a vowel open in two steps: first to LINE_K_BURST_A cm^2 for
 // LINE_K_BURST_MS ms (the velar burst hisses through the slit), then to the
 // vowel, as a stop before a fricative does (LINE_BURST_AREA). 0: off.
-const float kLineKBurstMs = param("LINE_K_BURST_MS", 0.0f);
-const float kLineKBurstA = param("LINE_K_BURST_A", 0.12f);
+const float kLineKBurstMs = param("LINE_K_BURST_MS", 35.0f);
+const float kLineKBurstA = param("LINE_K_BURST_A", 0.2f);
 // The k's burst jet (LINE_K_JET_D cm, lab knob 2026-11-10, K agent 2; 0: the slit's own height): a thicker jet lowers
 // the slit's noise band toward the velar 1.3-2.2 kHz (Kokoro's initial k: 1.6-2.6 kHz; the 0.12 cm^2 slit alone hissed
 // at 3.8-4 kHz). The lab (top-300 k words, two draws; base 138 and 126 k errors of 630): LINE_K_BURST_MS 35,
 // LINE_K_BURST_A 0.2, LINE_K_JET_D 0.2 103 and 98 (a velar affrication through the slit: k heard as p 44 -> 28); on
 // 300 hard words (initial k + front vowel, final k, kl kr kw) 303 -> 246 of 674.
-const float kLineKJetD = param("LINE_K_JET_D", 0.0f);
+const float kLineKJetD = param("LINE_K_JET_D", 0.3f);
 // k's own puff noise (< 0: LINE_STOP_ASP), like LINE_T_STOP_ASP.
 const float kLineKStopAspMul = param("LINE_K_STOP_ASP", 10.0f);
 // A vowel before k or g narrows at the velum this long before the closure
@@ -993,7 +993,7 @@ float linePlaceOf(Ph ph) {
 // i ɪ e ɛ æ y ø j, LINE_K_X_BACK before u ʊ o ɔ ʌ ɑ ɒ w (lab knobs 2026-11-10, K agent 2; < 0: LINE_K_X). English k is
 // fronted before front vowels (its burst at the next vowel's F2/F3); one place for all gave a low burst before æ eɪ.
 float lineKPlace(Ph ph, Ph vowel) {
-  static const float front = param("LINE_K_X_FRONT", -1.0f), back = param("LINE_K_X_BACK", -1.0f);
+  static const float front = param("LINE_K_X_FRONT", 0.68f), back = param("LINE_K_X_BACK", -1.0f);
   if (ph != Ph::K) return linePlaceOf(ph);
   switch (vowel) {
     case Ph::I: case Ph::E: case Ph::AE: case Ph::Y: case Ph::OE: case Ph::IH: case Ph::EH: case Ph::J:
@@ -4868,7 +4868,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   }
   // LINE_KG_REL_SHAPE_L (lab knob 2026-11-09, G agent; 0: off): the pinch also before l r w j ("great" -> "rate",
   // "glass": the g released into the liquid with F2 at 1000 Hz, Kokoro's 2300), LINE_KG_REL_MS / _AC its length and hump.
-  static const float kLineKgRelShapeL = param("LINE_KG_REL_SHAPE_L", 0.0f), kLineKgRelMs = param("LINE_KG_REL_MS", 25.0f),
+  static const float kLineKgRelShapeL = param("LINE_KG_REL_SHAPE_L", 1.0f), kLineKgRelMs = param("LINE_KG_REL_MS", 25.0f),
                      kLineKgRelAc = param("LINE_KG_REL_AC", 0.6f);
   const bool kgLiquid = next && (*next == Ph::L || *next == Ph::RR || *next == Ph::W || *next == Ph::J);
   if (tract_ == Tract::Line && (tok.ph == Ph::K || tok.ph == Ph::G) && !unreleased && next &&
