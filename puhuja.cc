@@ -3506,7 +3506,15 @@ void Synth::emit(const Token& tok, const Ph* next) {
       }
       const bool voicedCtx = prevVoiced_ || (tract_ == Tract::Line && (kLineHVoicedCtx >= 2 || (kLineHVoicedCtx >= 1 && !prevWasPause_)));  // (LINE_H_VOICED_CTX)
       bool voicedH = voicedCtx && next && isSonorant(*next) && !beforeJ;
-      if (voicedH) {
+      // After a voiceless consonant ("torch has", "this house") the h keeps the breath going with the glottis this open
+      // (LINE_H_AFTER_VLESS_AG cm^2; < 0: the voiced h as everywhere). Jyrki 2026-11-11: "\"torch has\" has a strange
+      // sound between the words, but \"torch\" and \"has\" are separately ok": the ʧ's hiss (peak 0.106) dropped into a
+      // breathy-voiced h (glottis 0.30 -> 0.17 cm^2) at 0.006-0.010 while the folds restarted.
+      static const float kLineHAfterVlessAg = param("LINE_H_AFTER_VLESS_AG", -1.0f);
+      const bool afterVless = tract_ == Tract::Line && kLineHAfterVlessAg >= 0 && !prevVoiced_ && !prevWasPause_;
+      if (voicedH && afterVless) {
+        e.ag = kLineHAfterVlessAg;
+      } else if (voicedH) {
         e.ag = voicedHAg_;
         e.aspGain *= voicedHNoise_;
         if (tract_ == Tract::Line && prevWasPause_) {  // (LINE_H_VOICED_CTX 2: the kick starts the folds, as a phrase-initial vowel's)

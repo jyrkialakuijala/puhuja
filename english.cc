@@ -2341,7 +2341,10 @@ void EnglishReader::sayPhrase(char end) {
       if (kFricHPause > 0 && w > 0 && !phrase_[w].tokens.empty() && !phrase_[w - 1].tokens.empty() &&
           baseName(phrase_[w].tokens.front()) == "HH") {
         const std::string f = baseName(phrase_[w - 1].tokens.back());
-        if (f == "F" || f == "V" || f == "S" || f == "Z" || f == "SH" || f == "ZH" || f == "TH" || f == "DH") pause(kFricHPause);
+        static const bool kFricHAffr = param("EN_FRIC_H_PAUSE_AFFR", 0.0f) > 0;  // (... and after ʧ ʤ: "torch has")
+        if (f == "F" || f == "V" || f == "S" || f == "Z" || f == "SH" || f == "ZH" || f == "TH" || f == "DH" ||
+            (kFricHAffr && (f == "CH" || f == "JH")))
+          pause(kFricHPause);
       }
     }
     const bool allowed = w > 0 && !isNoSplitAfter(phrase_[w - 1].text);  // not "any | friend", "of | God"
