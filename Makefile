@@ -21,6 +21,17 @@ clean:
 
 test: puhuja
 	python3 -I tools/test_english.py
+	@$(MAKE) -s chunktest
+
+# Chunk invariance: Kennedy's last two paragraphs read as whole lines and fed 7 bytes at a time must be the same
+# samples, both voices, with no render-time state in the plan (PLAN_INVARIANT 1, the breath planner's air scale fixed
+# at the 0.5 it learned). It caught the learned scale (pauses 45-255 ms apart) and the reader holding a sentence's last
+# word back from the breath planner (review cpp.md B2, 2026-11-11). PUHUJA_PARAMS=/dev/null: no puhuja.params.
+CHUNKTEST = env PUHUJA_PARAMS=/dev/null PLAN_INVARIANT=1 SYNTH_DRAIN_SCALE=0.5 ./puhuja -en -r
+chunktest: puhuja
+	@a=$$(sed -n 13,15p kennedy.txt | $(CHUNKTEST) | md5sum) && b=$$(sed -n 13,15p kennedy.txt | $(CHUNKTEST) -chunk 7 | md5sum) && \
+	 c=$$(sed -n 13,15p kennedy.txt | $(CHUNKTEST) -female | md5sum) && d=$$(sed -n 13,15p kennedy.txt | $(CHUNKTEST) -female -chunk 7 | md5sum) && \
+	 if [ "$$a" = "$$b" ] && [ "$$c" = "$$d" ]; then echo "chunk invariance: ok"; else echo "chunk invariance: FAILED (male $$a / $$b, female $$c / $$d)"; exit 1; fi
 
 # How close the string folds' glottal airflow is to the LF model in relaxed speech (a report).
 lftest: puhuja

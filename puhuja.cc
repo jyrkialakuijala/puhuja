@@ -5490,7 +5490,35 @@ size_t Synth::pull(float* out, size_t n) {
 
 float Synth::noise() { return nextNoise(rng_); }
 
+namespace {
+uint64_t splitMix(uint64_t x) {  // a 64-bit mix (splitmix64's finaliser)
+  x += 0x9e3779b97f4a7c15ull;
+  x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9ull;
+  x = (x ^ (x >> 27)) * 0x94d049bb133111ebull;
+  return x ^ (x >> 31);
+}
+}  // namespace
+
+void Synth::seedNoise(uint64_t seed) {
+  seed_ = seed ? seed : 1;
+  rng_ = splitMix(seed_) | 1;
+  line_.reseed(splitMix(seed_ ^ 0x6c696e65ull));
+}
+
+void Synth::markInputLine(uint64_t key) {
+  // At the plan time: everything before it (the last line's pause) is planned, the line's sounds start after it.
+  // Kept apart from events_, whose time order the planner reads (addEvent).
+  if (seed_) reseeds_.emplace_back(timeline_, key);
+}
+
 float Synth::tick() {
+  while (!reseeds_.empty() && reseeds_.front().first <= t_) {  // PUHUJA_SEED: an input line begins
+    const uint64_t s = splitMix(seed_ ^ splitMix(reseeds_.front().second));
+    rng_ = s | 1;
+    line_.reseed(splitMix(s ^ 0x6c696e65ull));
+    if (std::getenv("PUHUJA_SEED_TRACE")) std::fprintf(stderr, "reseed t %.4f key %016llx\n", t_ / fs_, static_cast<unsigned long long>(reseeds_.front().second));
+    reseeds_.pop_front();
+  }
   // Start the articulator movements and noise changes that are due.
   while (!events_.empty() && events_.front().t <= t_) {
     const Event& e = events_.front();
@@ -5554,7 +5582,10 @@ float Synth::tick() {
       // SYNTH_DRAIN_LEARN 0: the planner's air scale stays 1. Learned here, at render time, it reached the planner
       // only when rendering ran ahead of planning (input split into chunks), so the same text rendered whole or in
       // chunks breathed differently (review cpp.md 2026-11-11: a pause 45 ms apart, and every word after it).
-      static const bool kDrainLearn = param("SYNTH_DRAIN_LEARN", 1.0f) > 0;
+      // PLAN_INVARIANT 1 turns it off: no render-time state reaches the plan. With SYNTH_DRAIN_SCALE 0.5, the value
+      // it learns, kennedy.txt (whole lines) breathes as before after its first 25 s (male: one pause 30 ms shorter
+      // at 113 s); in those 25 s, where it was still learning (1 -> 0.64 -> 0.53), pauses move by up to 255 ms.
+      static const bool kDrainLearn = param("SYNTH_DRAIN_LEARN", 1.0f) > 0 && !(param("PLAN_INVARIANT", 0.0f) > 0);
       if (drainScale_ < 0) drainScale_ = drainScale();
       if (kDrainLearn && planUsed_ > 150.0f) {
         const float ratio = actualUsed_ / planUsed_;

@@ -244,6 +244,7 @@ class VocalTractLine {
   float output() const { return out_; }  // the radiated sound, anti-aliased
   const TransmissionLine& oral() const { return oral_; }
   float velumArea() const { return an_; }  // the velum's opening as the nasal branch sees it (cm^2)
+  void reseed(uint64_t s) { rng_ = s | 1; }  // PUHUJA_SEED: the frication noise starts over from s (never 0)
 
  private:
   float noise();
@@ -297,7 +298,8 @@ class VocalTractLine {
   float wallLpHz_ = 0;
   float uAcc_ = 0, prevMean_ = 0;
   int subCount_ = 0;
-  int64_t rng_ = 1611686018427387904;
+  // The frication noise's state. Unsigned: the generator's signed form overflowed (UB; review cpp.md B4, dsp.md B4).
+  uint64_t rng_ = 1611686018427387904ull;
 };
 
 }  // namespace puhuja

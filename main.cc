@@ -131,6 +131,8 @@ void usage(FILE* f) {
       "  -g2p          print English pronunciations of the words on stdin\n"
       "  -g2p-raw      the candidate before the stored corrections (letter rules, prefixes)\n"
       "  -chunk N      feed the text N bytes at a time (for testing streaming)\n"
+      "  PUHUJA_SEED=n the noise and fold jitter start from seed n (not 0), and start over at each\n"
+      "                stdin line from n and the line's text (PUHUJA_SEED_LINES=0: only at the start)\n"
       "  -h, --help    this help\n"
       "\n"
       "examples:\n"
@@ -313,6 +315,14 @@ int main(int argc, char** argv) {
   synth.setCarrier(carrier);
   synth.setFormantMotion(motion);
   synth.setTract(tract);
+  // PUHUJA_SEED=n (n != 0): the render's noise and fold jitter start from n, and (PUHUJA_SEED_LINES, default 1)
+  // start over at each line of stdin from n and the line's text: the same word draws the same random numbers
+  // wherever it stands in a word list (Synth::markInputLine). Unset: the built-in states, as before.
+  const char* seedEnv = std::getenv("PUHUJA_SEED");
+  const uint64_t seed = seedEnv ? std::strtoull(seedEnv, nullptr, 0) : 0;
+  const char* seedLinesEnv = std::getenv("PUHUJA_SEED_LINES");
+  const bool seedLines = seed && (!seedLinesEnv || std::atoi(seedLinesEnv) != 0);
+  if (seed) synth.seedNoise(seed);
   if (artPath) synth.recordArticulation(5.0f);
   synth.setLeak(leak);
   FILE* out = raw ? stdout : fopen(outPath, "wb");
@@ -354,7 +364,14 @@ int main(int argc, char** argv) {
     drain();
   } else {
     char line[4096];
+    bool lineStart = true;  // (a line longer than the buffer comes in several pieces)
     while (fgets(line, sizeof line, stdin)) {
+      if (seedLines && lineStart) {  // FNV-1a of the line without its line end
+        uint64_t h = 0xcbf29ce484222325ull;
+        for (const char* p = line; *p && *p != '\n' && *p != '\r'; ++p) h = (h ^ static_cast<unsigned char>(*p)) * 0x100000001b3ull;
+        synth.markInputLine(h);
+      }
+      lineStart = strchr(line, '\n') != nullptr;
       if (!english)  // the English reader uses line ends (headings, paragraphs)
         for (char* p = line; *p; ++p)
           if (*p == '\n') *p = ' ';

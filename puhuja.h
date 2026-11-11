@@ -332,6 +332,16 @@ class Synth {
   // End of input: lets the last phonemes be rendered.
   void finish();
 
+  // PUHUJA_SEED (main.cc): the randomness of a render, the folds' jitter and micro-variation and the formant path's
+  // noise (rng_, shared) and the line's frication noise, starts from seed instead of the built-in states, so two
+  // draws of the same text differ by a seed, not by a nudge to an unrelated knob (review dsp.md 3, evaluation.md).
+  void seedNoise(uint64_t seed);
+  // ... and starts over at each input line, from the seed and the line (key: a hash of its text), when the line's
+  // sounds begin: a word's random numbers no longer depend on the words before it in its shard. Its waveform still
+  // does (the folds' state carries over): the same 20 words after two other prefixes, per-word SNR 7-10 dB with or
+  // without it; a seed change, 1.3 dB. words1000: sd ~10 words (m+f) over seeds as over shard counts (2026-11-11).
+  void markInputLine(uint64_t key);
+
   // Render up to n mono float32 samples. Returns how many were written;
   // fewer than n means more input (or finish()) is needed.
   size_t pull(float* out, size_t n);
@@ -646,6 +656,8 @@ class Synth {
   float kPitchLag_ = 0;
   float duty_ = 0.5f;  // carrier duty for the current cycle
   uint64_t rng_ = 0x123456789abcdef1ull;
+  uint64_t seed_ = 0;  // PUHUJA_SEED (seedNoise; 0: none)
+  std::deque<std::pair<double, uint64_t>> reseeds_;  // (plan time, line key): markInputLine's reseeds, applied in tick()
 
   Biquad outHp_;  // output high-pass (kOutputHighPassHz, -6 dB/octave)
   Biquad lowCut_;  // and a 2nd-order cut at kLowCutHz

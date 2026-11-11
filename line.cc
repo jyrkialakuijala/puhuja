@@ -8,6 +8,7 @@
 #include <xmmintrin.h>
 #endif
 
+#include "filters.h"
 #include "params.h"
 #include "tract.h"
 
@@ -248,19 +249,27 @@ constexpr float kMuAir = 1.86e-4f;
 // Re = 2 rho |u| / (mu L) (slit) or 2 rho |u| / (mu sqrt(pi A)) (round duct): the constant factors once.
 const float kReSlitFactor = 2.0f * TransmissionLine::kRho / (kMuAir * kGlottisLength);
 constexpr float kReRoundFactor = 2.0f * TransmissionLine::kRho / kMuAir;
+
+// The generator's first form, on int64_t: its += overflowed and rot() shifted negative values left, both undefined
+// behaviour (UBSan; review cpp.md B4), and its >> is arithmetic, so rot() was no rotation. Here the same sequence in
+// unsigned arithmetic (wrapping, as the compiler did it; bit-identical output): >> stays arithmetic (sar).
+uint64_t sar(uint64_t a, int shift) { return static_cast<uint64_t>(static_cast<int64_t>(a) >> shift); }
+uint64_t rotOld(uint64_t a, int shift) { return sar(a, shift) | (a << (64 - shift)); }
+
+// LINE_NOISE_RNG 1: filters.h's nextNoise, uniform in [-1, 1). The first form's output lies in [-2, 0) (mean -1.12,
+// 62 % below -1): harmless while every consumer is high-passed, but a thump on each fricative on a path that is not
+// (review dsp.md B4). A different sequence, so a different draw of every hiss: not yet heard.
+const bool kNoiseRngFixed = param("LINE_NOISE_RNG", 0.0f) > 0;
 }  // namespace
 
-int64_t rot(int64_t a, int shift) {
-  return (a >> shift) | (a << (64 - shift));
-}
-
 float VocalTractLine::noise() {
-  rng_ += rot(rng_, 15);
-  rng_ ^= rng_ >> 17;
-  rng_ += rot(rng_, 31);
-  rng_ ^= rot(rng_, 23);
-  rng_ += rot(rng_, 11);
-  return rng_ * (1.0f / 9223372036854775808.0f) - 1.0f;
+  if (kNoiseRngFixed) return nextNoise(rng_);
+  rng_ += rotOld(rng_, 15);
+  rng_ ^= sar(rng_, 17);
+  rng_ += rotOld(rng_, 31);
+  rng_ ^= rotOld(rng_, 23);
+  rng_ += rotOld(rng_, 11);
+  return static_cast<float>(static_cast<int64_t>(rng_)) * (1.0f / 9223372036854775808.0f) - 1.0f;
 }
 
 void TransmissionLine::addSinus(int k, float volume, float neckArea, float neckLength, float q) {
