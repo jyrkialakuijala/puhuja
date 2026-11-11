@@ -4061,8 +4061,8 @@ void Synth::emit(const Token& tok, const Ph* next) {
   // (base 101 / 94), heard as n 40 -> 28, words1000 1205 (1199), snap -1.5 sigma; "Long." F2 830 -> 1160 and F3
   // 2750 -> 2050 over its last 50 ms (Kokoro 1150 -> 1880, F3 2420).
   {
-    static const float kNgPreW = param("LINE_NG_PRE_SHAPE", 0.0f), kNgPreMs = param("LINE_NG_PRE_MS", 60.0f),
-                       kNgPreAc = param("LINE_NG_PRE_AC", 0.6f), kNgPreX = param("LINE_NG_PRE_X", -1.0f);
+    static const float kNgPreW = param("LINE_NG_PRE_SHAPE", 1.0f), kNgPreMs = param("LINE_NG_PRE_MS", 60.0f),
+                       kNgPreAc = param("LINE_NG_PRE_AC", 0.6f), kNgPreX = param("LINE_NG_PRE_X", 0.71f);
     TractShape v;
     if (tract_ == Tract::Line && tok.ph == Ph::NG && kNgPreW > 0 && prevWasVowel_ && lineShapeOf(lastPh_, &v)) {
       v.xc = kNgPreX >= 0 ? kNgPreX : lineNgPlace(lastPh_, next);
@@ -4071,7 +4071,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
       v.sc = 1.0f;
       // After ɔ ɑ ɒ o u ʊ the weight is LINE_NG_PRE_BACK_W instead (< 0: the same): the pinch's low F3 there was
       // heard as r + m ("Strong" -> "storm", "Wrong" -> "storm", "Hong" -> "harm", "Belong" -> "velorm").
-      static const float kNgPreBackW = param("LINE_NG_PRE_BACK_W", -1.0f);
+      static const float kNgPreBackW = param("LINE_NG_PRE_BACK_W", 0.0f);
       const bool back = lastPh_ == Ph::AO || lastPh_ == Ph::AA || lastPh_ == Ph::OH || lastPh_ == Ph::O ||
                         lastPh_ == Ph::U || lastPh_ == Ph::UH;
       const float w = back && kNgPreBackW >= 0 ? kNgPreBackW : kNgPreW;
