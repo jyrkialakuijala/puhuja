@@ -893,15 +893,20 @@ float lineVowelStrength(float xc, float wc, float length) {
 // shapes give it ~1.9 cm2 over 2 cm, about no narrowing; MRI shows ~0.3-0.5 cm2 over 2-3 cm. LINE_LARYNX_AREA scales
 // its area (1: as fitted), LINE_LARYNX_LEN sets its length (cm). A narrowing at the closed (glottis) end, where every
 // formant has its pressure maximum, raises the formants, F1 most (puhuja's F1 is 2-5 st under Kokoro's).
-void epilarynx(TractShape& s) {
+void epilarynx(TractShape& s, bool female) {
   static const float kArea = param("LINE_LARYNX_AREA", 0.82f), kLen = param("LINE_LARYNX_LEN", 2.5f);
   s.aLarynx *= kArea;
   s.lLarynx = kLen;
-  // ... and above it the hypopharynx: LINE_HYPO_MUL x the larynx tube's area over LINE_HYPO_LEN cm (0: none)
+  // ... and above it the hypopharynx: LINE_HYPO_MUL x the larynx tube's area over LINE_HYPO_LEN cm (0: none). The
+  // female voice has its own pair, LINE_HYPO_MUL_F / _LEN_F (< 0: the male value): the length is in cm while her tract
+  // is shorter, and the male h4l2 (4x over 2 cm) cost her ~230 dictionary words a draw (2026-11-11).
   static const float kHypoMul = param("LINE_HYPO_MUL", 0.0f), kHypoLen = param("LINE_HYPO_LEN", 1.5f);
-  if (kHypoMul > 0) {
-    s.aHypo = s.aLarynx * kHypoMul;
-    s.lHypo = kHypoLen;
+  static const float kHypoMulF = param("LINE_HYPO_MUL_F", -1.0f), kHypoLenF = param("LINE_HYPO_LEN_F", -1.0f);
+  const float mul = female && kHypoMulF >= 0 ? kHypoMulF : kHypoMul;
+  const float len = female && kHypoLenF >= 0 ? kHypoLenF : kHypoLen;
+  if (mul > 0) {
+    s.aHypo = s.aLarynx * mul;
+    s.lHypo = len;
   }
 }
 
@@ -6555,8 +6560,8 @@ float Synth::tick() {
           // length grow by lineExtra_, everything behind stays put.
           a.lLip += lineExtra_; a.length += lineExtra_;
           b.lLip += lineExtra_; b.length += lineExtra_;
-          epilarynx(a);
-          epilarynx(b);
+          epilarynx(a, female_);
+          epilarynx(b, female_);
           const int n = line_.oral().sections();
           std::vector<float> va = a.sections(n), vb = b.sections(n);
           for (int k = 0; k < n; ++k) va[k] = std::exp(std::log(va[k]) + (std::log(vb[k]) - std::log(va[k])) * w);
@@ -6569,7 +6574,7 @@ float Synth::tick() {
       // The female voice: a shorter tract in place of the formant multipliers.
       sh.length /= (voice_.formant[0] + voice_.formant[1] + voice_.formant[2]) / 3.0f;
       sh.lLip += lineExtra_; sh.length += lineExtra_;  // (as above)
-      epilarynx(sh);
+      epilarynx(sh, female_);
       line_.setShape(sh, lineX_, ac, an);
     lineShapeDone:;
     }
