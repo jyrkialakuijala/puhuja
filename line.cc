@@ -760,6 +760,13 @@ float VocalTractLine::substep(float u0) {
     }
     const float hold = kExpandHold * lungPressure_;
     float share = std::clamp((pc - hold) / std::max(0.2f * lungPressure_, 1.0f), 0.0f, 1.0f);
+    // LINE_EXPAND_OPEN (cm^3/s, 2026-11-11, review voice.md B2; 0: off): a planned closure's enlargement as an
+    // open-loop volume velocity (Westbury 1983: 10-20 cm^3 over a b closure, a slow muscular gesture), not a servo on
+    // the cavity pressure: the servo against the sealed tract made the "voice bars" a 45-65 Hz loop (P1 swinging
+    // -3000..+9900 dyn/cm^2), not voicing at f0. Only a near-empty cavity (under LINE_EXPAND_OPEN_FLOOR of the lungs,
+    // slow pressure) eases it off, so it never sucks the mouth below zero.
+    static const float kExpandOpen = param("LINE_EXPAND_OPEN", 0.0f), kExpandOpenFloor = param("LINE_EXPAND_OPEN_FLOOR", 0.1f);
+    if (kExpandOpen > 0 && expandSlow_) share = std::clamp(pc / std::max(kExpandOpenFloor * lungPressure_, 1.0f), 0.0f, 1.0f) * (kExpandOpen / std::max(expandFlow_, 1.0f));
     // LINE_EXPAND_ON_MS (2026-11-05): the sink's share eases in and out over
     // this. As a voiced closure sealed, the cavity pressure reached the hold
     // within a few ms and the 200 cm^3/s sink switched on as a step at

@@ -54,6 +54,7 @@ class GridFolds {
   float u_[kSegments] = {}, uOut_[kSegments] = {};
   float uSum_ = 0, uOutSum_ = 0;
   float surface_ = 0;  // volume velocity of the moving surfaces (cm^3/s)
+  float p1Lp_ = 0, p1LpH_ = 0, p1LpA_ = 0;  // the low-passed tract pressure on the superior surface (GRID_P1SUP)
   unsigned openMask_ = 0;
   float area_ = 0;  // the membranous part's open area (cm^2)
   bool wasOpen_ = false, closedNow_ = false;

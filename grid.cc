@@ -91,6 +91,9 @@ const float kSlope = param("GRID_SLOPE", 0.9114f) /* cost 0.0440772362313503 gri
 // velocity of the surface area times the vertical velocity, summed over the
 // masses, heard with the flow (also while the glottis is shut); 1 is the
 // geometric value for the medial surface's footprint.
+// The oral pressure's slow part on the superior surface, as STRING_P1SUP in
+// string.cc (the grid stopped at P1 ~ 0.35 Ps, review voice.md B1; 0: as before).
+const float kP1Sup = param("GRID_P1SUP", 0.0f), kP1SupHz = param("GRID_P1SUP_HZ", 10.0f);
 const float kSurface = param("GRID_SURFACE", 2.821f) /* cost 0.0440772362313503 grid-c300-mf */;
 // The abduction rest area scaled for the grid (its own amplitude differs
 // from the two-mass model's; the glottis was open 95 % of the cycle at 1).
@@ -137,6 +140,7 @@ void GridFolds::reset() {
       for (int i = 0; i < S; ++i) z_[f][j][i] = v_[f][j][i] = 0;
   for (int i = 0; i < S; ++i) u_[i] = uOut_[i] = 0;
   uSum_ = uOutSum_ = area_ = 0;
+  p1Lp_ = 0;
   openMask_ = 0;
   wasOpen_ = closedNow_ = false;
 }
@@ -218,6 +222,9 @@ float GridFolds::step(float h, const VocalFolds::Input& in) {
   }
   area_ = aOld;
   const float drive = in.ps - in.p1;
+  if (h != p1LpH_) p1LpH_ = h, p1LpA_ = 1.0f - std::exp(-2.0f * kPi * kP1SupHz * h);
+  p1Lp_ += p1LpA_ * (in.p1 - p1Lp_);
+  const float pRef = kP1Sup * p1Lp_;
   // Flow per segment channel: implicit step of L du/dt = drive - rho/2 u^2 / a^2
   // (u >= 0), each channel with S times the glottal inertance (in parallel
   // they add up to it). The heard flow goes through the rounded area.
@@ -266,7 +273,7 @@ float GridFolds::step(float h, const VocalFolds::Input& in) {
       } else {
         p = in.p1;  // at and above the narrowest layer: separated flow
       }
-      const float fAir = p * kSeg * kLayer * kKappa;
+      const float fAir = (p - pRef) * kSeg * kLayer * kKappa;
       for (int f = 0; f < 2; ++f) {
         // Collision when the opposing surfaces overlap: the contact pushes
         // the tissue up (which, through the slope, opens the slit).

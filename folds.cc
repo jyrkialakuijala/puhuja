@@ -1,4 +1,6 @@
 #include "folds.h"
+#include "params.h"
+#include "filters.h"
 
 #include <algorithm>
 #include <cmath>
@@ -20,6 +22,10 @@ constexpr float kRho = 0.00113f;                   // air density (g/cm^3)
 constexpr float kInertance = 0.005f;  // physically ~0.01; more makes the highs buzz
 constexpr float kRound = 0.002f;  // rounding of the heard area (cm^2)
 const float kSqrtM1K1 = std::sqrt(kM1 * kK1), kSqrtM2K2 = std::sqrt(kM2 * kK2);
+// The oral pressure's slow part on the superior surface, as STRING_P1SUP in
+// string.cc (the two-mass stopped at P1 ~ 3500 dyn/cm^2 for Ps 7840, review
+// voice.md B1; 0: as before).
+const float kP1Sup = param("FOLDS_P1SUP", 0.0f), kP1SupHz = param("FOLDS_P1SUP_HZ", 10.0f);
 constexpr int kSubsteps = 1;  // per call; the synth calls it 4x per sample
 // Jyrki (2026-10-30): the folds move while closed too, and their surface
 // pushes air into the tract: a volume velocity 2 L (d1 v1 + d2 v2), scaled by
@@ -37,7 +43,7 @@ constexpr float kTensionDamping = 0.0f;
 }  // namespace
 
 void VocalFolds::reset() {
-  x1_ = v1_ = x2_ = v2_ = u_ = uOut_ = 0;
+  x1_ = v1_ = x2_ = v2_ = u_ = uOut_ = p1Lp_ = 0;
   wasOpen_ = closedNow_ = false;
 }
 
@@ -94,8 +100,11 @@ float VocalFolds::step(float dt, const Input& in) {
       pm1 = in.ps - 0.5f * kRho * vel * vel;
       pm2 = in.p1;
     }
-    const float f1 = kLength * kD1 * pm1;
-    const float f2 = kLength * kD2 * pm2;
+    if (h != p1LpH_) p1LpH_ = h, p1LpA_ = 1.0f - std::exp(-2.0f * kPi * kP1SupHz * h);
+    p1Lp_ += p1LpA_ * (in.p1 - p1Lp_);
+    const float pRef = kP1Sup * p1Lp_;
+    const float f1 = kLength * kD1 * (pm1 - pRef);
+    const float f2 = kLength * kD2 * (pm2 - pRef);
     // Collision: when a slit closes, the tissue is compressed.
     const float zq = std::pow(q, -kTensionDamping);
     float c1 = 0, c2 = 0, z1 = kZeta1 * zq, z2 = kZeta2 * zq;

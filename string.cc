@@ -52,6 +52,23 @@ constexpr float kZeta[L] = {0.1f, 0.4f};
 const float kZetaClosed = param("STRING_ZCLOSED", 0.0823445f) /* cost 5.3123456789012345 schwa-run2-kokoro-dB */ /* 2026-11-04 LF fit (tools/lf_fit.py, ref/lf/fit2) 0.207612, then 15 % back toward the earlier 0.1868 (Jyrki: the more trained voice) */;
 const float kCollision = param("STRING_COLLISION", 3.0f);  // collision stiffness / the lane's total stiffness (a knob since 2026-11-07: the closing phase)
 // The share of the air pressure on the surface that drives it.
+// The oral pressure's slow part on the folds' superior surface (2026-11-11,
+// review voice.md B1): the layers took the absolute tract pressure P1 as an
+// opening push and nothing pressed on the upper surface, so a pressurised
+// mouth blew the folds open: in the harness voicing stopped at P1 ~ 0.4 Ps
+// (held open at 0.043 cm^2) while the expansion sink holds a b at 0.6 Ps, so
+// b/d/g closures and z/v went silent ~20 ms in. STRING_P1SUP is the share of
+// P1, low-passed at STRING_P1SUP_HZ, taken off every layer's pressure (1: a
+// fold immersed in the mouth's pressure feels only the drop across it; 0: as
+// before). The corner stays low (<= ~15 Hz): at 50 Hz it cancels part of the
+// f0 coupling and the vowels rose 1 dB. Tried (2026-11-11, notes in
+// ref/opt/lab/BUG-VOICING): a fast fall (200 Hz) tracks each cycle's P1 minimum
+// and the male b/d/g bars died again (-25..-31 dB); taking off only the part
+// above 0.1 Ps loses the sink's suction (a negative P1 that helps the folds
+// close) and the bars died too. With 1, the voiceless fricatives' hiss is
+// ~0.8 dB weaker (their P1 no longer helps hold the glottis open) and the
+// vowels after t s ~0.5 dB less aspirated.
+const float kP1Sup = param("STRING_P1SUP", 0.0f), kP1SupHz = param("STRING_P1SUP_HZ", 10.0f);
 const float kKappa = param("STRING_KAPPA", 0.4327f) /* cost Whisper 852 composite 23.90/26.04 92b-cheap9 */ /* 2026-11-04 LF fit (tools/lf_fit.py, ref/lf/fit2) 2.24987, then 15 % back toward the earlier 3 (Jyrki: the more trained voice) */;
 // The cords' own sound: surface area times lateral velocity, both folds.
 const float kSurface = param("STRING_SURFACE", 0.0868495f) /* cost 5.3123456789012345 schwa-run2-kokoro-dB */;
@@ -131,6 +148,7 @@ void StringFolds::reset() {
   for (int l = 0; l < N; ++l) u_[l] = uOut_[l] = 0;
   uSum_ = uOutSum_ = area_ = 0;
   for (int l = 0; l < kLanes; ++l) aHeard_[l] = 0;
+  p1Lp_ = 0;
   openMask_ = 0;
   wasOpen_ = closedNow_ = false;
 }
@@ -202,6 +220,9 @@ float StringFolds::step(float h, const VocalFolds::Input& in) {
   }
   area_ = aOld;
   const float drive = in.ps - in.p1;
+  if (h != p1LpH_) p1LpH_ = h, p1LpA_ = 1.0f - std::exp(-2.0f * kPi * kP1SupHz * h);
+  p1Lp_ += p1LpA_ * (in.p1 - p1Lp_);
+  const float pRef = kP1Sup * p1Lp_;  // (0 by default: the layers' pressures as before, bit for bit)
   // Flow per lane channel: implicit step of Lg du/dt = drive - rho/2 u^2 / a^2
   // (u >= 0), each channel with kMoving times the glottal inertance (in
   // parallel they add up to it). The heard flow goes through the rounded area.
@@ -271,7 +292,7 @@ float StringFolds::step(float h, const VocalFolds::Input& in) {
       } else {
         p = in.p1;
       }
-      fAir[j][l] = p * kSeg * kLayer * kKappa;
+      fAir[j][l] = (l < kFirst || l > kLast ? 0.0f : p - pRef) * kSeg * kLayer * kKappa;
     }
   }
   // Forces, lane by lane: the wall spring, the string tension to the two

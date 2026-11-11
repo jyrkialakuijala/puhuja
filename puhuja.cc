@@ -4411,7 +4411,13 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // English b not between vowels ("I said bat", "big"): a mostly devoiced
   // closure and a clear release. Fully voiced with almost no burst it was
   // heard as m or not at all (language researcher: b words 2/9 -> 7/9).
-  const bool englishB = aspirate_ && tok.ph == Ph::B && !prevWasVowel_;
+  // LINE_EN_B_VOICED_CTX (2026-11-11, review voice.md B3; 0: as before): 1: a word-initial b after a vowel-final word
+  // ("the bigger", "a baby", "to bed") counts as between vowels (prevWasVowel_ is reset at every word start, so these
+  // were devoiced with an abducted glottis, ag 0.159, while readers and Kokoro voice them); 2: also after any sonorant
+  // (as g d with LINE_GD_VOICED_CTX). The utterance-initial and post-obstruent b keep the opening.
+  static const int kEnBVoicedCtx = param("LINE_EN_B_VOICED_CTX", 0);
+  const bool bVoicedBefore = !prevWasPause_ && (kEnBVoicedCtx >= 2 ? prevVoiced_ : kEnBVoicedCtx >= 1 && tok.wordStart && isVowel(lastPh_));
+  const bool englishB = aspirate_ && tok.ph == Ph::B && !prevWasVowel_ && !bVoicedBefore;
   // English b d g before a voiceless fricative ("said ship"): the closure
   // devoices, so the voicing does not run on into the hiss (heard as "fib").
   const bool devoiceBefore = aspirate_ && pi.voiced && next &&

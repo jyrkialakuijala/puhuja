@@ -43,6 +43,7 @@ class VocalFolds {
   float x1_ = 0, v1_ = 0, x2_ = 0, v2_ = 0;
   float u_ = 0;
   float uOut_ = 0;  // the flow heard: through the rounded area (see step)
+  float p1Lp_ = 0, p1LpH_ = 0, p1LpA_ = 0;  // the low-passed tract pressure on the superior surface (FOLDS_P1SUP)
   float rest_ = 0.05f;
   bool wasOpen_ = false, closedNow_ = false;
   float closeFrac_ = 0;
