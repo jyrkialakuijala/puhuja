@@ -855,7 +855,7 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
         // here, Kokoro's "pledge," l 160 (Jyrki 2026-11-07: "'pledge' is
         // mispronounced, compare with kokoro"); x EN_STOP_L_LEN (1: unchanged).
         if (b == "L" && i > 0 && (isVoicelessPlosive(baseName(tok[i - 1])) || isVoicedPlosive(baseName(tok[i - 1])))) {
-          static const float kStopLLen = param("EN_STOP_L_LEN", 1.8f);  // Jyrki: "pledge-l20vr5.wav is the best" (l 59 -> 118 ms)
+          static const float kStopLLen = param("EN_STOP_L_LEN", 1.7f);  // Jyrki: "pledge-l20vr5.wav is the best" (l 59 -> 118 ms)
           whole *= kStopLLen;
         }
         // h after a plosive across the word boundary ("at home"): 119 ms of
@@ -1030,7 +1030,7 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
       // the cluster takes time the vowel gives back. Jyrki 2026-11-11: "black should be shorter, not much longer or
       // equal with cat and back" (black 395 ms: b 49, l 111 (EN_STOP_L_LEN 2, his "pledge" pick), æ 206; cat ~310).
       {
-        static const float kClusterVowelLen = param("EN_CLUSTER_VOWEL_LEN", 0.8f);
+        static const float kClusterVowelLen = param("EN_CLUSTER_VOWEL_LEN", 0.76f);
         if (vowel && kClusterVowelLen != 1.0f && i >= 2) {
           const std::string l1 = baseName(tok[i - 1]), p0 = baseName(tok[i - 2]);
           if ((l1 == "L" || l1 == "R") && (isVoicelessPlosive(p0) || isVoicedPlosive(p0))) whole *= kClusterVowelLen;
