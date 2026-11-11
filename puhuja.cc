@@ -3083,7 +3083,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // 3: æ) by LINE_SCHWA_FINAL_MIX, pharynx / lips x _APH / _LIPA; elsewhere (medial, initial) by LINE_SCHWA_MIX
     // toward the same row, and a word-initial ə's pharynx x LINE_SCHWA_INIT_APH.
     if (have && tok.ph == Ph::Schwa) {
-      static const float kSchwaFinalMix = param("LINE_SCHWA_FINAL_MIX", 0.0f), kSchwaMix = param("LINE_SCHWA_MIX", 0.0f),
+      static const float kSchwaFinalMix = param("LINE_SCHWA_FINAL_MIX", 0.75f), kSchwaMix = param("LINE_SCHWA_MIX", 0.0f),
                          kSchwaFinalAph = param("LINE_SCHWA_FINAL_APH", 1.0f), kSchwaFinalLipA = param("LINE_SCHWA_FINAL_LIPA", 1.0f),
                          kSchwaInitAph = param("LINE_SCHWA_INIT_APH", 1.0f), kSchwaLen = param("LINE_SCHWA_FINAL_LEN", 1.0f);
       static const int kSchwaRow = static_cast<int>(param("LINE_SCHWA_FINAL_ROW", 0.0f));
