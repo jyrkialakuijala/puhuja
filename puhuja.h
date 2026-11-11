@@ -144,6 +144,7 @@ struct Event {
   float lineJetSmoothMs = -1;  // ... the noise corner's smoothing for this jet (ms; < 0: the global LINE_NOISE_ST_SMOOTH_F_MS), applied with lineJetD
   float lineJetFcMin = 0, lineJetFcMax = 0;  // ... and the corner's range for this jet (Hz; 0: the global 200 / LINE_NOISE_FC_MAX), applied with lineJetD
   float lineX = -1;    // the constriction's place for the line tract (share of its length; < 0: keep)
+  bool lineXClosure = false;  // the place is a closure's (a stop, a nasal): LINE_X_SNAP_CLOSURES
   bool aspBurst = false;  // an aspirated release: the puff's noise starts
   float creak = -1;       // creaky voice from now on (0..1; < 0: unchanged)
   float noiseFadeMs = -1;  // with setNoise: fade-in from silence (< 0: the default)
@@ -559,6 +560,8 @@ class Synth {
   double artNext_ = 0;         // the next frame's time (samples, t_)
   std::vector<ArticulationFrame> art_;  // t in samples (t_) until articulation() converts it
   float lineX_ = 0.86f, lineXTarget_ = 0.86f;  // the constriction's place, smoothed
+  bool lineXSnapOk_ = true;  // the last place event allows the snap (LINE_X_SNAP_CLOSURES)
+  bool lineXArtic_ = false;  // the place moves to the other articulator (LINE_X_ARTIC_MS)
   Event pendingAspEnd_{0};  // a stop's puff: its hiss ends once the folds have closed
   bool hasPendingAspEnd_ = false;
   float lineAspMul_ = 1.0f;  // the glottal noise gain factor (a stop's puff)

@@ -655,6 +655,26 @@ const float kLineAbductMs = param("LINE_ABDUCT_MS", 35.0f);
 // frication gain while the stop opens, the cascade's burst noise gain).
 const float kLineVStopBurst = param("LINE_VSTOP_BURST", 0.0f);  // 1.0 until 2026-11-06 (Jyrki: the b of "belief" had "too much aspiration"; the vowel after it carried hiss at -18 dB above 5 kHz, Kokoro -42; chose beliefs-vb0bx0)
 const float kLineXSnapArea = param("LINE_X_SNAP_AREA", 0.0f);  // the constriction place jumps to its target while the hump is wider than this (cm^2; 0: glides)
+// The lips and the tongue are two articulators: when the place target moves
+// from one to the other (x >= 0.94 is the lips: p b m w f v), the place jumps
+// at once (0) or over this time constant (ms) instead of the 20 ms glide; < 0:
+// glides. The one hump slid from the tongue to the lips while shut: "and me"
+// m closed at x 0.80 (n's 0.78, m's 0.97), "for mankind" at 0.85, its first
+// 30-50 ms an n's murmur (nasal review 1.2, 2026-11-11). Proposed 8: at 0
+// guards.py found 26 clicks / bangs, at 4 "Napkin" n -> p snapped (snap.py
+// 0 -> 10.9 / 8); at 8 the snap list is 6.33 dB (base 6.55).
+const float kLineXArticMs = param("LINE_X_ARTIC_MS", -1.0f);
+// LINE_X_SNAP_AREA only for a closure's place (a stop's, a nasal's; 1; 0: every place). The fricatives
+// keep their glide from the vowel: at their own place from the vowel on (the snap), the v of "revolutionary"
+// and the ʃ of "-lution" snapped (tools/snap.py, female v 0 -> 10.1, "revolutionary war" male v 0 -> 18.4),
+// their onsets were tuned on the glide.
+const bool kLineXSnapClosures = param("LINE_X_SNAP_CLOSURES", 0) > 0;
+// A stop's approach (the narrowing 2 -> 0.15 cm^2 before its seal) at the
+// stop's own place (1; 0: the place set by the closure, after the approach).
+// It had none: the narrowing formed at the last consonant's place, "keep" p
+// sealed at 0.68-0.78 and slid 2.3 cm to the lips while closed, "Bad" d
+// narrowed at the lips (artsynth review B1, 2026-11-11).
+const float kLineStopApproachX = param("LINE_STOP_APPROACH_X", 0.0f);
 const float kLineKRelFric = param("LINE_K_REL_FRIC", 0.3f);  // k's release hiss (x LINE_FRIC while the closure opens; 1: as before)
 const float kLinePRelFric = param("LINE_P_REL_FRIC", 0.3f);  // p's
 // t's (2026-11-06, Jyrki: in "torch has" "the t sounds off"): across kennedy puhuja's t bursts peaked -2.7 dB re the
@@ -2832,6 +2852,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
   if (tract_ == Tract::Line)
     e.lineFricFade = tok.ph == Ph::ZH && !inAffricate_ && kLineZhFade >= 0 ? kLineZhFade : tok.ph == Ph::Z && kLineZFade >= 0 ? kLineZFade : tok.ph == Ph::Z || tok.ph == Ph::ZH || tok.ph == Ph::VV || tok.ph == Ph::DH ? kVFricFade : tok.ph == Ph::SH ? shFade : 1.0f;
   e.lineX = tok.ph == Ph::NG ? lineNgPlace(lastPh_, next) : linePlaceOf(tok.ph);
+  e.lineXClosure = in.cls == Cls::Nasal;
   if (tok.ph == Ph::SH && shFullVowel && kLineShVowelX > 0) e.lineX = kLineShVowelX;  // (LINE_SH_VOWEL_X)
   if (tok.ph == Ph::SH && shFullVowel && kLineShVowelAc != 1.0f && e.ac > 0) e.ac *= kLineShVowelAc;  // (LINE_SH_VOWEL_AC)
   // Stress as a push of the diaphragm (Jyrki 2026-11-04: "a soft pulse in
@@ -4050,6 +4071,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
     ap.acMs = static_cast<float>((e.t - ap.t) / ms);
     ap.lineX = tok.ph == Ph::NG ? (kNgApX >= 0 ? kNgApX : lineNgPlace(lastPh_, next)) : linePlaceOf(tok.ph);
     if (tok.ph == Ph::NG && kNgApHw >= 0) ap.lineHw = kNgApHw;
+    ap.lineXClosure = true;
     addEventAt(ap);
   }
   // The velar pinch into ŋ as the tongue body's own move (LINE_NG_PRE_SHAPE, lab knob 2026-11-11, NG agent 3; 0: off):
@@ -4610,6 +4632,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
         ap.ac = velar ? kLineKgApproachA : labial ? kLineBpApproachA : kLineTApproachA;
         ap.acMs = static_cast<float>((closeStart - ap.t) / ms);
         ap.lineX = lineKPlace(tok.ph, kVowel);
+        ap.lineXClosure = true;
         addEventAt(ap);
       }
     }
@@ -4632,6 +4655,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     if (tract_ == Tract::Line && tok.ph == Ph::T && kLineTCloseFric != 1.0f) approach.lineFricMul = kLineTCloseFric;  // (LINE_T_CLOSE_FRIC, below)
     if (tract_ == Tract::Line && tok.ph == Ph::JH && kLineJhCloseFric != 1.0f) approach.lineFricMul = kLineJhCloseFric;
     if (tract_ == Tract::Line && kLineCloseFric != 1.0f && approach.lineFricMul < 0 && tok.ph != Ph::T && tok.ph != Ph::JH && tok.ph != Ph::CH) approach.lineFricMul = kLineCloseFric;  // (LINE_CLOSE_FRIC)  // (its ʒ sets its own at the release)
+    if (tract_ == Tract::Line && kLineStopApproachX > 0) approach.lineX = lineKPlace(tok.ph, kVowel), approach.lineXClosure = true;  // (LINE_STOP_APPROACH_X)
     addEvent(approach);
   }
   Event close{tClosed - sealMs * ms};
@@ -4641,6 +4665,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // closed wherever the last consonant had left the tongue, mostly the
   // alveolar ridge: "abolish" was heard as "atolish".)
   close.lineX = lineKPlace(tok.ph, kVowel);
+  close.lineXClosure = true;
   {
     const bool post = tok.ph == Ph::CH || tok.ph == Ph::JH;
     close.lineHw = post ? kLinePostHw : 1.0f;
@@ -4844,6 +4869,12 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // and groove. Without them the f of "not forget" was made at the t's
   // alveolar place with the table's 0.1 cm^2: an s-like hiss 12 dB over the
   // vowels, 600 cm^3/s through what should be a near-sealed lip (2026-11-03).
+  // A nasal after a stop (LINE_REL_NASAL_X 1; 0: as before) closes at its own place: the release
+  // is its event too, and it set no place, so "and me" d -> m, "atmosphere", "acne" made the whole
+  // nasal at the stop's place (m at x 0.83 throughout: an n murmur; PUHUJA_X_TRACE, 2026-11-11).
+  static const float kLineRelNasalX = param("LINE_REL_NASAL_X", 0.0f);
+  if (tract_ == Tract::Line && kLineRelNasalX > 0 && next && !nextIsPause && info(*next).cls == Cls::Nasal)
+    rel.lineX = linePlaceOf(*next), rel.lineXClosure = true;
   if (tract_ == Tract::Line && next && !nextIsPause && info(*next).cls == Cls::Fricative) {
     rel.ac = lineSlit(*next, rel.ac);
     rel.lineX = linePlaceOf(*next);
@@ -5553,7 +5584,13 @@ float Synth::tick() {
       pressTo_ = e.press;
     }
     if (e.aspGain >= 0) aspGainTarget_ = e.aspGain;
-    if (e.lineX >= 0) lineXTarget_ = e.lineX;
+    if (e.lineX >= 0) {
+      if (kLineXArticMs >= 0 && (e.lineX >= 0.94f) != (lineX_ >= 0.94f)) lineXArtic_ = true;  // (LINE_X_ARTIC_MS)
+      lineXTarget_ = e.lineX;
+      lineXSnapOk_ = !kLineXSnapClosures || e.lineXClosure;
+      static const bool kXTrace = std::getenv("PUHUJA_X_TRACE") != nullptr;  // the place events as they start
+      if (kXTrace) std::fprintf(stderr, "xev t %.3f x %.3f ac %.3f\n", t_ / fs_, e.lineX, e.ac);
+    }
     // The groove width and rounding step at once (the place glides): an
     // affricate's 30-60 ms of hiss never reached a followed target.
     if (e.lineLevel > 0) lineLevelTarget_ = e.lineLevel;
@@ -5892,8 +5929,12 @@ float Synth::tick() {
     // lips to the velum over 18 ms while closing, a bump racing along the tube,
     // the "blib" at the end of "of" in "hand of God" (Jyrki 2026-11-05). Two
     // articulators would release one place and close the other.
-    if (kLineXSnapArea > 0 && ac > kLineXSnapArea) lineX_ = lineXTarget_;
-    else lineX_ += (lineXTarget_ - lineX_) * lineXFollow_;
+    if (kLineXSnapArea > 0 && ac > kLineXSnapArea && lineXSnapOk_) lineX_ = lineXTarget_, lineXArtic_ = false;
+    else if (lineXArtic_) {  // (LINE_X_ARTIC_MS) the other articulator: fast, until it has arrived
+      static const float kArticK = kLineXArticMs > 0 ? 1.0f - std::exp(-1000.0f / (kLineXArticMs * fs_)) : 1.0f;
+      lineX_ += (lineXTarget_ - lineX_) * kArticK;
+      if (std::fabs(lineXTarget_ - lineX_) < 0.002f) lineX_ = lineXTarget_, lineXArtic_ = false;
+    } else lineX_ += (lineXTarget_ - lineX_) * lineXFollow_;
     lineLevel_ += (lineLevelTarget_ - lineLevel_) * lineXFollow_;
     {
       static const float kHwGlideMs = param("LINE_HW_GLIDE_MS", 10.0f);
