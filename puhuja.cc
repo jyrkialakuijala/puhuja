@@ -654,7 +654,7 @@ const float kLineAbductMs = param("LINE_ABDUCT_MS", 35.0f);
 // The burst noise of b d g at their release, x this (1: today; the line's
 // frication gain while the stop opens, the cascade's burst noise gain).
 const float kLineVStopBurst = param("LINE_VSTOP_BURST", 0.0f);  // 1.0 until 2026-11-06 (Jyrki: the b of "belief" had "too much aspiration"; the vowel after it carried hiss at -18 dB above 5 kHz, Kokoro -42; chose beliefs-vb0bx0)
-const float kLineXSnapArea = param("LINE_X_SNAP_AREA", 0.0f);  // the constriction place jumps to its target while the hump is wider than this (cm^2; 0: glides)
+const float kLineXSnapArea = param("LINE_X_SNAP_AREA", 1.0f);  // the constriction place jumps to its target while the hump is wider than this (cm^2; 0: glides)
 // The lips and the tongue are two articulators: when the place target moves
 // from one to the other (x >= 0.94 is the lips: p b m w f v), the place jumps
 // at once (0) or over this time constant (ms) instead of the 20 ms glide; < 0:
@@ -663,18 +663,18 @@ const float kLineXSnapArea = param("LINE_X_SNAP_AREA", 0.0f);  // the constricti
 // 30-50 ms an n's murmur (nasal review 1.2, 2026-11-11). Proposed 8: at 0
 // guards.py found 26 clicks / bangs, at 4 "Napkin" n -> p snapped (snap.py
 // 0 -> 10.9 / 8); at 8 the snap list is 6.33 dB (base 6.55).
-const float kLineXArticMs = param("LINE_X_ARTIC_MS", -1.0f);
+const float kLineXArticMs = param("LINE_X_ARTIC_MS", 8.0f);
 // LINE_X_SNAP_AREA only for a closure's place (a stop's, a nasal's; 1; 0: every place). The fricatives
 // keep their glide from the vowel: at their own place from the vowel on (the snap), the v of "revolutionary"
 // and the ʃ of "-lution" snapped (tools/snap.py, female v 0 -> 10.1, "revolutionary war" male v 0 -> 18.4),
 // their onsets were tuned on the glide.
-const bool kLineXSnapClosures = param("LINE_X_SNAP_CLOSURES", 0) > 0;
+const bool kLineXSnapClosures = param("LINE_X_SNAP_CLOSURES", 1) > 0;
 // A stop's approach (the narrowing 2 -> 0.15 cm^2 before its seal) at the
 // stop's own place (1; 0: the place set by the closure, after the approach).
 // It had none: the narrowing formed at the last consonant's place, "keep" p
 // sealed at 0.68-0.78 and slid 2.3 cm to the lips while closed, "Bad" d
 // narrowed at the lips (artsynth review B1, 2026-11-11).
-const float kLineStopApproachX = param("LINE_STOP_APPROACH_X", 0.0f);
+const float kLineStopApproachX = param("LINE_STOP_APPROACH_X", 1.0f);
 const float kLineKRelFric = param("LINE_K_REL_FRIC", 0.3f);  // k's release hiss (x LINE_FRIC while the closure opens; 1: as before)
 const float kLinePRelFric = param("LINE_P_REL_FRIC", 0.3f);  // p's
 // t's (2026-11-06, Jyrki: in "torch has" "the t sounds off"): across kennedy puhuja's t bursts peaked -2.7 dB re the
@@ -4911,7 +4911,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // A nasal after a stop (LINE_REL_NASAL_X 1; 0: as before) closes at its own place: the release
   // is its event too, and it set no place, so "and me" d -> m, "atmosphere", "acne" made the whole
   // nasal at the stop's place (m at x 0.83 throughout: an n murmur; PUHUJA_X_TRACE, 2026-11-11).
-  static const float kLineRelNasalX = param("LINE_REL_NASAL_X", 0.0f);
+  static const float kLineRelNasalX = param("LINE_REL_NASAL_X", 1.0f);
   if (tract_ == Tract::Line && kLineRelNasalX > 0 && next && !nextIsPause && info(*next).cls == Cls::Nasal)
     rel.lineX = linePlaceOf(*next), rel.lineXClosure = true;
   if (tract_ == Tract::Line && next && !nextIsPause && info(*next).cls == Cls::Fricative) {
