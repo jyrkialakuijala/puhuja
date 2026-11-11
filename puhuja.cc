@@ -3138,6 +3138,15 @@ void Synth::emit(const Token& tok, const Ph* next) {
       if (kRLipL != 1.0f) sh.lLip *= kRLipL;
       if (kRAph != 1.0f) sh.aPharynx *= kRAph;
       if (kRWc > 0) { sh.wc = kRWc; sh.sc = lineVowelStrength(sh.xc, sh.wc, sh.length); }
+      // (R agent round F, lab) the ɹ after a plosive ("bring", "tree": 1644 of the 2665 ɹ errors, F3 1800-2000 where
+      // Kokoro's holds 1490-1550): its pharynx, lip area, oral (front, sublingual) area x these; 1: as before.
+      static const float kRStopAph = param("LINE_R_STOP_APH", 1.0f), kRStopLipA = param("LINE_R_STOP_LIPA", 1.0f),
+                         kRStopAor = param("LINE_R_STOP_AOR", 1.0f);
+      if (prevWasPlosive_) {
+        if (kRStopAph != 1.0f) sh.aPharynx *= kRStopAph;
+        if (kRStopLipA != 1.0f) sh.aLip *= kRStopLipA;
+        if (kRStopAor != 1.0f) sh.aOral *= kRStopAor;
+      }
       // (R agent 2026-11-10) the female onset ɹ sat at F2 ~1400 (Kokoro's female 900-1050): female-only pharynx / lip area x these,
       // constriction place set to this (-1: the row's); only before a vowel and not after one (onset and cluster ɹ)
       static const float kRFAph = param("LINE_R_F_APH", 1.0f), kRFLipA = param("LINE_R_F_LIPA", 1.0f), kRFX = param("LINE_R_F_X", -1.0f);
@@ -3400,7 +3409,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
           const float preR = isVowel(tok.ph) && next && *next == Ph::RR ? std::max(kPreRVowelW, frontVowel(tok.ph) ? kPreRFrontW : 0.0f) : 0.0f;  // see kPreRVowelW
           TractShape own;
           const bool borrowed = !isVowel(tok.ph) && !lineShapeOf(tok.ph, &own);  // f in the next vowel's shape
-          const float ws = borrowed ? kShapeBorrowedW : 1.0f;
+          float ws = borrowed ? kShapeBorrowedW : 1.0f;
           // A vowel chain (aʊ, aɪ, oʊ, Finnish ai, uo) is one glide: the first
           // vowel is reached early and briefly, the second only near its end.
           // Held over both middles, the whole tract changed in ~100 ms between
@@ -3522,13 +3531,19 @@ void Synth::emit(const Token& tok, const Ph* next) {
             // A phrase-initial j or l: the tongue in its place before the voice
             // (2026-11-04: the j's F2 rose from the pause's ə, 1550 Hz, and
             // reached only ~1750 by its end; Kokoro holds 2100-2200 from the start).
-            const float preMs = !prevWasPause_ ? (prevWasPlosive_ && isVowel(tok.ph) ? kLineAfterStopLeadMs : 0.0f) : tok.ph == Ph::J ? kLineJPreShapeMs : tok.ph == Ph::L ? kLineLPreShapeMs : tok.ph == Ph::W ? kLineWPreShapeMs : tok.ph == Ph::RR ? kLineRPreShapeMs : tok.ph == Ph::ER ? kLineErPreMs : 0.0f;
+            float preMs = !prevWasPause_ ? (prevWasPlosive_ && isVowel(tok.ph) ? kLineAfterStopLeadMs : 0.0f) : tok.ph == Ph::J ? kLineJPreShapeMs : tok.ph == Ph::L ? kLineLPreShapeMs : tok.ph == Ph::W ? kLineWPreShapeMs : tok.ph == Ph::RR ? kLineRPreShapeMs : tok.ph == Ph::ER ? kLineErPreMs : 0.0f;
             const bool er = tok.ph == Ph::ER;
             // A held iː's demand window and weight (IY agent 2026-11-11 lab knobs; -1 / -1 / 1: 0.3-0.7, as before): in
             // connected speech (kennedy) its F2 sat at 1730 Hz against Kokoro's 2010 (isolated "Dee" 2055 vs ~2300).
             static const float kIyFrom = param("LINE_IY_FROM", -1.0f), kIyTo = param("LINE_IY_TO", -1.0f), kIyW = param("LINE_IY_W", 1.0f),
                                kIyPlaceW = param("LINE_IY_PLACE_W", 0.0f);  // the tongue place's least weight (its 2 cm^2 opening counts as half open)
             const bool iy = tok.ph == Ph::I;
+            // (R agent round F, lab; 0 / 1: as before) the ɹ after a plosive: its shape asked for from this long before
+            // its start (the tongue bunched during the closure) and its demand's weight x LINE_R_STOP_W.
+            static const float kRStopLeadMs = param("LINE_R_STOP_LEAD_MS", 0.0f), kRStopW = param("LINE_R_STOP_W", 1.0f);
+            const bool rStop = tok.ph == Ph::RR && prevWasPlosive_;
+            if (rStop && kRStopLeadMs > 0) preMs = kRStopLeadMs;
+            if (rStop && kRStopW != 1.0f) ws *= kRStopW;
             addShapeDemand(preMs > 0 ? t0 - preMs * ms : t0 + (er ? kLineErFrom : tok.ph == Ph::RR && kLineRKeyFrom >= 0 ? kLineRKeyFrom : iy && kIyFrom >= 0 ? kIyFrom : 0.3) * dur, t0 + (er ? kLineErTo : tok.ph == Ph::W ? kLineWKeyTo : tok.ph == Ph::RR && kLineRKeyTo >= 0 ? kLineRKeyTo : iy && kIyTo >= 0 ? kIyTo : 0.7) * dur, sh, tok.ph, er ? ws * kLineErW : iy ? ws * kIyW : ws, er ? std::max(preR, kErPlaceW) : iy ? std::max(preR, kIyPlaceW) : preR);
           }
           else {
@@ -5226,6 +5241,23 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     static const float kLRelX = param("LINE_L_REL_X", 0.8f);  // the released l's place (< 0: the l's own; a little back lowers F3)
     rel.lineX = kLRelX >= 0 ? kLRelX : linePlaceOf(Ph::L);
   }
+  // The same for an ɹ (LINE_R_REL_OWN, R agent round F; 0: as before): the release kept the plosive's place with the
+  // table's 0.25 cm^2 (then LINE_R_AC's 0.6 from the second event, still at the plosive's place): the ɹ of "bring",
+  // "price" was a lip constriction at x 0.97 (a w), of "tree", "dry" one at the ridge (0.90), of "great" at the velum
+  // (0.62), instead of the bunched hump at LINE_R_X. Its place x LINE_R_REL_X (< 0: the ɹ's own), its hump x LINE_R_REL_AC.
+  static const float kRRelOwn = param("LINE_R_REL_OWN", 0.0f);
+  if (tract_ == Tract::Line && kRRelOwn > 0 && next && *next == Ph::RR) {
+    static const float kRRelAc = param("LINE_R_REL_AC", 1.0f), kRRelX = param("LINE_R_REL_X", -1.0f);
+    rel.ac = lineSlit(Ph::RR, rel.ac) * kRRelAc;
+    rel.lineX = kRRelX >= 0 ? kRRelX : linePlaceOf(Ph::RR);
+  }
+  // ... and for a w or j (LINE_GLIDE_REL_OWN, R agent round F, lab; 0: as before): the same dropped event, "twin" made
+  // its w at the ridge, "cute" its j at the velum (w after p t k: 21 % errors, j after p b: 23-27 %, 9 % after n).
+  static const float kGlideRelOwn = param("LINE_GLIDE_REL_OWN", 0.0f);
+  if (tract_ == Tract::Line && kGlideRelOwn > 0 && next && (*next == Ph::W || *next == Ph::J)) {
+    rel.ac = lineSlit(*next, rel.ac);
+    rel.lineX = linePlaceOf(*next);
+  }
   if (tract_ == Tract::Line && next && !nextIsPause && info(*next).cls == Cls::Fricative) {
     rel.ac = lineSlit(*next, rel.ac);
     rel.lineX = linePlaceOf(*next);
@@ -5289,6 +5321,10 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   if (tract_ == Tract::Line && tok.ph == Ph::JH && kLineJhReleaseScale >= 0) rel.acMs = pi.releaseMs * kLineJhReleaseScale;
   if (glottalised || dentalD) rel.acMs = std::max(rel.acMs, kDentalReleaseMs);
   if (nasalVel && kNasalStopRel != 1.0f) rel.acMs *= kNasalStopRel;  // (LINE_NASAL_STOP_REL)
+  {  // (R agent round F, lab; < 0: as before) a plosive opens into an ɹ over this many ms
+    static const float kRRelMs = param("LINE_R_REL_MS", -1.0f);
+    if (tract_ == Tract::Line && kRRelMs >= 0 && next && *next == Ph::RR) rel.acMs = kRRelMs;
+  }
   // Unreleased into a plosive: stays closed. Unreleased into a fricative: the
   // closure opens straight into the fricative's slit over LINE_VSTOP_FRIC_REL_MS
   // (the pressure vents through the forming slit, no pop; 2026-11-07, "and
@@ -5786,6 +5822,10 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     Event narrow{release + kLineBurstMs * ms};
     narrow.ac = tract_ == Tract::Line ? lineSlit(*next, nextAero.ac) : nextAero.ac;  // (the table's 0.1 cm^2 left the f of "not forget" leaking 380 cm^3/s)
     narrow.acMs = 8;
+    {  // (LINE_R_REL_OWN: this step also takes the ɹ's hump x LINE_R_REL_AC)
+      static const float kRRelOwn2 = param("LINE_R_REL_OWN", 0.0f), kRRelAc2 = param("LINE_R_REL_AC", 1.0f);
+      if (tract_ == Tract::Line && kRRelOwn2 > 0 && *next == Ph::RR) narrow.ac *= kRRelAc2;
+    }
     addEvent(narrow);
   }
   if (next && info(*next).cls == Cls::Fricative) {
