@@ -5192,7 +5192,15 @@ float Synth::tick() {
     if (e.lineSoft >= 0) lineSoft_ = e.lineSoft;
     if (e.lineExtra >= 0) lineExtra_ = e.lineExtra;
     if (e.lineExpand >= 0) lineExpand_ = e.lineExpand;
-    if (e.lineHw >= 0) lineHw_ = lineHwTarget_ = e.lineHw;
+    // The constriction's width glides to its new value over LINE_HW_GLIDE_MS (0: set at once). Jyrki 2026-11-11: "\"torch
+    // has\" has a strange sound between the words": the ʧ's ʃ (a 4-wide slit, LINE_POST_HW) went to width 1 in one step as
+    // it opened toward the h; the slit's air mass (1240 erg of the line's kinetic energy) vanished in 1 ms and the
+    // pressure behind it jumped 1450 dyn/cm^2.
+    static const float kLineHwGlideMs = param("LINE_HW_GLIDE_MS", 0.0f);
+    if (e.lineHw >= 0) {
+      lineHwTarget_ = e.lineHw;
+      if (!(kLineHwGlideMs > 0)) lineHw_ = e.lineHw;
+    }
     if (e.lineJetD >= 0) line_.setJetThickness(e.lineJetD, e.lineJetMix, e.lineSlitScale, e.lineJetSmoothMs, e.lineJetFcMin, e.lineJetFcMax);
     if (e.lineFricLpr >= 0) line_.setFricLpRatio(e.lineFricLpr);
     if (e.lineAspHp >= 0) {
@@ -5504,7 +5512,11 @@ float Synth::tick() {
     if (kLineXSnapArea > 0 && ac > kLineXSnapArea) lineX_ = lineXTarget_;
     else lineX_ += (lineXTarget_ - lineX_) * lineXFollow_;
     lineLevel_ += (lineLevelTarget_ - lineLevel_) * lineXFollow_;
-    lineHw_ += (lineHwTarget_ - lineHw_) * lineXFollow_;
+    {
+      static const float kHwGlideMs = param("LINE_HW_GLIDE_MS", 0.0f);
+      static const float kHwK = kHwGlideMs > 0 ? 1.0f - std::exp(-1000.0f / (kHwGlideMs * fs_)) : 0.0f;
+      lineHw_ += (lineHwTarget_ - lineHw_) * (kHwGlideMs > 0 ? kHwK : lineXFollow_);
+    }
     lineLip_ += (lineLipTarget_ - lineLip_) * lineXFollow_;
     line_.setConstriction(lineHw_, lineLip_ > 0.05f ? lineLip_ : -1.0f);
     line_.setClosureSoftness(lineSoft_, 0.0f);  // the extra length is in the shapes' lip tube, not a stretch of the whole tube
