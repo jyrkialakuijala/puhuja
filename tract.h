@@ -19,6 +19,7 @@ namespace puhuja {
 struct TractShape {
   float length = 17.5f;   // glottis to lips (cm)
   float lLarynx = 2.0f, aLarynx = 1.0f;
+  float lFront = 0.0f, mFront = 1.0f;  // a wider space right behind the teeth: over lFront cm before the lip tube the area x mFront (0 / 1: none)
   float lHypo = 0.0f, aHypo = 0.0f;  // a wider chamber above the larynx tube (the hypopharynx): length cm (0: none), area cm^2
   float aPharynx = 4.0f, aOral = 4.0f;
   float xVelum = 0.55f;   // where the pharynx becomes the mouth (share of the length)

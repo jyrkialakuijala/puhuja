@@ -30,6 +30,14 @@ float TractShape::area(float x) const {
   }
   const float xv = xVelum * length;
   lnA += (lnOr - lnPh) * ramp(x, xv - 1.0f, xv + 1.0f);
+  // The space right behind the teeth (Jyrki 2026-11-11: "perhaps adding some space in the wind pipe right before the
+  // teeth would also give a more natural color to the sound"): over the lFront cm before the lip tube the area grows
+  // x mFront, with blends of up to half a cm. Before the tongue's hump, so a constriction there (t, s, n) still closes.
+  if (lFront > 0 && mFront > 1.0f) {
+    const float xe = length - lLip;
+    const float hb = std::min(0.5f, 0.5f * lFront);  // the opening blend's half-width (a few mm for a short space)
+    lnA += std::log(mFront) * ramp(x, xe - lFront - hb, xe - lFront + hb) * (1.0f - ramp(x, xe - 0.25f, xe + 0.25f));
+  }
   // The tongue constriction: a cosine^2 hump in log area toward ln(ac).
   // Its strength sc scales the hump, so a constriction grows and fades in
   // place instead of travelling in from wherever the last one was.
