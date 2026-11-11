@@ -2735,7 +2735,7 @@ void ahShape(TractShape* sh, Ph prev, const Ph* next, bool female) {
   static const float kAa = param("LINE_AH_MIX_AA", 0.0f), kAo = param("LINE_AH_MIX_AO", 0.0f),
                      kSw = param("LINE_AH_MIX_SCHWA", 0.0f), kAe = param("LINE_AH_MIX_AE", 0.0f),
                      kDx = param("LINE_AH_DX", 0.0f), kAc = param("LINE_AH_AC", 1.0f), kWc = param("LINE_AH_WC", 1.0f),
-                     kAph = param("LINE_AH_APH", 1.0f), kAor = param("LINE_AH_AOR", 1.0f), kLipA = param("LINE_AH_LIPA", 1.0f),
+                     kAph = param("LINE_AH_APH", 0.7f), kAor = param("LINE_AH_AOR", 1.3f), kLipA = param("LINE_AH_LIPA", 1.0f),
                      kLipL = param("LINE_AH_LIPL", 1.0f), kAlar = param("LINE_AH_ALAR", 1.0f), kLen = param("LINE_AH_LEN", 0.0f),
                      kCorBack = param("LINE_AH_COR_BACK", 0.0f), kNasBack = param("LINE_AH_NAS_BACK", 0.0f),
                      kFAc = param("LINE_AH_F_AC", 1.0f), kFAph = param("LINE_AH_F_APH", 1.0f);
