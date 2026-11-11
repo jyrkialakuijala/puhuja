@@ -831,6 +831,10 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
           static const float kPreNgVowel = param("EN_PRE_NG_VOWEL_LEN", 1.0f);
           whole *= kPreNgVowel;
         }
+        // A word-final unstressed ə x this (EN_FINAL_SCHWA_LEN, lab knob 2026-11-11, AX agent; 1: as before): before a
+        // pause it ran 125-140 ms, heard as u / ɝ in 70 % of the final cells.
+        { static const float kFinalSchwaLen = param("EN_FINAL_SCHWA_LEN", 1.0f);
+          if (b == "AH" && !stressed && i + 1 == tok.size()) whole *= kFinalSchwaLen; }
         // The ʊ's own length (EN_UH_LEN; 2026-11-09 UH agent: in isolated words puhuja's ʊ ran 220-260 ms, Kokoro's 150-280).
         { static const float kUhLen = param("EN_UH_LEN", 1.0f); if (b == "UH") whole *= kUhLen; }
         // The ɑ's own length (EN_AA_LEN; 2026-11-10 AA agent: a short ɑ is heard as ʌ / ə).

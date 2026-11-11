@@ -3076,6 +3076,31 @@ void Synth::emit(const Token& tok, const Ph* next) {
       if (kErAor != 1.0f) sh.aOral *= kErAor;
       if (kErXc != 1.0f) { sh.xc *= kErXc; sh.sc = lineVowelStrength(sh.xc, sh.wc, sh.length); }
     }
+    // ə's own shape by position (AX agent 2026-11-11, lab knobs; 0 / 1: as before). Whisper heard the word-final ə as
+    // u or ɝ ("China", "data": 70 % errors in the final cells against 16 % medial): on ten Kokoro voices' final ə
+    // frames F1 sat 8.1 (male, 325 vs 516 Hz) and 12.6 (female, 358 vs 849) semitones under theirs, F3 2 under;
+    // the American final ə is an open ʌ / ɐ. Before a pause: mixed toward LINE_SCHWA_FINAL_ROW (0: ʌ, 1: ɑ, 2: a,
+    // 3: æ) by LINE_SCHWA_FINAL_MIX, pharynx / lips x _APH / _LIPA; elsewhere (medial, initial) by LINE_SCHWA_MIX
+    // toward the same row, and a word-initial ə's pharynx x LINE_SCHWA_INIT_APH.
+    if (have && tok.ph == Ph::Schwa) {
+      static const float kSchwaFinalMix = param("LINE_SCHWA_FINAL_MIX", 0.0f), kSchwaMix = param("LINE_SCHWA_MIX", 0.0f),
+                         kSchwaFinalAph = param("LINE_SCHWA_FINAL_APH", 1.0f), kSchwaFinalLipA = param("LINE_SCHWA_FINAL_LIPA", 1.0f),
+                         kSchwaInitAph = param("LINE_SCHWA_INIT_APH", 1.0f), kSchwaLen = param("LINE_SCHWA_FINAL_LEN", 1.0f);
+      static const int kSchwaRow = static_cast<int>(param("LINE_SCHWA_FINAL_ROW", 0.0f));
+      const bool final = !next || *next == Ph::Stop;
+      const float mix = final ? kSchwaFinalMix : kSchwaMix;
+      TractShape o;
+      const Ph row = kSchwaRow == 1 ? Ph::AA : kSchwaRow == 2 ? Ph::A : kSchwaRow == 3 ? Ph::AE : Ph::AH;
+      if (mix > 0 && lineShapeOf(row, &o)) sh = lineShapeMix(sh, o, mix);
+      if (final) {
+        if (kSchwaFinalAph != 1.0f) sh.aPharynx *= kSchwaFinalAph;
+        if (kSchwaFinalLipA != 1.0f) sh.aLip *= kSchwaFinalLipA;
+        static const float kSchwaFinalFAph = param("LINE_SCHWA_FINAL_F_APH", 1.0f);  // ... the female voice's pharynx x this
+        if (female_ && kSchwaFinalFAph != 1.0f) sh.aPharynx *= kSchwaFinalFAph;
+        if (kSchwaLen != 1.0f) { sh.length *= kSchwaLen; sh.sc = lineVowelStrength(sh.xc, sh.wc, sh.length); }
+      }
+      if (tok.wordStart && kSchwaInitAph != 1.0f) sh.aPharynx *= kSchwaInitAph;
+    }
     if (have && tok.ph == Ph::O && next && *next == Ph::UH) {
       // ... and starts open-mid and central (Kokoro 530-600/1060-1290 at 20 %;
       // puhuja's o held 450/1070 and drifted up: "know" was heard as "no-ʉ").
@@ -3877,6 +3902,20 @@ void Synth::emit(const Token& tok, const Ph* next) {
             Event op{e.t};
             if (zOpenMs > 0) { op.ac = zOpenA; op.acMs = zOpenMs; }
             if (zFinalAg >= 0) { op.ag = zFinalAg; op.agMs = 30; }
+            addEventAt(op);
+          }
+        }
+        // After a final ə (AX agent 2026-11-11, lab knobs; 0: off): the glottis eases open to LINE_SCHWA_END_AG
+        // (share of the way from voicing to kAgOpen) over LINE_SCHWA_END_MS from LINE_SCHWA_END_LEAD_MS before the
+        // pause, a breathy fade: Kokoro's final ə falls ~20 dB over 50-60 ms, puhuja's held its level and was cut in
+        // ~30 ms.
+        if (!prevWasPause_ && lastPh_ == Ph::Schwa) {
+          static const float kSchwaEndMs = param("LINE_SCHWA_END_MS", 0.0f), kSchwaEndAg = param("LINE_SCHWA_END_AG", 0.5f),
+                             kSchwaEndLead = param("LINE_SCHWA_END_LEAD_MS", 40.0f);
+          if (kSchwaEndMs > 0) {
+            Event op{e.t - kSchwaEndLead * ms};
+            op.ag = kAgVoice + kSchwaEndAg * (kAgOpen - kAgVoice);
+            op.agMs = kSchwaEndMs;
             addEventAt(op);
           }
         }
