@@ -910,7 +910,7 @@ void epilarynx(TractShape& s, bool female) {
   }
   // ... and at the other end the space behind the teeth: LINE_FRONT_MUL x the area over LINE_FRONT_LEN cm before the
   // lip tube (1: none); the female voice LINE_FRONT_MUL_F / _LEN_F (< 0: the male value).
-  static const float kFrontMul = param("LINE_FRONT_MUL", 1.0f), kFrontLen = param("LINE_FRONT_LEN", 0.5f);
+  static const float kFrontMul = param("LINE_FRONT_MUL", 2.0f), kFrontLen = param("LINE_FRONT_LEN", 0.5f);
   static const float kFrontMulF = param("LINE_FRONT_MUL_F", -1.0f), kFrontLenF = param("LINE_FRONT_LEN_F", -1.0f);
   const float fm = female && kFrontMulF >= 0 ? kFrontMulF : kFrontMul;
   if (fm > 1.0f) {
