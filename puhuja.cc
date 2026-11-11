@@ -2714,6 +2714,39 @@ void ihShape(TractShape* sh) {
   if (kIhDx != 0) { sh->xc += kIhDx; sh->sc = lineVowelStrength(sh->xc, sh->wc, sh->length); }
 }
 
+
+// The stressed ʌ's own shape on top of its row (round-F ʌ agent 2026-11-11, lab knobs; defaults reproduce the row,
+// which also makes the word-final ə (LINE_SCHWA_FINAL_MIX) and the oʊ start, so the row itself stays). Dictionary
+// rank 11: ʌ 19.9 % wrong (Kokoro 10.1 %), heard as ɛ 147, æ 93, ə 69, ɝ 54; against ten Kokoro voices its F2 is
+// +1.2 st (male), F3 -2.0 / -2.1 st, F1 -1.8 st (female). Mixed toward ɑ (LINE_AH_MIX_AA), ɔ (_AO), ə (_SCHWA);
+// place moved by LINE_AH_DX; opening / width / pharynx / oral / lips / larynx x _AC _WC _APH _AOR _LIPA _LIPL _ALAR;
+// LINE_AH_LEN cm added to the tract; after a coronal or before a nasal a further share of ɑ (_COR_BACK, _NAS_BACK);
+// the female voice's opening and pharynx x LINE_AH_F_AC, _F_APH.
+bool coronalPh(Ph p) {
+  return p == Ph::T || p == Ph::D || p == Ph::S || p == Ph::Z || p == Ph::N || p == Ph::L || p == Ph::TH ||
+         p == Ph::DH || p == Ph::SH || p == Ph::ZH || p == Ph::CH || p == Ph::JH || p == Ph::RR;
+}
+void ahShape(TractShape* sh, Ph prev, const Ph* next, bool female) {
+  static const float kAa = param("LINE_AH_MIX_AA", 0.0f), kAo = param("LINE_AH_MIX_AO", 0.0f),
+                     kSw = param("LINE_AH_MIX_SCHWA", 0.0f), kAe = param("LINE_AH_MIX_AE", 0.0f),
+                     kDx = param("LINE_AH_DX", 0.0f), kAc = param("LINE_AH_AC", 1.0f), kWc = param("LINE_AH_WC", 1.0f),
+                     kAph = param("LINE_AH_APH", 1.0f), kAor = param("LINE_AH_AOR", 1.0f), kLipA = param("LINE_AH_LIPA", 1.0f),
+                     kLipL = param("LINE_AH_LIPL", 1.0f), kAlar = param("LINE_AH_ALAR", 1.0f), kLen = param("LINE_AH_LEN", 0.0f),
+                     kCorBack = param("LINE_AH_COR_BACK", 0.0f), kNasBack = param("LINE_AH_NAS_BACK", 0.0f),
+                     kFAc = param("LINE_AH_F_AC", 1.0f), kFAph = param("LINE_AH_F_APH", 1.0f);
+  TractShape o;
+  const bool nas = next && (*next == Ph::N || *next == Ph::M || *next == Ph::NG);
+  const float aa = kAa + (coronalPh(prev) ? kCorBack : 0.0f) + (nas ? kNasBack : 0.0f);
+  if (aa > 0 && lineShapeOf(Ph::AA, &o)) *sh = lineShapeMix(*sh, o, std::min(aa, 1.0f));
+  if (kAo > 0 && lineShapeOf(Ph::AO, &o)) *sh = lineShapeMix(*sh, o, kAo);
+  if (kSw > 0 && lineShapeOf(Ph::Schwa, &o)) *sh = lineShapeMix(*sh, o, kSw);
+  if (kAe > 0 && lineShapeOf(Ph::AE, &o)) *sh = lineShapeMix(*sh, o, kAe);
+  sh->ac *= kAc * (female ? kFAc : 1.0f);
+  sh->wc *= kWc; sh->aPharynx *= kAph * (female ? kFAph : 1.0f); sh->aOral *= kAor; sh->aLip *= kLipA; sh->lLip *= kLipL; sh->aLarynx *= kAlar;
+  sh->length += kLen;
+  if (kDx != 0 || kWc != 1.0f || kLen != 0.0f) { sh->xc += kDx; sh->sc = lineVowelStrength(sh->xc, sh->wc, sh->length); }
+}
+
 }  // namespace
 
 void Synth::emit(const Token& tok, const Ph* next) {
@@ -3335,6 +3368,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
     if (have && tok.ph == Ph::E && next && *next == Ph::IH) eyStartShape(&sh);
     if (have && tok.ph == Ph::IH && lastPh_ == Ph::E) eyEndShape(&sh);
     if (have && tok.ph == Ph::IH && lastPh_ != Ph::E && lastPh_ != Ph::A && lastPh_ != Ph::AO) ihShape(&sh);
+    if (have && tok.ph == Ph::AH) ahShape(&sh, lastPh_, next, female_);
     if (have && tok.ph == Ph::U && lastPh_ == Ph::J && kLineUAfterJ > 0) {
       TractShape front;
       if (lineShapeOf(Ph::I, &front)) sh = lineShapeMix(sh, front, kLineUAfterJ);
@@ -3408,6 +3442,13 @@ void Synth::emit(const Token& tok, const Ph* next) {
         if (tok.ph == Ph::UH && kUhOffMix > 0) {
           TractShape s8;
           if (lineShapeOf(Ph::Schwa, &s8)) late = lineShapeMix(late, s8, kUhOffMix);
+        }
+        // The ʌ's late key mixed toward ɑ (LINE_AH_OFF_MIX; round-F ʌ agent 2026-11-11: against the coda's fronting,
+        // "sun", "fun" heard as "son"/"fan"/"fence"). 0: off.
+        static const float kAhOffMix = param("LINE_AH_OFF_MIX", 0.0f);
+        if (tok.ph == Ph::AH && kAhOffMix > 0) {
+          TractShape aa;
+          if (lineShapeOf(Ph::AA, &aa)) late = lineShapeMix(late, aa, kAhOffMix);
         }
         // The uː's late key mixed back toward u's own row (LINE_UW_LATE_BACK; round-E uː agent 2026-11-11): Kokoro's ju
         // and coronal uː start fronted and fall (after j F2 1774 -> 1317 -> 1214 Hz over the thirds, male), the
@@ -3710,6 +3751,12 @@ void Synth::emit(const Token& tok, const Ph* next) {
         e.anMs = kBoundaryMs;
       }
     }
+  }
+  // The ʌ's velum port before a nasal x LINE_AH_ANTICIP (round-F ʌ agent; 1: as before): ʌ before a nasal 23 % wrong,
+  // heard as æ 63 / ɛ 62 ("funds" -> fans, "sons" -> sense): the port's pole near 800 Hz pulls F2 / F1.
+  {
+    static const float kAhAn = param("LINE_AH_ANTICIP", 1.0f);
+    if (tract_ == Tract::Line && tok.ph == Ph::AH && kAhAn != 1.0f && next && info(*next).cls == Cls::Nasal) e.an *= kAhAn;
   }
   // The release of a nasal into a vowel: how fast the mouth opens and the
   // velum closes, and how long the velum stays open into the vowel.

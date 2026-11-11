@@ -854,6 +854,14 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
             static const float kEhVplosLen = param("EN_EH_VPLOS_LEN", 1.0f);
             if (i + 1 < tok.size() && isVoicedPlosive(baseName(tok[i + 1]))) whole *= kEhVplosLen;
           } }
+        // The stressed ʌ x EN_AH_LEN, in a one-syllable word x EN_AH_MONO_LEN as well (round-F ʌ agent 2026-11-11 lab knobs;
+        // 1 / 1: as before; ʌ is the shortest stressed vowel, 140 ms base against ɑ's 240 and æ's 230).
+        { static const float kAhLen = param("EN_AH_LEN", 1.0f), kAhMonoLen = param("EN_AH_MONO_LEN", 1.0f);
+          if (b == "AH" && stressed && (kAhLen != 1.0f || kAhMonoLen != 1.0f)) {
+            int vowels = 0;
+            for (size_t q = 0; q < tok.size(); ++q) vowels += isVowelToken(tok[q]);
+            whole *= kAhLen * (vowels == 1 ? kAhMonoLen : 1.0f);
+          } }
       } else {
         if (i > 0) prc *= 0.85f;  // not word-initial
         const bool consBefore = i > 0 && !isVowelToken(tok[i - 1]);
