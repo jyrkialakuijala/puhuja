@@ -2612,6 +2612,38 @@ std::vector<Synth::Label> Synth::labels() const {
 
 namespace {
 
+// oʊ lab knobs (OW agent 2026-11-11; the defaults reproduce the previous sound). Dictionary rank 9: oʊ 1093 errors
+// of 5208 (21 %, Kokoro 4.4 %); word-final 54 % wrong, heard as "-al" (Eco -> equal, Hugo -> neutral, Rio -> real).
+// LPC on single words: puhuja's oʊ holds F2 1170-1290 (male) / 1400-1500 (female) to its end with F1 falling to
+// 320-340 and F3 to 1900-2150; Kokoro's F2 falls steadily 1250 -> 830-900 (female ~1000), F1 500 -> 400-440, F3
+// level 2400-2500. The ʊ end takes u's row, a fronted American u (fitted 303/1205/2049).
+// The o start: the ə mix (LINE_OW_START_AH, 0.5 as before), then toward ɔ (LINE_OW_START_AO), lip area / length x
+// LINE_OW_START_LIP / _LIPL.
+const float kLineOwStartAh = param("LINE_OW_START_AH", 0.5f);
+void owStartShape(TractShape* sh) {
+  static const float kAo = param("LINE_OW_START_AO", 0.0f), kLip = param("LINE_OW_START_LIP", 1.0f),
+                     kLipL = param("LINE_OW_START_LIPL", 1.0f);
+  TractShape o;
+  if (kAo > 0 && lineShapeOf(Ph::AO, &o)) *sh = lineShapeMix(*sh, o, kAo);
+  if (kLip != 1.0f) sh->aLip *= kLip;
+  if (kLipL != 1.0f) sh->lLip *= kLipL;
+}
+// The ʊ end (u's row): mixed toward ɔ (LINE_OW_END_AO: 488/903/2760, back with a high F3) and ʊ's own row
+// (LINE_OW_END_UH, 462/1039/2300); lip area / length x LINE_OW_END_LIP / _LIPL; the constriction's place set to
+// LINE_OW_END_XC (<0: the row's; the w's back tongue is 0.25), its area x LINE_OW_END_AC.
+void owEndShape(TractShape* sh) {
+  static const float kAo = param("LINE_OW_END_AO", 0.0f), kUh = param("LINE_OW_END_UH", 0.0f),
+                     kLip = param("LINE_OW_END_LIP", 1.0f), kLipL = param("LINE_OW_END_LIPL", 1.0f),
+                     kXc = param("LINE_OW_END_XC", -1.0f), kAc = param("LINE_OW_END_AC", 1.0f);
+  TractShape o;
+  if (kUh > 0 && lineShapeOf(Ph::UH, &o)) *sh = lineShapeMix(*sh, o, kUh);
+  if (kAo > 0 && lineShapeOf(Ph::AO, &o)) *sh = lineShapeMix(*sh, o, kAo);
+  if (kLip != 1.0f) sh->aLip *= kLip;
+  if (kLipL != 1.0f) sh->lLip *= kLipL;
+  if (kAc != 1.0f) sh->ac *= kAc;
+  if (kXc >= 0) { sh->xc = kXc; sh->sc = lineVowelStrength(sh->xc, sh->wc, sh->length); }
+}
+
 // eɪ lab knobs (EY agent 2026-11-10; the defaults reproduce the previous sound). Whisper heard eɪ as iː 733 times in
 // 6980 (dict rank 8); against ten Kokoro voices the e start sits low in F1 (male 410-470 vs 480-560 Hz, female
 // 430-610 vs 500-850) and back in F2.
@@ -3105,7 +3137,17 @@ void Synth::emit(const Token& tok, const Ph* next) {
       // ... and starts open-mid and central (Kokoro 530-600/1060-1290 at 20 %;
       // puhuja's o held 450/1070 and drifted up: "know" was heard as "no-ʉ").
       TractShape mid;
-      if (lineShapeOf(Ph::AH, &mid)) sh = lineShapeMix(sh, mid, 0.5f);
+      if (lineShapeOf(Ph::AH, &mid)) sh = lineShapeMix(sh, mid, kLineOwStartAh);
+      owStartShape(&sh);
+    }
+    if (have && tok.ph == Ph::UH && lastPh_ == Ph::O && shapePh == Ph::U) owEndShape(&sh);
+    // Before an l the ʊ keeps o's shape (above), which held F1 at ~600 Hz (the ə-mixed start) into the l: "whole" ->
+    // "hull", "goal" -> "trawl" (Kokoro's F1 falls 500 -> 360-420, F2 to ~900). LINE_OW_L_U: this share of the ʊ end
+    // (u's row through owEndShape) mixed in (0: as before).
+    static const float kLineOwLU = param("LINE_OW_L_U", 0.0f);
+    if (have && tok.ph == Ph::UH && lastPh_ == Ph::O && shapePh == Ph::O && kLineOwLU > 0) {
+      TractShape u;
+      if (lineShapeOf(Ph::U, &u)) { owEndShape(&u); sh = lineShapeMix(sh, u, kLineOwLU); }
     }
     if (have && tok.ph == Ph::UH && lastPh_ == Ph::A && shapePh == Ph::O && kLineAwOffU > 0) {
       TractShape u;  // aʊ's end: toward u (see kLineAwOffU)
@@ -3349,6 +3391,29 @@ void Synth::emit(const Token& tok, const Ph* next) {
                   if (u < 0 || u > 1) continue;
                   const float frac = static_cast<float>(std::pow(x, static_cast<double>(kEyRampPow)));
                   addShapeDemand(t0 + u * dur, t0 + u * dur, lineShapeMix(s0, s1, frac), tok.ph, ws * kShapeGlideW * kEyRampW);
+                }
+              }
+            }
+            // A lazy oʊ (LINE_OW_RAMP points over the whole diphthong, 0: off; the eɪ's LINE_EY_RAMP): point demands on
+            // the straight path from the o start's shape to the ʊ end's, progress x^LINE_OW_RAMP_POW of the diphthong's
+            // time (the o taken as LINE_OW_RAMP_SPLIT of it), weight x LINE_OW_RAMP_W. Kokoro's "go", "know": F2 falls
+            // steadily 1250 -> 850 over the vowel; puhuja's held ~1250.
+            static const float kOwRamp = param("LINE_OW_RAMP", 0.0f), kOwRampPow = param("LINE_OW_RAMP_POW", 1.0f),
+                               kOwRampSplit = param("LINE_OW_RAMP_SPLIT", 0.6f), kOwRampW = param("LINE_OW_RAMP_W", 1.0f);
+            const bool owStart = chainStart && tok.ph == Ph::O && *next == Ph::UH;
+            if ((owStart || owGlide) && kOwRamp > 1) {
+              TractShape s0, s1, mid;
+              if (lineShapeOf(Ph::O, &s0) && lineShapeOf(Ph::U, &s1)) {
+                if (lineShapeOf(Ph::AH, &mid)) s0 = lineShapeMix(s0, mid, kLineOwStartAh);
+                owStartShape(&s0);
+                owEndShape(&s1);
+                const int n = static_cast<int>(kOwRamp);
+                for (int q = 1; q < n; ++q) {
+                  const double x = static_cast<double>(q) / n;  // the diphthong's time
+                  const double u = owStart ? x / kOwRampSplit : (x - kOwRampSplit) / (1.0 - kOwRampSplit);  // this part's
+                  if (u < 0 || u > 1) continue;
+                  const float frac = static_cast<float>(std::pow(x, static_cast<double>(kOwRampPow)));
+                  addShapeDemand(t0 + u * dur, t0 + u * dur, lineShapeMix(s0, s1, frac), tok.ph, ws * kShapeGlideW * kOwRampW);
                 }
               }
             }
