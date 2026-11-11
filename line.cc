@@ -736,7 +736,10 @@ float VocalTractLine::substep(float u0) {
   // Jyrki 2026-11-11: "\"hardship\" has a snap between d and s": a 0.2 click at 705 ms, 16 ms into the ʃ, that stays with
   // every noise source off and moves away with LINE_EXPAND_FLOW 0.
   static const float kExpandOffMs = param("LINE_EXPAND_OFF_MS", 5.0f);
-  if (!(expandFlow_ > 0) && kExpandOffMs > 0 && expandShare_ > 1e-4f) {
+  // LINE_EXPAND_OFF_FRIC 1: only for a closure released into a fricative ("hardship"; expandOffAllowed_, set by the
+  // synth per closure); the fade on every voiced stop cost g 161 -> 211 errors of 604 in the lab (2026-11-11).
+  static const bool kExpandOffFric = param("LINE_EXPAND_OFF_FRIC", 0.0f) > 0;
+  if (!(expandFlow_ > 0) && kExpandOffMs > 0 && expandShare_ > 1e-4f && (!kExpandOffFric || expandOffAllowed_)) {
     expandShare_ *= std::exp(-dt_ / (0.001f * kExpandOffMs));
     oral_.sink(std::max(velumK_ - 4, 1), expandLast_ * expandShare_);
   } else if (!(expandFlow_ > 0)) {

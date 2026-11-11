@@ -4234,6 +4234,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   static const float kVstopFricUnrel = param("LINE_VSTOP_FRIC_UNREL", 0.0f), kVstopVfricUnrel = param("LINE_VSTOP_VFRIC_UNREL", 1.0f);
   const bool nextFric = next && info(*next).cls == Cls::Fricative;
   const bool nextVoicedFric = nextFric && (*next == Ph::VV || *next == Ph::Z || *next == Ph::ZH || *next == Ph::DH);
+  if (tract_ == Tract::Line && pi.voiced) line_.setExpandOffAllowed(nextFric);  // (LINE_EXPAND_OFF_FRIC)
   const bool unreleased = next && (info(*next).cls == Cls::Plosive ||
                                    (tract_ == Tract::Line && pi.voiced && nextFric && tok.ph != Ph::JH && (nextVoicedFric ? kVstopVfricUnrel : kVstopFricUnrel) > 0.5f));  // (not the affricate's own release into its ʒ: inAffricate_ is set after this)
   if (unreleased) closure *= kUnreleasedClosure;
