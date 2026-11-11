@@ -2401,7 +2401,7 @@ void Synth::addEvent(const Event& e, int srcLine) {
   // post-release back events, the velum, the f ramp, approaches), and the whole-queue clamp dragged unrelated events
   // behind them (review cpp.md B1, Kennedy paragraph: 128 events late; 96 the vowel's level after a stop, median
   // 44 ms, max 150 ms; the 40 ms early pre-positioning after a pause 15-42 ms late, "Judge"'s ʤ 2 ms after its start).
-  static const bool kPerField = param("SYNTH_EVENT_CLAMP", 0.0f) > 0;
+  static const bool kPerField = param("SYNTH_EVENT_CLAMP", 1.0f) > 0;
   static const bool kTrace = std::getenv("PUHUJA_CLAMP_TRACE") != nullptr;  // clamps over 1 ms, with the caller's line
   Event ev = e;
   if (events_.empty()) {
