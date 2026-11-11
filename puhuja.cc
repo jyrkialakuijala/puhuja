@@ -4760,7 +4760,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // between d and s"; PUHUJA_ENERGY_TRACE: the d still nearly shut (0.006 cm^2) 15 ms into the ʃ with 3170 dyn/cm^2
   // behind it, then a 33 dB jump of the 2-8 kHz band in ~1 ms as it opened.
   {
-    static const float kStopFricLeadMs = param("LINE_STOP_FRIC_PRESS_LEAD_MS", 0.0f), kStopFricFloor = param("LINE_STOP_FRIC_PRESS_FLOOR", 0.5f),
+    static const float kStopFricLeadMs = param("LINE_STOP_FRIC_PRESS_LEAD_MS", 25.0f), kStopFricFloor = param("LINE_STOP_FRIC_PRESS_FLOOR", 0.6f),
                        kStopFricBackMs = param("LINE_STOP_FRIC_PRESS_BACK_MS", 25.0f);
     if (tract_ == Tract::Line && kStopFricLeadMs > 0 && !nextIsPause && nextFric && tok.ph != Ph::JH && tok.ph != Ph::CH) {
       Event ease{std::max(release - kStopFricLeadMs * ms, t_ + 1.0)};
