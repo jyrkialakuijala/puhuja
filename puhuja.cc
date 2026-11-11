@@ -3844,7 +3844,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
   // 0.55 -> 0.14 cm^2 in ~5 ms with 250-350 cm^3/s still flowing; the flow collapsed (reversed) in 1 ms, the pressure
   // behind swung -1500 / +900 dyn/cm^2, and the surge after it switched the hiss on: the snap (13.3, Kokoro 0.8).
   {
-    static const float frApMs = param("LINE_FRIC_APPROACH_MS", 0.0f), frApA = param("LINE_FRIC_APPROACH_A", 0.4f);
+    static const float frApMs = param("LINE_FRIC_APPROACH_MS", 25.0f), frApA = param("LINE_FRIC_APPROACH_A", 0.4f);
     const bool fric = tok.ph == Ph::F || tok.ph == Ph::V || tok.ph == Ph::VV || tok.ph == Ph::S || tok.ph == Ph::Z ||
                       tok.ph == Ph::TH || tok.ph == Ph::DH;
     const bool sonBefore = prevWasVowel_ || lastPh_ == Ph::RR || lastPh_ == Ph::R || lastPh_ == Ph::L || lastPh_ == Ph::W ||

@@ -652,7 +652,7 @@ float VocalTractLine::substep(float u0) {
     // The jet follows the flow with a lag (LINE_NOISE_RE_MS, 0: none): its Reynolds number low-passed, so a flow surge
     // (the narrowing forming faster than the air column can follow, PUHUJA_ENERGY_TRACE 2026-11-11) does not switch the
     // hiss (~ Re^2) on 30 dB within a few ms.
-    static const float kNoiseReMs = param("LINE_NOISE_RE_MS", 0.0f);
+    static const float kNoiseReMs = param("LINE_NOISE_RE_MS", 10.0f);
     if (kNoiseReMs > 0) {
       // ... except while the constriction opens (a release: p t k bursts must start at once; LINE_NOISE_RE_REL 1,
       // 0: the lag everywhere, which cost ~100 words1000 at 10 ms)
