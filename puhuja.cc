@@ -5070,6 +5070,20 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
       rel.pressMs = kStopFricBackMs;
     }
   }
+  // The same breath ease before a final b d g (LINE_FINAL_VPRESS_LEAD_MS, 0: off; floor LINE_FINAL_VPRESS_FLOOR): the
+  // ease above is gated to p t k, so a final d stored the full pressure and popped it. Perception review 2026-11-11:
+  // Head, Thread, Red, Made, Said peaked +6..+13 dB (1-8 kHz) over the word's loudest 50 ms, Kokoro -1..-23.
+  // 46 ms to 0.5 brings that to -11..+2 dB (pclick 40-49 -> 15-31); the pop is a threshold: 0.3 is no quieter and cost
+  // 16 more b d g errors in Whisper (and the level guard), 0.7 pops again. BUG-POP 2026-11-11.
+  {
+    static const float kLineFinalVPressLeadMs = param("LINE_FINAL_VPRESS_LEAD_MS", 0.0f), kLineFinalVPressFloor = param("LINE_FINAL_VPRESS_FLOOR", 0.3f);
+    if (tract_ == Tract::Line && nextIsPause && pi.voiced && !unreleased && kLineFinalVPressLeadMs > 0) {
+      Event ease{std::max(release - kLineFinalVPressLeadMs * ms, t_ + 1.0)};
+      ease.press = kLineFinalVPressFloor;
+      ease.pressMs = kLineFinalVPressLeadMs;
+      addEventAt(ease);
+    }
+  }
   if (tract_ == Tract::Line && nextIsPause && !pi.voiced) {
     // ... and its release opens this many times slower (LINE_FINAL_REL_SCALE; 1: as any other): the final t of "out"
     // burst at the vowel's level, a 4 ms click 20 dB over Kokoro's release (Jyrki 2026-11-10: "too much of a snap").
@@ -5310,7 +5324,13 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     // burst at all: "picks", "ask" 2026-11-02). The affricates keep their
     // slow release into the groove.
     Event burst{release};
-    burst.ac = kLineBurstArea * (tSoft ? softBurst : 1.0f);
+    // ... into a sibilant its own area (LINE_BURST_AREA_SIB, < 0: LINE_BURST_AREA): a t/k released into s at 0.2 cm^2
+    // rang the front cavity as a click (perception review 2026-11-11: Sites, Gifts, Rights, Costs +7..+14 dB over the
+    // word's loudest 50 ms in 1-8 kHz, Kokoro -1..-19). 0.06: pclick 45-62 -> 19-33 (Kokoro's maximum 17-49), the
+    // t k s errors unchanged in Whisper (0.05: 79 -> 80 of 1228). BUG-POP 2026-11-11.
+    static const float kLineBurstAreaSib = param("LINE_BURST_AREA_SIB", -1.0f);
+    const bool sib = *next == Ph::S || *next == Ph::Z || *next == Ph::SH || *next == Ph::ZH;
+    burst.ac = (sib && kLineBurstAreaSib >= 0 ? kLineBurstAreaSib : kLineBurstArea) * (tSoft ? softBurst : 1.0f);
     burst.acMs = 3;
     addEvent(burst);
     Event narrow{release + kLineBurstMs * ms};
