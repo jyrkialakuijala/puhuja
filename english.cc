@@ -2560,6 +2560,18 @@ void EnglishReader::sayPhrase(char end) {
             !isVowelToken(tokens[i + 1]))
           shape.ms *= kAyClosedLen;
         if (ey) shape.ms *= kEyLen * (i + 1 == tokens.size() ? kEyFinalLen : 1.0f);
+        // iː lab knobs (IY agent 2026-11-11; 1 = as before): every iː x EN_IY_LEN; an iː right before a vowel in the
+        // same word ("media", "create", "area": 33 % of them wrong, heard as j, the next ə as u) x EN_IY_HIATUS_LEN;
+        // the vowel right after such an iː x EN_IY_NEXT_LEN.
+        {
+          static const float kIyLen = param("EN_IY_LEN", 1.0f), kIyHiatusLen = param("EN_IY_HIATUS_LEN", 1.0f),
+                             kIyNextLen = param("EN_IY_NEXT_LEN", 1.0f);
+          if (baseName(tokens[i]) == "IY") {
+            shape.ms *= kIyLen;
+            if (i + 1 < tokens.size() && isVowelToken(tokens[i + 1])) shape.ms *= kIyHiatusLen;
+          }
+          if (vowel && i > 0 && baseName(tokens[i - 1]) == "IY") shape.ms *= kIyNextLen;
+        }
         // The unstressed ɜ after aʊ ("power", "hour", "flower") x this (EN_AW_ER_LEN;
         // Jyrki 2026-11-05: "the rhythm of the words is a little off, first
         // syllable should be stressed, 2nd unstressed": its ɜ ran 115 ms at the

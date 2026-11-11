@@ -3282,21 +3282,34 @@ void Synth::emit(const Token& tok, const Ph* next) {
                                kEyGlideW = param("LINE_EY_GLIDE_W", 1.0f), kEyPlaceW = param("LINE_EY_PLACE_W", 0.0f),
                                kEyEPlaceW = param("LINE_EY_E_PLACE_W", 0.0f), kEyEFrom = param("LINE_EY_E_FROM", 0.0f);
             const bool eyStart = chainStart && tok.ph == Ph::E && *next == Ph::IH;
-            const double a = owGlide ? kLineOwGlideFrom : eyGlide ? kLineEyGlideFrom :
+            const double a0 = owGlide ? kLineOwGlideFrom : eyGlide ? kLineEyGlideFrom :
                              ayGlide ? kLineAyGlideFrom : awGlide ? kLineAwGlideFrom :
                              oyEnd && kLineOyGlideFrom >= 0 ? kLineOyGlideFrom :
                              chainEnd ? kShapeGlideEnd : oyStart && kLineOyAoFrom >= 0 ? kLineOyAoFrom : eyStart && kEyEFrom >= 0 ? kEyEFrom : 0.1;
             const bool ayStart = chainStart && tok.ph == Ph::A && *next == Ph::IH;  // aɪ's a (kLineAyHold, kLineAyAW)
-            const double b = oyStart && kLineOyHoldTo >= 0 ? kLineOyHoldTo : ayStart && kLineAyHold >= 0 ? kLineAyHold
+            // A hiatus iː ("media", "create", "area"; IY agent 2026-11-11 lab knobs, -1 / 1: as before): demanded only from
+            // 0.1 to SPLAN_GLIDE_START (0.3) of its length like a diphthong's start, its F2 stopped at 1850-1950 Hz after d
+            // ("media", "radio", "video") and at 1600 in "create" (Kokoro holds 2250-2350 for ~60 ms); 33 % of these iː
+            // were wrong, heard as j, the next ə as u ("area" -> "value"). LINE_IY_CHAIN_FROM / _TO: the iː's demand
+            // window (shares of it), LINE_IY_CHAIN_W its weight; LINE_IY_NEXT_FROM / _TO: the following vowel's window
+            // (else SPLAN_GLIDE_END / 0.9).
+            static const float kIyChainFrom = param("LINE_IY_CHAIN_FROM", -1.0f), kIyChainTo = param("LINE_IY_CHAIN_TO", -1.0f),
+                               kIyChainW = param("LINE_IY_CHAIN_W", 1.0f), kIyNextFrom = param("LINE_IY_NEXT_FROM", -1.0f),
+                               kIyNextTo = param("LINE_IY_NEXT_TO", -1.0f), kIyChainPlaceW = param("LINE_IY_CHAIN_PLACE_W", 0.0f);
+            const bool iyStart = chainStart && tok.ph == Ph::I, iyNext = chainEnd && lastPh_ == Ph::I;
+            const double a = iyStart && kIyChainFrom >= 0 ? kIyChainFrom : iyNext && kIyNextFrom >= 0 ? kIyNextFrom : a0;
+            const double b = iyStart && kIyChainTo >= 0 ? kIyChainTo : iyNext && kIyNextTo >= 0 ? kIyNextTo
+                             : oyStart && kLineOyHoldTo >= 0 ? kLineOyHoldTo : ayStart && kLineAyHold >= 0 ? kLineAyHold
                              : chainStart ? (eyStart && kEyHoldTo >= 0 ? kEyHoldTo : kShapeGlideStart)
                              : ayGlide && kLineAyGlideTo >= 0 ? kLineAyGlideTo : eyGlide && kEyGlideTo >= 0 ? kEyGlideTo : 0.9;
-            const float oyW = oyStart ? kLineOyAoW : oyEnd ? kLineOyIhW : ayStart ? kLineAyAW : ayGlide ? kLineAyIW : 1.0f;
+            const float oyW = (oyStart ? kLineOyAoW : oyEnd ? kLineOyIhW : ayStart ? kLineAyAW : ayGlide ? kLineAyIW : 1.0f) *
+                              (iyStart ? kIyChainW : 1.0f);
             // aɪ's a wanted before its start after a pause (LINE_AY_PRE_MS: "I", "item" start from the pause's ə) or
             // in a plosive's closure (LINE_AY_STOP_LEAD_MS: "time", "type"); 0: from 10 % of the a, as before.
             const float ayLead = !ayStart ? 0.0f : prevWasPause_ ? kLineAyPreMs : prevWasPlosive_ ? kLineAyStopLeadMs : 0.0f;
             addShapeDemand(ayLead > 0 ? t0 - ayLead * ms : t0 + std::min(a, b) * dur, t0 + std::max(a, b) * dur, sh, tok.ph,
                            ws * kShapeGlideW * oyW * (eyGlide ? kEyGlideW : 1.0f),
-                           ayStart ? kLineAyPlaceFloor : eyGlide ? kEyPlaceW : eyStart ? kEyEPlaceW : 0.0f);
+                           ayStart ? kLineAyPlaceFloor : eyGlide ? kEyPlaceW : eyStart ? kEyEPlaceW : iyStart ? kIyChainPlaceW : 0.0f);
             if ((ayStart || ayGlide) && kLineAyRamp > 1) {
               // A lazy aɪ (LINE_AY_RAMP points over the whole diphthong, 0: off): point demands on the straight path
               // from the a's shape to the ɪ's, progress x^LINE_AY_RAMP_POW of the diphthong's time (the a taken as
@@ -3345,7 +3358,12 @@ void Synth::emit(const Token& tok, const Ph* next) {
             // reached only ~1750 by its end; Kokoro holds 2100-2200 from the start).
             const float preMs = !prevWasPause_ ? (prevWasPlosive_ && isVowel(tok.ph) ? kLineAfterStopLeadMs : 0.0f) : tok.ph == Ph::J ? kLineJPreShapeMs : tok.ph == Ph::L ? kLineLPreShapeMs : tok.ph == Ph::W ? kLineWPreShapeMs : tok.ph == Ph::RR ? kLineRPreShapeMs : tok.ph == Ph::ER ? kLineErPreMs : 0.0f;
             const bool er = tok.ph == Ph::ER;
-            addShapeDemand(preMs > 0 ? t0 - preMs * ms : t0 + (er ? kLineErFrom : tok.ph == Ph::RR && kLineRKeyFrom >= 0 ? kLineRKeyFrom : 0.3) * dur, t0 + (er ? kLineErTo : tok.ph == Ph::W ? kLineWKeyTo : tok.ph == Ph::RR && kLineRKeyTo >= 0 ? kLineRKeyTo : 0.7) * dur, sh, tok.ph, er ? ws * kLineErW : ws, er ? std::max(preR, kErPlaceW) : preR);
+            // A held iː's demand window and weight (IY agent 2026-11-11 lab knobs; -1 / -1 / 1: 0.3-0.7, as before): in
+            // connected speech (kennedy) its F2 sat at 1730 Hz against Kokoro's 2010 (isolated "Dee" 2055 vs ~2300).
+            static const float kIyFrom = param("LINE_IY_FROM", -1.0f), kIyTo = param("LINE_IY_TO", -1.0f), kIyW = param("LINE_IY_W", 1.0f),
+                               kIyPlaceW = param("LINE_IY_PLACE_W", 0.0f);  // the tongue place's least weight (its 2 cm^2 opening counts as half open)
+            const bool iy = tok.ph == Ph::I;
+            addShapeDemand(preMs > 0 ? t0 - preMs * ms : t0 + (er ? kLineErFrom : tok.ph == Ph::RR && kLineRKeyFrom >= 0 ? kLineRKeyFrom : iy && kIyFrom >= 0 ? kIyFrom : 0.3) * dur, t0 + (er ? kLineErTo : tok.ph == Ph::W ? kLineWKeyTo : tok.ph == Ph::RR && kLineRKeyTo >= 0 ? kLineRKeyTo : iy && kIyTo >= 0 ? kIyTo : 0.7) * dur, sh, tok.ph, er ? ws * kLineErW : iy ? ws * kIyW : ws, er ? std::max(preR, kErPlaceW) : iy ? std::max(preR, kIyPlaceW) : preR);
           }
           else {
             const bool open = tok.ph == Ph::AA || tok.ph == Ph::A;
