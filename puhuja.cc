@@ -4770,6 +4770,17 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   {
     static const float kStopFricLeadMs = param("LINE_STOP_FRIC_PRESS_LEAD_MS", 25.0f), kStopFricFloor = param("LINE_STOP_FRIC_PRESS_FLOOR", 0.6f),
                        kStopFricBackMs = param("LINE_STOP_FRIC_PRESS_BACK_MS", 25.0f);
+    // ... and an affricate's own release into its ʃ / ʒ (LINE_AFFR_PRESS_LEAD_MS, 0: off; the same floor and return).
+    // Jyrki 2026-11-11: "\"cultural spiritual adventurous\" all have a snap at t" (their ʧ: 11-18).
+    static const float kAffrLeadMs = param("LINE_AFFR_PRESS_LEAD_MS", 0.0f);
+    if (tract_ == Tract::Line && kAffrLeadMs > 0 && !nextIsPause && (tok.ph == Ph::CH || tok.ph == Ph::JH)) {
+      Event ease{std::max(release - kAffrLeadMs * ms, t_ + 1.0)};
+      ease.press = kStopFricFloor;
+      ease.pressMs = kAffrLeadMs;
+      addEventAt(ease);
+      rel.press = 1.0f;
+      rel.pressMs = kStopFricBackMs;
+    }
     if (tract_ == Tract::Line && kStopFricLeadMs > 0 && !nextIsPause && nextFric && tok.ph != Ph::JH && tok.ph != Ph::CH) {
       Event ease{std::max(release - kStopFricLeadMs * ms, t_ + 1.0)};
       ease.press = kStopFricFloor;
