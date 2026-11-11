@@ -735,7 +735,7 @@ float VocalTractLine::substep(float u0) {
   // LINE_EXPAND_OFF_MS (0: off): when the closure ends, the sink fades over this instead of stopping in one substep.
   // Jyrki 2026-11-11: "\"hardship\" has a snap between d and s": a 0.2 click at 705 ms, 16 ms into the ʃ, that stays with
   // every noise source off and moves away with LINE_EXPAND_FLOW 0.
-  static const float kExpandOffMs = param("LINE_EXPAND_OFF_MS", 0.0f);
+  static const float kExpandOffMs = param("LINE_EXPAND_OFF_MS", 5.0f);
   if (!(expandFlow_ > 0) && kExpandOffMs > 0 && expandShare_ > 1e-4f) {
     expandShare_ *= std::exp(-dt_ / (0.001f * kExpandOffMs));
     oral_.sink(std::max(velumK_ - 4, 1), expandLast_ * expandShare_);
