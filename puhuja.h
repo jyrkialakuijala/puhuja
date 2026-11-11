@@ -399,7 +399,7 @@ class Synth {
   void emitAffricate(const Token& tok, const Ph* next);
   void addKeyframe(const Params& p, double t, bool vowel = false);
   void addHeld(const Params& p, double t0, double dur, double a, double b, bool vowel = false);
-  void addEvent(const Event& e);
+  void addEvent(const Event& e, int srcLine = __builtin_LINE());
   void addEventAt(const Event& e);
   void addPressPulse(double peak, double lowBound, float amount, float riseMs = -1, float fallMs = -1);
   double syllOnsetT_ = -1;  // the start of the current syllable's onset consonants (samples; -1: none)

@@ -2377,12 +2377,51 @@ void Synth::addEventAt(const Event& e) {
   events_.insert(it, e);
 }
 
-void Synth::addEvent(const Event& e) {
+// The fields an event sets (one bit per thing it changes; tick() applies each
+// on its own), for addEvent's per-field clamp.
+static uint64_t eventFields(const Event& e) {
+  uint64_t m = 0;
+  int b = 0;
+  auto bit = [&](bool on) { m |= static_cast<uint64_t>(on) << b++; };
+  bit(e.ac >= 0); bit(e.ag >= 0); bit(e.an >= 0); bit(e.setNoise); bit(e.pop >= 0); bit(e.press >= 0);
+  bit(e.aspGain >= 0); bit(e.lineAspMul >= 0); bit(e.lineGlotFc >= 0); bit(e.lineHBreath >= 0);
+  bit(e.linePuffLpr >= 0); bit(e.lineFricFade >= 0); bit(e.lineFricReBoth >= 0); bit(e.lineFricReMul >= 0);
+  bit(e.lineFricMul >= 0); bit(e.lineLevel > 0); bit(e.lineSoft >= 0); bit(e.lineExtra >= 0);
+  bit(e.lineExpand >= 0); bit(e.lineHw >= 0); bit(e.lineLip >= 0); bit(e.lineAspHp >= 0); bit(e.lineFricLpr >= 0);
+  bit(e.lineJetD >= 0); bit(e.lineX >= 0); bit(e.aspBurst); bit(e.creak >= 0); bit(e.expand >= 0);
+  bit(e.inhaleMs > 0); bit(e.speech >= 0);
+  return m;
+}
+
+void Synth::addEvent(const Event& e, int srcLine) {
   // Movements must start in order: a later phoneme's movement starting
   // before an earlier one's would be overridden by it.
+  // SYNTH_EVENT_CLAMP 0: after the last queued event (as before). 1: only after the last queued event that sets one
+  // of the same fields, inserted in time order. The queue also holds events dated later with addEventAt (a stop's
+  // post-release back events, the velum, the f ramp, approaches), and the whole-queue clamp dragged unrelated events
+  // behind them (review cpp.md B1, Kennedy paragraph: 128 events late; 96 the vowel's level after a stop, median
+  // 44 ms, max 150 ms; the 40 ms early pre-positioning after a pause 15-42 ms late, "Judge"'s ʤ 2 ms after its start).
+  static const bool kPerField = param("SYNTH_EVENT_CLAMP", 0.0f) > 0;
+  static const bool kTrace = std::getenv("PUHUJA_CLAMP_TRACE") != nullptr;  // clamps over 1 ms, with the caller's line
   Event ev = e;
-  if (!events_.empty()) ev.t = std::max(ev.t, events_.back().t);
-  events_.push_back(ev);
+  if (events_.empty()) {
+    events_.push_back(ev);
+    return;
+  }
+  if (!kPerField) {
+    ev.t = std::max(ev.t, events_.back().t);
+  } else {
+    const uint64_t m = eventFields(ev);
+    for (auto it = events_.rbegin(); it != events_.rend(); ++it)
+      if (eventFields(*it) & m) {
+        ev.t = std::max(ev.t, it->t);
+        break;
+      }
+  }
+  if (kTrace && ev.t - e.t > 0.001 * fs_)
+    std::fprintf(stderr, "clamp t %.3f +%.1f ms line %d fields %llx\n", (e.t - (outputStart_ < 0 ? 0 : outputStart_)) / fs_,
+                 1000.0 * (ev.t - e.t) / fs_, srcLine, static_cast<unsigned long long>(eventFields(ev)));
+  if (kPerField) addEventAt(ev); else events_.push_back(ev);
 }
 
 // The diaphragm's push before an obstruent (LINE_PULSE): the lung pressure
