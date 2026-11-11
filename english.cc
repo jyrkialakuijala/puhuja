@@ -820,7 +820,9 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
           static const float kPreZhVowel = param("EN_PRE_ZH_VOWEL", 0.5f);
           // (EN_AA_PRE_VLESS: the ɑ before a voiceless plosive x this instead of 0.75; 2026-11-10 AA agent: "not, got, hot, stop")
           static const float kAaPreVless = param("EN_AA_PRE_VLESS", 0.75f);
-          prc *= n == "ZH" ? kPreZhVowel : isVoicedFricative(n) ? 1.4f : isVoicedPlosive(n) ? 1.2f
+          // (EN_PRE_Z_VOWEL: before a z x this instead of 1.4; lab 2026-11-11, the z heard as s: "his" ɪ 237 ms vs "hiss" 158)
+          static const float kPreZVowel = param("EN_PRE_Z_VOWEL", 1.4f);
+          prc *= n == "ZH" ? kPreZhVowel : n == "Z" ? kPreZVowel : isVoicedFricative(n) ? 1.4f : isVoicedPlosive(n) ? 1.2f
                : isNasal(n) ? 0.9f : isVoicelessPlosive(n) ? (b == "AA" ? kAaPreVless : 0.75f) : 1.0f;
         }
         // The ʊ's own length (EN_UH_LEN; 2026-11-09 UH agent: in isolated words puhuja's ʊ ran 220-260 ms, Kokoro's 150-280).
@@ -959,6 +961,14 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
         static const float vLen = param("EN_FINAL_V_LEN", 1.0f);
         whole *= vLen;
       }
+      // A phrase-final z after a vowel or sonorant x this (EN_FINAL_Z_LEN, lab knob 2026-11-11; 1: as before): 59 ms here,
+      // and its slit holds ~70 ms more into the pause with the breath decaying ("his": ~140 ms of voiceless hiss at -6 dB
+      // re the word's peak, an s); Kokoro's final z hisses 70-100 ms at -17..-20 dB.
+      if (phraseFinal && !vowel && i > 0 && i > static_cast<size_t>(lastVowel) && b == "Z" &&
+          !isVoicelessPlosive(baseName(tok[i - 1])) && !isVoicedPlosive(baseName(tok[i - 1]))) {
+        static const float kFinalZLen = param("EN_FINAL_Z_LEN", 1.0f);
+        whole *= kFinalZLen;
+      }
       // The voiceless fricatives' and stops' lengths x these (Jyrki 2026-11-05,
       // the blend exploration: Kokoro's Kennedy has s 80 ms, ʃ 110, t 60, k 70,
       // p 70 against puhuja's 70, 73, 37, 43, 49; 1: unchanged).
@@ -1013,6 +1023,12 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
         // against 70-80), as long and as loud as an s, and the dictionary hears 68 % of θ as s or z (2026-11-09).
         { static const float kZhLen = param("EN_ZH_LEN", 2.0f); if (b == "ZH") whole *= kZhLen; }
         { static const float kVLen = param("EN_V_LEN", 1.8f); if (b == "V") whole *= kVLen; }
+        // The z's own length (EN_Z_LEN, all z) and between two vowels of a word (EN_MED_Z_LEN, "easy", "music"); lab
+        // knobs 2026-11-11 (1: unchanged): the medial z ran 50-56 ms (Kokoro 70-80) and was heard as t (164 of the
+        // dictionary's medial z errors).
+        { static const float kZLen = param("EN_Z_LEN", 1.0f), kMedZLen = param("EN_MED_Z_LEN", 1.0f);
+          if (b == "Z") whole *= kZLen;
+          if (b == "Z" && i > 0 && isVowelToken(tok[i - 1]) && i + 1 < tok.size() && isVowelToken(tok[i + 1])) whole *= kMedZLen; }
         { static const float kPLen = param("EN_P_LEN", 1.0f); if (b == "P") whole *= kPLen; }
         { static const float kKLen = param("EN_K_LEN", 1.0f); if (b == "K") whole *= kKLen; }
         // t's own (T agent 3, lab knobs 2026-11-11; 1: unchanged): its length, a phrase-final t's, a t before s ("its",

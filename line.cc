@@ -627,7 +627,9 @@ float VocalTractLine::substep(float u0) {
   if (noiseK_ >= 0 && fricGain_ > 0) {
     const float u = oral_.flowAt(noiseKc_);
     const float a = oral_.areaAt(noiseKc_);
-    float re = kReRoundFactor * std::fabs(u) / std::sqrt(kPiL * a);
+    // (x fricReMul_, LINE_Z_RE_SCALE: a z's jet as if this much faster or wider, so a slit wide enough to keep the folds
+    // going still hisses; 1: off, a multiplication by exactly 1)
+    float re = fricReMul_ * kReRoundFactor * std::fabs(u) / std::sqrt(kPiL * a);
     // (= rho U d / mu with d = 2 sqrt(a / pi); LINE_NOISE_U_MAX caps U at the Bernoulli speed)
     if (kNoiseUMax > 0) re = std::min(re, kReRoundFactor * kNoiseUMax * std::sqrt(2.0f * std::max(lungPressure_, 1.0f) / TransmissionLine::kRho) * std::sqrt(a / kPiL));
     // Only a fricative-sized slit makes a jet that hisses: the source fades out
@@ -659,7 +661,7 @@ float VocalTractLine::substep(float u0) {
       static const float kReK = 1.0f - std::exp(-dt_ * 1000.0f / kNoiseReMs);
       static const bool kReRel = param("LINE_NOISE_RE_REL", 1.0f) > 0;
       const bool opening = kReRel && noiseKc_ == reK_ && a > reA_ * 1.0005f;
-      reLp_ = opening || re < reLp_ ? re : reLp_ + (re - reLp_) * kReK;  // (and down at once: only the rise lags)
+      reLp_ = opening || (re < reLp_ && !fricReBoth_) ? re : reLp_ + (re - reLp_) * kReK;  // (and down at once: only the rise lags; both ways for a z, LINE_Z_RE_BOTH)
       reA_ = a;
       reK_ = noiseKc_;
       re = reLp_;

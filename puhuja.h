@@ -129,6 +129,8 @@ struct Event {
   float lineHBreath = -1;  // an h's unthresholded breath gain on the line (x LINE_ASP; LINE_H_BREATH; < 0: unchanged)
   float linePuffLpr = -1;  // the glottal noise low-pass ratio on the line during a stop's puff (0: off; < 0: unchanged)
   float lineFricFade = -1;  // the frication source's fade-out areas x this (voiced fricatives; < 0: unchanged)
+  float lineFricReBoth = -1;  // > 0: the jet's Reynolds number low-passed both ways, 0: only its rise (LINE_Z_RE_BOTH; < 0: unchanged)
+  float lineFricReMul = -1;  // the frication jet's Reynolds number x this (LINE_Z_RE_SCALE; < 0: unchanged)
   float lineFricMul = -1;  // the slit noise gain factor on the line (v; < 0: unchanged)
   float lineLevel = -1;  // the prosodic level as a lung-pressure factor on the line (< 0: unchanged)
   float lineSoft = -1, lineExtra = -1;  // a voiced closure's softness and extra length on the line (< 0: unchanged)
@@ -454,6 +456,8 @@ class Synth {
   // Prosody / context state.
   int syllable_ = 0;
   bool prevWasVowel_ = false;
+  bool zBeforePause_ = false;  // the last sound before these pause tokens was a z (LINE_Z_RE_SCALE)
+  float zPauseFric_ = 1.0f;  // a final z's hiss gain, kept through the pause's tokens (LINE_FINAL_Z_FRIC, LINE_Z_FRIC)
   bool prevWasPlosive_ = false;
   bool prevWasNasal_ = false;
   bool prevWasPause_ = false;  // the last emitted phoneme was a pause

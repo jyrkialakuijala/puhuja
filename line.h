@@ -205,6 +205,8 @@ class VocalTractLine {
     jetD_ = d; jetMix_ = mix; slitScale_ = slitScale; jetSmoothMs_ = smoothMs; jetFcMin_ = fcMin; jetFcMax_ = fcMax;
   }  // mix: 1 fixed d, 0 the slit's height x slitScale, between: geometric blend
   void setFricLpRatio(float r) { fricLpr_ = r; }  // the frication band's low-pass / its corner (0: LINE_NOISE_LPR)
+  void setFricReMul(float m) { fricReMul_ = m; }
+  void setFricReBoth(bool b) { fricReBoth_ = b; }  // the jet's Reynolds number low-passed both ways (LINE_Z_RE_BOTH; false: only its rise)  // the frication jet's Reynolds number x this (LINE_Z_RE_SCALE; 1: as computed)
   void setFricFade(float s) { fricFade_ = s; fricLogA0_ = 0; }  // the frication source's fade-out areas x this (voiced fricatives)
   // The glottal noise's low-pass ratio during a voiceless stop's puff (<= 0:
   // LINE_GLOTTAL_LPR / LINE_NOISE_LPR): the puff's hiss reaches 2-5 kHz while
@@ -251,6 +253,8 @@ class VocalTractLine {
   float humpHw_ = 1.0f, lipCap_ = -1.0f;
   float jetD_ = 0, jetMix_ = 1, slitScale_ = 1, jetSmoothMs_ = -1, jetFcMin_ = 0, jetFcMax_ = 0;
   float fricLpr_ = 0;
+  float fricReMul_ = 1.0f;
+  bool fricReBoth_ = false;
   float puffLpr_ = 0;
   float glotSlitScale_ = 1;  // (setGlotFcScale)
   float expandFlow_ = 0, expandLast_ = 0;

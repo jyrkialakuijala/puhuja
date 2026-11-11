@@ -1014,7 +1014,7 @@ float linePlaceOf(Ph ph) {
     case Ph::TH: { static const float x = param("LINE_TH_X", 0.93f); return x; }  // the θ's place (lab 2026-11-09: the same as s's 0.90)
     case Ph::DH: { static const float x = param("LINE_DH_X", 0.90f); return x; }  // (a lab knob 2026-11-09: the ð was heard as v; a v constricts at 0.95)
     case Ph::S: { static const float x = param("LINE_S_X", 0.90f); return x; }
-    case Ph::Z: return 0.90f;  // the front cavity to the teeth ~1.7 cm: the hiss near 5 kHz
+    case Ph::Z: { static const float x = param("LINE_Z_X", 0.90f); return x; }  // the front cavity to the teeth ~1.7 cm: the hiss near 5 kHz (a lab knob 2026-11-11)
     // n further back than t d (0.87): there Whisper heard it as l or bl
     // ("Now." -> "hello", "New." -> "blue"; 0.77-0.80 best, 2026-11-04).
     case Ph::N: { static const float x = param("LINE_N_X", 0.78f); return x; }
@@ -2699,6 +2699,27 @@ void Synth::emit(const Token& tok, const Ph* next) {
       if (tok.ph == Ph::VV) { e.press = kVPress; e.pressMs = 20; }
       else if (lastPh_ == Ph::VV && e.press < 0) { e.press = 1.0f; e.pressMs = 20; }
     } }
+  // z lab knobs (round D, 2026-11-11; the z is heard as s 1068 of 1892 dictionary errors: its voicing dies 20 ms in
+  // while the glottis opens to LINE_AG_Z over LINE_ABDUCT_MS, voice bar -13 -> -35 dB re the word's peak, hiss -12):
+  // LINE_Z_PRESS the lung pressure share through a z (1: unchanged); LINE_Z_AG_FINAL / LINE_Z_AG_MED the z's glottis
+  // before a pause / before a vowel (< 0: LINE_AG_Z); LINE_Z_ABDUCT_MS its opening time (< 0: LINE_ABDUCT_MS);
+  // LINE_Z_EXPAND the cavity walls' expansion sink through a z (as behind a voiced closure; <= 1: off).
+  static const float kZPress = param("LINE_Z_PRESS", 1.0f), kZAgFinal = param("LINE_Z_AG_FINAL", -1.0f),
+                     kZAgMed = param("LINE_Z_AG_MED", -1.0f), kZAbductMs = param("LINE_Z_ABDUCT_MS", -1.0f),
+                     kZExpand = param("LINE_Z_EXPAND", 0.0f);
+  if (tract_ == Tract::Line && kZPress < 1.0f) {
+    if (tok.ph == Ph::Z) { e.press = kZPress; e.pressMs = 20; }
+    else if (lastPh_ == Ph::Z && e.press < 0) { e.press = 1.0f; e.pressMs = 20; }
+  }
+  if (tract_ == Tract::Line && tok.ph == Ph::Z) {
+    const bool zFinal = !next || *next == Ph::Stop;
+    if (zFinal && kZAgFinal >= 0) aero.ag = kZAgFinal;
+    else if (next && isVowel(*next) && kZAgMed >= 0) aero.ag = kZAgMed;
+  }
+  if (tract_ == Tract::Line && kZExpand > 1.0f) {
+    if (tok.ph == Ph::Z) { e.expand = kZExpand; e.expandMs = static_cast<float>(dur / ms); }
+    else if (lastPh_ == Ph::Z && e.expand < 0) { e.expand = 1.0f; e.expandMs = 5; }
+  }
   const bool shFullVowel = tok.ph == Ph::SH && next && isVowel(*next) && *next != Ph::Schwa;  // (LINE_SH_VOWEL_*)
   e.ac = aero.ac;
   // The line's fricative slits are wider than the cascade's table: a 0.05 cm^2
@@ -2742,6 +2763,20 @@ void Synth::emit(const Token& tok, const Ph* next) {
     static const float kLineFinalThFric = param("LINE_FINAL_TH_FRIC", 1.0f);
     e.lineFricMul *= kLineFinalThFric;
   }
+  // ... and a phrase-final z x this (LINE_FINAL_Z_FRIC, lab 2026-11-11; 1: as before): "his" hissed at -6..-9 dB re the
+  // word's peak for 140 ms (its 59 ms and ~80 more into the pause while the breath decays), Kokoro's final z -17..-20.
+  if (tract_ == Tract::Line && tok.ph == Ph::Z && (!next || *next == Ph::Stop) && e.lineFricMul > 0) {
+    static const float kLineFinalZFric = param("LINE_FINAL_Z_FRIC", 1.0f);
+    e.lineFricMul *= kLineFinalZFric;
+  }
+  // (the pause after a z keeps its gain while the slit is still narrow: reset to 1 there, LINE_FINAL_Z_FRIC 0.35 came
+  // back +12 dB at the pause's start)
+  {
+    static const float kLineFinalZFric = param("LINE_FINAL_Z_FRIC", 1.0f);
+    if (tok.ph == Ph::Z) zPauseFric_ = kLineZFric * kLineFinalZFric;
+    else if (tok.ph != Ph::Stop) zPauseFric_ = 1.0f;
+    if (tract_ == Tract::Line && tok.ph == Ph::Stop && zPauseFric_ != 1.0f) e.lineFricMul = zPauseFric_;
+  }
   if (tract_ == Tract::Line && kLineCloseFric != 1.0f && in.cls == Cls::Nasal) e.lineFricMul = kLineCloseFric;  // (LINE_CLOSE_FRIC: the nasal's oral closure)
   // LINE_T_ASP_HP (2026-11-05): a t's breath alone is high-passed (Hz, with
   // LINE_T_ASP_HP_POLES stages); every other sound puts LINE_ASP_HP back.
@@ -2758,8 +2793,20 @@ void Synth::emit(const Token& tok, const Ph* next) {
   // were heard as n, l, d (2026-11-04). Its own, wider fade range.
   static const float kVFricFade = param("LINE_VFRIC_FADE", 1.0f);
   static const float shFade = param("LINE_SH_FADE", 1.0f);  // ʃ: its frication's fade window's areas x this
+  static const float kLineZFade = param("LINE_Z_FADE", -1.0f);  // z's own (< 0: LINE_VFRIC_FADE; lab 2026-11-11)
+  // LINE_Z_RE_SCALE (lab 2026-11-11; 1: off): the z's jet Reynolds number x this. With a slit wide enough to keep the
+  // voice (LINE_Z_AC 3, LINE_AG_Z 0.08: voice bar -2..-14 dB in "his") the jet stayed under LINE_RE_CRIT, no hiss
+  // (-35..-48) at any LINE_Z_FRIC; at today's slit the mouth pressure (4400 dyn/cm^2) stops the folds within 10 ms.
+  static const float kLineZReScale = param("LINE_Z_RE_SCALE", 1.0f);
+  if (tok.ph != Ph::Stop) zBeforePause_ = tok.ph == Ph::Z;
+  // LINE_Z_RE_BOTH (lab 2026-11-11; 0: off): through a z the jet's Reynolds number is low-passed (LINE_NOISE_RE_MS) on its
+  // falls too: with the voice on, the flow pulses, and the hiss switched off and on with every glottal cycle (5-ms
+  // frames -3..-45 dB, snap.py 6.7 -> 9.4 on the z words with LINE_Z_RE_SCALE 2.5).
+  static const float kLineZReBoth = param("LINE_Z_RE_BOTH", 0.0f);
+  if (tract_ == Tract::Line && kLineZReBoth > 0) e.lineFricReBoth = tok.ph == Ph::Z || (tok.ph == Ph::Stop && zBeforePause_) ? 1.0f : 0.0f;
+  if (tract_ == Tract::Line && kLineZReScale != 1.0f) e.lineFricReMul = tok.ph == Ph::Z || (tok.ph == Ph::Stop && zBeforePause_) ? kLineZReScale : 1.0f;  // (kept into the pause while the slit is still narrow)
   if (tract_ == Tract::Line)
-    e.lineFricFade = tok.ph == Ph::ZH && !inAffricate_ && kLineZhFade >= 0 ? kLineZhFade : tok.ph == Ph::Z || tok.ph == Ph::ZH || tok.ph == Ph::VV || tok.ph == Ph::DH ? kVFricFade : tok.ph == Ph::SH ? shFade : 1.0f;
+    e.lineFricFade = tok.ph == Ph::ZH && !inAffricate_ && kLineZhFade >= 0 ? kLineZhFade : tok.ph == Ph::Z && kLineZFade >= 0 ? kLineZFade : tok.ph == Ph::Z || tok.ph == Ph::ZH || tok.ph == Ph::VV || tok.ph == Ph::DH ? kVFricFade : tok.ph == Ph::SH ? shFade : 1.0f;
   e.lineX = linePlaceOf(tok.ph);
   if (tok.ph == Ph::SH && shFullVowel && kLineShVowelX > 0) e.lineX = kLineShVowelX;  // (LINE_SH_VOWEL_X)
   if (tok.ph == Ph::SH && shFullVowel && kLineShVowelAc != 1.0f && e.ac > 0) e.ac *= kLineShVowelAc;  // (LINE_SH_VOWEL_AC)
@@ -2773,11 +2820,13 @@ void Synth::emit(const Token& tok, const Ph* next) {
   e.lineLevel = stressExtra > 0 ? 1.0f + kStressHold * stressExtra : lineLevelNow;
   {
     const bool post = tok.ph == Ph::SH || tok.ph == Ph::ZH || tok.ph == Ph::CH || tok.ph == Ph::JH;
-    e.lineHw = post ? kLinePostHw : tok.ph == Ph::F ? kLineFHw : 1.0f;
+    static const float kLineZHw = param("LINE_Z_HW", 1.0f);  // the z's constriction width along the tract (lab 2026-11-11)
+    e.lineHw = post ? kLinePostHw : tok.ph == Ph::F ? kLineFHw : tok.ph == Ph::Z ? kLineZHw : 1.0f;
     e.lineLip = post ? kLinePostLip : 0.0f;
-    e.lineJetD = tok.ph == Ph::F ? (curStress_ ? kLineFJetD : kLineFJetDUnstr) : tok.ph == Ph::VV ? kLineVJetD : tok.ph == Ph::ZH && !inAffricate_ && kLineZhJetD >= 0 ? kLineZhJetD : post ? kLinePostJetD : 0.0f;
+    static const float kLineZJetD = param("LINE_Z_JET_D", 0.0f), kLineZLpr = param("LINE_Z_LPR", 0.0f);  // z's jet and band (0: the shared ones; lab 2026-11-11)
+    e.lineJetD = tok.ph == Ph::Z && kLineZJetD > 0 ? kLineZJetD : tok.ph == Ph::F ? (curStress_ ? kLineFJetD : kLineFJetDUnstr) : tok.ph == Ph::VV ? kLineVJetD : tok.ph == Ph::ZH && !inAffricate_ && kLineZhJetD >= 0 ? kLineZhJetD : post ? kLinePostJetD : 0.0f;
     if (post) e.lineJetMix = kLinePostJetMix, e.lineSlitScale = kLinePostSlitScale, e.lineJetSmoothMs = kLinePostStSmoothMs, e.lineJetFcMin = kLinePostFcMin, e.lineJetFcMax = kLinePostFcMax;
-    e.lineFricLpr = tok.ph == Ph::ZH && !inAffricate_ && kLineZhLpr >= 0 ? kLineZhLpr : tok.ph == Ph::SH || tok.ph == Ph::ZH ? kLinePostLpr : tok.ph == Ph::F ? kLineFLpr : tok.ph == Ph::VV ? kLineVLpr : 0.0f;  // (not ʧ ʤ: at 3 they lost 39 -> 34, 26 -> 23 of 54, 56)
+    e.lineFricLpr = tok.ph == Ph::Z && kLineZLpr > 0 ? kLineZLpr : tok.ph == Ph::ZH && !inAffricate_ && kLineZhLpr >= 0 ? kLineZhLpr : tok.ph == Ph::SH || tok.ph == Ph::ZH ? kLinePostLpr : tok.ph == Ph::F ? kLineFLpr : tok.ph == Ph::VV ? kLineVLpr : 0.0f;  // (not ʧ ʤ: at 3 they lost 39 -> 34, 26 -> 23 of 54, 56)
     // A sound without frication leaves the jet as it was (LINE_JET_KEEP): the
     // n after ʃ snapped it back to the slit's height and the full band while
     // the slit was still hissing, a +10 dB spike at the end of every -tion.
@@ -3183,6 +3232,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
   e.ag = aero.ag;
   if (in.cls == Cls::Vowel) e.ag *= tok.shape.press;  // voice quality by prosody
   e.agMs = tract_ == Tract::Line && in.cls == Cls::Fricative && aero.ag > kAgBreathy ? kLineAbductMs : kGlottalMs;
+  if (tract_ == Tract::Line && tok.ph == Ph::Z && kZAbductMs >= 0 && aero.ag > kAgBreathy) e.agMs = kZAbductMs;
   e.aspGain = in.cls == Cls::H ? hAspirationGain_ * kHGain : kAspirationGain * kAspirationTiltGain;
   if (lineHAsp_ && in.cls != Cls::H) {  // after a voiceless h: the noise gain back
     e.lineAspMul = 1.0f;
@@ -3393,7 +3443,8 @@ void Synth::emit(const Token& tok, const Ph* next) {
           // the consonant would be at that moment.
           Params onset = p;
           for (int i = 0; i < kNumParams; ++i) onset[i] = last_[i] + 0.2f * (p[i] - last_[i]);
-          onset[kF0Mul] = p[kF0Mul] * (voicelessBefore ? kOnsetRiseVoiceless : kOnsetDipVoiced);
+          static const float kZOnsetDip = param("LINE_Z_ONSET_DIP", -1.0f);  // after a z (< 0: kOnsetDipVoiced; lab 2026-11-11)
+          onset[kF0Mul] = p[kF0Mul] * (voicelessBefore ? kOnsetRiseVoiceless : lastPh_ == Ph::Z && kZOnsetDip > 0 ? kZOnsetDip : kOnsetDipVoiced);
           addKeyframe(onset, t0 + 0.05 * dur, true);
           k_.back().f0Mod = onset[kF0Mul] / p[kF0Mul];
           k_.back().edge = kFormantPointTargets;  // pitch only: not a formant point
@@ -3667,6 +3718,19 @@ void Synth::emit(const Token& tok, const Ph* next) {
         // held back behind it: the initial f of "forget" began 70-95 ms late
         // and sounded for ~28 ms of its 93 (2026-11-03).
         if (!prevWasPause_) relaxAt_ = e.t + kLinePausePressMs * ms;
+        // After a final z (lab knobs 2026-11-11): the groove eases open from the pause's start to LINE_Z_FINAL_OPEN_A
+        // cm^2 over LINE_Z_FINAL_OPEN_MS (0: off; the slit held 0.044 cm^2 for 70 ms into the pause, a voiceless hiss
+        // twice the z's own length), and the glottis goes to LINE_Z_FINAL_AG over 30 ms (< 0: unchanged).
+        if (!prevWasPause_ && lastPh_ == Ph::Z) {
+          static const float zOpenMs = param("LINE_Z_FINAL_OPEN_MS", 0.0f), zOpenA = param("LINE_Z_FINAL_OPEN_A", 0.3f),
+                             zFinalAg = param("LINE_Z_FINAL_AG", -1.0f);
+          if (zOpenMs > 0 || zFinalAg >= 0) {
+            Event op{e.t};
+            if (zOpenMs > 0) { op.ac = zOpenA; op.acMs = zOpenMs; }
+            if (zFinalAg >= 0) { op.ag = zFinalAg; op.agMs = 30; }
+            addEventAt(op);
+          }
+        }
         if (!prevWasPause_) pauseEventT_ = e.t;
         const bool relaxNow = relaxAt_ >= 0 && relaxAt_ < t0 + dur;
         pendingRelax_ = Event{relaxNow ? relaxAt_ : e.t};
@@ -3806,8 +3870,9 @@ void Synth::emit(const Token& tok, const Ph* next) {
       // ramp that starts at the phoneme (voicing -43 dB, hiss -50 re the word's peak: silent, "very" -> "fairy");
       // Kokoro's initial v is voiced from its first 10 ms (-17..-20 dB).
       static const float kVEarlyBreath = param("LINE_V_EARLY_BREATH", 0.0f);
+      static const float kZEarlyBreath = param("LINE_Z_EARLY_BREATH", 0.0f);  // (the same for a phrase-initial z: "zero" silent for 20 ms, -43 dB)
       const bool earlyBreath = in.cls == Cls::Nasal || in.cls == Cls::Liquid || in.cls == Cls::Glide || in.cls == Cls::Trill ||
-                               (tok.ph == Ph::VV && kVEarlyBreath > 0);
+                               (tok.ph == Ph::VV && kVEarlyBreath > 0) || (tok.ph == Ph::Z && kZEarlyBreath > 0);
       Event prePress{std::max(e.t - kLinePrePressMs * ms, earlyBreath ? std::min(inPauseFrom, e.t) : phonemeStart_ + 1)};
       prePress.press = 1.0f;
       prePress.pressMs = kLinePrePressMs;
@@ -3936,8 +4001,10 @@ void Synth::emit(const Token& tok, const Ph* next) {
                       tok.ph == Ph::TH || tok.ph == Ph::DH;
     const bool sonBefore = prevWasVowel_ || lastPh_ == Ph::RR || lastPh_ == Ph::R || lastPh_ == Ph::L || lastPh_ == Ph::W ||
                            lastPh_ == Ph::J || lastPh_ == Ph::M || lastPh_ == Ph::N || lastPh_ == Ph::NG;
-    if (tract_ == Tract::Line && frApMs > 0 && fric && sonBefore && !prevWasPlosive_) {
-      Event ap{std::max(e.t - frApMs * ms, phonemeStart_ + 1)};
+    static const float zApMs = param("LINE_Z_APPROACH_MS", -1.0f);  // the z's own (< 0: LINE_FRIC_APPROACH_MS)
+    const float apMs = tok.ph == Ph::Z && zApMs >= 0 ? zApMs : frApMs;
+    if (tract_ == Tract::Line && apMs > 0 && fric && sonBefore && !prevWasPlosive_) {
+      Event ap{std::max(e.t - apMs * ms, phonemeStart_ + 1)};
       ap.ac = frApA;
       ap.acMs = static_cast<float>((e.t - ap.t) / ms);
       ap.lineX = linePlaceOf(tok.ph);
@@ -3958,6 +4025,20 @@ void Synth::emit(const Token& tok, const Ph* next) {
       ap.acMs = static_cast<float>((e.t - ap.t) / ms);
       ap.lineX = linePlaceOf(tok.ph);
       addEventAt(ap);
+    }
+  }
+  // LINE_Z_AG_LAG_MS (lab 2026-11-11; 0: off): the z's glottis opens this long after its gesture starts, at first
+  // only to LINE_Z_AG_LAG_AG (< 0: it stays at the vowel's), so that the voice runs on under the rising hiss
+  // (Kokoro's final z: the voice bar fades over its first 30-40 ms while the hiss is already at -18 dB).
+  {
+    static const float zLagMs = param("LINE_Z_AG_LAG_MS", 0.0f), zLagAg = param("LINE_Z_AG_LAG_AG", -1.0f);
+    if (tract_ == Tract::Line && tok.ph == Ph::Z && zLagMs > 0 && !prevWasPlosive_ && e.ag >= 0) {
+      Event late{e.t + zLagMs * ms};
+      late.ag = e.ag;
+      late.agMs = e.agMs;
+      e.ag = zLagAg;
+      e.agMs = kGlottalMs;
+      addEventAt(late);
     }
   }
   if (!prevWasPlosive_) {
@@ -5316,6 +5397,8 @@ float Synth::tick() {
     if (e.lineFricMul >= 0) lineFricMul_ = e.lineFricMul;
     if (e.lineFricMul >= 0 && std::getenv("PUHUJA_LINE_TRACE")) std::fprintf(stderr, "fricmul t %.3f mul %.3f\n", t_ / fs_, e.lineFricMul);
     if (e.lineFricFade >= 0) { lineFricFade_ = e.lineFricFade; line_.setFricFade(lineFricFade_); }
+    if (e.lineFricReMul >= 0) line_.setFricReMul(e.lineFricReMul);
+    if (e.lineFricReBoth >= 0) line_.setFricReBoth(e.lineFricReBoth > 0);
     if (e.lineSoft >= 0) lineSoft_ = e.lineSoft;
     if (e.lineExtra >= 0) lineExtra_ = e.lineExtra;
     if (e.lineExpand >= 0) lineExpand_ = e.lineExpand;
