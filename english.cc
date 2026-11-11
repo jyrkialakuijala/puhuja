@@ -1026,7 +1026,7 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
         // The z's own length (EN_Z_LEN, all z) and between two vowels of a word (EN_MED_Z_LEN, "easy", "music"); lab
         // knobs 2026-11-11 (1: unchanged): the medial z ran 50-56 ms (Kokoro 70-80) and was heard as t (164 of the
         // dictionary's medial z errors).
-        { static const float kZLen = param("EN_Z_LEN", 1.0f), kMedZLen = param("EN_MED_Z_LEN", 1.0f);
+        { static const float kZLen = param("EN_Z_LEN", 1.0f), kMedZLen = param("EN_MED_Z_LEN", 1.3f);
           if (b == "Z") whole *= kZLen;
           if (b == "Z" && i > 0 && isVowelToken(tok[i - 1]) && i + 1 < tok.size() && isVowelToken(tok[i + 1])) whole *= kMedZLen; }
         { static const float kPLen = param("EN_P_LEN", 1.0f); if (b == "P") whole *= kPLen; }

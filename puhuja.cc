@@ -2766,13 +2766,13 @@ void Synth::emit(const Token& tok, const Ph* next) {
   // ... and a phrase-final z x this (LINE_FINAL_Z_FRIC, lab 2026-11-11; 1: as before): "his" hissed at -6..-9 dB re the
   // word's peak for 140 ms (its 59 ms and ~80 more into the pause while the breath decays), Kokoro's final z -17..-20.
   if (tract_ == Tract::Line && tok.ph == Ph::Z && (!next || *next == Ph::Stop) && e.lineFricMul > 0) {
-    static const float kLineFinalZFric = param("LINE_FINAL_Z_FRIC", 1.0f);
+    static const float kLineFinalZFric = param("LINE_FINAL_Z_FRIC", 0.7f);
     e.lineFricMul *= kLineFinalZFric;
   }
   // (the pause after a z keeps its gain while the slit is still narrow: reset to 1 there, LINE_FINAL_Z_FRIC 0.35 came
   // back +12 dB at the pause's start)
   {
-    static const float kLineFinalZFric = param("LINE_FINAL_Z_FRIC", 1.0f);
+    static const float kLineFinalZFric = param("LINE_FINAL_Z_FRIC", 0.7f);
     if (tok.ph == Ph::Z) zPauseFric_ = kLineZFric * kLineFinalZFric;
     else if (tok.ph != Ph::Stop) zPauseFric_ = 1.0f;
     if (tract_ == Tract::Line && tok.ph == Ph::Stop && zPauseFric_ != 1.0f) e.lineFricMul = zPauseFric_;
@@ -3870,7 +3870,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
       // ramp that starts at the phoneme (voicing -43 dB, hiss -50 re the word's peak: silent, "very" -> "fairy");
       // Kokoro's initial v is voiced from its first 10 ms (-17..-20 dB).
       static const float kVEarlyBreath = param("LINE_V_EARLY_BREATH", 0.0f);
-      static const float kZEarlyBreath = param("LINE_Z_EARLY_BREATH", 0.0f);  // (the same for a phrase-initial z: "zero" silent for 20 ms, -43 dB)
+      static const float kZEarlyBreath = param("LINE_Z_EARLY_BREATH", 1.0f);  // (the same for a phrase-initial z: "zero" silent for 20 ms, -43 dB)
       const bool earlyBreath = in.cls == Cls::Nasal || in.cls == Cls::Liquid || in.cls == Cls::Glide || in.cls == Cls::Trill ||
                                (tok.ph == Ph::VV && kVEarlyBreath > 0) || (tok.ph == Ph::Z && kZEarlyBreath > 0);
       Event prePress{std::max(e.t - kLinePrePressMs * ms, earlyBreath ? std::min(inPauseFrom, e.t) : phonemeStart_ + 1)};
