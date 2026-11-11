@@ -4946,11 +4946,11 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // plosive's place (p b: the lips, k g: the velum at 0.62) with the table's 0.35 cm^2 instead of the l's ridge and
   // LINE_L_AC: "clean" F3 2020 Hz, "glass" 2210 (Kokoro 2330-2440), "black" F2 646 (Kokoro 900-1000): heard as ɹ
   // (pl bl kl gl -> ɹ: 251 of the 385 l errors after a plosive). x LINE_L_STOP_AC.
-  static const float kLRelOwn = param("LINE_L_REL_OWN", 0.0f);
+  static const float kLRelOwn = param("LINE_L_REL_OWN", 1.0f);
   if (tract_ == Tract::Line && kLRelOwn > 0 && next && *next == Ph::L) {
     static const float kLRelStopAc = param("LINE_L_STOP_AC", 1.0f);
     rel.ac = lineSlit(Ph::L, rel.ac) * kLRelStopAc;
-    static const float kLRelX = param("LINE_L_REL_X", -1.0f);  // the released l's place (< 0: the l's own; a little back lowers F3)
+    static const float kLRelX = param("LINE_L_REL_X", 0.8f);  // the released l's place (< 0: the l's own; a little back lowers F3)
     rel.lineX = kLRelX >= 0 ? kLRelX : linePlaceOf(Ph::L);
   }
   if (tract_ == Tract::Line && next && !nextIsPause && info(*next).cls == Cls::Fricative) {
