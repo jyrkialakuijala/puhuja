@@ -5509,6 +5509,31 @@ float Synth::tick() {
       line_.setShape(sh, lineX_, ac, an);
     lineShapeDone:;
     }
+    // PUHUJA_ENERGY_TRACE=file: per output sample the acoustic energy stored in the oral line (reads only):
+    // t, the potential energy sum A dx p^2 / (2 rho c^2) and the kinetic sum rho dx u^2 / (2 A) (erg), the section
+    // holding the most energy and its share, the narrowest section, its area and flow, and the pressure behind it
+    // (for "where is the energy stored for the clicks and snaps", Jyrki 2026-11-11).
+    {
+      static FILE* etrace = std::getenv("PUHUJA_ENERGY_TRACE") ? std::fopen(std::getenv("PUHUJA_ENERGY_TRACE"), "w") : nullptr;
+      if (etrace && tract_ == Tract::Line) {
+        const TransmissionLine& o = line_.oral();
+        const int n = o.sections();
+        const double dx = o.dx(), rho = TransmissionLine::kRho, c2 = double(TransmissionLine::kC) * TransmissionLine::kC;
+        double pot = 0, kin = 0, emax = 0;
+        int kmax = 0, kmin = 0;
+        for (int k = 0; k < n; ++k) {
+          const double a = o.areaAt(k), pk = o.pressureAt(k);
+          const double ai = k > 0 ? 0.5 * (a + o.areaAt(k - 1)) : a, uk = o.flowAt(k);
+          const double ep = a * dx * pk * pk / (2 * rho * c2), ek = rho * dx * uk * uk / (2 * std::max(ai, 1e-4));
+          pot += ep;
+          kin += ek;
+          if (ep + ek > emax) { emax = ep + ek; kmax = k; }
+          if (a < o.areaAt(kmin)) kmin = k;
+        }
+        std::fprintf(etrace, "%.5f\t%.4g\t%.4g\t%d\t%.3f\t%d\t%.4f\t%.1f\t%.1f\n", t_ / fs_, pot, kin, kmax,
+                     emax / std::max(pot + kin, 1e-30), kmin, o.areaAt(kmin), o.flowAt(kmin), o.pressureAt(std::max(kmin - 1, 0)));
+      }
+    }
     if (artFrameMs_ > 0 && t_ >= artNext_) {  // recordArticulation: a snapshot (reads only)
       artNext_ = t_ + artFrameMs_ * 0.001 * fs_;
       const TransmissionLine& o = line_.oral();
