@@ -2208,6 +2208,11 @@ float Synth::lungMax() const { return kLungMax; }
 float Synth::lungFloor() const { return kLungRest; }
 float Synth::lungEmpty() const { return kLungEmpty; }
 
+float Synth::drainScale() const {
+  static const float kDrainScale0 = param("SYNTH_DRAIN_SCALE", 1.0f);
+  return drainScale_ < 0 ? kDrainScale0 : drainScale_;
+}
+
 void Synth::breathPoint(bool sentence, bool paragraph, bool snatched, bool planned) {
   if (!sentence && !planned && planVolume_ > kCommaBreathBelow) return;
   if (hasSpoken_ && !spokeSinceBreath_) return;  // "...": one breath is enough
@@ -2664,6 +2669,9 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // 50: no breath was taken at its "and", and its last words faded.
     const float flow = airRate(tok.ph) * airScale();
     planAir = flow * static_cast<float>(dur / fs_);
+    // SYNTH_DRAIN_SCALE: the start (with SYNTH_DRAIN_LEARN 0, the whole) of the planner's air scale. Learned on
+    // kennedy.txt it sits at its 0.5 clamp from the second breath on, both voices (2026-11-11).
+    if (drainScale_ < 0) drainScale_ = drainScale();
     planVolume_ -= planAir * drainScale_;  // (the scale learned from the simulated drain)
   }
   Params p = last_;
@@ -5441,9 +5449,15 @@ float Synth::tick() {
     if (e.inhaleMs > 0) {
       // The planner's table against the simulated drain since the last
       // breath: the next phrases are planned with the larynx's real thirst.
-      if (planUsed_ > 150.0f) {
+      // SYNTH_DRAIN_LEARN 0: the planner's air scale stays 1. Learned here, at render time, it reached the planner
+      // only when rendering ran ahead of planning (input split into chunks), so the same text rendered whole or in
+      // chunks breathed differently (review cpp.md 2026-11-11: a pause 45 ms apart, and every word after it).
+      static const bool kDrainLearn = param("SYNTH_DRAIN_LEARN", 1.0f) > 0;
+      if (drainScale_ < 0) drainScale_ = drainScale();
+      if (kDrainLearn && planUsed_ > 150.0f) {
         const float ratio = actualUsed_ / planUsed_;
         drainScale_ = std::clamp(0.5f * (drainScale_ + ratio), 0.5f, 4.0f);
+        if (std::getenv("PUHUJA_DRAIN_TRACE")) std::fprintf(stderr, "drain t %.2f ratio %.3f scale %.3f\n", t_ / fs_, ratio, drainScale_);
       }
       planUsed_ = actualUsed_ = 0;
       inhaleLen_ = inhaleLeft_ = msToSamples(e.inhaleMs, fs_);

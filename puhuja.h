@@ -323,7 +323,7 @@ class Synth {
   float lungEmpty() const;
   static float airRate(Ph ph);
   float airScale() const;  // x airRate: the line tract's folds pass more air than the table (kLineAirScale)
-  float drainScale() const { return drainScale_; }
+  float drainScale() const;  // the planner's air scale (SYNTH_DRAIN_SCALE until learned)
   // The next vowel starts with a glottal onset (folds pressed, then released).
   void glottalOnset() { glottalOnsetNext_ = true; }
   // The next vowel ends in creaky voice (a low statement ending).
@@ -470,7 +470,7 @@ class Synth {
   // last breath as planned (per-class table) and as simulated, and the
   // scale on the table from their ratio (the 2x2x6 block folds drew 3 x the
   // two-mass model's flow and drained the lung mid-phrase, 2026-10-31).
-  float planUsed_ = 0, actualUsed_ = 0, drainScale_ = 1;
+  float planUsed_ = 0, actualUsed_ = 0, drainScale_ = -1;  // < 0: SYNTH_DRAIN_SCALE on first use
   bool hasSpoken_ = false;     // the first sentence's breath has been taken
   bool spokeSinceBreath_ = false;
   float nextInhaleMs_ = 0;     // inhalation for the next emitted pause
