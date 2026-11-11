@@ -349,10 +349,10 @@ const float kLineTReleaseScale = param("LINE_T_RELEASE_SCALE", 2.0f);  // t's ow
 // the burst 15-30 dB lower there), with LINE_T_BURST_LIQ 1 110; + LINE_T_APPROACH_MS 50 72 / 100; with
 // LINE_T_BURST_JET_D 0.2 and LINE_T_APPROACH_A 0.6 (no hybrid veto) 94 / 98, top-300 t words 82 -> 52 / 80 -> 50,
 // words1000 1199 -> 1258, 1201 -> 1264.
-const float kLineTBurstMs = param("LINE_T_BURST_MS", 0.0f);     // a two-step release into a vowel (as k's LINE_K_BURST_MS; 0: off)
+const float kLineTBurstMs = param("LINE_T_BURST_MS", 20.0f);     // a two-step release into a vowel (as k's LINE_K_BURST_MS; 0: off)
 const float kLineTBurstA = param("LINE_T_BURST_A", 0.1f);       // ... the slit's area meanwhile (cm^2)
-const float kLineTBurstJetD = param("LINE_T_BURST_JET_D", 0.0f);  // ... its jet thickness (cm; 0: the slit's own)
-const float kLineTBurstLiq = param("LINE_T_BURST_LIQ", 0.0f);   // > 0: the two-step release also before l r w j
+const float kLineTBurstJetD = param("LINE_T_BURST_JET_D", 0.2f);  // ... its jet thickness (cm; 0: the slit's own)
+const float kLineTBurstLiq = param("LINE_T_BURST_LIQ", 1.0f);   // > 0: the two-step release also before l r w j
 const float kLineTBurstFric = param("LINE_T_BURST_FRIC", -1.0f);  // ... the slit's frication gain (< 0: the release's, LINE_T_REL_FRIC)
 const float kLineTBurstX = param("LINE_T_BURST_X", -1.0f);       // ... the slit's place (< 0: the t's own)
 const float kLineTVotHoldMs = param("LINE_T_VOT_HOLD_MS", -1.0f);   // the t's puff hold (ms; < 0: LINE_VOT_HOLD_MS)
@@ -372,8 +372,8 @@ const float kLineTRelX = param("LINE_T_REL_X", -1.0f);              // ... its p
 // and does nothing). "Get": F2 rose 2010 -> 2100 and F3 to 3320 into the closure (a velar-like convergence; heard k,
 // deleted), with 50 ms it falls 1930 -> 1720 toward the alveolar locus as Kokoro's 1640 -> 1570; hard list deletions
 // 32 -> 12, errors 227 -> 190 alone.
-const float kLineTApproachMs = param("LINE_T_APPROACH_MS", 0.0f);
-const float kLineTApproachA = param("LINE_T_APPROACH_A", 0.4f);     // ... to this area (cm^2)
+const float kLineTApproachMs = param("LINE_T_APPROACH_MS", 50.0f);
+const float kLineTApproachA = param("LINE_T_APPROACH_A", 0.6f);     // ... to this area (cm^2)
 // The glottal noise band's low-pass ratio during a p t k puff only (<= 0: off,
 // the h's band; 2026-11-04: at the puff's glottis the band ended at ~1.6 kHz,
 // no 2-5 kHz hiss; widening it for all glottal noise made the h an f). 10 on
