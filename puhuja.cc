@@ -4950,7 +4950,8 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   if (tract_ == Tract::Line && kLRelOwn > 0 && next && *next == Ph::L) {
     static const float kLRelStopAc = param("LINE_L_STOP_AC", 1.0f);
     rel.ac = lineSlit(Ph::L, rel.ac) * kLRelStopAc;
-    rel.lineX = linePlaceOf(Ph::L);
+    static const float kLRelX = param("LINE_L_REL_X", -1.0f);  // the released l's place (< 0: the l's own; a little back lowers F3)
+    rel.lineX = kLRelX >= 0 ? kLRelX : linePlaceOf(Ph::L);
   }
   if (tract_ == Tract::Line && next && !nextIsPause && info(*next).cls == Cls::Fricative) {
     rel.ac = lineSlit(*next, rel.ac);
