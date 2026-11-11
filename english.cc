@@ -2572,6 +2572,14 @@ void EnglishReader::sayPhrase(char end) {
           }
           if (vowel && i > 0 && baseName(tokens[i - 1]) == "IY") shape.ms *= kIyNextLen;
         }
+        // The standalone ɪ x EN_IH_LEN, in a one-syllable word x EN_IH_MONO_LEN as well (IH agent 2026-11-11 lab knobs; 1 / 1:
+        // as before; "fill" 234 ms, "big" 250 ms on the male voice, near "feel"'s iː 247: a tense-vowel length).
+        static const float kIhLen = param("EN_IH_LEN", 1.0f), kIhMonoLen = param("EN_IH_MONO_LEN", 1.0f);
+        if (s.n == 1 && s.ph[0] == Ph::IH && (kIhLen != 1.0f || kIhMonoLen != 1.0f)) {
+          int vowels = 0;
+          for (size_t q = 0; q < tokens.size(); ++q) vowels += isVowelToken(tokens[q]);
+          shape.ms *= kIhLen * (vowels == 1 ? kIhMonoLen : 1.0f);
+        }
         // The unstressed ɜ after aʊ ("power", "hour", "flower") x this (EN_AW_ER_LEN;
         // Jyrki 2026-11-05: "the rhythm of the words is a little off, first
         // syllable should be stressed, 2nd unstressed": its ɜ ran 115 ms at the

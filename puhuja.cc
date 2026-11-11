@@ -2677,6 +2677,24 @@ void eyEndShape(TractShape* sh) {
   if (kEyOffDx != 0 || kEyOffWc != 1.0f) { sh->xc += kEyOffDx; sh->sc = lineVowelStrength(sh->xc, sh->wc, sh->length); }
 }
 
+// The standalone ɪ (not the end of eɪ aɪ ɔɪ, which read ɪ's row through lineShapeOf; nor d, which borrows it): mixed
+// toward e (LINE_IH_MIX_E), ɛ (LINE_IH_MIX_EH) or ə (LINE_IH_MIX_SCHWA), its place moved by LINE_IH_DX, its opening x
+// LINE_IH_AC (IH agent 2026-11-11 lab knobs; 0 / 0 / 0 / 0 / 1: as before). Against five Kokoro voices per sex (the
+// one-syllable words of words1k) the ɪ's middle sits at 374/1973 Hz (male; Kokoro 469/1795), female 434/2230
+// (547/2106): F2 at puhuja's own iː (1969) and eɪ's end (1923), F1 2-4 st low; Whisper heard ɪ as eɪ 361 and iː 178
+// times in one-syllable words (dict rank 9: 45 % wrong).
+void ihShape(TractShape* sh) {
+  static const float kIhE = param("LINE_IH_MIX_E", 0.0f), kIhEh = param("LINE_IH_MIX_EH", 0.0f),
+                     kIhSchwa = param("LINE_IH_MIX_SCHWA", 0.0f), kIhDx = param("LINE_IH_DX", 0.0f),
+                     kIhAc = param("LINE_IH_AC", 1.0f);
+  TractShape o;
+  if (kIhE > 0 && lineShapeOf(Ph::E, &o)) *sh = lineShapeMix(*sh, o, kIhE);
+  if (kIhEh > 0 && lineShapeOf(Ph::EH, &o)) *sh = lineShapeMix(*sh, o, kIhEh);
+  if (kIhSchwa > 0 && lineShapeOf(Ph::Schwa, &o)) *sh = lineShapeMix(*sh, o, kIhSchwa);
+  if (kIhAc != 1.0f) sh->ac *= kIhAc;
+  if (kIhDx != 0) { sh->xc += kIhDx; sh->sc = lineVowelStrength(sh->xc, sh->wc, sh->length); }
+}
+
 }  // namespace
 
 void Synth::emit(const Token& tok, const Ph* next) {
@@ -3231,9 +3249,33 @@ void Synth::emit(const Token& tok, const Ph* next) {
     }
     if (have && tok.ph == Ph::E && next && *next == Ph::IH) eyStartShape(&sh);
     if (have && tok.ph == Ph::IH && lastPh_ == Ph::E) eyEndShape(&sh);
+    if (have && tok.ph == Ph::IH && lastPh_ != Ph::E && lastPh_ != Ph::A && lastPh_ != Ph::AO) ihShape(&sh);
     if (have && tok.ph == Ph::U && lastPh_ == Ph::J && kLineUAfterJ > 0) {
       TractShape front;
       if (lineShapeOf(Ph::I, &front)) sh = lineShapeMix(sh, front, kLineUAfterJ);
+    }
+    // The vowel uː's own shape on top of its row (the row also makes w, the ɹ rounding and the oʊ offglide, so the
+    // row stays). Round-E uː agent (2026-11-11): the row narrows mid-pharynx with 1.55 cm^2 lips; a real uː is
+    // rounded and protruded (lips 0.1-0.5 cm^2, longer), its constriction at the velum, the larynx lower
+    // (ref/opt/review/phonetician.md 6, artsynth.md O2). Defaults reproduce the row.
+    if (have && tok.ph == Ph::U && shapePh == Ph::U) {
+      static const float kUwLipA = param("LINE_UW_LIPA", 1.0f), kUwLipL = param("LINE_UW_LIPL", 1.0f);
+      static const float kUwXc = param("LINE_UW_XC", -1.0f), kUwAc = param("LINE_UW_AC", 1.0f), kUwWc = param("LINE_UW_WC", 1.0f);
+      static const float kUwAph = param("LINE_UW_APH", 1.0f), kUwAor = param("LINE_UW_AOR", 1.0f), kUwAlar = param("LINE_UW_ALAR", 1.0f);
+      static const float kUwLen = param("LINE_UW_LEN", 0.0f);  // cm added (larynx lowering + lip protrusion)
+      // after a coronal (t d s z n l θ ð ʃ ʒ ʧ ʤ ɹ) the American uː is fronted (F2 1100-1500): share of ɪ's row mixed in
+      static const float kUwCorFront = param("LINE_UW_COR_FRONT", 0.0f);
+      static const float kUwFrontAll = param("LINE_UW_FRONT", 0.0f);  // ... and the same mix after anything (0: off)
+      sh.aLip *= kUwLipA; sh.lLip *= kUwLipL; sh.ac *= kUwAc; sh.wc *= kUwWc;
+      sh.aPharynx *= kUwAph; sh.aOral *= kUwAor; sh.aLarynx *= kUwAlar; sh.length += kUwLen;
+      if (kUwXc >= 0) sh.xc = kUwXc;
+      if (kUwXc >= 0 || kUwWc != 1.0f || kUwLen != 0.0f) sh.sc = lineVowelStrength(sh.xc, sh.wc, sh.length);
+      const bool cor = lastPh_ == Ph::T || lastPh_ == Ph::D || lastPh_ == Ph::S || lastPh_ == Ph::Z || lastPh_ == Ph::N ||
+                       lastPh_ == Ph::L || lastPh_ == Ph::TH || lastPh_ == Ph::DH || lastPh_ == Ph::SH || lastPh_ == Ph::ZH ||
+                       lastPh_ == Ph::CH || lastPh_ == Ph::JH || lastPh_ == Ph::RR;
+      const float fr = kUwFrontAll + (cor ? kUwCorFront : 0.0f);
+      TractShape ih;
+      if (fr > 0 && lastPh_ != Ph::J && lineShapeOf(Ph::IH, &ih)) sh = lineShapeMix(sh, ih, std::min(fr, 1.0f));
     }
     if (have) {
       // A vowel holds its shape over the middle of its sound (keys at 30 and
@@ -3281,6 +3323,21 @@ void Synth::emit(const Token& tok, const Ph* next) {
         if (tok.ph == Ph::UH && kUhOffMix > 0) {
           TractShape s8;
           if (lineShapeOf(Ph::Schwa, &s8)) late = lineShapeMix(late, s8, kUhOffMix);
+        }
+        // The uː's late key mixed back toward u's own row (LINE_UW_LATE_BACK; round-E uː agent 2026-11-11): Kokoro's ju
+        // and coronal uː start fronted and fall (after j F2 1774 -> 1317 -> 1214 Hz over the thirds, male), the
+        // fronting mixes (LINE_U_AFTER_J, LINE_UW_COR_FRONT) held puhuja's at 1577 -> 1555. 0: off.
+        static const float kUwLateBack = param("LINE_UW_LATE_BACK", 0.0f);
+        if (tok.ph == Ph::U && kUwLateBack > 0) {
+          TractShape u;
+          if (lineShapeOf(Ph::U, &u)) late = lineShapeMix(late, u, kUwLateBack);
+        }
+        // The standalone ɪ's late key mixed toward ə (LINE_IH_OFF_MIX; IH agent 2026-11-11: Kokoro's ɪ centralises over its
+        // last third, F2 1795 -> 1663 Hz male, 2106 -> 1931 female; puhuja's rises 1861 -> 1934, toward eɪ's end).
+        static const float kIhOffMix = param("LINE_IH_OFF_MIX", 0.0f);
+        if (tok.ph == Ph::IH && kIhOffMix > 0 && lastPh_ != Ph::E && lastPh_ != Ph::A && lastPh_ != Ph::AO) {
+          TractShape s8;
+          if (lineShapeOf(Ph::Schwa, &s8)) late = lineShapeMix(late, s8, kIhOffMix);
         }
         // The ɑ's late key mixed toward ɔ (LINE_AA_OFF_MIX; 2026-11-10 AA agent: a back offglide against the coda's fronting).
         static const float kAaOffMix = param("LINE_AA_OFF_MIX", 0.0f);
