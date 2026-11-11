@@ -3572,6 +3572,13 @@ void Synth::emit(const Token& tok, const Ph* next) {
     static const float kLineNgAn = param("LINE_NG_AN", 1.0f);
     if (tract_ == Tract::Line && tok.ph == Ph::NG) e.an *= kLineNgAn;
   }
+  // n's own port (round E, N agent): 1.5 cm^2 against a physiological
+  // 0.2-0.5, and the murmur sits 5-9 dB over Kokoro's. LINE_N_PORT_SCALE
+  // scales it (1: as before).
+  {
+    static const float kNPort = param("LINE_N_PORT_SCALE", 1.0f);
+    if (tract_ == Tract::Line && tok.ph == Ph::N && kNPort != 1.0f) e.an *= kNPort;
+  }
   // English nasalizes a vowel before a nasal through most of it: the velum
   // opens part way during the vowel ("man", "and", "on"); on the line the
   // port was shut until the nasal's own event (2026-11-02; set after the aero default, which had overwritten it).
@@ -3580,6 +3587,24 @@ void Synth::emit(const Token& tok, const Ph* next) {
     static const float kLineNgAnticip = param("LINE_NG_ANTICIP", -1.0f);
     e.an = kAnNasal * (*next == Ph::NG && kLineNgAnticip >= 0 ? kLineNgAnticip : kLineAnticipNasal);
     e.anMs = static_cast<float>(dur / ms);
+    // Before an n (round E, N agent): the port in the vowel is 0.63 cm^2,
+    // 3-6x a physiological 0.05-0.2, and it pulls F2 (the n's place cue)
+    // under a nasal pole near 800 Hz. LINE_ANTICIP_N_SCALE scales the
+    // vowel's port before n; LINE_ANTICIP_N_LATE (share of the vowel)
+    // keeps the port shut until that point, then opens it over the rest
+    // (Krakow 1993: the port opens late). Defaults 1 / 0: as before.
+    static const float kAnN = param("LINE_ANTICIP_N_SCALE", 1.0f), kAnNLate = param("LINE_ANTICIP_N_LATE", 0.0f);
+    if (*next == Ph::N && (kAnN != 1.0f || kAnNLate > 0)) {
+      e.an = kAnNasal * kLineAnticipNasal * kAnN;
+      if (kAnNLate > 0) {
+        Event late{e.t + kAnNLate * dur};
+        late.an = e.an;
+        late.anMs = static_cast<float>((1.0f - kAnNLate) * dur / ms);
+        addEventAt(late);
+        e.an = aero.an;
+        e.anMs = kBoundaryMs;
+      }
+    }
   }
   // The release of a nasal into a vowel: how fast the mouth opens and the
   // velum closes, and how long the velum stays open into the vowel.
@@ -4309,13 +4334,19 @@ void Synth::emit(const Token& tok, const Ph* next) {
   // (< 0: unchanged); LINE_NG_APPROACH_X its place (< 0: the ŋ's own).
   static const float kNgApShare = param("LINE_NG_APPROACH_SHARE", 0.0f), kNgApHw = param("LINE_NG_APPROACH_HW", -1.0f),
                      kNgApX = param("LINE_NG_APPROACH_X", -1.0f);
-  float approachMs = isM ? kLineMApproachMs : tok.ph == Ph::NG ? kLineNgApproachMs : 0.0f;
+  // n after a vowel (round E, N agent): n had no approach, so its F2 was flat into the closure (ʌn 1326-1347 Hz; Kokoro
+  // "Sun" rises ~220 Hz). LINE_N_APPROACH_MS > 0 narrows the tongue toward LINE_N_APPROACH_X (0: the n's own place) to
+  // LINE_N_APPROACH_A cm^2; the closure itself is still at LINE_N_X.
+  static const float kLineNApproachMs = param("LINE_N_APPROACH_MS", 0.0f), kLineNApproachA = param("LINE_N_APPROACH_A", 0.4f),
+                     kLineNApproachX = param("LINE_N_APPROACH_X", 0.0f);
+  const bool isN = tok.ph == Ph::N;
+  float approachMs = isM ? kLineMApproachMs : tok.ph == Ph::NG ? kLineNgApproachMs : isN ? kLineNApproachMs : 0.0f;
   if (tok.ph == Ph::NG && kNgApShare > 0) approachMs = std::max(approachMs, kNgApShare * static_cast<float>((e.t - phonemeStart_) / ms));
   if (tract_ == Tract::Line && approachMs > 0 && prevWasVowel_ && !prevWasPlosive_) {
     Event ap{std::max(e.t - approachMs * ms, phonemeStart_ + 1)};
-    ap.ac = isM ? kLineMApproachA : kLineNgApproachA;
+    ap.ac = isM ? kLineMApproachA : isN ? kLineNApproachA : kLineNgApproachA;
     ap.acMs = static_cast<float>((e.t - ap.t) / ms);
-    ap.lineX = tok.ph == Ph::NG ? (kNgApX >= 0 ? kNgApX : lineNgPlace(lastPh_, next)) : linePlaceOf(tok.ph);
+    ap.lineX = tok.ph == Ph::NG ? (kNgApX >= 0 ? kNgApX : lineNgPlace(lastPh_, next)) : isN && kLineNApproachX > 0 ? kLineNApproachX : linePlaceOf(tok.ph);
     if (tok.ph == Ph::NG && kNgApHw >= 0) ap.lineHw = kNgApHw;
     ap.lineXClosure = true;
     addEventAt(ap);
