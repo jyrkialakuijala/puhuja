@@ -261,7 +261,9 @@ class VocalTractLine {
   float an_ = 0, uNasal_ = 0;
   float velarG_ = 0, velarInv2A2_ = 0;  // dt an / (rho dx_nasal) and 1 / (2 an^2), set with an_
   float fricGain_ = 0, aspGain_ = 0, glotArea_ = 0.05f;
-  int lastNoiseK_ = -1, moveFromK_ = -1; float moveW_ = 0;  // LINE_NOISE_MOVE_MS: the source fading out of its old place
+  int lastNoiseK_ = -1, moveFromK_ = -1; float moveW_ = 0;
+  float reLp_ = 0;  // LINE_NOISE_RE_MS: the jet's Reynolds number, low-passed
+  float reA_ = 0; int reK_ = -1;  // ... the constriction's area and place a substep ago (an opening one does not lag)  // LINE_NOISE_MOVE_MS: the source fading out of its old place
   float breathGain_ = 0;  // (setBreath, LINE_BREATH)
   float breathEnv_ = 0;   // the breath drive's envelope, Re^2 low-passed over LINE_BREATH_MS (0: instantaneous)
   float breathHp_[2] = {0, 0};  // the breath's own fixed band (LINE_BREATH_FC): two one-pole high-passes on the white source

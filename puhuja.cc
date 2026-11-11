@@ -3839,6 +3839,24 @@ void Synth::emit(const Token& tok, const Ph* next) {
       addEventAt(ap);
     }
   }
+  // The other fricatives (f v s z θ ð) after a vowel or a sonorant: the same two-stage approach (LINE_FRIC_APPROACH_MS,
+  // 0: off; to LINE_FRIC_APPROACH_A cm^2 first). PUHUJA_ENERGY_TRACE, 2026-11-11: the v of "revolutionary" narrowed
+  // 0.55 -> 0.14 cm^2 in ~5 ms with 250-350 cm^3/s still flowing; the flow collapsed (reversed) in 1 ms, the pressure
+  // behind swung -1500 / +900 dyn/cm^2, and the surge after it switched the hiss on: the snap (13.3, Kokoro 0.8).
+  {
+    static const float frApMs = param("LINE_FRIC_APPROACH_MS", 0.0f), frApA = param("LINE_FRIC_APPROACH_A", 0.4f);
+    const bool fric = tok.ph == Ph::F || tok.ph == Ph::V || tok.ph == Ph::VV || tok.ph == Ph::S || tok.ph == Ph::Z ||
+                      tok.ph == Ph::TH || tok.ph == Ph::DH;
+    const bool sonBefore = prevWasVowel_ || lastPh_ == Ph::RR || lastPh_ == Ph::R || lastPh_ == Ph::L || lastPh_ == Ph::W ||
+                           lastPh_ == Ph::J || lastPh_ == Ph::M || lastPh_ == Ph::N || lastPh_ == Ph::NG;
+    if (tract_ == Tract::Line && frApMs > 0 && fric && sonBefore && !prevWasPlosive_) {
+      Event ap{std::max(e.t - frApMs * ms, phonemeStart_ + 1)};
+      ap.ac = frApA;
+      ap.acMs = static_cast<float>((e.t - ap.t) / ms);
+      ap.lineX = linePlaceOf(tok.ph);
+      addEventAt(ap);
+    }
+  }
   // l after a vowel (LINE_L_APPROACH_MS, 2026-11-05): the tongue tip rises
   // toward the ridge first (to LINE_L_APPROACH_A cm^2, where the hump just
   // begins to count), then closes to the lateral opening over LINE_L_CLOSE_MS.

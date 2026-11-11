@@ -649,6 +649,21 @@ float VocalTractLine::substep(float u0) {
         areaGain_ = std::pow(kNoiseAreaRef / std::max(a, 0.005f), kNoiseAreaExp);
       }
     }
+    // The jet follows the flow with a lag (LINE_NOISE_RE_MS, 0: none): its Reynolds number low-passed, so a flow surge
+    // (the narrowing forming faster than the air column can follow, PUHUJA_ENERGY_TRACE 2026-11-11) does not switch the
+    // hiss (~ Re^2) on 30 dB within a few ms.
+    static const float kNoiseReMs = param("LINE_NOISE_RE_MS", 0.0f);
+    if (kNoiseReMs > 0) {
+      // ... except while the constriction opens (a release: p t k bursts must start at once; LINE_NOISE_RE_REL 1,
+      // 0: the lag everywhere, which cost ~100 words1000 at 10 ms)
+      static const float kReK = 1.0f - std::exp(-dt_ * 1000.0f / kNoiseReMs);
+      static const bool kReRel = param("LINE_NOISE_RE_REL", 1.0f) > 0;
+      const bool opening = kReRel && noiseKc_ == reK_ && a > reA_ * 1.0005f;
+      reLp_ = opening || re < reLp_ ? re : reLp_ + (re - reLp_) * kReK;  // (and down at once: only the rise lags)
+      reA_ = a;
+      reK_ = noiseKc_;
+      re = reLp_;
+    }
     fricActive_ = re > kReynoldsCrit && slit > 0;
     if (fricActive_) {
       const float drive = slit * fricGain_ * areaGain_ * (re * re - reC2) * invReC2 * noiseF;
