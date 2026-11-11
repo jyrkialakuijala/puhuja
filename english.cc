@@ -839,6 +839,21 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
         { static const float kUhLen = param("EN_UH_LEN", 1.0f); if (b == "UH") whole *= kUhLen; }
         // The ɑ's own length (EN_AA_LEN; 2026-11-10 AA agent: a short ɑ is heard as ʌ / ə).
         { static const float kAaLen = param("EN_AA_LEN", 1.4f); if (b == "AA") whole *= kAaLen; }
+        // The ɛ's own length (EN_EH_LEN), x EN_EH_MONO_LEN more in a word of one vowel, x EN_EH_NASAL_LEN more before a
+        // nasal of its word (round E/F EH agents 2026-11-11 lab knobs; 1 / 1 / 1: as before): ɛ heard as æ 784 times in
+        // the dictionary (352 before a nasal: "send" -> sand), 38 % wrong in monosyllables; its connected-speech label ran
+        // 139 ms against Kokoro's 72 and 11labs' 101, longer than puhuja's own æ words: an American æ length.
+        { static const float kEhLen = param("EN_EH_LEN", 1.0f), kEhMonoLen = param("EN_EH_MONO_LEN", 1.0f),
+                             kEhNasalLen = param("EN_EH_NASAL_LEN", 1.0f);
+          if (b == "EH") {
+            whole *= kEhLen;
+            if (vowels == 1) whole *= kEhMonoLen;
+            if (i + 1 < tok.size() && isNasal(baseName(tok[i + 1]))) whole *= kEhNasalLen;
+            // (EN_EH_VPLOS_LEN: x this before a voiced plosive of its word, where the 1.2 lengthening made "bed", "beg"
+            // an æ length: æ 100 of the ɛ errors before b d g.)
+            static const float kEhVplosLen = param("EN_EH_VPLOS_LEN", 1.0f);
+            if (i + 1 < tok.size() && isVoicedPlosive(baseName(tok[i + 1]))) whole *= kEhVplosLen;
+          } }
       } else {
         if (i > 0) prc *= 0.85f;  // not word-initial
         const bool consBefore = i > 0 && !isVowelToken(tok[i - 1]);
@@ -2643,6 +2658,10 @@ void EnglishReader::sayPhrase(char end) {
         // The ɜ's voice quality x EN_ER_PRESS (ER agent 2026-11-11 lab knob, 1: as before).
         static const float kErPress = param("EN_ER_PRESS", 1.0f);
         if (vowel && s.ph[k] == Ph::ER && kErPress != 1.0f) shape.press *= kErPress;
+        // The ɛ's voice quality x EN_EH_PRESS (round F EH agent 2026-11-11 lab knob, 1: as before): a closer ɛ (lower F1)
+        // takes 0.5-0.7 dB off the 1-3 kHz share of the ɛ words, already 5-7 dB under Kokoro's and 11labs'.
+        static const float kEhPress = param("EN_EH_PRESS", 1.0f);
+        if (vowel && s.ph[k] == Ph::EH && kEhPress != 1.0f) shape.press *= kEhPress;
         // Loudness: an arc over the phrase (louder at the start, softer
         // toward its end), accents louder, function words softer. Vowels
         // only (the consonants keep their calibrated levels).

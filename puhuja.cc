@@ -3280,6 +3280,19 @@ void Synth::emit(const Token& tok, const Ph* next) {
       sh.aLip *= kLineOyIhLipA;
     }
     if (have && tok.ph == Ph::A && next && *next == Ph::IH) ayStartShape(&sh);
+    if (have && tok.ph == Ph::EH) {
+      // The ɛ's own shape on its row (round F EH agent 2026-11-11 lab knobs; 0 / 0 / 1 / 0: the row as before): mixed
+      // toward e (LINE_EH_MIX_E) or ɪ (LINE_EH_MIX_IH), its opening x LINE_EH_AC, and before a nasal mixed toward e by
+      // LINE_EH_NASAL_MIX_E more. Whisper heard ɛ as æ 784 times (352 before a nasal: "end" -> and); ɪ moved 0.3 toward
+      // e since (LINE_IH_MIX_E), which left room above ɛ.
+      static const float kEhE = param("LINE_EH_MIX_E", 0.0f), kEhIh = param("LINE_EH_MIX_IH", 0.0f),
+                         kEhAc = param("LINE_EH_AC", 1.0f), kEhNasE = param("LINE_EH_NASAL_MIX_E", 0.0f);
+      const float mixE = kEhE + (next && info(*next).cls == Cls::Nasal ? kEhNasE : 0.0f);
+      TractShape o;
+      if (mixE > 0 && lineShapeOf(Ph::E, &o)) sh = lineShapeMix(sh, o, mixE);
+      if (kEhIh > 0 && lineShapeOf(Ph::IH, &o)) sh = lineShapeMix(sh, o, kEhIh);
+      if (kEhAc != 1.0f) sh.ac *= kEhAc;
+    }
     if (have && next && *next == Ph::NG && (tok.ph == Ph::IH || tok.ph == Ph::EH || tok.ph == Ph::AE)) {
       // A front vowel before ŋ mixed toward i over its whole length (LINE_NG_PRE_I_MIX, lab knob 2026-11-11, NG agent 3;
       // 0: off): English raises it there ("sing" ~ [siŋ]).
@@ -3676,12 +3689,22 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // keeps the port shut until that point, then opens it over the rest
     // (Krakow 1993: the port opens late). Defaults 1 / 0: as before.
     static const float kAnN = param("LINE_ANTICIP_N_SCALE", 1.0f), kAnNLate = param("LINE_ANTICIP_N_LATE", 0.0f);
-    if (*next == Ph::N && (kAnN != 1.0f || kAnNLate > 0)) {
-      e.an = kAnNasal * kLineAnticipNasal * kAnN;
-      if (kAnNLate > 0) {
-        Event late{e.t + kAnNLate * dur};
+    // The ɛ before any nasal (round F EH agent 2026-11-11 lab knobs; -1 / 0: as above): its port x LINE_EH_ANTICIP_SCALE
+    // (< 0: as every vowel), shut until LINE_EH_NASAL_LATE of the vowel and opened over the rest. A ɛ nasalized
+    // over its whole 139 ms is the American [ɛə̃n] of "and": ɛ before a nasal was heard as æ 352 times ("send" -> sand).
+    static const float kEhAnScale = param("LINE_EH_ANTICIP_SCALE", -1.0f), kEhAnLate = param("LINE_EH_NASAL_LATE", 0.0f);
+    const bool ehLate = tok.ph == Ph::EH && (kEhAnScale >= 0 || kEhAnLate > 0);
+    if (ehLate || (*next == Ph::N && (kAnN != 1.0f || kAnNLate > 0))) {
+      const float lateShare = ehLate ? kEhAnLate : kAnNLate;
+      if (ehLate) {
+        if (kEhAnScale >= 0) e.an *= kEhAnScale;
+      } else {
+        e.an = kAnNasal * kLineAnticipNasal * kAnN;
+      }
+      if (lateShare > 0) {
+        Event late{e.t + lateShare * dur};
         late.an = e.an;
-        late.anMs = static_cast<float>((1.0f - kAnNLate) * dur / ms);
+        late.anMs = static_cast<float>((1.0f - lateShare) * dur / ms);
         addEventAt(late);
         e.an = aero.an;
         e.anMs = kBoundaryMs;
