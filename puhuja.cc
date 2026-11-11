@@ -5670,7 +5670,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // 46 ms to 0.5 brings that to -11..+2 dB (pclick 40-49 -> 15-31); the pop is a threshold: 0.3 is no quieter and cost
   // 16 more b d g errors in Whisper (and the level guard), 0.7 pops again. BUG-POP 2026-11-11.
   {
-    static const float kLineFinalVPressLeadMs = param("LINE_FINAL_VPRESS_LEAD_MS", 0.0f), kLineFinalVPressFloor = param("LINE_FINAL_VPRESS_FLOOR", 0.3f);
+    static const float kLineFinalVPressLeadMs = param("LINE_FINAL_VPRESS_LEAD_MS", 46.0f), kLineFinalVPressFloor = param("LINE_FINAL_VPRESS_FLOOR", 0.5f);
     if (tract_ == Tract::Line && nextIsPause && pi.voiced && !unreleased && kLineFinalVPressLeadMs > 0) {
       Event ease{std::max(release - kLineFinalVPressLeadMs * ms, t_ + 1.0)};
       ease.press = kLineFinalVPressFloor;
@@ -5953,7 +5953,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     // rang the front cavity as a click (perception review 2026-11-11: Sites, Gifts, Rights, Costs +7..+14 dB over the
     // word's loudest 50 ms in 1-8 kHz, Kokoro -1..-19). 0.06: pclick 45-62 -> 19-33 (Kokoro's maximum 17-49), the
     // t k s errors unchanged in Whisper (0.05: 79 -> 80 of 1228). BUG-POP 2026-11-11.
-    static const float kLineBurstAreaSib = param("LINE_BURST_AREA_SIB", -1.0f);
+    static const float kLineBurstAreaSib = param("LINE_BURST_AREA_SIB", 0.06f);
     const bool sib = *next == Ph::S || *next == Ph::Z || *next == Ph::SH || *next == Ph::ZH;
     burst.ac = (sib && kLineBurstAreaSib >= 0 ? kLineBurstAreaSib : kLineBurstArea) * (tSoft ? softBurst : 1.0f);
     burst.acMs = 3;
