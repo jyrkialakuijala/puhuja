@@ -627,7 +627,7 @@ const float kLineKgRelShape = param("LINE_KG_REL_SHAPE", 1.0f);
 // the mouth closes), rising over LINE_PAUSE_STOP_PRESS_RAMP_MS.
 // English g d after a pause or a voiceless sound: the closure's glottal
 // opening, from voicing (0, off) toward open (1), as kEnglishBOpening for b.
-const float kLineEnGdDevoice = param("LINE_EN_GD_DEVOICE", 0.7f);
+const float kLineEnGdDevoice = param("LINE_EN_GD_DEVOICE", 0.2f);
 const float kLinePauseStopPressMs = param("LINE_PAUSE_STOP_PRESS_MS", 0.0f);
 const float kLinePauseStopPressRampMs = param("LINE_PAUSE_STOP_PRESS_RAMP_MS", 30.0f);
 // A short voice bar in b d g: the closure's expansion draws LINE_VBAR_FLOW
@@ -5126,7 +5126,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     }
     // LINE_VSTOP_PRESS (1: off): the breath behind a b d g released into a vowel, liquid or nasal goes to this share
     // over the last LINE_VSTOP_PRESS_LEAD_MS of the closure (> 1: a stronger burst) and back to 1 over 15 ms.
-    static const float kVstopPress = param("LINE_VSTOP_PRESS", 1.0f), kVstopPressLeadMs = param("LINE_VSTOP_PRESS_LEAD_MS", 30.0f);
+    static const float kVstopPress = param("LINE_VSTOP_PRESS", 0.7f), kVstopPressLeadMs = param("LINE_VSTOP_PRESS_LEAD_MS", 30.0f);
     if (tract_ == Tract::Line && kVstopPress != 1.0f && pi.voiced && tok.ph != Ph::JH && !unreleased && next && !nextIsPause &&
         info(*next).cls != Cls::Fricative && rel.press < 0) {
       Event ease{std::max(release - kVstopPressLeadMs * ms, t_ + 1.0)};
@@ -5235,12 +5235,12 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
                           !(next && info(*next).cls == Cls::Fricative);
   // LINE_G_BURST (lab knob 2026-11-09, G agent; < 0: LINE_VSTOP_BURST): the g's own release frication gain.
   static const float kLineGBurst = param("LINE_G_BURST", -1.0f);
-  static const float kLineDBurst = param("LINE_D_BURST", -1.0f);  // (the same for the d; D agent 2026-11-10)
+  static const float kLineDBurst = param("LINE_D_BURST", 0.5f);  // (the same for the d; D agent 2026-11-10)
   static const float kLineBBurst = param("LINE_B_BURST", -1.0f);  // (the same for the b; BDG agent 2026-11-11)
   if (vstopBurst) rel.lineFricMul = tok.ph == Ph::G && kLineGBurst >= 0 ? kLineGBurst : tok.ph == Ph::D && kLineDBurst >= 0 ? kLineDBurst : tok.ph == Ph::B && kLineBBurst >= 0 ? kLineBBurst : kLineVStopBurst;
   // ... before l ɹ w j (LINE_VSTOP_BURST_LIQ) or a nasal (LINE_VSTOP_BURST_NAS); < 0: as above (BDG agent 2026-11-11:
   // Kokoro's g / b release into l ɹ lifts 2-7 kHz by 27-56 dB, puhuja's none: "glad", "bring").
-  static const float kVstopBurstLiq = param("LINE_VSTOP_BURST_LIQ", -1.0f), kVstopBurstNas = param("LINE_VSTOP_BURST_NAS", -1.0f);
+  static const float kVstopBurstLiq = param("LINE_VSTOP_BURST_LIQ", 1.0f), kVstopBurstNas = param("LINE_VSTOP_BURST_NAS", -1.0f);
   const bool vNextLiq = next && (*next == Ph::L || *next == Ph::RR || *next == Ph::W || *next == Ph::J);
   const bool vNextNas = next && (*next == Ph::M || *next == Ph::N || *next == Ph::NG);
   if (vstopBurst && vNextLiq && kVstopBurstLiq >= 0) rel.lineFricMul = kVstopBurstLiq;
@@ -5278,13 +5278,13 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // closure opens first to a slit at the velum, its hiss the burst, and only
   // after LINE_K_BURST_MS on toward the vowel (with rel's own opening time).
   // (LINE_G_BURST_MS / LINE_G_BURST_A, lab knobs 2026-11-09, G agent; < 0: the k's)
-  static const float kLineGBurstMs = param("LINE_G_BURST_MS", -1.0f), kLineGBurstA = param("LINE_G_BURST_A", -1.0f);
+  static const float kLineGBurstMs = param("LINE_G_BURST_MS", 10.0f), kLineGBurstA = param("LINE_G_BURST_A", -1.0f);
   // ... and b d in two steps too (LINE_B_BURST_MS / _A, LINE_D_BURST_MS / _A; 0: off), each voiced stop's slit also
   // before l ɹ w j (LINE_VSTOP_SLIT_LIQ 1; 0: before vowels only), and the slit's hiss through a thick jet at the
   // place's band (LINE_G_JET_D, LINE_B_JET_D, LINE_D_JET_D; 0: off) as for k (BDG agent 2026-11-11).
   static const float kLineBBurstMs = param("LINE_B_BURST_MS", 0.0f), kLineBBurstA = param("LINE_B_BURST_A", 0.1f),
-                     kLineDBurstMs = param("LINE_D_BURST_MS", 0.0f), kLineDBurstA = param("LINE_D_BURST_A", 0.1f),
-                     kVstopSlitLiq = param("LINE_VSTOP_SLIT_LIQ", 0.0f), kLineGJetD = param("LINE_G_JET_D", 0.0f),
+                     kLineDBurstMs = param("LINE_D_BURST_MS", 10.0f), kLineDBurstA = param("LINE_D_BURST_A", 0.1f),
+                     kVstopSlitLiq = param("LINE_VSTOP_SLIT_LIQ", 1.0f), kLineGJetD = param("LINE_G_JET_D", 0.0f),
                      kLineBJetD = param("LINE_B_JET_D", 0.0f), kLineDJetD = param("LINE_D_JET_D", 0.0f);
   const float kgBurstMs = tok.ph == Ph::G && kLineGBurstMs >= 0 ? kLineGBurstMs : tok.ph == Ph::B ? kLineBBurstMs : tok.ph == Ph::D ? kLineDBurstMs : kLineKBurstMs;
   const bool vSlitLiq = pi.voiced && kVstopSlitLiq > 0 && vNextLiq;
