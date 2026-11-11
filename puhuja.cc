@@ -718,6 +718,9 @@ const float kLineWKeyTo = param("LINE_W_KEY_TO", 0.7f);
 // Lab knobs (R agent 2026-11-10; defaults reproduce the previous sound): a phrase-initial ɹ shaped in the pause this long
 // before its voice (0: at 30 %), and the ɹ holds its shape from / to these shares of it (-1: the 0.3 / 0.7 of all sounds).
 const float kLineRPreShapeMs = param("LINE_R_PRE_SHAPE_MS", 0.0f);
+// A phrase-initial ɜ ("earn", "early", "urban") shaped in the pause this many ms before its start, like j l w ɹ (0: off;
+// ER agent 2026-11-11: word-initial ɜ 47 % errors against 12 % overall).
+const float kLineErPreMs = param("LINE_ER_PRE_MS", 0.0f);
 const float kLineRKeyFrom = param("LINE_R_KEY_FROM", -1.0f);
 const float kLineRKeyTo = param("LINE_R_KEY_TO", -1.0f);  // a w holds its shape to this share of it (the vowels 0.7; 2026-11-09 W agent)
 const float kLinePausePlanHoldMs = param("LINE_PAUSE_PLAN_HOLD_MS", 150.0f);
@@ -2844,6 +2847,29 @@ void Synth::emit(const Token& tok, const Ph* next) {
         if (kRFX > 0) { sh.xc = kRFX; sh.sc = lineVowelStrength(sh.xc, sh.wc, sh.length); }
       }
     }
+    // ɜ's own shape (ER agent 2026-11-11, lab knobs; 1 / 0: as before): its pharynx, constriction area, lip area and
+    // length x these, mixed toward ə by LINE_ER_SCHWA_MIX; the stressed (long) ɜː's pharynx x LINE_ER_LONG_APH, the
+    // female voice's pharynx and lips x LINE_ER_F_APH / LINE_ER_F_LIPA. Only the ɜ token: the r colour of the vowels
+    // before a coda r and the ɹ's onset shapes still mix in the row itself. Whisper heard puhuja's ɜ as u ("shirt"
+    // -> "fruit", "term" -> "room", "were" -> "wu"; ER -> UW 234 of 1312 errors): its F1 sat 4.5 (male) and 6.0
+    // (female) semitones under ten Kokoro voices' on the ɜ frames, 1.5-2 more than the other vowels' offset.
+    if (have && tok.ph == Ph::ER) {
+      static const float kErAph = param("LINE_ER_APH", 1.0f), kErAc = param("LINE_ER_AC", 1.0f), kErLipA = param("LINE_ER_LIPA", 1.0f),
+                         kErLipL = param("LINE_ER_LIPL", 1.0f), kErSchwaMix = param("LINE_ER_SCHWA_MIX", 0.0f),
+                         kErLongAph = param("LINE_ER_LONG_APH", 1.0f), kErFAph = param("LINE_ER_F_APH", 1.0f),
+                         kErFLipA = param("LINE_ER_F_LIPA", 1.0f), kErXc = param("LINE_ER_XC", 1.0f), kErAor = param("LINE_ER_AOR", 1.0f);
+      TractShape s8;
+      if (kErSchwaMix > 0 && lineShapeOf(Ph::Schwa, &s8)) sh = lineShapeMix(sh, s8, kErSchwaMix);
+      if (kErAph != 1.0f) sh.aPharynx *= kErAph;
+      if (tok.isLong && kErLongAph != 1.0f) sh.aPharynx *= kErLongAph;
+      if (female_ && kErFAph != 1.0f) sh.aPharynx *= kErFAph;
+      if (kErAc != 1.0f) sh.ac *= kErAc;
+      if (kErLipA != 1.0f) sh.aLip *= kErLipA;
+      if (female_ && kErFLipA != 1.0f) sh.aLip *= kErFLipA;
+      if (kErLipL != 1.0f) sh.lLip *= kErLipL;
+      if (kErAor != 1.0f) sh.aOral *= kErAor;
+      if (kErXc != 1.0f) { sh.xc *= kErXc; sh.sc = lineVowelStrength(sh.xc, sh.wc, sh.length); }
+    }
     if (have && tok.ph == Ph::O && next && *next == Ph::UH) {
       // ... and starts open-mid and central (Kokoro 530-600/1060-1290 at 20 %;
       // puhuja's o held 450/1070 and drifted up: "know" was heard as "no-ʉ").
@@ -3061,7 +3087,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
             // A phrase-initial j or l: the tongue in its place before the voice
             // (2026-11-04: the j's F2 rose from the pause's ə, 1550 Hz, and
             // reached only ~1750 by its end; Kokoro holds 2100-2200 from the start).
-            const float preMs = !prevWasPause_ ? (prevWasPlosive_ && isVowel(tok.ph) ? kLineAfterStopLeadMs : 0.0f) : tok.ph == Ph::J ? kLineJPreShapeMs : tok.ph == Ph::L ? kLineLPreShapeMs : tok.ph == Ph::W ? kLineWPreShapeMs : tok.ph == Ph::RR ? kLineRPreShapeMs : 0.0f;
+            const float preMs = !prevWasPause_ ? (prevWasPlosive_ && isVowel(tok.ph) ? kLineAfterStopLeadMs : 0.0f) : tok.ph == Ph::J ? kLineJPreShapeMs : tok.ph == Ph::L ? kLineLPreShapeMs : tok.ph == Ph::W ? kLineWPreShapeMs : tok.ph == Ph::RR ? kLineRPreShapeMs : tok.ph == Ph::ER ? kLineErPreMs : 0.0f;
             const bool er = tok.ph == Ph::ER;
             addShapeDemand(preMs > 0 ? t0 - preMs * ms : t0 + (er ? kLineErFrom : tok.ph == Ph::RR && kLineRKeyFrom >= 0 ? kLineRKeyFrom : 0.3) * dur, t0 + (er ? kLineErTo : tok.ph == Ph::W ? kLineWKeyTo : tok.ph == Ph::RR && kLineRKeyTo >= 0 ? kLineRKeyTo : 0.7) * dur, sh, tok.ph, er ? ws * kLineErW : ws, er ? std::max(preR, kErPlaceW) : preR);
           }

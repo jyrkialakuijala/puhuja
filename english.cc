@@ -436,7 +436,9 @@ constexpr float kAwGlide[3] = {470, 1120, 2400};  // the end of aʊ (450 1300: t
 // "generosity", "generation") is the r itself: the references' ɜ there has
 // F2 930-1230 and F3 1440-1650 (puhuja 1380/1690, with the ɹ only 20 ms);
 // before i or ɪ ("century", "every") it stays schwa-like (F2 1240-1600).
-constexpr float kErOnsetShare = 0.5f, kErOnsetPull = 0.5f, kErOnsetFrontF2 = 1900.0f;
+// (EN_ER_ONSET_SHARE / EN_ER_ONSET_PULL: ER agent 2026-11-11 lab knobs, 0.5 / 0.5 as before.)
+const float kErOnsetShare = param("EN_ER_ONSET_SHARE", 0.5f), kErOnsetPull = param("EN_ER_ONSET_PULL", 0.5f);
+constexpr float kErOnsetFrontF2 = 1900.0f;
 constexpr float kGlideFallShare = 0.5f;  // a final diphthong's fall done by its glide's centre
 // Start of ɔɪ ("boy"): open, back and rounded, so the two vowels stay distinct
 // (a close start sounds like "bees").
@@ -450,6 +452,11 @@ constexpr float kOpenCentralStart[3] = {730, 1400, 2500};
 // oʊ starts a little more open and back (goog.wav "holds": F1 falls steadily
 // from ~800 female; from 520 F1 sat flat and then dropped in steps).
 constexpr float kMidBackStart[3] = {500, 1100, 2650};  // (560: the oʊ onset's F1 was 590 against ElevenLabs' 437-497)
+
+bool en0Stressed(uint8_t tok) {  // a primary-stressed vowel token
+  const char* n = kEnglishTokens[tok - 0x80];
+  return n[strlen(n) - 1] == '1';
+}
 
 Sound soundOf(const char* tok) {
   std::string t(tok);
@@ -2397,7 +2404,10 @@ void EnglishReader::sayPhrase(char end) {
       if (s.ph[0] == Ph::ER && s.n == 2) {
         const uint8_t nt = i + 1 < tokens.size() ? tokens[i + 1]
                            : w + 1 < phrase_.size() && !phrase_[w + 1].tokens.empty() ? phrase_[w + 1].tokens[0] : 0;
-        if (!(nt && isVowelToken(nt))) s.n = 1;
+        // (EN_ER_KEEP_R 1: a stressed ɜ keeps its ɹ tail before a consonant too; ER agent 2026-11-11 lab knob, 0: off.)
+        static const float kErKeepR = param("EN_ER_KEEP_R", 0.0f);
+        const char* en = kEnglishTokens[tokens[i] - 0x80];
+        if (!(nt && isVowelToken(nt)) && !(kErKeepR > 0 && en[strlen(en) - 1] == '1')) s.n = 1;
       }
       for (int k = 0; k < s.n; ++k) {
         // The second pitch on the sound's last vowel part (a diphthong's glide).
@@ -2472,7 +2482,10 @@ void EnglishReader::sayPhrase(char end) {
         // 2026-11-10 lab knobs, 0.6 / 1 / 1 as before).
         static const float kEyFirstShare = param("EN_EY_FIRST_SHARE", 0.6f), kEyLen = param("EN_EY_LEN", 1.0f), kEyFinalLen = param("EN_EY_FINAL_LEN", 1.0f);
         const bool ey = s.n == 2 && s.ph[0] == Ph::E && s.ph[1] == Ph::IH;
-        const float firstShare = s.ph[0] == Ph::ER ? (erOnset ? kErOnsetShare : 0.8f)
+        // ɜ+ɹ: the vowel's share (EN_ER_SHARE), the whole ɜ x EN_ER_LEN, a stressed one x EN_ER_LONG_LEN as well (ER agent
+        // 2026-11-11 lab knobs; 0.8 / 1 / 1 as before).
+        static const float kErShare = param("EN_ER_SHARE", 0.8f), kErLen = param("EN_ER_LEN", 1.0f), kErLongLen = param("EN_ER_LONG_LEN", 1.0f);
+        const float firstShare = s.ph[0] == Ph::ER ? (erOnset ? kErOnsetShare : kErShare)
                                  : s.n == 2 && s.ph[0] == Ph::A && s.ph[1] == Ph::UH ? kAwFirstShare : oy ? kOyFirstShare : ey ? kEyFirstShare
                                  : s.n == 2 && s.ph[0] == Ph::A && s.ph[1] == Ph::IH && kAyFirstShare >= 0 ? kAyFirstShare : 0.6f;
         const float share = s.n == 1 ? 1.0f : k == 0 ? firstShare : 1.0f - firstShare;
@@ -2502,6 +2515,8 @@ void EnglishReader::sayPhrase(char end) {
         // continuous glide out of the ʊ).
         static const float kAwErLen = param("EN_AW_ER_LEN", 1.0f);
         if (s.ph[0] == Ph::ER && i > 0 && baseName(tokens[i - 1]) == "AW") shape.ms *= kAwErLen;
+        if (s.ph[0] == Ph::ER && kErLen != 1.0f) shape.ms *= kErLen;
+        if (s.ph[0] == Ph::ER && kErLongLen != 1.0f && en0Stressed(tokens[i])) shape.ms *= kErLongLen;
         // Vowels as long as in the Google reading of kennedy.txt (goog.wav):
         // short vowels are lengthened most (x1.46 at 50 ms), long ones less
         // (x1.17 at 150 ms).
@@ -2553,6 +2568,9 @@ void EnglishReader::sayPhrase(char end) {
                         : si == syl.size() ? kLaxFinal : kLaxUnstressed;
         }
         if (ay && kAyPress != 1.0f) shape.press *= kAyPress;
+        // The ɜ's voice quality x EN_ER_PRESS (ER agent 2026-11-11 lab knob, 1: as before).
+        static const float kErPress = param("EN_ER_PRESS", 1.0f);
+        if (vowel && s.ph[k] == Ph::ER && kErPress != 1.0f) shape.press *= kErPress;
         // Loudness: an arc over the phrase (louder at the start, softer
         // toward its end), accents louder, function words softer. Vowels
         // only (the consonants keep their calibrated levels).
@@ -2585,6 +2603,9 @@ void EnglishReader::sayPhrase(char end) {
           // against the aʊ's -13; Kokoro and 11labs: 2-5 dB under).
           static const float kAwErDb = param("EN_AW_ER_DB", 0.0f);
           if (i > 0 && baseName(tokens[i]) == "ER" && baseName(tokens[i - 1]) == "AW") db += kAwErDb;
+          // The ɜ's level, dB (EN_ER_DB; a stressed one + EN_ER_LONG_DB; ER agent 2026-11-11 lab knobs, 0: as before).
+          static const float kErDb = param("EN_ER_DB", 0.0f), kErLongDb = param("EN_ER_LONG_DB", 0.0f);
+          if (baseName(tokens[i]) == "ER" && s.ph[k] == Ph::ER) db += kErDb + (vn[strlen(vn) - 1] == '1' ? kErLongDb : 0.0f);
           // The ʊ half of aʊ x this (EN_AW_UH_DB, dB; 2026-11-09 AW agent: Kokoro's aʊ fades 4-6 dB from the a to the ʊ end, puhuja's is flat).
           static const float kAwUhDb = param("EN_AW_UH_DB", 0.0f);
           if (s.n == 2 && s.ph[0] == Ph::A && s.ph[1] == Ph::UH && k == 1) db += kAwUhDb;
