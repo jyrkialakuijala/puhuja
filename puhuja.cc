@@ -843,6 +843,12 @@ void epilarynx(TractShape& s) {
   static const float kArea = param("LINE_LARYNX_AREA", 0.82f), kLen = param("LINE_LARYNX_LEN", 2.5f);
   s.aLarynx *= kArea;
   s.lLarynx = kLen;
+  // ... and above it the hypopharynx: LINE_HYPO_MUL x the larynx tube's area over LINE_HYPO_LEN cm (0: none)
+  static const float kHypoMul = param("LINE_HYPO_MUL", 0.0f), kHypoLen = param("LINE_HYPO_LEN", 1.5f);
+  if (kHypoMul > 0) {
+    s.aHypo = s.aLarynx * kHypoMul;
+    s.lHypo = kHypoLen;
+  }
 }
 
 TractShape lineShapeFor(float f1, float f2, float f3) {

@@ -20,6 +20,14 @@ float TractShape::area(float x) const {
   const float lnPh = std::log(std::max(aPharynx, 0.05f));
   const float lnOr = std::log(std::max(aOral, 0.05f));
   float lnA = lnLar + (lnPh - lnLar) * ramp(x, lLarynx - 0.5f, lLarynx + 0.5f);
+  // The hypopharynx: past the larynx tube the airway opens to aHypo over lHypo before the tongue root's pharynx
+  // (Jyrki 2026-11-11: "right after the constriction the wind pipe is about 3-4x larger in surface area than at the
+  // constriction"). It only widens: a pharynx already wider stays.
+  if (lHypo > 0 && aHypo > 0) {
+    const float w = ramp(x, lLarynx - 0.25f, lLarynx + 0.25f) * (1.0f - ramp(x, lLarynx + lHypo - 0.5f, lLarynx + lHypo + 0.5f));
+    const float lnHy = std::log(aHypo);
+    if (lnHy > lnA) lnA += (lnHy - lnA) * w;
+  }
   const float xv = xVelum * length;
   lnA += (lnOr - lnPh) * ramp(x, xv - 1.0f, xv + 1.0f);
   // The tongue constriction: a cosine^2 hump in log area toward ln(ac).
