@@ -4754,6 +4754,23 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
       addEventAt(cut);
     }
   }
+  // A stop released into a fricative ("hardship", "outside"): the breath eases to LINE_STOP_FRIC_PRESS_FLOOR over the last
+  // LINE_STOP_FRIC_PRESS_LEAD_MS of the closure (0: off) and comes back over LINE_STOP_FRIC_PRESS_BACK_MS from the
+  // release, so the slit does not open onto the full stored pressure. Jyrki 2026-11-11: "\"hardship\" has a snap
+  // between d and s"; PUHUJA_ENERGY_TRACE: the d still nearly shut (0.006 cm^2) 15 ms into the ʃ with 3170 dyn/cm^2
+  // behind it, then a 33 dB jump of the 2-8 kHz band in ~1 ms as it opened.
+  {
+    static const float kStopFricLeadMs = param("LINE_STOP_FRIC_PRESS_LEAD_MS", 0.0f), kStopFricFloor = param("LINE_STOP_FRIC_PRESS_FLOOR", 0.5f),
+                       kStopFricBackMs = param("LINE_STOP_FRIC_PRESS_BACK_MS", 25.0f);
+    if (tract_ == Tract::Line && kStopFricLeadMs > 0 && !nextIsPause && nextFric && tok.ph != Ph::JH && tok.ph != Ph::CH) {
+      Event ease{std::max(release - kStopFricLeadMs * ms, t_ + 1.0)};
+      ease.press = kStopFricFloor;
+      ease.pressMs = kStopFricLeadMs;
+      addEventAt(ease);
+      rel.press = 1.0f;
+      rel.pressMs = kStopFricBackMs;
+    }
+  }
   if (tract_ == Tract::Line && nextIsPause && !pi.voiced) {
     // ... and its release opens this many times slower (LINE_FINAL_REL_SCALE; 1: as any other): the final t of "out"
     // burst at the vowel's level, a 4 ms click 20 dB over Kokoro's release (Jyrki 2026-11-10: "too much of a snap").

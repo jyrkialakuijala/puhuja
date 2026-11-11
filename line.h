@@ -252,7 +252,7 @@ class VocalTractLine {
   float fricLpr_ = 0;
   float puffLpr_ = 0;
   float glotSlitScale_ = 1;  // (setGlotFcScale)
-  float expandFlow_ = 0;
+  float expandFlow_ = 0, expandLast_ = 0;  // expandLast_: the flow the sink had (LINE_EXPAND_OFF_MS)
   float expandPc_ = 0;  // the cavity pressure the expansion sees, low-passed (LINE_EXPAND_LP)
   bool expandSlow_ = false;
   float humpAc_ = 2.0f;  // the constriction's own area: closes at once, releases slowly
