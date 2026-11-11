@@ -674,10 +674,26 @@ float VocalTractLine::substep(float u0) {
       static const float kReK = 1.0f - std::exp(-dt_ * 1000.0f / kNoiseReMs);
       static const bool kReRel = param("LINE_NOISE_RE_REL", 1.0f) > 0;
       const bool opening = kReRel && noiseKc_ == reK_ && a > reA_ * 1.0005f;
-      reLp_ = opening || (re < reLp_ && !fricReBoth_) ? re : reLp_ + (re - reLp_) * kReK;  // (and down at once: only the rise lags; both ways for a z, LINE_Z_RE_BOTH)
+      // The lag on Re itself (LINE_NOISE_RE_ENV_MS 0) follows its running minimum: down at once, up over 10 ms, and
+      // in a voiced fricative the glottal pulses (4-10 ms) modulate the flow, so it settles on each cycle's trough and
+      // the hiss (~ Re^2) is driven by that trough (aero review B1: the ð of "those" lagged Re 444 vs raw 1196 +- 731;
+      // 3-10 kHz vs no lag: ʒ -19..-25 dB, ð -5..-20, z -2..-5). LINE_NOISE_RE_ENV_MS > 0: the lag acts on a mean of
+      // Re over about a pitch period, and the instantaneous Re is scaled by lagged mean / mean (<= 1): the onset is still
+      // smoothed, the voicing's modulation of the noise (real in voiced fricatives) kept. At 4 ms: ʒ +5..+19 dB, ZH lab
+      // errors 78 -> 58, V 151 -> 134, Z 62 -> 59, DH 57 -> 58; pclick on the snap list unchanged (2026-11-11).
+      static const float kReEnvMs = param("LINE_NOISE_RE_ENV_MS", 0.0f);
+      if (kReEnvMs > 0) {
+        static const float kEnvK = 1.0f - std::exp(-dt_ * 1000.0f / kReEnvMs);
+        reMean_ += (re - reMean_) * kEnvK;
+        reLp_ = opening || (reMean_ < reLp_ && !fricReBoth_) ? reMean_ : reLp_ + (reMean_ - reLp_) * kReK;
+        if (reMean_ > 1.0f) re *= std::min(1.0f, reLp_ / reMean_);
+        else re = reLp_;  // (no flow to speak of: as without the envelope)
+      } else {
+        reLp_ = opening || (re < reLp_ && !fricReBoth_) ? re : reLp_ + (re - reLp_) * kReK;  // (and down at once: only the rise lags; both ways for a z, LINE_Z_RE_BOTH)
+        re = reLp_;
+      }
       reA_ = a;
       reK_ = noiseKc_;
-      re = reLp_;
     }
     fricActive_ = re > kReynoldsCrit && slit > 0;
     if (fricActive_) {
