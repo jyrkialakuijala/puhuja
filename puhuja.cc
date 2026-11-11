@@ -3692,7 +3692,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // The ɛ before any nasal (round F EH agent 2026-11-11 lab knobs; -1 / 0: as above): its port x LINE_EH_ANTICIP_SCALE
     // (< 0: as every vowel), shut until LINE_EH_NASAL_LATE of the vowel and opened over the rest. A ɛ nasalized
     // over its whole 139 ms is the American [ɛə̃n] of "and": ɛ before a nasal was heard as æ 352 times ("send" -> sand).
-    static const float kEhAnScale = param("LINE_EH_ANTICIP_SCALE", -1.0f), kEhAnLate = param("LINE_EH_NASAL_LATE", 0.0f);
+    static const float kEhAnScale = param("LINE_EH_ANTICIP_SCALE", 1.3f), kEhAnLate = param("LINE_EH_NASAL_LATE", 0.85f);
     const bool ehLate = tok.ph == Ph::EH && (kEhAnScale >= 0 || kEhAnLate > 0);
     if (ehLate || (*next == Ph::N && (kAnN != 1.0f || kAnNLate > 0))) {
       const float lateShare = ehLate ? kEhAnLate : kAnNLate;
