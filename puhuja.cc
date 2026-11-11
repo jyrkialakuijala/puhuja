@@ -900,8 +900,8 @@ void epilarynx(TractShape& s, bool female) {
   // ... and above it the hypopharynx: LINE_HYPO_MUL x the larynx tube's area over LINE_HYPO_LEN cm (0: none). The
   // female voice has its own pair, LINE_HYPO_MUL_F / _LEN_F (< 0: the male value): the length is in cm while her tract
   // is shorter, and the male h4l2 (4x over 2 cm) cost her ~230 dictionary words a draw (2026-11-11).
-  static const float kHypoMul = param("LINE_HYPO_MUL", 0.0f), kHypoLen = param("LINE_HYPO_LEN", 1.5f);
-  static const float kHypoMulF = param("LINE_HYPO_MUL_F", -1.0f), kHypoLenF = param("LINE_HYPO_LEN_F", -1.0f);
+  static const float kHypoMul = param("LINE_HYPO_MUL", 4.0f), kHypoLen = param("LINE_HYPO_LEN", 2.0f);
+  static const float kHypoMulF = param("LINE_HYPO_MUL_F", 3.0f), kHypoLenF = param("LINE_HYPO_LEN_F", 1.0f);
   const float mul = female && kHypoMulF >= 0 ? kHypoMulF : kHypoMul;
   const float len = female && kHypoLenF >= 0 ? kHypoLenF : kHypoLen;
   if (mul > 0) {
