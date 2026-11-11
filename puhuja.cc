@@ -2809,6 +2809,13 @@ void Synth::emit(const Token& tok, const Ph* next) {
   // s passes at most 175 cm^3/s at 7 cmH2O where a spoken s runs 300-500, and
   // its hiss sat 18 dB under the vowels (Kokoro 5-7), 2026-11-02.
   if (tract_ == Tract::Line) e.ac = lineSlit(tok.ph, e.ac);
+  // l's lateral opening by its place (L agent, round E; 1: LINE_L_AC alone): a coda l (no vowel next) x LINE_L_CODA_AC
+  // (a wider opening raises its F1 toward Kokoro's 450), an l after a plosive x LINE_L_STOP_AC.
+  if (tract_ == Tract::Line && tok.ph == Ph::L) {
+    static const float kLCodaAc = param("LINE_L_CODA_AC", 1.0f), kLStopAc = param("LINE_L_STOP_AC", 1.0f);
+    if (!(next && isVowel(*next))) e.ac *= kLCodaAc;
+    else if (prevWasPlosive_) e.ac *= kLStopAc;
+  }
   // v voiced through a wider slit (LINE_V_AC) has a weak hiss: its own gain
   // (2026-11-04; 1 = today's).
   static const float kLineVFric = param("LINE_V_FRIC", 1.0f);
@@ -2915,7 +2922,10 @@ void Synth::emit(const Token& tok, const Ph* next) {
     const bool post = tok.ph == Ph::SH || tok.ph == Ph::ZH || tok.ph == Ph::CH || tok.ph == Ph::JH;
     static const float kLineZHw = param("LINE_Z_HW", 1.0f);  // the z's constriction width along the tract (lab 2026-11-11)
     static const float kLineNgHw = param("LINE_NG_HW", 1.0f);  // ŋ's constriction half-width (lab knob 2026-11-11, NG agent 3; 1: as before)
-    e.lineHw = post ? kLinePostHw : tok.ph == Ph::F ? kLineFHw : tok.ph == Ph::Z ? kLineZHw : tok.ph == Ph::NG ? kLineNgHw : 1.0f;
+    // l's constriction half-width along the tract (L agent, round E; 1 as before): the tongue tip's contact is short, and a
+    // long 0.6 cm^2 channel low-passes the l (2-5 kHz 15-20 dB under Kokoro's onset l, re the vowel).
+    static const float kLineLHw = param("LINE_L_HW", 1.0f);
+    e.lineHw = post ? kLinePostHw : tok.ph == Ph::F ? kLineFHw : tok.ph == Ph::Z ? kLineZHw : tok.ph == Ph::NG ? kLineNgHw : tok.ph == Ph::L ? kLineLHw : 1.0f;
     e.lineLip = post ? kLinePostLip : 0.0f;
     static const float kLineZJetD = param("LINE_Z_JET_D", 0.0f), kLineZLpr = param("LINE_Z_LPR", 0.0f);  // z's jet and band (0: the shared ones; lab 2026-11-11)
     e.lineJetD = tok.ph == Ph::Z && kLineZJetD > 0 ? kLineZJetD : tok.ph == Ph::F ? (curStress_ ? kLineFJetD : kLineFJetDUnstr) : tok.ph == Ph::VV ? kLineVJetD : tok.ph == Ph::ZH && !inAffricate_ && kLineZhJetD >= 0 ? kLineZhJetD : post ? kLinePostJetD : 0.0f;
@@ -3133,6 +3143,24 @@ void Synth::emit(const Token& tok, const Ph* next) {
       static const float kLineAaAoMix = param("LINE_AA_AO_MIX", 0.0f);
       TractShape o;
       if (kLineAaAoMix > 0 && lineShapeOf(Ph::AO, &o)) sh = lineShapeMix(sh, o, kLineAaAoMix);
+    }
+    if (have && tok.ph == Ph::L) {
+      // l's shape by its place (L agent, round E 2026-11-11; all 1 / 0: the one o-like row as before). Kokoro's onset l
+      // (play, black, clean) sits at the vowel's level with 2-5 kHz 15-20 dB stronger than puhuja's rounded-lip l; its
+      // coda l (feel) has F1 440-460 where puhuja's is 330 (u-like: coda l heard as UW OW ER). Lips (area x, length x),
+      // pharynx area x, and a mix toward a vowel row (onset: LINE_L_ONSET_ROW, coda: LINE_L_CODA_ROW, Ph numbers).
+      static const float kLOnALip = param("LINE_L_ONSET_ALIP", 1.0f), kLOnLLip = param("LINE_L_ONSET_LLIP", 1.0f);
+      static const float kLCoALip = param("LINE_L_CODA_ALIP", 1.0f), kLCoLLip = param("LINE_L_CODA_LLIP", 1.0f);
+      static const float kLOnAph = param("LINE_L_ONSET_APH", 1.0f), kLCoAph = param("LINE_L_CODA_APH", 1.0f);
+      static const float kLOnMix = param("LINE_L_ONSET_MIX", 0.0f), kLCoMix = param("LINE_L_CODA_MIX", 0.0f);
+      static const int kLOnRow = param("LINE_L_ONSET_ROW", static_cast<int>(Ph::E)), kLCoRow = param("LINE_L_CODA_ROW", static_cast<int>(Ph::AA));
+      const bool coda = !(next && isVowel(*next));
+      const float mix = coda ? kLCoMix : kLOnMix;
+      TractShape o;
+      if (mix > 0 && lineShapeOf(static_cast<Ph>(coda ? kLCoRow : kLOnRow), &o)) sh = lineShapeMix(sh, o, mix);
+      sh.aLip *= coda ? kLCoALip : kLOnALip;
+      sh.lLip *= coda ? kLCoLLip : kLOnLLip;
+      sh.aPharynx *= coda ? kLCoAph : kLOnAph;
     }
     if (have && tok.ph == Ph::E && next && *next == Ph::IH) eyStartShape(&sh);
     if (have && tok.ph == Ph::IH && lastPh_ == Ph::E) eyEndShape(&sh);
@@ -4914,6 +4942,16 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   static const float kLineRelNasalX = param("LINE_REL_NASAL_X", 1.0f);
   if (tract_ == Tract::Line && kLineRelNasalX > 0 && next && !nextIsPause && info(*next).cls == Cls::Nasal)
     rel.lineX = linePlaceOf(*next), rel.lineXClosure = true;
+  // The same for an l (LINE_L_REL_OWN, L agent round E; 0: as before): its event dropped, the l after a plosive kept the
+  // plosive's place (p b: the lips, k g: the velum at 0.62) with the table's 0.35 cm^2 instead of the l's ridge and
+  // LINE_L_AC: "clean" F3 2020 Hz, "glass" 2210 (Kokoro 2330-2440), "black" F2 646 (Kokoro 900-1000): heard as ɹ
+  // (pl bl kl gl -> ɹ: 251 of the 385 l errors after a plosive). x LINE_L_STOP_AC.
+  static const float kLRelOwn = param("LINE_L_REL_OWN", 0.0f);
+  if (tract_ == Tract::Line && kLRelOwn > 0 && next && *next == Ph::L) {
+    static const float kLRelStopAc = param("LINE_L_STOP_AC", 1.0f);
+    rel.ac = lineSlit(Ph::L, rel.ac) * kLRelStopAc;
+    rel.lineX = linePlaceOf(Ph::L);
+  }
   if (tract_ == Tract::Line && next && !nextIsPause && info(*next).cls == Cls::Fricative) {
     rel.ac = lineSlit(*next, rel.ac);
     rel.lineX = linePlaceOf(*next);
