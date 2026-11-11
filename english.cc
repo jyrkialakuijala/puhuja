@@ -1020,6 +1020,16 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
           whole *= fStressed ? fLen : fLenUnstr;
         }
       }
+      // A vowel after a stop + l / r onset in its word ("black", "price", "great") x EN_CLUSTER_VOWEL_LEN (1: as before):
+      // the cluster takes time the vowel gives back. Jyrki 2026-11-11: "black should be shorter, not much longer or
+      // equal with cat and back" (black 395 ms: b 49, l 111 (EN_STOP_L_LEN 2, his "pledge" pick), æ 206; cat ~310).
+      {
+        static const float kClusterVowelLen = param("EN_CLUSTER_VOWEL_LEN", 1.0f);
+        if (vowel && kClusterVowelLen != 1.0f && i >= 2) {
+          const std::string l1 = baseName(tok[i - 1]), p0 = baseName(tok[i - 2]);
+          if ((l1 == "L" || l1 == "R") && (isVoicelessPlosive(p0) || isVoicedPlosive(p0))) whole *= kClusterVowelLen;
+        }
+      }
       // Rate: vowels follow it, consonants less (a slow reader keeps the
       // consonants crisp); relative to the default rate, which stays as fitted.
       const float r = rate_ / kDefaultRate;
