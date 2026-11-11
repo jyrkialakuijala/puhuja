@@ -2632,8 +2632,8 @@ void owStartShape(TractShape* sh) {
 // (LINE_OW_END_UH, 462/1039/2300); lip area / length x LINE_OW_END_LIP / _LIPL; the constriction's place set to
 // LINE_OW_END_XC (<0: the row's; the w's back tongue is 0.25), its area x LINE_OW_END_AC.
 void owEndShape(TractShape* sh) {
-  static const float kAo = param("LINE_OW_END_AO", 0.0f), kUh = param("LINE_OW_END_UH", 0.0f),
-                     kLip = param("LINE_OW_END_LIP", 1.0f), kLipL = param("LINE_OW_END_LIPL", 1.0f),
+  static const float kAo = param("LINE_OW_END_AO", 0.5f), kUh = param("LINE_OW_END_UH", 0.0f),
+                     kLip = param("LINE_OW_END_LIP", 0.5f), kLipL = param("LINE_OW_END_LIPL", 1.0f),
                      kXc = param("LINE_OW_END_XC", -1.0f), kAc = param("LINE_OW_END_AC", 1.0f);
   TractShape o;
   if (kUh > 0 && lineShapeOf(Ph::UH, &o)) *sh = lineShapeMix(*sh, o, kUh);
@@ -3144,7 +3144,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // Before an l the ʊ keeps o's shape (above), which held F1 at ~600 Hz (the ə-mixed start) into the l: "whole" ->
     // "hull", "goal" -> "trawl" (Kokoro's F1 falls 500 -> 360-420, F2 to ~900). LINE_OW_L_U: this share of the ʊ end
     // (u's row through owEndShape) mixed in (0: as before).
-    static const float kLineOwLU = param("LINE_OW_L_U", 0.0f);
+    static const float kLineOwLU = param("LINE_OW_L_U", 0.6f);
     if (have && tok.ph == Ph::UH && lastPh_ == Ph::O && shapePh == Ph::O && kLineOwLU > 0) {
       TractShape u;
       if (lineShapeOf(Ph::U, &u)) { owEndShape(&u); sh = lineShapeMix(sh, u, kLineOwLU); }
