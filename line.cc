@@ -304,6 +304,13 @@ const float kNoiseAsPressure = param("LINE_NOISE_P", 3.0f);  // as a flow drive 
 const float kExpandHold = param("LINE_EXPAND_HOLD", 0.6f);  // a voiced closure's cavity pressure is held near this share of the lungs'
 const float kExpandLp = param("LINE_EXPAND_LP", 50.0f);  // > 0: the voiced closure's expansion follows the cavity pressure low-passed at this (Hz), not as an acoustic shunt; 0: the instantaneous pressure (b's voice bar silent)
 const float kHumpReleaseMs = param("LINE_HUMP_RELEASE_MS", 40.0f);  // the constriction's area releases with this time constant beyond kHumpFastTo
+// The hump's sampled minimum held at the commanded area (0: off, the cos^2 sampled at the section centres as before; 1: the
+// hump's profile divided by its largest sampled value, so the section nearest the centre always reaches acEff; between, a
+// partial power). A narrow hump (hw 0.5 cm, 0.28 cm sections) gliding along the tube reached its area only when its
+// centre sat on a section: in between, 0.028 -> 0.050 cm^2 at the f -> ɹ of "different" (place 0.95 -> 0.68 while the
+// f's 0.03 cm^2 was still shut), the flow under 9 kPa beating 81 -> 124 cm^3/s once per section crossed (~1 kHz,
+// falling): a 300-1500 Hz pulse +27 dB in 1 ms, the "ping-knock at the ff" (Jyrki 2026-11-11, PUHUJA_ENERGY_TRACE).
+const float kHumpNorm = param("LINE_HUMP_NORM", 0.0f);
 const float kHumpFastTo = param("LINE_HUMP_FAST_TO", 2.0f);  // (2.0: off; 0.4 held F2 low through the vowel and affricated the t puff)        // ... after opening fast (6 ms) to this area (cm^2): the acoustic release
 const float kNoiseDx = param("LINE_NOISE_DX", 0.2f);  // the turbulence source this far (cm) past the hump's downstream edge
 const float kNasalCavityArea = param("LINE_NASAL_CAVITY_A", 3.5f);  // the main nasal cavity, both sides (cm^2)
@@ -428,10 +435,16 @@ void VocalTractLine::setShapeAreas(std::vector<float> a, float length, float x, 
     // a faint hiss in each closure; 0.002 leaks 7 cm^3/s, below the gate)
     const float acEff = std::max(acH, kClosureMin);
     const float xc = x * shapeLength;
+    float gNorm = 1.0f;  // LINE_HUMP_NORM: 1 / (the largest sampled cos)^k
+    if (kHumpNorm > 0) {
+      const float dmin = std::fabs((std::floor(xc / oral_.dx()) + 0.5f) * oral_.dx() - xc) / humpHw_;  // the nearest centre
+      const float gmax = std::cos(0.5f * kPiL * std::min(dmin, 1.0f));
+      if (gmax > 1e-3f) gNorm = std::pow(gmax, -kHumpNorm);
+    }
     for (int k = 0; k < oral_.sections(); ++k) {
       const float d = ((k + 0.5f) * oral_.dx() - xc) / humpHw_;
       if (std::fabs(d) >= 1.0f) continue;
-      const float g = std::cos(0.5f * kPiL * d);
+      const float g = kHumpNorm > 0 ? std::min(1.0f, std::cos(0.5f * kPiL * d) * gNorm) : std::cos(0.5f * kPiL * d);
       const float lnA = std::log(a[k]);
       const float lnC = std::log(acEff);
       if (lnC < lnA) a[k] = std::exp(lnA + (lnC - lnA) * g * g * depth);
