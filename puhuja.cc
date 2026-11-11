@@ -2827,7 +2827,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
   if (inAffricate_ && tok.ph == Ph::ZH) aero.ag = kAgVoicedFric;
   // LINE_V_PRESS (lab 2026-11-09): the lung pressure eases to this share through a v (the voice bar and the hiss both
   // softer, an approximant-like v as Kokoro's) and comes back on the next sound; 1: unchanged.
-  { static const float kVPress = param("LINE_V_PRESS", 1.0f);
+  { static const float kVPress = param("LINE_V_PRESS", 0.85f);
     if (tract_ == Tract::Line && kVPress < 1.0f) {
       if (tok.ph == Ph::VV) { e.press = kVPress; e.pressMs = 20; }
       else if (lastPh_ == Ph::VV && e.press < 0) { e.press = 1.0f; e.pressMs = 20; }
@@ -2868,7 +2868,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
   }
   // v voiced through a wider slit (LINE_V_AC) has a weak hiss: its own gain
   // (2026-11-04; 1 = today's).
-  static const float kLineVFric = param("LINE_V_FRIC", 1.0f);
+  static const float kLineVFric = param("LINE_V_FRIC", 8.0f);
   static const float kLineZFric = param("LINE_Z_FRIC", 1.0f);
   if (tract_ == Tract::Line) e.lineFricMul = tok.ph == Ph::VV ? kLineVFric : tok.ph == Ph::F ? (curStress_ ? kLineFFric : kLineFFricUnstr) : tok.ph == Ph::Z ? kLineZFric : tok.ph == Ph::ZH ? (inAffricate_ && kLineJhFric >= 0 ? kLineJhFric : kLineZhFric) : tok.ph == Ph::S ? kLineSFric : tok.ph == Ph::SH ? kLineShFric * (shFullVowel ? (tok.wordStart || kLineShVowelFricLink < 0 ? kLineShVowelFric : kLineShVowelFricLink) : 1.0f) : 1.0f;
   // The v by its place in the phrase (V agent, round F; all 1 / < 0: off). The dictionary's v errors by position: initial
@@ -2878,7 +2878,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
   vAfterFric_ = false;
   if (tract_ == Tract::Line && tok.ph == Ph::VV) {
     static const float kVFricInit = param("LINE_V_FRIC_INIT", 1.0f), kVFricMed = param("LINE_V_FRIC_MED", 1.0f),
-                       kVFricFinal = param("LINE_V_FRIC_FINAL", 1.0f), kVAcInit = param("LINE_V_AC_INIT", 1.0f),
+                       kVFricFinal = param("LINE_V_FRIC_FINAL", 0.5f), kVAcInit = param("LINE_V_AC_INIT", 1.0f),
                        kVAcMed = param("LINE_V_AC_MED", 1.0f), kVAcFinal = param("LINE_V_AC_FINAL", 1.0f),
                        kVAgInit = param("LINE_V_AG_INIT", -1.0f), kVAgFinal = param("LINE_V_AG_FINAL", -1.0f);
     const bool vFinal = !next || *next == Ph::Stop;
@@ -2888,7 +2888,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // LINE_V_FRIC_AFTER_FRIC (< 0: off): the v's hiss gain right after another fricative ("is very": its event starts
     // while the z's slit and flow are still there, and the v's louder hiss (LINE_V_FRIC 8, LINE_V_RE_SCALE 2.5) came
     // in as a 17 dB click at the z-v boundary); there the v's own Re scale is off too.
-    static const float kVFricAfterFric = param("LINE_V_FRIC_AFTER_FRIC", -1.0f);
+    static const float kVFricAfterFric = param("LINE_V_FRIC_AFTER_FRIC", 1.0f);
     if (kVFricAfterFric >= 0 && (lastPh_ == Ph::S || lastPh_ == Ph::Z || lastPh_ == Ph::SH || lastPh_ == Ph::ZH ||
                                  lastPh_ == Ph::F || lastPh_ == Ph::TH || lastPh_ == Ph::DH)) {
       e.lineFricMul = kVFricAfterFric;
@@ -2976,7 +2976,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
   // (LINE_V_AC 2) the voiced flow pulses 0..230 cm^3/s and Re crosses LINE_RE_CRIT 1400 only at each pulse's peak
   // (noise trace of "over": the drive term > 0 a quarter of the cycle): the v's 2-8 kHz band sat at -42..-50 dB re the
   // word's peak in every position (Kokoro adam -14..-30), a hiss-less dip Whisper hears as b (419 of 830 substitutions).
-  static const float kLineVReScale = param("LINE_V_RE_SCALE", 1.0f);
+  static const float kLineVReScale = param("LINE_V_RE_SCALE", 2.5f);
   if (tract_ == Tract::Line && kLineVReScale != 1.0f) {
     if (tok.ph == Ph::VV) e.lineFricReMul = vAfterFric_ ? 1.0f : kLineVReScale;
     else if (lastPh_ == Ph::VV && e.lineFricReMul < 0) e.lineFricReMul = 1.0f;
@@ -2984,7 +2984,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
   // LINE_V_RE_SMOOTH (V agent, round F; 0: off; the envelope of LINE_NOISE_RE_ENV_MS, or LINE_V_RE_ENV_MS through the v alone):
   // through a v the jet's Re is pulled this share toward its pitch-period mean, so the louder hiss does not pulse on and
   // off with each glottal cycle (snap.py 8-13 dB 6-10 ms into "give" / "love" at LINE_V_RE_SCALE 2, LINE_V_FRIC 5).
-  static const float kLineVReSmooth = param("LINE_V_RE_SMOOTH", 0.0f);
+  static const float kLineVReSmooth = param("LINE_V_RE_SMOOTH", 1.0f);
   if (tract_ == Tract::Line && kLineVReSmooth > 0) {
     if (tok.ph == Ph::VV) e.lineFricReSmooth = kLineVReSmooth;
     else if (lastPh_ == Ph::VV) e.lineFricReSmooth = 0.0f;
@@ -3583,7 +3583,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
     if ((lastPh_ == Ph::S || lastPh_ == Ph::F || lastPh_ == Ph::TH) && fricOff > 0 && in.cls != Cls::Fricative && in.cls != Cls::Plosive) e.acMs = std::max(e.acMs, fricOff);
     // v into a vowel or sonorant (V agent, round F; 0: the 20 ms boundary): the lip leaves the teeth over
     // LINE_V_OFF_MS. A quick opening from a hiss-less v is a b's release to Whisper (initial v: B 214 of 467 errors).
-    static const float vOff = param("LINE_V_OFF_MS", 0.0f);
+    static const float vOff = param("LINE_V_OFF_MS", 40.0f);
     if (lastPh_ == Ph::VV && vOff > 0 && in.cls != Cls::Fricative && in.cls != Cls::Plosive) e.acMs = std::max(e.acMs, vOff);
   }
   e.ag = aero.ag;
@@ -4293,7 +4293,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
       // LINE_V_EARLY_BREATH (lab 2026-11-09): > 0, a phrase-initial v too. Its 55 ms sat inside the 80 ms pressure
       // ramp that starts at the phoneme (voicing -43 dB, hiss -50 re the word's peak: silent, "very" -> "fairy");
       // Kokoro's initial v is voiced from its first 10 ms (-17..-20 dB).
-      static const float kVEarlyBreath = param("LINE_V_EARLY_BREATH", 0.0f);
+      static const float kVEarlyBreath = param("LINE_V_EARLY_BREATH", 1.0f);
       static const float kZEarlyBreath = param("LINE_Z_EARLY_BREATH", 1.0f);  // (the same for a phrase-initial z: "zero" silent for 20 ms, -43 dB)
       const bool earlyBreath = in.cls == Cls::Nasal || in.cls == Cls::Liquid || in.cls == Cls::Glide || in.cls == Cls::Trill ||
                                (tok.ph == Ph::VV && kVEarlyBreath > 0) || (tok.ph == Ph::Z && kZEarlyBreath > 0);
@@ -4539,7 +4539,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // ... and the v's the same way (V agent, round F; LINE_V_RAMP_MS 0: off, from LINE_V_RAMP0 x its gain): with the v's
     // hiss restored (LINE_V_RE_SCALE 2.5, LINE_V_FRIC 8) it switched on in a few ms after a vowel, snap.py 5-7 dB in
     // "give", "love", "over" (0 at the base, where the v had no hiss).
-    static const float vRampMs = param("LINE_V_RAMP_MS", 0.0f), vRamp0 = param("LINE_V_RAMP0", 0.2f);
+    static const float vRampMs = param("LINE_V_RAMP_MS", 60.0f), vRamp0 = param("LINE_V_RAMP0", 0.1f);
     if (tract_ == Tract::Line && vRampMs > 0 && tok.ph == Ph::VV && !prevWasPlosive_ && e.lineFricMul >= 0) {
       const double step = std::min(static_cast<double>(vRampMs) * ms, 0.8 * dur) / 4;
       for (int k = 0; k <= 4; ++k) {
