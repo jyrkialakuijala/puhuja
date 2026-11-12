@@ -926,6 +926,11 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
           static const float kStopRLen = param("EN_STOP_R_LEN", 1.7f);  // Jyrki: "proud-r15-cut.wav perhaps 17 would be ideal"
           whole *= kStopRLen;
         }
+        // j after a plosive in the same word ("cute", "beauty"; Y agent round G, lab): x EN_STOP_J_LEN (1: unchanged).
+        if (b == "Y" && i > 0 && (isVoicelessPlosive(baseName(tok[i - 1])) || isVoicedPlosive(baseName(tok[i - 1])))) {
+          static const float kStopJLen = param("EN_STOP_J_LEN", 1.0f);
+          whole *= kStopJLen;
+        }
         if (isNasal(b) && wordInitial && vowelAfter) whole *= kOnsetNasalLength;  // (EN_NASAL_ONSET_LEN)
         // A word-final voiceless stop linked to a vowel-initial next word ("not out" as "no-tout"): x EN_LINK_STOP_LEN.
         // Jyrki 2026-11-10: "plan for 'notout' with a little longer t".

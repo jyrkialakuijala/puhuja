@@ -471,6 +471,7 @@ class Synth {
   bool zBeforePause_ = false;  // the last sound before these pause tokens was a z (LINE_Z_RE_SCALE)
   float zPauseFric_ = 1.0f;  // a final z's hiss gain, kept through the pause's tokens (LINE_FINAL_Z_FRIC, LINE_Z_FRIC)
   bool prevWasPlosive_ = false;
+  bool jAfterStop_ = false;  // the last token was a j released from a plosive (LINE_U_AFTER_STOP_J)
   bool prevWasNasal_ = false;
   bool prevWasPause_ = false;  // the last emitted phoneme was a pause
   bool vAfterFric_ = false;  // this v follows a fricative (LINE_V_FRIC_AFTER_FRIC)

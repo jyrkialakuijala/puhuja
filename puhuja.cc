@@ -3222,6 +3222,15 @@ void Synth::emit(const Token& tok, const Ph* next) {
         if (kRFX > 0) { sh.xc = kRFX; sh.sc = lineVowelStrength(sh.xc, sh.wc, sh.length); }
       }
     }
+    // (Y agent round G, lab; 1: as before) the j after a plosive: its pharynx, lip area, oral area and hump x these.
+    if (have && tok.ph == Ph::J && prevWasPlosive_) {
+      static const float kJStopAph = param("LINE_J_STOP_APH", 1.0f), kJStopLipA = param("LINE_J_STOP_LIPA", 1.0f),
+                         kJStopAor = param("LINE_J_STOP_AOR", 1.0f), kJStopAc = param("LINE_J_STOP_AC", 1.0f);
+      if (kJStopAph != 1.0f) sh.aPharynx *= kJStopAph;
+      if (kJStopLipA != 1.0f) sh.aLip *= kJStopLipA;
+      if (kJStopAor != 1.0f) sh.aOral *= kJStopAor;
+      if (kJStopAc != 1.0f) sh.ac *= kJStopAc;
+    }
     // ɜ's own shape (ER agent 2026-11-11, lab knobs; 1 / 0: as before): its pharynx, constriction area, lip area and
     // length x these, mixed toward ə by LINE_ER_SCHWA_MIX; the stressed (long) ɜː's pharynx x LINE_ER_LONG_APH, the
     // female voice's pharynx and lips x LINE_ER_F_APH / LINE_ER_F_LIPA. Only the ɜ token: the r colour of the vowels
@@ -3383,9 +3392,17 @@ void Synth::emit(const Token& tok, const Ph* next) {
     if (have && tok.ph == Ph::IH && lastPh_ == Ph::E) eyEndShape(&sh);
     if (have && tok.ph == Ph::IH && lastPh_ != Ph::E && lastPh_ != Ph::A && lastPh_ != Ph::AO) ihShape(&sh);
     if (have && tok.ph == Ph::AH) ahShape(&sh, lastPh_, next, female_);
-    if (have && tok.ph == Ph::U && lastPh_ == Ph::J && kLineUAfterJ > 0) {
+    // (Y agent round G, lab) after a j released from a plosive: LINE_U_AFTER_STOP_J (< 0: LINE_U_AFTER_J); an ʊ after
+    // any j fronted likewise by LINE_UH_AFTER_J (0: off; "pure", "bureau").
+    static const float kUAfterStopJ = param("LINE_U_AFTER_STOP_J", -1.0f), kUhAfterJ = param("LINE_UH_AFTER_J", 0.0f);
+    const float uAfterJ = jAfterStop_ && kUAfterStopJ >= 0 ? kUAfterStopJ : kLineUAfterJ;
+    if (have && tok.ph == Ph::U && lastPh_ == Ph::J && uAfterJ > 0) {
       TractShape front;
-      if (lineShapeOf(Ph::I, &front)) sh = lineShapeMix(sh, front, kLineUAfterJ);
+      if (lineShapeOf(Ph::I, &front)) sh = lineShapeMix(sh, front, uAfterJ);
+    }
+    if (have && tok.ph == Ph::UH && lastPh_ == Ph::J && kUhAfterJ > 0) {
+      TractShape front;
+      if (lineShapeOf(Ph::I, &front)) sh = lineShapeMix(sh, front, kUhAfterJ);
     }
     // The vowel uː's own shape on top of its row (the row also makes w, the ɹ rounding and the oʊ offglide, so the
     // row stays). Round-E uː agent (2026-11-11): the row narrows mid-pharynx with 1.55 cm^2 lips; a real uː is
@@ -3631,6 +3648,11 @@ void Synth::emit(const Token& tok, const Ph* next) {
             const bool rStop = tok.ph == Ph::RR && prevWasPlosive_;
             if (rStop && kRStopLeadMs > 0) preMs = kRStopLeadMs;
             if (rStop && kRStopW != 1.0f) ws *= kRStopW;
+            // (Y agent round G, lab; 0 / 1: as before) the same for a j after a plosive ("cute", "beauty").
+            static const float kJStopLeadMs = param("LINE_J_STOP_LEAD_MS", 0.0f), kJStopW = param("LINE_J_STOP_W", 1.0f);
+            const bool jStop = tok.ph == Ph::J && prevWasPlosive_;
+            if (jStop && kJStopLeadMs > 0) preMs = kJStopLeadMs;
+            if (jStop && kJStopW != 1.0f) ws *= kJStopW;
             addShapeDemand(preMs > 0 ? t0 - preMs * ms : t0 + (er ? kLineErFrom : tok.ph == Ph::RR && kLineRKeyFrom >= 0 ? kLineRKeyFrom : iy && kIyFrom >= 0 ? kIyFrom : 0.3) * dur, t0 + (er ? kLineErTo : tok.ph == Ph::W ? kLineWKeyTo : tok.ph == Ph::RR && kLineRKeyTo >= 0 ? kLineRKeyTo : iy && kIyTo >= 0 ? kIyTo : 0.7) * dur, sh, tok.ph, er ? ws * kLineErW : iy ? ws * kIyW : ws, er ? std::max(preR, kErPlaceW) : iy ? std::max(preR, kIyPlaceW) : preR);
           }
           else {
@@ -4699,6 +4721,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
   phonemeStart_ = t0;
   timeline_ += dur;
   prevWasVowel_ = in.cls == Cls::Vowel;
+  jAfterStop_ = tok.ph == Ph::J && prevWasPlosive_;
   prevWasPlosive_ = false;
   prevWasNasal_ = in.cls == Cls::Nasal;
   const bool pauseRunFirst = in.cls == Cls::Stop && !prevWasPause_ &&
@@ -5361,9 +5384,22 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // ... and for a w or j (LINE_GLIDE_REL_OWN, R agent round F, lab; 0: as before): the same dropped event, "twin" made
   // its w at the ridge, "cute" its j at the velum (w after p t k: 21 % errors, j after p b: 23-27 %, 9 % after n).
   static const float kGlideRelOwn = param("LINE_GLIDE_REL_OWN", 0.0f);
-  if (tract_ == Tract::Line && kGlideRelOwn > 0 && next && (*next == Ph::W || *next == Ph::J)) {
+  if (tract_ == Tract::Line && kGlideRelOwn > 0 && next && *next == Ph::W) {
     rel.ac = lineSlit(*next, rel.ac);
     rel.lineX = linePlaceOf(*next);
+  }
+  // (Y agent round G, lab) the j alone: LINE_J_REL_OWN (< 0: LINE_GLIDE_REL_OWN), its place LINE_J_REL_X (< 0: the j's),
+  // its slit x LINE_J_REL_AC, the opening time LINE_J_REL_MS (< 0: the plosive's), the release's frication gain
+  // LINE_J_REL_FRIC (< 0: unchanged). The j of "pure", "beauty" was a 0.3 cm^2 constriction at the lips (F2 1130-1480 Hz,
+  // Kokoro 2100-2450): "Bureau" -> plural, "Cue" -> pew. With LINE_J_STOP_W 4, _LEAD_MS 30, REL_MS 30 (30 ms: the restored
+  // p/b burst no snappier than the base's), LINE_U_AFTER_STOP_J 0.2: dictionary j words 66 -> 48 Y errors (two draws).
+  static const float kJRelOwn = param("LINE_J_REL_OWN", -1.0f), kJRelX = param("LINE_J_REL_X", -1.0f),
+                     kJRelAc = param("LINE_J_REL_AC", 1.0f), kJRelMs = param("LINE_J_REL_MS", -1.0f),
+                     kJRelFric = param("LINE_J_REL_FRIC", -1.0f);
+  const bool jRel = tract_ == Tract::Line && next && *next == Ph::J && (kJRelOwn >= 0 ? kJRelOwn : kGlideRelOwn) > 0;
+  if (jRel) {
+    rel.ac = lineSlit(Ph::J, rel.ac) * kJRelAc;
+    rel.lineX = kJRelX >= 0 ? kJRelX : linePlaceOf(Ph::J);
   }
   if (tract_ == Tract::Line && next && !nextIsPause && info(*next).cls == Cls::Fricative) {
     rel.ac = lineSlit(*next, rel.ac);
@@ -5414,6 +5450,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // (Kokoro's final d: a soft -21..-24 dB release where puhuja's pops at -9).
   static const float kLineFinalDReleaseScale = param("LINE_FINAL_D_RELEASE_SCALE", -1.0f);
   if (tract_ == Tract::Line && tok.ph == Ph::D && nextIsPause && kLineFinalDReleaseScale >= 0) rel.acMs = pi.releaseMs * kLineFinalDReleaseScale;
+  if (jRel && kJRelMs >= 0) rel.acMs = kJRelMs;  // (LINE_J_REL_MS)
   // A voiced stop before a fricative, released (LINE_VSTOP_FRIC_UNREL 0): the
   // release slowed x this, a softer pop (Jyrki 2026-11-07 on "and foo": the
   // released one better than the unreleased, "but mix 75 % of unrel0 and 25 %
@@ -5490,7 +5527,13 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
       if (pLiq) rel.lineAspMul *= kLinePLiqAsp;
       const bool tLiq = tok.ph == Ph::T && !isVowel(*next);  // (LINE_T_LIQ_VOT / _ASP)
       if (tLiq) rel.lineAspMul *= kLineTLiqAsp;
+      // (Y agent round G, lab; 1: as before) a p t k before j: the puff's noise x LINE_J_ASP, its hold x LINE_J_VOT
+      // (an English pj kj devoices the j: [pçʊ]).
+      static const float kJAsp = param("LINE_J_ASP", 1.0f), kJVot = param("LINE_J_VOT", 1.0f);
+      const bool stopJ = *next == Ph::J;
+      if (stopJ && kJAsp != 1.0f) rel.lineAspMul *= kJAsp;
       Event adductLine{release + (tok.ph == Ph::P && kLinePVotHoldMs >= 0 ? kLinePVotHoldMs : tok.ph == Ph::K && kLineKVotHoldMs >= 0 ? kLineKVotHoldMs : tok.ph == Ph::T && kLineTVotHoldMs >= 0 ? kLineTVotHoldMs : kLineVotHoldMs) * (curStress_ ? 1.0f : kLineVotHoldUnstressed) * (pLiq ? kLinePLiqVot : 1.0f) * (tLiq ? kLineTLiqVot : 1.0f) * (lastPh_ == Ph::S ? kLineSkAsp : 1.0f) * ms};
+      if (stopJ && kJVot != 1.0f) adductLine.t = release + (adductLine.t - release) * kJVot;
       adductLine.ag = nextAero.ag;
       adductLine.agMs = kLineVotAdductMs;
       pendingKick_ = adductLine;
@@ -5752,6 +5795,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // ʧ's ʃ phase: its emit() adds no airway event after the plosive (the release carries the targets), so the gain
   // rides on the release; the next sound's emit() sets its own (LINE_CH_FRIC).
   if (tract_ == Tract::Line && tok.ph == Ph::CH && kLineChFric != 1.0f) rel.lineFricMul = kLineChFric;
+  if (jRel && kJRelFric >= 0) rel.lineFricMul = kJRelFric;  // (LINE_J_REL_FRIC)
   if (closurePressEased_) {  // (LINE_CLOSURE_PRESS: the breath comes back with the release)
     static const float kLineClosurePressBackMs = param("LINE_CLOSURE_PRESS_BACK_MS", 15.0f);
     rel.press = 1.0f;
@@ -5806,6 +5850,16 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     back.lineJetD = 0.0f;
     addEventAt(back);
   }
+  // (Y agent round G, lab; 0: off) into a j in two steps: a palatal slit of LINE_J_BURST_A cm^2 at the j's place first
+  // (its hiss the [ç] of "cute", "pure"), on to the j's own slit after LINE_J_BURST_MS.
+  static const float kJBurstMs = param("LINE_J_BURST_MS", 0.0f), kJBurstA = param("LINE_J_BURST_A", 0.1f);
+  const bool jBurst = jRel && kJBurstMs > 0 && !kBurst && !unreleased;
+  if (jBurst) {
+    Event slit{release};
+    slit.ac = kJBurstA;
+    slit.acMs = 3;
+    addEvent(slit);
+  }
   if (hasPendingKick_) {
     addEvent(pendingKick_);
     hasPendingKick_ = false;
@@ -5833,6 +5887,12 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     open.ac = rel.ac;
     open.acMs = rel.acMs;
     if ((tok.ph == Ph::K && kLineKJetD > 0) || vJetD > 0) open.lineJetD = 0.0f;  // (the slit's own jet again)
+    addEventAt(open);
+  }
+  if (jBurst) {
+    Event open{release + kJBurstMs * ms};
+    open.ac = rel.ac;
+    open.acMs = rel.acMs;
     addEventAt(open);
   }
   if (dzRel) {  // (LINE_DZ_REL_FRIC: the z's own gain once the groove has formed)
@@ -5885,7 +5945,15 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
       v.wc = 2.0f;
       v.sc = 1.0f;
       const float relMs = isK && kLineKRelMs >= 0 ? kLineKRelMs : kLineKgRelMs;
-      const float relW = isVowel(*next) ? (isK && kLineKRelShape >= 0 ? kLineKRelShape : kLineKgRelShape) : kLineKgRelShapeL;
+      float relW = isVowel(*next) ? (isK && kLineKRelShape >= 0 ? kLineKRelShape : kLineKgRelShape) : kLineKgRelShapeL;
+      // (Y agent round G, lab; < 0: as the liquids') the pinch before a j: its weight, place and hump.
+      static const float kKgRelJ = param("LINE_KG_REL_J", -1.0f), kKgRelJX = param("LINE_KG_REL_J_X", -1.0f),
+                         kKgRelJAc = param("LINE_KG_REL_J_AC", -1.0f);
+      if (*next == Ph::J) {
+        if (kKgRelJ >= 0) relW = kKgRelJ;
+        if (kKgRelJX >= 0) v.xc = kKgRelJX;
+        if (kKgRelJAc >= 0) v.ac = kKgRelJAc;
+      }
       addShapeDemand(release, release + relMs * ms, v, Ph::J, relW);
     }
   }
