@@ -4404,6 +4404,19 @@ void Synth::emit(const Token& tok, const Ph* next) {
       e.pressMs = static_cast<float>(dur / ms);
     }
   }
+  // n's breath (round J, N agent 9, lab knobs; 1: as before): eases to LINE_N_PRESS over the n (before a pause
+  // LINE_N_FINAL_PRESS, < 0: the same). Kokoro's word-final murmur sits 6-9 dB under the vowel ("Thin", "Don":
+  // adam -6..-14, puhuja 0..-4 dB), and a murmur as loud as the vowel with a flat F2 is heard as ŋ (final n 11 %
+  // wrong, ŋ 347 of 626).
+  {
+    static const float kLineNPress = param("LINE_N_PRESS", 1.0f), kLineNFinalPress = param("LINE_N_FINAL_PRESS", -1.0f);
+    const bool fin = !next || *next == Ph::Stop;
+    const float p = fin && kLineNFinalPress >= 0 ? kLineNFinalPress : kLineNPress;
+    if (tract_ == Tract::Line && tok.ph == Ph::N && p != 1.0f && e.press < 0) {
+      e.press = p;
+      e.pressMs = static_cast<float>(dur / ms);
+    }
+  }
   // ŋ's velum port x LINE_NG_AN (lab knob 2026-11-11, NG agent 3; 1: as m n).
   {
     static const float kLineNgAn = param("LINE_NG_AN", 1.0f);
@@ -5320,6 +5333,60 @@ void Synth::emit(const Token& tok, const Ph* next) {
     if (tract_ == Tract::Line && tok.ph == Ph::NG && kNgPreMix > 0 && prevWasVowel_ && lineShapeOf(lastPh_, &v) &&
         lineShapeOf(static_cast<Ph>(kNgPreRow), &o))
       addShapeDemand(std::max(e.t - kNgPreMs * ms, phonemeStart_ + 1), e.t + dur, lineShapeMix(v, o, kNgPreMix), lastPh_, kNgPreMixW);
+  }
+  // n's tongue body (round J, N agent 9, lab knobs; 0: off). The n's closure is only the tip: the body stayed in the
+  // vowel's shape, so F2 ran flat or the wrong way into and out of it. Kokoro's F2 heads for the alveolar locus
+  // (male ~1400-1550 Hz): "Don" 1000 -> 1390 over the ɑ's last 70 ms (puhuja flat ~950), "Thin" 1880 -> 1550 (puhuja
+  // rises 2000 -> 2290 with F3 jumping: a velar pinch, heard "thing"). Dictionary (combo7): coda n after ɑ 41 %
+  // wrong (ŋ), after ɪ 32 % (ŋ), initial n before oʊ uː iː 29-49 % (m).
+  // Into the n: the vowel's last LINE_N_PRE_MS and the n are asked for the vowel's shape mixed LINE_N_PRE_MIX (after
+  // a back vowel ɑ ɔ ʌ ʊ uː oʊ LINE_N_PRE_BACK_MIX, < 0: the same) toward the row LINE_N_PRE_ROW (a Ph index; 8: ə),
+  // weight LINE_N_PRE_W. Lab (round J, 300 hard n words x 2 voices, two draws; base 288 n errors, placebo sd 6.7):
+  // LINE_N_PRE_MIX 0.6 alone 176 (words right 142 -> 192, words1000 1409 -> 1431) but bright +5.4σ (the front vowels'
+  // end darkens with the lips and length mixed toward ə); with LINE_N_MIX_TONGUE 1 206, bright +0.8σ. With
+  // LINE_N_VEL_LAG_MS 20, LINE_N_REL_MIX 0.6 / _ON_MS 50 / _W 2 / _ROW 9 (ɪ) and LINE_N_X 0.80: 158, words 175,
+  // words1000 1428, no veto; "Don" F2 970 -> 1400 into the n (Kokoro 1000 -> 1390).
+  {
+    static const float kNPreMix = param("LINE_N_PRE_MIX", 0.0f), kNPreBackMix = param("LINE_N_PRE_BACK_MIX", -1.0f),
+                       kNPreMs = param("LINE_N_PRE_MS", 60.0f), kNPreW = param("LINE_N_PRE_W", 1.0f);
+    static const int kNPreRow = static_cast<int>(param("LINE_N_PRE_ROW", 8.0f));
+    const bool backPrev = lastPh_ == Ph::AO || lastPh_ == Ph::AA || lastPh_ == Ph::OH || lastPh_ == Ph::O ||
+                          lastPh_ == Ph::U || lastPh_ == Ph::UH || lastPh_ == Ph::AH;
+    const float mix = backPrev && kNPreBackMix >= 0 ? kNPreBackMix : kNPreMix;
+    // LINE_N_MIX_TONGUE 1: both mixes move the tongue only (the place, opening, width of the hump and the mouth and
+    // pharynx areas); the lips, larynx and tract length stay the vowel's (0: the whole shape is mixed).
+    static const float kNMixTongue = param("LINE_N_MIX_TONGUE", 0.0f);
+    auto mixN = [&](const TractShape& a, const TractShape& b, float w) {
+      TractShape m = lineShapeMix(a, b, w);
+      if (kNMixTongue > 0) {
+        m.aLip = a.aLip; m.lLip = a.lLip; m.aLarynx = a.aLarynx; m.length = a.length;
+        m.sc = lineVowelStrength(m.xc, m.wc, m.length);
+      }
+      return m;
+    };
+    TractShape v, o;
+    if (tract_ == Tract::Line && isN && mix > 0 && prevWasVowel_ && lineShapeOf(lastPh_, &v) &&
+        lineShapeOf(static_cast<Ph>(kNPreRow), &o))
+      addShapeDemand(std::max(e.t - kNPreMs * ms, phonemeStart_ + 1), e.t + dur, mixN(v, o, mix), lastPh_, kNPreW);
+    // Out of an n not after a vowel (word-initial, after a consonant; LINE_N_REL_ALL 1: every n before a vowel): the n
+    // and the next vowel's first LINE_N_REL_ON_MS are asked for the vowel's shape mixed LINE_N_REL_MIX (before a back
+    // vowel LINE_N_REL_BACK_MIX, < 0: the same) toward the row LINE_N_REL_ROW (< 0: LINE_N_PRE_ROW), the lips at least LINE_N_REL_LIPA cm^2 (0: as
+    // mixed), weight LINE_N_REL_W. The initial n borrowed the oʊ's or uː's rounded shape whole: F2 rose from low into
+    // the vowel as after an m ("known" -> bone, "node" -> mode, "nude" -> mood).
+    static const float kNRelMix = param("LINE_N_REL_MIX", 0.0f), kNRelBackMix = param("LINE_N_REL_BACK_MIX", -1.0f),
+                       kNRelOnMs = param("LINE_N_REL_ON_MS", 30.0f), kNRelW = param("LINE_N_REL_W", 1.0f),
+                       kNRelLipA = param("LINE_N_REL_LIPA", 0.0f), kNRelAll = param("LINE_N_REL_ALL", 0.0f);
+    static const int kNRelRow = static_cast<int>(param("LINE_N_REL_ROW", -1.0f));
+    if (tract_ == Tract::Line && isN && next && isVowel(*next) && (kNRelAll > 0 || !prevWasVowel_)) {
+      const bool backNext = *next == Ph::AO || *next == Ph::AA || *next == Ph::OH || *next == Ph::O || *next == Ph::U ||
+                            *next == Ph::UH || *next == Ph::AH;
+      const float rmix = backNext && kNRelBackMix >= 0 ? kNRelBackMix : kNRelMix;
+      if ((rmix > 0 || kNRelLipA > 0) && lineShapeOf(*next, &v) && lineShapeOf(static_cast<Ph>(kNRelRow >= 0 ? kNRelRow : kNPreRow), &o)) {
+        TractShape s = mixN(v, o, rmix);
+        if (kNRelLipA > 0) s.aLip = std::max(s.aLip, kNRelLipA);
+        addShapeDemand(e.t, e.t + dur + kNRelOnMs * ms, s, *next, kNRelW);
+      }
+    }
   }
   // ʃ ʒ after a vowel (LINE_SH_APPROACH_MS, 2026-11-05): the tongue rises
   // toward the palate first (to LINE_SH_APPROACH_A cm^2, still above the
