@@ -2720,11 +2720,18 @@ void EnglishReader::sayPhrase(char end) {
         // 2026-11-10 lab knobs, 0.6 / 1 / 1 as before).
         static const float kEyFirstShare = param("EN_EY_FIRST_SHARE", 0.6f), kEyLen = param("EN_EY_LEN", 1.0f), kEyFinalLen = param("EN_EY_FINAL_LEN", 1.0f);
         const bool ey = s.n == 2 && s.ph[0] == Ph::E && s.ph[1] == Ph::IH;
+        // eɪ's context for the line (Shape::eyctx) and its length / split in a closed syllable (EN_EY_CLOSED_LEN,
+        // EN_EY_CLOSED_SHARE, < 0: EN_EY_FIRST_SHARE) and word-initially (EN_EY_INIT_LEN). EY agent10 round K lab knobs
+        // (1 / -1 / 1: as before): eɪ was heard as ɪ 280 times in 6980 (combo9), 147 of them before t n k m p.
+        static const float kEyClosedLen = param("EN_EY_CLOSED_LEN", 1.0f), kEyClosedShare = param("EN_EY_CLOSED_SHARE", -1.0f),
+                           kEyInitLen = param("EN_EY_INIT_LEN", 1.0f);
+        const bool eyClosed = ey && i + 1 < tokens.size() && !isVowelToken(tokens[i + 1]);
+        if (ey) shape.eyctx = (eyClosed ? 1 : 0) | (eyClosed && isNasal(baseName(tokens[i + 1])) ? 2 : 0) | (i == 0 ? 4 : 0);
         // ɜ+ɹ: the vowel's share (EN_ER_SHARE), the whole ɜ x EN_ER_LEN, a stressed one x EN_ER_LONG_LEN as well (ER agent
         // 2026-11-11 lab knobs; 0.8 / 1 / 1 as before).
         static const float kErShare = param("EN_ER_SHARE", 0.8f), kErLen = param("EN_ER_LEN", 1.0f), kErLongLen = param("EN_ER_LONG_LEN", 1.0f);
         const float firstShare = s.ph[0] == Ph::ER ? (erOnset ? kErOnsetShare : kErShare)
-                                 : s.n == 2 && s.ph[0] == Ph::A && s.ph[1] == Ph::UH ? kAwFirstShare : oy ? kOyFirstShare : ey ? kEyFirstShare
+                                 : s.n == 2 && s.ph[0] == Ph::A && s.ph[1] == Ph::UH ? kAwFirstShare : oy ? kOyFirstShare : ey ? (eyClosed && kEyClosedShare >= 0 ? kEyClosedShare : kEyFirstShare)
                                  : s.n == 2 && s.ph[0] == Ph::A && s.ph[1] == Ph::IH && kAyFirstShare >= 0 ? kAyFirstShare : 0.6f;
         const float share = s.n == 1 ? 1.0f : k == 0 ? firstShare : 1.0f - firstShare;
         shape.ms = dur[w][i] * share * v.length;
@@ -2745,7 +2752,8 @@ void EnglishReader::sayPhrase(char end) {
         if (s.n == 2 && s.ph[0] == Ph::A && s.ph[1] == Ph::IH && kAyClosedLen != 1.0f && i + 1 < tokens.size() &&
             !isVowelToken(tokens[i + 1]))
           shape.ms *= kAyClosedLen;
-        if (ey) shape.ms *= kEyLen * (i + 1 == tokens.size() ? kEyFinalLen : 1.0f);
+        if (ey) shape.ms *= kEyLen * (i + 1 == tokens.size() ? kEyFinalLen : 1.0f) * (eyClosed ? kEyClosedLen : 1.0f) *
+                            (i == 0 ? kEyInitLen : 1.0f);
         // iː lab knobs (IY agent 2026-11-11; 1 = as before): every iː x EN_IY_LEN; an iː right before a vowel in the
         // same word ("media", "create", "area": 33 % of them wrong, heard as j, the next ə as u) x EN_IY_HIATUS_LEN;
         // the vowel right after such an iː x EN_IY_NEXT_LEN.

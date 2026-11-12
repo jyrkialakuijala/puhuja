@@ -265,6 +265,8 @@ class Synth {
     float press = 1;   // vowels: glottal opening multiplier (< 1 pressed, > 1 lax)
     bool flap = false;  // a d said as a tap (English t/d between vowels)
     unsigned char dctx = 0;  // a d's context for the line's d knobs (english.cc, D agent9 round J; 0: none)
+    unsigned char eyctx = 0;  // eɪ's context bits for the line's eɪ knobs (english.cc, EY agent10 round K): 1 closed
+                              // syllable (a consonant follows in the word), 2 that consonant a nasal, 4 word-initial
   };
   void shapeNext(const Shape& s) { nextShape_ = s; }
 

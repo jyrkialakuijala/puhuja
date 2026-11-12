@@ -2726,7 +2726,7 @@ void owEndShape(TractShape* sh) {
 // 430-610 vs 500-850) and back in F2.
 // The e start: mixed toward ɛ (LINE_EY_START_EH) or æ (LINE_EY_START_AE), its place moved by LINE_EY_START_DX, its
 // opening, pharynx and lip area x LINE_EY_START_AC / _APH / _LIP.
-void eyStartShape(TractShape* sh) {
+void eyStartShape(TractShape* sh, bool female, unsigned ctx) {
   static const float kEyStartEh = param("LINE_EY_START_EH", 0.0f), kEyStartAe = param("LINE_EY_START_AE", 0.0f),
                      kEyStartDx = param("LINE_EY_START_DX", 0.0f), kEyStartAc = param("LINE_EY_START_AC", 1.0f),
                      kEyStartAph = param("LINE_EY_START_APH", 1.0f), kEyStartLip = param("LINE_EY_START_LIP", 1.0f);
@@ -2737,16 +2737,47 @@ void eyStartShape(TractShape* sh) {
   if (kEyStartAph != 1.0f) sh->aPharynx *= kEyStartAph;
   if (kEyStartLip != 1.0f) sh->aLip *= kEyStartLip;
   if (kEyStartDx != 0) { sh->xc += kEyStartDx; sh->sc = lineVowelStrength(sh->xc, sh->wc, sh->length); }
+  // Round K (EY agent10, lab knobs; 0 / 1: as before): eɪ heard as ɪ 280 times in 6980 (combo9), female 14 % vs male
+  // 8 %. Against ten Kokoro voices (30 words of words1k) the e's middle sits at male 440/1650 Hz (Kokoro 520/1680) and
+  // female 580/1790 (Kokoro 700/2100): F1 2-3 st low in both, the female's F2 too 2-3 st low. The female e mixed
+  // toward ɛ (LINE_EY_F_START_EH) or æ (LINE_EY_F_START_AE), its pharynx x LINE_EY_F_START_APH, its place moved by
+  // LINE_EY_F_START_DX; in a closed syllable (Shape::eyctx & 1: "make", "late", "came") toward ɛ by LINE_EY_CL_START_EH,
+  // before a nasal ("name", "main") by LINE_EY_NAS_START_EH as well.
+  static const float kEyFStartEh = param("LINE_EY_F_START_EH", 0.0f), kEyFStartAe = param("LINE_EY_F_START_AE", 0.0f),
+                     kEyFStartAph = param("LINE_EY_F_START_APH", 1.0f), kEyFStartDx = param("LINE_EY_F_START_DX", 0.0f),
+                     kEyClStartEh = param("LINE_EY_CL_START_EH", 0.0f), kEyNasStartEh = param("LINE_EY_NAS_START_EH", 0.0f);
+  const float ehMix = (female ? kEyFStartEh : 0.0f) + ((ctx & 1) ? kEyClStartEh : 0.0f) + ((ctx & 2) ? kEyNasStartEh : 0.0f);
+  if (ehMix > 0 && lineShapeOf(Ph::EH, &o)) *sh = lineShapeMix(*sh, o, std::min(ehMix, 1.0f));
+  if (female && kEyFStartAe > 0 && lineShapeOf(Ph::AE, &o)) *sh = lineShapeMix(*sh, o, kEyFStartAe);
+  if (female && kEyFStartAph != 1.0f) sh->aPharynx *= kEyFStartAph;
+  if (female && kEyFStartDx != 0) { sh->xc += kEyFStartDx; sh->sc = lineVowelStrength(sh->xc, sh->wc, sh->length); }
+  // The female e mixed toward the glide's end (i's row mixed 0.7 toward ɪ's, as LINE_EY_OFF_IH) by LINE_EY_F_START_END:
+  // her F2 stays flat at ~1830 Hz over the first half of the e -> ɪ path and then steps ~300 Hz in 20-30 ms ("make").
+  static const float kEyFStartEnd = param("LINE_EY_F_START_END", 0.0f);
+  if (female && kEyFStartEnd > 0 && lineShapeOf(Ph::I, &o)) {
+    TractShape ih;
+    if (lineShapeOf(Ph::IH, &ih)) o = lineShapeMix(o, ih, 0.7f);
+    *sh = lineShapeMix(*sh, o, kEyFStartEnd);
+  }
 }
 // The ɪ end (i's shape): mixed back toward ɪ's own row by LINE_EY_OFF_IH (lab 2026-11-10: the i-shaped end is what
 // Whisper hears as iː; 0.7 took the lab's eɪ errors 119 -> 39 of 1224 and words1000 1151 -> 1179); its place moved by
 // LINE_EY_OFF_DX, its opening, lip area, pharynx and bump half-width x LINE_EY_OFF_AC / _LIP / _APH / _WC.
-void eyEndShape(TractShape* sh) {
+void eyEndShape(TractShape* sh, bool female, unsigned ctx) {
   static const float kEyOffDx = param("LINE_EY_OFF_DX", 0.0f), kEyOffAc = param("LINE_EY_OFF_AC", 1.0f),
                      kEyOffLip = param("LINE_EY_OFF_LIP", 1.0f), kEyOffAph = param("LINE_EY_OFF_APH", 1.0f),
                      kEyOffWc = param("LINE_EY_OFF_WC", 1.0f), kEyOffIh = param("LINE_EY_OFF_IH", 0.7f);
+  // Round K (EY agent10, lab knobs; < 0 / 0: as before): the end's mix toward ɪ's row for the female voice
+  // (LINE_EY_F_OFF_IH; her end F2 2230 vs Kokoro 2500) and in a closed syllable (LINE_EY_CL_OFF_IH); the end mixed back
+  // toward the e start in a closed syllable (LINE_EY_CL_END_E: a shallower glide, the coda's own transition does the
+  // rest).
+  static const float kEyFOffIh = param("LINE_EY_F_OFF_IH", -1.0f), kEyClOffIh = param("LINE_EY_CL_OFF_IH", -1.0f),
+                     kEyClEndE = param("LINE_EY_CL_END_E", 0.0f), kEyFOffDx = param("LINE_EY_F_OFF_DX", 0.0f);
+  const float offIh = (ctx & 1) && kEyClOffIh >= 0 ? kEyClOffIh : female && kEyFOffIh >= 0 ? kEyFOffIh : kEyOffIh;
   TractShape ih;
-  if (kEyOffIh > 0 && lineShapeOf(Ph::IH, &ih)) *sh = lineShapeMix(*sh, ih, kEyOffIh);
+  if (offIh > 0 && lineShapeOf(Ph::IH, &ih)) *sh = lineShapeMix(*sh, ih, offIh);
+  if ((ctx & 1) && kEyClEndE > 0 && lineShapeOf(Ph::E, &ih)) { eyStartShape(&ih, female, ctx); *sh = lineShapeMix(*sh, ih, kEyClEndE); }
+  if (female && kEyFOffDx != 0) { sh->xc += kEyFOffDx; sh->sc = lineVowelStrength(sh->xc, sh->wc, sh->length); }
   if (kEyOffWc != 1.0f) sh->wc *= kEyOffWc;
   if (kEyOffAc != 1.0f) sh->ac *= kEyOffAc;
   if (kEyOffLip != 1.0f) sh->aLip *= kEyOffLip;
@@ -3786,8 +3817,8 @@ void Synth::emit(const Token& tok, const Ph* next) {
       sh.lLip *= coda ? kLCoLLip : kLOnLLip;
       sh.aPharynx *= coda ? kLCoAph : kLOnAph;
     }
-    if (have && tok.ph == Ph::E && next && *next == Ph::IH) eyStartShape(&sh);
-    if (have && tok.ph == Ph::IH && lastPh_ == Ph::E) eyEndShape(&sh);
+    if (have && tok.ph == Ph::E && next && *next == Ph::IH) eyStartShape(&sh, female_, tok.shape.eyctx);
+    if (have && tok.ph == Ph::IH && lastPh_ == Ph::E) eyEndShape(&sh, female_, tok.shape.eyctx);
     if (have && tok.ph == Ph::IH && lastPh_ != Ph::E && lastPh_ != Ph::A && lastPh_ != Ph::AO) ihShape(&sh);
     if (have && tok.ph == Ph::AH) ahShape(&sh, lastPh_, next, female_, prevWasPause_);
     // (round-H ʊ agent, lab) the standalone ʊ (not the end of aʊ / oʊ): its own shape (uhShape); uhRow keeps the row's
@@ -4096,7 +4127,11 @@ void Synth::emit(const Token& tok, const Ph* next) {
             // aɪ's a wanted before its start after a pause (LINE_AY_PRE_MS: "I", "item" start from the pause's ə) or
             // in a plosive's closure (LINE_AY_STOP_LEAD_MS: "time", "type"); 0: from 10 % of the a, as before.
             const float ayLead = !ayStart ? 0.0f : prevWasPause_ ? kLineAyPreMs : prevWasPlosive_ ? kLineAyStopLeadMs : 0.0f;
-            addShapeDemand(ayLead > 0 ? t0 - ayLead * ms : t0 + std::min(a, b) * dur, t0 + std::max(a, b) * dur, sh, tok.ph,
+            // ... and eɪ's e likewise (LINE_EY_PRE_MS after a pause: "eight", "able"; LINE_EY_STOP_LEAD_MS in a plosive's
+            // closure: "take", "came", "paper"; EY agent10 round K lab knobs, 0: off; eɪ after a pause 24 % wrong).
+            static const float kEyPreMs = param("LINE_EY_PRE_MS", 0.0f), kEyStopLeadMs = param("LINE_EY_STOP_LEAD_MS", 0.0f);
+            const float lead = ayLead > 0 ? ayLead : !eyStart ? 0.0f : prevWasPause_ ? kEyPreMs : prevWasPlosive_ ? kEyStopLeadMs : 0.0f;
+            addShapeDemand(lead > 0 ? t0 - lead * ms : t0 + std::min(a, b) * dur, t0 + std::max(a, b) * dur, sh, tok.ph,
                            ws * kShapeGlideW * oyW * (eyGlide ? kEyGlideW : 1.0f),
                            ayStart ? kLineAyPlaceFloor : eyGlide ? kEyPlaceW : eyStart ? kEyEPlaceW : iyStart ? kIyChainPlaceW : 0.0f);
             if ((ayStart || ayGlide) && kLineAyRamp > 1) {
@@ -4126,18 +4161,23 @@ void Synth::emit(const Token& tok, const Ph* next) {
             // Kokoro's "Day." F2 rises steadily 1590 -> 2370 over ~350 ms, puhuja's dipped, held, rushed ~100 ms, held.
             static const float kEyRamp = param("LINE_EY_RAMP", 8.0f), kEyRampPow = param("LINE_EY_RAMP_POW", 1.5f),
                                kEyRampSplit = param("LINE_EY_RAMP_SPLIT", 0.6f), kEyRampW = param("LINE_EY_RAMP_W", 1.0f);
+            // In a closed syllable the ramp's power LINE_EY_CL_RAMP_POW (<= 0: LINE_EY_RAMP_POW; a later glide keeps the
+            // e longer where Whisper hears ɪ) and the ramp's weight for the female voice x LINE_EY_F_RAMP_W (round K, 1: as before).
+            static const float kEyClRampPow = param("LINE_EY_CL_RAMP_POW", 0.0f), kEyFRampW = param("LINE_EY_F_RAMP_W", 1.0f);
+            const float eyRampPow = (tok.shape.eyctx & 1) && kEyClRampPow > 0 ? kEyClRampPow : kEyRampPow;
+            const float eyRampW = kEyRampW * (female_ ? kEyFRampW : 1.0f);
             if ((eyStart || eyGlide) && kEyRamp > 1) {
               TractShape s0, s1;
               if (lineShapeOf(Ph::E, &s0) && lineShapeOf(Ph::I, &s1)) {
-                eyStartShape(&s0);
-                eyEndShape(&s1);
+                eyStartShape(&s0, female_, tok.shape.eyctx);
+                eyEndShape(&s1, female_, tok.shape.eyctx);
                 const int n = static_cast<int>(kEyRamp);
                 for (int q = 1; q < n; ++q) {
                   const double x = static_cast<double>(q) / n;  // the diphthong's time
                   const double u = eyStart ? x / kEyRampSplit : (x - kEyRampSplit) / (1.0 - kEyRampSplit);  // this part's
                   if (u < 0 || u > 1) continue;
-                  const float frac = static_cast<float>(std::pow(x, static_cast<double>(kEyRampPow)));
-                  addShapeDemand(t0 + u * dur, t0 + u * dur, lineShapeMix(s0, s1, frac), tok.ph, ws * kShapeGlideW * kEyRampW);
+                  const float frac = static_cast<float>(std::pow(x, static_cast<double>(eyRampPow)));
+                  addShapeDemand(t0 + u * dur, t0 + u * dur, lineShapeMix(s0, s1, frac), tok.ph, ws * kShapeGlideW * eyRampW);
                 }
               }
             }
