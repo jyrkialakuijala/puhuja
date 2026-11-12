@@ -1762,7 +1762,11 @@ struct Aero {
 
 Aero aeroOf(Ph ph) {
   switch (info(ph).cls) {
-    case Cls::Vowel: return {kAcOpen, kAgVoice, 0};
+    case Cls::Vowel: {
+      // (round-H ʊ agent, lab; < 0: as every vowel) the ʊ's own glottis: a breathier lax vowel.
+      static const float agUh = param("LINE_AG_UH", -1.0f);
+      return {kAcOpen, ph == Ph::UH && agUh >= 0 ? agUh : kAgVoice, 0};
+    }
     case Cls::Nasal: return {0, kAgVoice, kAnNasal};  // mouth closed, nose open
     case Cls::Liquid: return {0.35f, kAgVoice, 0};
     case Cls::Trill: return {0.3f, kAgVoice, 0};
@@ -2761,6 +2765,42 @@ void ahShape(TractShape* sh, Ph prev, const Ph* next, bool female) {
   if (kDx != 0 || kWc != 1.0f || kLen != 0.0f) { sh->xc += kDx; sh->sc = lineVowelStrength(sh->xc, sh->wc, sh->length); }
 }
 
+// The standalone ʊ's own shape on top of its row (round-H ʊ agent 2026-11-12, lab knobs; defaults reproduce the row, which
+// also ends aʊ / oʊ elsewhere, so the row itself stays). Dictionary rank 14: ʊ 31.5 % wrong (Kokoro 13.9 %), heard as ʌ
+// (male: "stood" -> stud, "booking" -> bucking) and oʊ (female: "pulls" -> polls, "bull" -> bowl). Mixed toward uː
+// (LINE_UH_MIX_U), ə (_SCHWA), ɪ (_IH), ɔ (_AO); place moved by LINE_UH_DX; opening / width / pharynx / oral / lips /
+// larynx x _AC _WC _APH _AOR _LIPA _LIPL _ALAR; LINE_UH_LEN cm added to the tract; the female voice's opening, pharynx
+// and lips x LINE_UH_F_AC, _F_APH, _F_LIPA, and LINE_UH_F_MIX_U more of uː; after a labial (p b f v m w) a further
+// LINE_UH_LAB_MIX_U of uː.
+void uhShape(TractShape* sh, Ph prev, const Ph* next, bool female) {
+  static const float kU = param("LINE_UH_MIX_U", 0.0f), kSw = param("LINE_UH_MIX_SCHWA", 0.0f), kIh = param("LINE_UH_MIX_IH", 0.0f),
+                     kAo = param("LINE_UH_MIX_AO", 0.0f), kDx = param("LINE_UH_DX", 0.0f), kAc = param("LINE_UH_AC", 1.0f),
+                     kWc = param("LINE_UH_WC", 1.0f), kAph = param("LINE_UH_APH", 1.0f), kAor = param("LINE_UH_AOR", 1.0f),
+                     kLipA = param("LINE_UH_LIPA", 1.0f), kLipL = param("LINE_UH_LIPL", 1.0f), kAlar = param("LINE_UH_ALAR", 1.0f),
+                     kLen = param("LINE_UH_LEN", 0.0f), kFAc = param("LINE_UH_F_AC", 1.0f), kFAph = param("LINE_UH_F_APH", 1.0f),
+                     kFLipA = param("LINE_UH_F_LIPA", 1.0f), kFU = param("LINE_UH_F_MIX_U", 0.0f), kLabU = param("LINE_UH_LAB_MIX_U", 0.0f);
+  const bool lab = prev == Ph::P || prev == Ph::B || prev == Ph::F || prev == Ph::VV || prev == Ph::M || prev == Ph::W;
+  const float u = kU + (female ? kFU : 0.0f) + (lab ? kLabU : 0.0f);
+  TractShape o;
+  if (u > 0 && lineShapeOf(Ph::U, &o)) *sh = lineShapeMix(*sh, o, std::min(u, 1.0f));
+  if (kSw > 0 && lineShapeOf(Ph::Schwa, &o)) *sh = lineShapeMix(*sh, o, kSw);
+  if (kIh > 0 && lineShapeOf(Ph::IH, &o)) *sh = lineShapeMix(*sh, o, kIh);
+  if (kAo > 0 && lineShapeOf(Ph::AO, &o)) *sh = lineShapeMix(*sh, o, kAo);
+  // Before an ɹ ("sure", "tour", "insure"): Kokoro male holds F2 ~900 Hz (back, rounded) for ~90 ms before the r-colour,
+  // puhuja 1200 with F3 falling from a third in, heard as ɝ ("sir", "answer"): toward o (LINE_UH_R_MIX_O), lips x
+  // LINE_UH_R_LIPA.
+  static const float kRO = param("LINE_UH_R_MIX_O", 0.0f), kRLipA = param("LINE_UH_R_LIPA", 1.0f);
+  const bool preR = next && *next == Ph::RR;
+  if (preR && kRO > 0 && lineShapeOf(Ph::O, &o)) *sh = lineShapeMix(*sh, o, kRO);
+  if (preR) sh->aLip *= kRLipA;
+  sh->ac *= kAc * (female ? kFAc : 1.0f);
+  sh->wc *= kWc; sh->aPharynx *= kAph * (female ? kFAph : 1.0f); sh->aOral *= kAor; sh->aLip *= kLipA * (female ? kFLipA : 1.0f);
+  sh->lLip *= kLipL; sh->aLarynx *= kAlar;
+  sh->length += kLen;
+  if (kDx != 0 || kWc != 1.0f || kLen != 0.0f) { sh->xc += kDx; sh->sc = lineVowelStrength(sh->xc, sh->wc, sh->length); }
+}
+
+
 }  // namespace
 
 void Synth::emit(const Token& tok, const Ph* next) {
@@ -3551,6 +3591,11 @@ void Synth::emit(const Token& tok, const Ph* next) {
     if (have && tok.ph == Ph::IH && lastPh_ == Ph::E) eyEndShape(&sh);
     if (have && tok.ph == Ph::IH && lastPh_ != Ph::E && lastPh_ != Ph::A && lastPh_ != Ph::AO) ihShape(&sh);
     if (have && tok.ph == Ph::AH) ahShape(&sh, lastPh_, next, female_);
+    // (round-H ʊ agent, lab) the standalone ʊ (not the end of aʊ / oʊ): its own shape (uhShape); uhRow keeps the row's
+    // shape for its late key (LINE_UH_LATE_ROW below).
+    const bool uhAlone = have && tok.ph == Ph::UH && lastPh_ != Ph::A && lastPh_ != Ph::O;
+    const TractShape uhRow = sh;
+    if (uhAlone) uhShape(&sh, lastPh_, next, female_);
     // (Y agent round G, lab) after a j released from a plosive: LINE_U_AFTER_STOP_J (< 0: LINE_U_AFTER_J); an ʊ after
     // any j fronted likewise by LINE_UH_AFTER_J (0: off; "pure", "bureau").
     static const float kUAfterStopJ = param("LINE_U_AFTER_STOP_J", 0.2f), kUhAfterJ = param("LINE_UH_AFTER_J", 0.0f);
@@ -3619,7 +3664,11 @@ void Synth::emit(const Token& tok, const Ph* next) {
           // (0.5 in log area moved F3 only 2409 -> 2340; 0.8 gives 1937, the readers 1600-2000;
           // for ɑ it made "Part", "Card", "Start" heard as ɜ, 49 of 84, 2026-11-04: knobs)
           const bool open = tok.ph == Ph::AA || tok.ph == Ph::A;
-          const float mix = open && kRColourOpenMix >= 0 ? kRColourOpenMix : frontVowel(tok.ph) && kRColourFrontMix >= 0 ? kRColourFrontMix : kRColourMix;
+          // (round-H ʊ agent, lab; < 0: as the other back vowels) a standalone ʊ before ɹ: its own r-colour share and key
+          // (LINE_UH_R_MIX, LINE_UH_R_AT): "sure", "insure", "tour", "Moore" were heard as ɝ ("answer", "sir", "tur"),
+          // 100 of the 280 ʊ word errors in the dictionary are before an ɹ.
+          static const float kUhRMix = param("LINE_UH_R_MIX", -1.0f);
+          const float mix = uhAlone && kUhRMix >= 0 ? kUhRMix : open && kRColourOpenMix >= 0 ? kRColourOpenMix : frontVowel(tok.ph) && kRColourFrontMix >= 0 ? kRColourFrontMix : kRColourMix;
           if (lineShapeOf(Ph::ER, &r)) late = lineShapeMix(sh, r, mix);
         }
         if (isVowel(tok.ph) && next && *next == Ph::L && kLColourMix > 0) {
@@ -3632,6 +3681,19 @@ void Synth::emit(const Token& tok, const Ph* next) {
         if (tok.ph == Ph::UH && kUhOffMix > 0) {
           TractShape s8;
           if (lineShapeOf(Ph::Schwa, &s8)) late = lineShapeMix(late, s8, kUhOffMix);
+        }
+        // (round-H ʊ agent, lab; 0 / 1: off) the standalone ʊ's late key: back toward the row's own shape by
+        // LINE_UH_LATE_ROW (uhShape then shapes the onset and middle only); before a coronal (t d s z n ʃ ...) toward ɪ by
+        // LINE_UH_COR_OFF (Kokoro male "Put", "Could", "Hood": F2 1000-1100 -> 1350-1450 over the vowel, puhuja flat
+        // 1200); its pharynx x LINE_UH_LATE_APH (Kokoro's F1 rises 440 -> 470-530 into the coda, puhuja's falls).
+        static const float kUhLateRow = param("LINE_UH_LATE_ROW", 0.0f), kUhCorOff = param("LINE_UH_COR_OFF", 0.0f),
+                           kUhLateAph = param("LINE_UH_LATE_APH", 1.0f);
+        if (uhAlone) {
+          if (kUhLateRow > 0) late = lineShapeMix(late, uhRow, kUhLateRow);
+          TractShape ih;
+          if (kUhCorOff > 0 && next && coronalPh(*next) && *next != Ph::L && *next != Ph::RR && lineShapeOf(Ph::IH, &ih))
+            late = lineShapeMix(late, ih, kUhCorOff);
+          late.aPharynx *= kUhLateAph;
         }
         // The ʌ's late key mixed toward ɑ (LINE_AH_OFF_MIX; round-F ʌ agent 2026-11-11: against the coda's fronting,
         // "sun", "fun" heard as "son"/"fan"/"fence"). 0: off.
@@ -3668,7 +3730,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
         lineKeys_.push_back({t0 + (codaLRelease ? kLineCodaLKey : tok.ph == Ph::W ? kLineWKeyTo : tok.ph == Ph::AA && kLineAaKeyTo >= 0 ? kLineAaKeyTo : hold ? 0.7 : 0.5) * dur, late});
         {
           // The planner's demands: the held middle; an r-coloured end of its own.
-          const bool rColoured = late.ac != sh.ac || late.xc != sh.xc || late.aLip != sh.aLip;
+          const bool rColoured = late.ac != sh.ac || late.xc != sh.xc || late.aLip != sh.aLip || (uhAlone && late.aPharynx != sh.aPharynx);  // (ʊ: LINE_UH_LATE_APH)
           const float preR = isVowel(tok.ph) && next && *next == Ph::RR ? std::max(kPreRVowelW, frontVowel(tok.ph) ? kPreRFrontW : 0.0f) : 0.0f;  // see kPreRVowelW
           TractShape own;
           const bool borrowed = !isVowel(tok.ph) && !lineShapeOf(tok.ph, &own);  // f in the next vowel's shape
@@ -3802,6 +3864,19 @@ void Synth::emit(const Token& tok, const Ph* next) {
             static const float kIyFrom = param("LINE_IY_FROM", -1.0f), kIyTo = param("LINE_IY_TO", -1.0f), kIyW = param("LINE_IY_W", 1.0f),
                                kIyPlaceW = param("LINE_IY_PLACE_W", 0.0f);  // the tongue place's least weight (its 2 cm^2 opening counts as half open)
             const bool iy = tok.ph == Ph::I;
+            // (round-H ʊ agent, lab; -1 / -1 / 1 / 0: as before) the same for a standalone ʊ: LINE_UH_FROM, _TO, _W, _PLACE_W.
+            static const float kUhFrom = param("LINE_UH_FROM", -1.0f), kUhTo = param("LINE_UH_TO", -1.0f), kUhW = param("LINE_UH_W", 1.0f),
+                               kUhPlaceW = param("LINE_UH_PLACE_W", 0.0f);
+            const bool uhD = uhAlone;
+            const float vFrom = iy ? kIyFrom : uhD ? kUhFrom : -1.0f, vTo = iy ? kIyTo : uhD ? kUhTo : -1.0f,
+                        vW = iy ? kIyW : kUhW, vPlaceW = iy ? kIyPlaceW : kUhPlaceW;
+            // ... and its lead after a plosive (LINE_UH_STOP_LEAD_MS; < 0: LINE_AFTER_STOP_LEAD_MS).
+            static const float kUhStopLeadMs = param("LINE_UH_STOP_LEAD_MS", -1.0f);
+            if (uhD && !prevWasPause_ && prevWasPlosive_ && kUhStopLeadMs >= 0) preMs = kUhStopLeadMs;
+            // ... and after a fricative, nasal or liquid (LINE_UH_LEAD_MS; 0: none, as before): the lips round in the
+            // consonant ("should", "full", "look").
+            static const float kUhLeadMs = param("LINE_UH_LEAD_MS", 0.0f);
+            if (uhD && !prevWasPause_ && !prevWasPlosive_ && !isVowel(lastPh_) && kUhLeadMs > 0) preMs = kUhLeadMs;
             // (R agent round F, lab; 0 / 1: as before) the ɹ after a plosive: its shape asked for from this long before
             // its start (the tongue bunched during the closure) and its demand's weight x LINE_R_STOP_W.
             static const float kRStopLeadMs = param("LINE_R_STOP_LEAD_MS", 0.0f), kRStopW = param("LINE_R_STOP_W", 1.0f);
@@ -3822,11 +3897,12 @@ void Synth::emit(const Token& tok, const Ph* next) {
             if (wS && kWSLeadMs > 0) preMs = kWSLeadMs;
             if ((wStop || wS) && kWStopW != 1.0f) ws *= kWStopW;
             const double wKeyTo = (wStop || wS) && kWStopKeyTo >= 0 ? kWStopKeyTo : kLineWKeyTo;
-            addShapeDemand(preMs > 0 ? t0 - preMs * ms : t0 + (er ? kLineErFrom : tok.ph == Ph::RR && kLineRKeyFrom >= 0 ? kLineRKeyFrom : iy && kIyFrom >= 0 ? kIyFrom : 0.3) * dur, t0 + (er ? kLineErTo : tok.ph == Ph::W ? wKeyTo : tok.ph == Ph::RR && kLineRKeyTo >= 0 ? kLineRKeyTo : iy && kIyTo >= 0 ? kIyTo : 0.7) * dur, sh, tok.ph, er ? ws * kLineErW : iy ? ws * kIyW : ws, er ? std::max(preR, kErPlaceW) : iy ? std::max(preR, kIyPlaceW) : preR);
+            addShapeDemand(preMs > 0 ? t0 - preMs * ms : t0 + (er ? kLineErFrom : tok.ph == Ph::RR && kLineRKeyFrom >= 0 ? kLineRKeyFrom : vFrom >= 0 ? vFrom : 0.3) * dur, t0 + (er ? kLineErTo : tok.ph == Ph::W ? wKeyTo : tok.ph == Ph::RR && kLineRKeyTo >= 0 ? kLineRKeyTo : vTo >= 0 ? vTo : 0.7) * dur, sh, tok.ph, er ? ws * kLineErW : iy || uhD ? ws * vW : ws, er ? std::max(preR, kErPlaceW) : iy || uhD ? std::max(preR, vPlaceW) : preR);
           }
           else {
             const bool open = tok.ph == Ph::AA || tok.ph == Ph::A;
-            const double at = open && kRColourOpenAt >= 0 ? kRColourOpenAt : frontVowel(tok.ph) && kRColourFrontAt >= 0 ? kRColourFrontAt : kRColourAt;
+            static const float kUhRAt = param("LINE_UH_R_AT", -1.0f);
+            const double at = uhAlone && kUhRAt >= 0 && next && *next == Ph::RR ? kUhRAt : open && kRColourOpenAt >= 0 ? kRColourOpenAt : frontVowel(tok.ph) && kRColourFrontAt >= 0 ? kRColourFrontAt : kRColourAt;
             addShapeDemand(t0 + 0.3 * dur, t0 + std::max(0.3, at - 0.15) * dur, sh, tok.ph, ws, preR);
             addShapeDemand(t0 + at * dur, t0 + std::min(1.0, at + 0.15) * dur, late, tok.ph, ws);
           }
@@ -5306,6 +5382,14 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   if (tract_ == Tract::Line) {
     TractShape sh;
     if (lineShapeOf(tok.ph, &sh)) {
+      // A b / p before a ʊ in this share of ʊ's own shape instead of o's (LINE_UH_LABIAL_OWN, round-H ʊ agent, lab; 0:
+      // off): the o behind the closed lips made the ʊ start as o, F1 falling 620 -> 530 Hz (female "Put", "Book",
+      // "Pull"; Kokoro's rises), an oʊ: "pulls" -> polls, "bull" -> bowl, "Brooke" -> broke.
+      static const float kUhLabialOwn = param("LINE_UH_LABIAL_OWN", 0.0f);
+      if (kUhLabialOwn > 0 && (tok.ph == Ph::P || tok.ph == Ph::B) && next && *next == Ph::UH) {
+        TractShape u;
+        if (lineShapeOf(Ph::UH, &u)) { uhShape(&u, tok.ph, nullptr, female_); sh = lineShapeMix(sh, u, kUhLabialOwn); }
+      }
       lineKeys_.push_back({timeline_ + 0.5 * closure, sh});
       addShapeDemand(timeline_ + 0.3 * closure, timeline_ + 0.7 * closure, sh, tok.ph, kShapeBorrowedW);
       lastKeyShape_ = sh;

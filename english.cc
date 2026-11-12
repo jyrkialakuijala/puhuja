@@ -845,6 +845,16 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
           if (b == "AH" && !stressed && i + 1 == tok.size()) whole *= kFinalSchwaLen; }
         // The ʊ's own length (EN_UH_LEN; 2026-11-09 UH agent: in isolated words puhuja's ʊ ran 220-260 ms, Kokoro's 150-280).
         { static const float kUhLen = param("EN_UH_LEN", 1.0f); if (b == "UH") whole *= kUhLen; }
+        // ... and by its coda in the word (EN_UH_VL_LEN before p t k ʧ s ʃ f θ, EN_UH_L_LEN before l; round-H ʊ agent, lab;
+        // 1: as before): Kokoro's ʊ runs 140-210 ms in "Put", "Took", "Push" and 280-320 in "Full", "Pull"; puhuja 226 / 250.
+        { static const float kUhVlLen = param("EN_UH_VL_LEN", 1.0f), kUhLLen = param("EN_UH_L_LEN", 1.0f);
+          if (b == "UH" && i + 1 < tok.size() && !isVowelToken(tok[i + 1])) {
+            const std::string n = baseName(tok[i + 1]);
+            static const float kUhRLen = param("EN_UH_R_LEN", 1.0f);  // ... and before ɹ ("sure", "tour")
+            if (n == "L") whole *= kUhLLen;
+            else if (n == "R") whole *= kUhRLen;
+            else if (isVoicelessPlosive(n) || n == "CH" || n == "S" || n == "SH" || n == "F" || n == "TH") whole *= kUhVlLen;
+          } }
         // The ɑ's own length (EN_AA_LEN; 2026-11-10 AA agent: a short ɑ is heard as ʌ / ə).
         { static const float kAaLen = param("EN_AA_LEN", 1.4f); if (b == "AA") whole *= kAaLen; }
         // The ɛ's own length (EN_EH_LEN), x EN_EH_MONO_LEN more in a word of one vowel, x EN_EH_NASAL_LEN more before a
@@ -2753,6 +2763,9 @@ void EnglishReader::sayPhrase(char end) {
           // The ʊ half of aʊ x this (EN_AW_UH_DB, dB; 2026-11-09 AW agent: Kokoro's aʊ fades 4-6 dB from the a to the ʊ end, puhuja's is flat).
           static const float kAwUhDb = param("EN_AW_UH_DB", 0.0f);
           if (s.n == 2 && s.ph[0] == Ph::A && s.ph[1] == Ph::UH && k == 1) db += kAwUhDb;
+          // The standalone ʊ's level, dB (EN_UH_DB; round-H ʊ agent, lab; 0: as before).
+          static const float kUhDb = param("EN_UH_DB", 0.0f);
+          if (s.n == 1 && s.ph[0] == Ph::UH) db += kUhDb;
           // The ɔ and ɪ halves of ɔɪ, dB (EN_OY_AO_DB, EN_OY_IH_DB; OY agent 2026-11-10, lab: 0 = as before).
           static const float kOyAoDb = param("EN_OY_AO_DB", 0.0f), kOyIhDb = param("EN_OY_IH_DB", 0.0f);
           if (s.n == 2 && s.ph[0] == Ph::AO && s.ph[1] == Ph::IH) db += k == 0 ? kOyAoDb : kOyIhDb;
