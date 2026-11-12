@@ -3017,7 +3017,7 @@ void EnglishReader::push(std::string_view input) {
         // PLAN_INVARIANT 1: the white space after the mark goes with it. Cut at the mark, the sentence's last word
         // ("life.") had no space after it and the rule below held it back too, so the breath planner's rest of
         // the sentence missed it: input fed in pieces (-chunk 7) breathed differently from whole lines (2026-11-11).
-        static const bool kInvariant = param("PLAN_INVARIANT", 0.0f) > 0;
+        static const bool kInvariant = param("PLAN_INVARIANT", 1.0f) > 0;
         cut = k + (kInvariant && c != '\n' ? 2 : 1);
         break;
       }

@@ -2314,7 +2314,7 @@ float Synth::lungFloor() const { return kLungRest; }
 float Synth::lungEmpty() const { return kLungEmpty; }
 
 float Synth::drainScale() const {
-  static const float kDrainScale0 = param("SYNTH_DRAIN_SCALE", 1.0f);
+  static const float kDrainScale0 = param("SYNTH_DRAIN_SCALE", 0.5f);
   return drainScale_ < 0 ? kDrainScale0 : drainScale_;
 }
 
@@ -6800,7 +6800,7 @@ float Synth::tick() {
       // PLAN_INVARIANT 1 turns it off: no render-time state reaches the plan. With SYNTH_DRAIN_SCALE 0.5, the value
       // it learns, kennedy.txt (whole lines) breathes as before after its first 25 s (male: one pause 30 ms shorter
       // at 113 s); in those 25 s, where it was still learning (1 -> 0.64 -> 0.53), pauses move by up to 255 ms.
-      static const bool kDrainLearn = param("SYNTH_DRAIN_LEARN", 1.0f) > 0 && !(param("PLAN_INVARIANT", 0.0f) > 0);
+      static const bool kDrainLearn = param("SYNTH_DRAIN_LEARN", 1.0f) > 0 && !(param("PLAN_INVARIANT", 1.0f) > 0);
       if (drainScale_ < 0) drainScale_ = drainScale();
       if (kDrainLearn && planUsed_ > 150.0f) {
         const float ratio = actualUsed_ / planUsed_;
