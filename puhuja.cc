@@ -6205,7 +6205,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
                           (tok.ph == Ph::B || tok.ph == Ph::D || tok.ph == Ph::G) &&
                           !(next && info(*next).cls == Cls::Fricative);
   // LINE_G_BURST (lab knob 2026-11-09, G agent; < 0: LINE_VSTOP_BURST): the g's own release frication gain.
-  static const float kLineGBurst = param("LINE_G_BURST", -1.0f);
+  static const float kLineGBurst = param("LINE_G_BURST", 0.3f);
   static const float kLineDBurst = param("LINE_D_BURST", 0.5f);  // (the same for the d; D agent 2026-11-10)
   static const float kLineBBurst = param("LINE_B_BURST", -1.0f);  // (the same for the b; BDG agent 2026-11-11)
   // (G agent 7 round H, lab; 0: off) the g's release jet as if LINE_G_REL_RE x faster (its Reynolds number) for
@@ -6214,11 +6214,11 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // frication gain (LINE_G_BURST > 0 before vowels, where LINE_VSTOP_BURST is 0). Lab, 200 dictionary g words, two
   // draws: x2 with LINE_G_BURST 0.3, LINE_G_JET_D 0.3 (the velar band), LINE_G_REL_RE_FINAL 1.5: g errors 93 -> 77 and
   // 102 -> 74 (another seed), the B of glue / grow / grand 22 -> 14; without the jet the same burst gained 9 of 28.
-  static const float kGRelRe = param("LINE_G_REL_RE", 0.0f), kGRelReMs = param("LINE_G_REL_RE_MS", 20.0f);
+  static const float kGRelRe = param("LINE_G_REL_RE", 2.0f), kGRelReMs = param("LINE_G_REL_RE_MS", 20.0f);
   const bool gRelRe = tract_ == Tract::Line && kGRelRe > 0 && tok.ph == Ph::G && !unreleased && !(next && info(*next).cls == Cls::Fricative);
   // ... a final g's (before a pause) x LINE_G_REL_RE_FINAL instead (< 0: LINE_G_REL_RE): its closure stores more
   // pressure (LINE_FINAL_VSTOP_PRESS), and with LINE_G_REL_RE 3 its burst came out at the vowel's level ("Dog.": -2 dB).
-  static const float kGRelReFinal = param("LINE_G_REL_RE_FINAL", -1.0f);
+  static const float kGRelReFinal = param("LINE_G_REL_RE_FINAL", 1.5f);
   if (gRelRe) rel.lineFricReMul = (!next || nextIsPause) && kGRelReFinal >= 0 ? kGRelReFinal : kGRelRe;  // (back to 1 after addEvent(rel), below)
   if (vstopBurst) rel.lineFricMul = tok.ph == Ph::G && kLineGBurst >= 0 ? kLineGBurst : tok.ph == Ph::D && kLineDBurst >= 0 ? kLineDBurst : tok.ph == Ph::B && kLineBBurst >= 0 ? kLineBBurst : kLineVStopBurst;
   // ... before l ɹ w j (LINE_VSTOP_BURST_LIQ) or a nasal (LINE_VSTOP_BURST_NAS); < 0: as above (BDG agent 2026-11-11:
@@ -6280,7 +6280,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // place's band (LINE_G_JET_D, LINE_B_JET_D, LINE_D_JET_D; 0: off) as for k (BDG agent 2026-11-11).
   static const float kLineBBurstMs = param("LINE_B_BURST_MS", 0.0f), kLineBBurstA = param("LINE_B_BURST_A", 0.1f),
                      kLineDBurstMs = param("LINE_D_BURST_MS", 10.0f), kLineDBurstA = param("LINE_D_BURST_A", 0.1f),
-                     kVstopSlitLiq = param("LINE_VSTOP_SLIT_LIQ", 1.0f), kLineGJetD = param("LINE_G_JET_D", 0.0f),
+                     kVstopSlitLiq = param("LINE_VSTOP_SLIT_LIQ", 1.0f), kLineGJetD = param("LINE_G_JET_D", 0.3f),
                      kLineBJetD = param("LINE_B_JET_D", 0.0f), kLineDJetD = param("LINE_D_JET_D", 0.0f);
   const float kgBurstMs = tok.ph == Ph::G && kLineGBurstMs >= 0 ? kLineGBurstMs : tok.ph == Ph::B ? kLineBBurstMs : tok.ph == Ph::D ? kLineDBurstMs : kLineKBurstMs;
   const bool vSlitLiq = pi.voiced && kVstopSlitLiq > 0 && vNextLiq;
