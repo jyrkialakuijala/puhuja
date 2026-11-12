@@ -822,7 +822,9 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
           static const float kAaPreVless = param("EN_AA_PRE_VLESS", 0.75f);
           // (EN_PRE_Z_VOWEL: before a z x this instead of 1.4; lab 2026-11-11, the z heard as s: "his" ɪ 237 ms vs "hiss" 158)
           static const float kPreZVowel = param("EN_PRE_Z_VOWEL", 1.4f);
-          prc *= n == "ZH" ? kPreZhVowel : n == "Z" ? kPreZVowel : isVoicedFricative(n) ? 1.4f : isVoicedPlosive(n) ? 1.2f
+          // (EN_PRE_G_VOWEL, G agent 7 round H, lab; < 0: the voiced plosives' 1.2) the vowel before a g of the same word.
+          static const float kPreGVowel = param("EN_PRE_G_VOWEL", -1.0f);
+          prc *= n == "ZH" ? kPreZhVowel : n == "Z" ? kPreZVowel : n == "G" && kPreGVowel >= 0 ? kPreGVowel : isVoicedFricative(n) ? 1.4f : isVoicedPlosive(n) ? 1.2f
                : isNasal(n) ? 0.9f : isVoicelessPlosive(n) ? (b == "AA" ? kAaPreVless : 0.75f) : 1.0f;
         }
         // The vowel before a ŋ in the same word x EN_PRE_NG_VOWEL_LEN (lab knob 2026-11-11, NG agent 3; 1: as before): the
@@ -1076,6 +1078,10 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
         if (b == "S" || b == "SH" || b == "F" || b == "TH") whole *= vfricLen;
         else if (isVoicelessPlosive(b)) whole *= vstopLen;
         else if (b == "D") { static const float kDLen = param("EN_D_LEN", 1.0f); whole *= kDLen; }  // (lab knob 2026-11-10, D agent)
+        else if (b == "G") {  // the g's own length, initial / medial / final (G agent 7 round H, lab knobs; 1: unchanged)
+          static const float kGLen = param("EN_G_LEN", 1.0f), kGInitLen = param("EN_G_INIT_LEN", 1.0f), kGFinalLen = param("EN_G_FINAL_LEN", 1.0f);
+          whole *= kGLen * (i == 0 ? kGInitLen : i + 1 == tok.size() ? kGFinalLen : 1.0f);
+        }
         // b d g before l ɹ (EN_VSTOP_LIQ_LEN) and the l ɹ after one (EN_LIQ_AFTER_VSTOP_LEN): the cluster's timing
         // (BDG agent 2026-11-11; dictionary: b d g before l/ɹ 44 % errors against 26 % overall; 1: unchanged).
         {
