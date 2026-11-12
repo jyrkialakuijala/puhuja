@@ -3417,7 +3417,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
     if (have && tok.ph == Ph::AH) ahShape(&sh, lastPh_, next, female_);
     // (Y agent round G, lab) after a j released from a plosive: LINE_U_AFTER_STOP_J (< 0: LINE_U_AFTER_J); an ʊ after
     // any j fronted likewise by LINE_UH_AFTER_J (0: off; "pure", "bureau").
-    static const float kUAfterStopJ = param("LINE_U_AFTER_STOP_J", -1.0f), kUhAfterJ = param("LINE_UH_AFTER_J", 0.0f);
+    static const float kUAfterStopJ = param("LINE_U_AFTER_STOP_J", 0.2f), kUhAfterJ = param("LINE_UH_AFTER_J", 0.0f);
     const float uAfterJ = jAfterStop_ && kUAfterStopJ >= 0 ? kUAfterStopJ : kLineUAfterJ;
     if (have && tok.ph == Ph::U && lastPh_ == Ph::J && uAfterJ > 0) {
       TractShape front;
@@ -3672,7 +3672,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
             if (rStop && kRStopLeadMs > 0) preMs = kRStopLeadMs;
             if (rStop && kRStopW != 1.0f) ws *= kRStopW;
             // (Y agent round G, lab; 0 / 1: as before) the same for a j after a plosive ("cute", "beauty").
-            static const float kJStopLeadMs = param("LINE_J_STOP_LEAD_MS", 0.0f), kJStopW = param("LINE_J_STOP_W", 1.0f);
+            static const float kJStopLeadMs = param("LINE_J_STOP_LEAD_MS", 30.0f), kJStopW = param("LINE_J_STOP_W", 4.0f);
             const bool jStop = tok.ph == Ph::J && prevWasPlosive_;
             if (jStop && kJStopLeadMs > 0) preMs = kJStopLeadMs;
             if (jStop && kJStopW != 1.0f) ws *= kJStopW;
@@ -5431,8 +5431,8 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // LINE_J_REL_FRIC (< 0: unchanged). The j of "pure", "beauty" was a 0.3 cm^2 constriction at the lips (F2 1130-1480 Hz,
   // Kokoro 2100-2450): "Bureau" -> plural, "Cue" -> pew. With LINE_J_STOP_W 4, _LEAD_MS 30, REL_MS 30 (30 ms: the restored
   // p/b burst no snappier than the base's), LINE_U_AFTER_STOP_J 0.2: dictionary j words 66 -> 48 Y errors (two draws).
-  static const float kJRelOwn = param("LINE_J_REL_OWN", -1.0f), kJRelX = param("LINE_J_REL_X", -1.0f),
-                     kJRelAc = param("LINE_J_REL_AC", 1.0f), kJRelMs = param("LINE_J_REL_MS", -1.0f),
+  static const float kJRelOwn = param("LINE_J_REL_OWN", 1.0f), kJRelX = param("LINE_J_REL_X", -1.0f),
+                     kJRelAc = param("LINE_J_REL_AC", 1.0f), kJRelMs = param("LINE_J_REL_MS", 30.0f),
                      kJRelFric = param("LINE_J_REL_FRIC", -1.0f);
   const bool jRel = tract_ == Tract::Line && next && *next == Ph::J && (kJRelOwn >= 0 ? kJRelOwn : kGlideRelOwn) > 0;
   if (jRel) {
