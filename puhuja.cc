@@ -6730,7 +6730,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
         // Lab (300 k-context words, two draws, base 168.5 k errors of 634): 0.45 150, 0.7 140.5; with the final slit
         // (LINE_K_FINAL_SLIT_MS 30, _A 0.1) 0.6 130.5, 0.45 132, words1000 +13 / +15; clip snap of 20 final-k words
         // 8.4 -> 12.3 dB male (Kokoro's 16.8): the release comes back toward Kokoro's, not over it.
-        static const float kLineFinalKPressFloor = param("LINE_FINAL_K_PRESS_FLOOR", -1.0f);
+        static const float kLineFinalKPressFloor = param("LINE_FINAL_K_PRESS_FLOOR", 0.45f);
         ease.press = tok.ph == Ph::K && kLineFinalKPressFloor >= 0 ? kLineFinalKPressFloor : kLineFinalPressFloor;
         ease.pressMs = kLineFinalPressLeadMs;
         addEventAt(ease);
@@ -6864,8 +6864,8 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // as LINE_G_LIQ_SLIT_X: the release carries the liquid's) and into a pause (LINE_K_FINAL_SLIT_MS): the dictionary
   // heard initial kw kɹ kɝ as t / p / g 20-35 % ("Queens" -> twins, "Cross" -> gross), final k 17 % (after ɹ 57 %,
   // "Park" -> part); their releases had no velar 1.3-3 kHz burst (cross: 0.5-1 kHz, -20 dB; Kokoro 1.2 kHz -15).
-  static const float kKSlitLiqMs = param("LINE_K_SLIT_LIQ_MS", 0.0f), kKFinalSlitMs = param("LINE_K_FINAL_SLIT_MS", 0.0f),
-                     kKFinalSlitA = param("LINE_K_FINAL_SLIT_A", -1.0f);
+  static const float kKSlitLiqMs = param("LINE_K_SLIT_LIQ_MS", 0.0f), kKFinalSlitMs = param("LINE_K_FINAL_SLIT_MS", 40.0f),
+                     kKFinalSlitA = param("LINE_K_FINAL_SLIT_A", 0.06f);
   const bool kSlitLiq = tract_ == Tract::Line && tok.ph == Ph::K && kKSlitLiqMs > 0 && !unreleased && vNextLiq;
   const bool kSlitFinal = tract_ == Tract::Line && tok.ph == Ph::K && kKFinalSlitMs > 0 && !unreleased && nextIsPause;
   const bool kBurst = (tract_ == Tract::Line && ((kgBurstMs > 0 && (tok.ph == Ph::K || tok.ph == Ph::G || tok.ph == Ph::B || tok.ph == Ph::D) &&
