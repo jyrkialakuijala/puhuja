@@ -2799,10 +2799,14 @@ void EnglishReader::sayPhrase(char end) {
       // to 900-1150 Hz with F1 ~450-600 between the two, a w; puhuja's F2
       // sat flat at 1250), and a high vowel or glide before another vowel
       // ("going", "player" with EN_INNER_GLIDE 2).
+      // ... and after uː only (EN_UW_INNER_GLIDE, round-I uː agent, lab; 0: off): a uː before a vowel inside a word
+      // ("viewer" -> year, "newer" -> gear, "sewer" -> sir, "ruin"; 26 % wrong, 38 of them deleted) gets the w link.
+      static const float kUwInnerGlide = param("EN_UW_INNER_GLIDE", 0.0f);
       const bool innerNext = vowel && i + 1 < tokens.size() &&
                              ((kInnerGlide >= 1 && baseName(tokens[i]) == "AW" &&
                                (isVowelToken(tokens[i + 1]) || baseName(tokens[i + 1]) == "R")) ||
-                              (kInnerGlide >= 2 && isVowelToken(tokens[i + 1])));
+                              (kInnerGlide >= 2 && isVowelToken(tokens[i + 1])) ||
+                              (kUwInnerGlide > 0.5f && baseName(tokens[i]) == "UW" && isVowelToken(tokens[i + 1])));
       if ((vowel && i + 1 == tokens.size() && w + 1 < phrase_.size() &&
            !phrase_[w + 1].tokens.empty() && isVowelToken(phrase_[w + 1].tokens[0])) || innerNext) {
         const Ph last = s.ph[s.n - 1];

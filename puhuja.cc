@@ -3689,6 +3689,17 @@ void Synth::emit(const Token& tok, const Ph* next) {
       const float fr = kUwFrontAll + (cor ? kUwCorFront : 0.0f);
       TractShape ih;
       if (fr > 0 && lastPh_ != Ph::J && lineShapeOf(Ph::IH, &ih)) sh = lineShapeMix(sh, ih, std::min(fr, 1.0f));
+      // (round-I uː agent, lab; -1 / -1 / 1: off) the place by voice and context. Whisper heard uː as ɝ 146 times in
+      // the dictionary (pool -> pearl, tune -> turn, booth -> birth): F3 sits 2.5-4 st under Kokoro's in the vowel's
+      // middle (male 2092 vs 2426, female 2386 vs 2749; after b p m f v 2015 vs 2557) with F2 central; the place moved
+      // forward raises F3. LINE_UW_XC_F: the female's place (-1: LINE_UW_XC); LINE_UW_LAB_XC: the place after a labial
+      // (b p m f v w; -1: as elsewhere); LINE_UW_AOR_F: the female's mouth cavity x (on top of LINE_UW_AOR).
+      static const float kUwXcF = param("LINE_UW_XC_F", -1.0f), kUwLabXc = param("LINE_UW_LAB_XC", -1.0f),
+                         kUwAorF = param("LINE_UW_AOR_F", 1.0f);
+      const bool lab = lastPh_ == Ph::B || lastPh_ == Ph::P || lastPh_ == Ph::M || lastPh_ == Ph::F || lastPh_ == Ph::V || lastPh_ == Ph::W;
+      const float xcCtx = lab && kUwLabXc >= 0 ? kUwLabXc : female_ && kUwXcF >= 0 ? kUwXcF : -1.0f;
+      if (xcCtx >= 0) { sh.xc = xcCtx; sh.sc = lineVowelStrength(sh.xc, sh.wc, sh.length); }
+      if (female_) sh.aOral *= kUwAorF;
     }
     if (have) {
       // A vowel holds its shape over the middle of its sound (keys at 30 and
@@ -3769,6 +3780,28 @@ void Synth::emit(const Token& tok, const Ph* next) {
           TractShape u;
           if (lineShapeOf(Ph::U, &u)) late = lineShapeMix(late, u, kUwLateBack);
         }
+        // (round-I uː agent, lab; all 1 / -1: off) the uː's late key backs further: Kokoro's F2 falls through the uː
+        // (male 1551 -> 1165 -> 1158 Hz over the thirds; word-final 1535 -> 1140 -> 952, female 2045 -> 1407 -> 1189),
+        // puhuja's holds (1380 / 1316 / 1348; final female 1717 / 1590 / 1600) and was heard as ɝ at word end 61 times
+        // (hebrew -> paper, unto -> hunter). Lips x LINE_UW_LATE_LIPA, mouth cavity x LINE_UW_LATE_AOR, constriction
+        // area x LINE_UW_LATE_AC (all uː); before a pause x LINE_UW_END_LIPA / _AOR / _AC more, and its place there
+        // LINE_UW_END_XC (-1: the vowel's). The lips alone (0.6) lowered F2 only 1348 -> 1320 and F1, F3 with it;
+        // the cavity and the constriction move F2. Lab (300 words x 2 voices): LATE_AOR 1.4, LATE_AC 0.7 with LATE_AT 0.5
+        // and LINE_U_AFTER_J 0.2: 52 uː errors against 94 (base) / 86 +- 8.5 (placebos). lateNoUw keeps these out of the
+        // r-colour test below; uwLate adds their demand.
+        static const float kUwLateLipA = param("LINE_UW_LATE_LIPA", 1.0f), kUwLateAor = param("LINE_UW_LATE_AOR", 1.0f),
+                           kUwEndLipA = param("LINE_UW_END_LIPA", 1.0f), kUwEndAor = param("LINE_UW_END_AOR", 1.0f),
+                           kUwLateAc = param("LINE_UW_LATE_AC", 1.0f), kUwEndAc = param("LINE_UW_END_AC", 1.0f),
+                           kUwEndXc = param("LINE_UW_END_XC", -1.0f);
+        const bool uwEnd = tok.ph == Ph::U && (!next || *next == Ph::Stop);
+        const TractShape lateNoUw = late;
+        if (tok.ph == Ph::U) {
+          late.aLip *= kUwLateLipA * (uwEnd ? kUwEndLipA : 1.0f);
+          late.aOral *= kUwLateAor * (uwEnd ? kUwEndAor : 1.0f);
+          late.ac *= kUwLateAc * (uwEnd ? kUwEndAc : 1.0f);
+          if (uwEnd && kUwEndXc >= 0) { late.xc = kUwEndXc; late.sc = lineVowelStrength(late.xc, late.wc, late.length); }
+        }
+        const bool uwLate = late.aLip != lateNoUw.aLip || late.aOral != lateNoUw.aOral || late.ac != lateNoUw.ac || late.xc != lateNoUw.xc;
         // The standalone ɪ's late key mixed toward ə (LINE_IH_OFF_MIX; IH agent 2026-11-11: Kokoro's ɪ centralises over its
         // last third, F2 1795 -> 1663 Hz male, 2106 -> 1931 female; puhuja's rises 1861 -> 1934, toward eɪ's end).
         static const float kIhOffMix = param("LINE_IH_OFF_MIX", 0.0f);
@@ -3789,7 +3822,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
         lineKeys_.push_back({t0 + (codaLRelease ? kLineCodaLKey : tok.ph == Ph::W ? kLineWKeyTo : tok.ph == Ph::AA && kLineAaKeyTo >= 0 ? kLineAaKeyTo : hold ? 0.7 : 0.5) * dur, late});
         {
           // The planner's demands: the held middle; an r-coloured end of its own.
-          const bool rColoured = late.ac != sh.ac || late.xc != sh.xc || late.aLip != sh.aLip || (uhAlone && late.aPharynx != sh.aPharynx);  // (ʊ: LINE_UH_LATE_APH)
+          const bool rColoured = lateNoUw.ac != sh.ac || lateNoUw.xc != sh.xc || lateNoUw.aLip != sh.aLip || (uhAlone && late.aPharynx != sh.aPharynx);  // (ʊ: LINE_UH_LATE_APH; uː: LINE_UW_LATE_*)
           const float preR = isVowel(tok.ph) && next && *next == Ph::RR ? std::max(kPreRVowelW, frontVowel(tok.ph) ? kPreRFrontW : 0.0f) : 0.0f;  // see kPreRVowelW
           TractShape own;
           const bool borrowed = !isVowel(tok.ph) && !lineShapeOf(tok.ph, &own);  // f in the next vowel's shape
@@ -3834,13 +3867,23 @@ void Synth::emit(const Token& tok, const Ph* next) {
                                kIyChainW = param("LINE_IY_CHAIN_W", 1.0f), kIyNextFrom = param("LINE_IY_NEXT_FROM", -1.0f),
                                kIyNextTo = param("LINE_IY_NEXT_TO", -1.0f), kIyChainPlaceW = param("LINE_IY_CHAIN_PLACE_W", 1.0f);
             const bool iyStart = chainStart && tok.ph == Ph::I, iyNext = chainEnd && lastPh_ == Ph::I;
-            const double a = iyStart && kIyChainFrom >= 0 ? kIyChainFrom : iyNext && kIyNextFrom >= 0 ? kIyNextFrom : a0;
+            // (round-I uː agent, lab; -1 / 1: as before) a uː before another vowel (viewer -> year, newer -> gear, sewer
+            // -> sir; 26 % wrong, 38 deleted) is demanded only to SPLAN_GLIDE_START (0.3) of its length like a
+            // diphthong's start: LINE_UW_CHAIN_TO its end (share), LINE_UW_CHAIN_W its weight.
+            static const float kUwChainTo = param("LINE_UW_CHAIN_TO", -1.0f), kUwChainW = param("LINE_UW_CHAIN_W", 1.0f);
+            const bool uwStart = chainStart && tok.ph == Ph::U;
+            // ... and the vowel after it demanded from LINE_UW_NEXT_FROM of its length (-1: SPLAN_GLIDE_END).
+            static const float kUwNextFrom = param("LINE_UW_NEXT_FROM", -1.0f);
+            const bool uwNext = chainEnd && lastPh_ == Ph::U;
+            const double a = iyStart && kIyChainFrom >= 0 ? kIyChainFrom : iyNext && kIyNextFrom >= 0 ? kIyNextFrom
+                             : uwNext && kUwNextFrom >= 0 ? kUwNextFrom : a0;
             const double b = iyStart && kIyChainTo >= 0 ? kIyChainTo : iyNext && kIyNextTo >= 0 ? kIyNextTo
+                             : uwStart && kUwChainTo >= 0 ? kUwChainTo
                              : oyStart && kLineOyHoldTo >= 0 ? kLineOyHoldTo : ayStart && kLineAyHold >= 0 ? kLineAyHold
                              : chainStart ? (eyStart && kEyHoldTo >= 0 ? kEyHoldTo : kShapeGlideStart)
                              : ayGlide && kLineAyGlideTo >= 0 ? kLineAyGlideTo : eyGlide && kEyGlideTo >= 0 ? kEyGlideTo : 0.9;
             const float oyW = (oyStart ? kLineOyAoW : oyEnd ? kLineOyIhW : ayStart ? kLineAyAW : ayGlide ? kLineAyIW : 1.0f) *
-                              (iyStart ? kIyChainW : 1.0f);
+                              (iyStart ? kIyChainW : 1.0f) * (uwStart ? kUwChainW : 1.0f);
             // aɪ's a wanted before its start after a pause (LINE_AY_PRE_MS: "I", "item" start from the pause's ə) or
             // in a plosive's closure (LINE_AY_STOP_LEAD_MS: "time", "type"); 0: from 10 % of the a, as before.
             const float ayLead = !ayStart ? 0.0f : prevWasPause_ ? kLineAyPreMs : prevWasPlosive_ ? kLineAyStopLeadMs : 0.0f;
@@ -3926,9 +3969,19 @@ void Synth::emit(const Token& tok, const Ph* next) {
             // (round-H ʊ agent, lab; -1 / -1 / 1 / 0: as before) the same for a standalone ʊ: LINE_UH_FROM, _TO, _W, _PLACE_W.
             static const float kUhFrom = param("LINE_UH_FROM", -1.0f), kUhTo = param("LINE_UH_TO", -1.0f), kUhW = param("LINE_UH_W", 1.0f),
                                kUhPlaceW = param("LINE_UH_PLACE_W", 0.0f);
+            // (round-I uː agent, lab; -1 / -1 / 1 / 0 / 0: as before) the same for uː: LINE_UW_FROM, _TO, _W, _PLACE_W, and
+            // its lips rounded LINE_UW_LEAD_MS before it after a consonant (not after a pause or a vowel).
+            static const float kUwFrom = param("LINE_UW_FROM", -1.0f), kUwTo = param("LINE_UW_TO", -1.0f), kUwW = param("LINE_UW_W", 1.0f),
+                               kUwPlaceW = param("LINE_UW_PLACE_W", 0.0f), kUwLeadMs = param("LINE_UW_LEAD_MS", 0.0f);
+            // ... and before an l its demand ends at LINE_UW_PRE_L_TO of its length (-1: as LINE_UW_TO): pools -> pearls,
+            // module -> natural (before l 29 % wrong; F3 2003 vs Kokoro's 2415 in the middle, male).
+            static const float kUwPreLTo = param("LINE_UW_PRE_L_TO", -1.0f);
+            const bool uwD = tok.ph == Ph::U;
+            if (uwD && kUwLeadMs > 0 && !prevWasPause_ && !isVowel(lastPh_)) preMs = std::max(preMs, kUwLeadMs);
             const bool uhD = uhAlone;
-            const float vFrom = iy ? kIyFrom : uhD ? kUhFrom : -1.0f, vTo = iy ? kIyTo : uhD ? kUhTo : -1.0f,
-                        vW = iy ? kIyW : kUhW, vPlaceW = iy ? kIyPlaceW : kUhPlaceW;
+            const float vFrom = iy ? kIyFrom : uwD ? kUwFrom : uhD ? kUhFrom : -1.0f,
+                        vTo = iy ? kIyTo : uwD ? (next && *next == Ph::L && kUwPreLTo >= 0 ? kUwPreLTo : kUwTo) : uhD ? kUhTo : -1.0f,
+                        vW = iy ? kIyW : uwD ? kUwW : kUhW, vPlaceW = iy ? kIyPlaceW : uwD ? kUwPlaceW : kUhPlaceW;
             // ... and its lead after a plosive (LINE_UH_STOP_LEAD_MS; < 0: LINE_AFTER_STOP_LEAD_MS).
             static const float kUhStopLeadMs = param("LINE_UH_STOP_LEAD_MS", -1.0f);
             if (uhD && !prevWasPause_ && prevWasPlosive_ && kUhStopLeadMs >= 0) preMs = kUhStopLeadMs;
@@ -3970,7 +4023,11 @@ void Synth::emit(const Token& tok, const Ph* next) {
             static const float kLineWVowelKey = param("LINE_W_VOWEL_KEY", -1.0f);
             const double vowelFrom = isVowel(tok.ph) && lastPh_ == Ph::W && kLineWVowelKey >= 0 ? kLineWVowelKey : 0.3;
             const double wKeyTo = (wStop || wS) && kWStopKeyTo >= 0 ? kWStopKeyTo : kLineWKeyTo;
-            addShapeDemand(preMs > 0 ? t0 - preMs * ms : t0 + (er ? kLineErFrom : tok.ph == Ph::RR && kLineRKeyFrom >= 0 ? kLineRKeyFrom : vFrom >= 0 ? vFrom : vowelFrom) * dur, t0 + (er ? kLineErTo : tok.ph == Ph::W ? wKeyTo : tok.ph == Ph::RR && kLineRKeyTo >= 0 ? kLineRKeyTo : vTo >= 0 ? vTo : 0.7) * dur, sh, tok.ph, er ? ws * kLineErW : iy || uhD ? ws * vW : ws, er ? std::max(preR, kErPlaceW) : iy || uhD ? std::max(preR, vPlaceW) : preR);
+            addShapeDemand(preMs > 0 ? t0 - preMs * ms : t0 + (er ? kLineErFrom : tok.ph == Ph::RR && kLineRKeyFrom >= 0 ? kLineRKeyFrom : vFrom >= 0 ? vFrom : vowelFrom) * dur, t0 + (er ? kLineErTo : tok.ph == Ph::W ? wKeyTo : tok.ph == Ph::RR && kLineRKeyTo >= 0 ? kLineRKeyTo : vTo >= 0 ? vTo : 0.7) * dur, sh, tok.ph, er ? ws * kLineErW : iy || uhD || uwD ? ws * vW : ws, er ? std::max(preR, kErPlaceW) : iy || uhD || uwD ? std::max(preR, vPlaceW) : preR);
+            // (round-I uː agent) the rounder late key (LINE_UW_LATE_*, LINE_UW_END_*) asked for over the last share of
+            // the uː from LINE_UW_LATE_AT (0.7).
+            static const float kUwLateAt = param("LINE_UW_LATE_AT", 0.7f);
+            if (uwD && uwLate) addShapeDemand(t0 + kUwLateAt * dur, t0 + dur, late, tok.ph, ws * vW, vPlaceW);
           }
           else {
             const bool open = tok.ph == Ph::AA || tok.ph == Ph::A;
@@ -5500,6 +5557,13 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
       if (kUhLabialOwn > 0 && (tok.ph == Ph::P || tok.ph == Ph::B) && next && *next == Ph::UH) {
         TractShape u;
         if (lineShapeOf(Ph::UH, &u)) { uhShape(&u, tok.ph, nullptr, female_); sh = lineShapeMix(sh, u, kUhLabialOwn); }
+      }
+      // ... and the same before a uː (LINE_UW_LAB_OWN, round-I uː agent, lab; 0: off): after b the uː was wrong 56 % of
+      // the time in the dictionary (boot -> book / boat, bool -> bowl, booth -> birth), after p 39 %.
+      static const float kUwLabOwn = param("LINE_UW_LAB_OWN", 0.0f);
+      if (kUwLabOwn > 0 && (tok.ph == Ph::P || tok.ph == Ph::B) && next && *next == Ph::U) {
+        TractShape u;
+        if (lineShapeOf(Ph::U, &u)) sh = lineShapeMix(sh, u, std::min(kUwLabOwn, 1.0f));
       }
       lineKeys_.push_back({timeline_ + 0.5 * closure, sh});
       addShapeDemand(timeline_ + 0.3 * closure, timeline_ + 0.7 * closure, sh, tok.ph, kShapeBorrowedW);
