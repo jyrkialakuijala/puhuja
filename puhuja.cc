@@ -2466,7 +2466,7 @@ static uint64_t eventFields(const Event& e) {
   bit(e.lineFricMul >= 0); bit(e.lineLevel > 0); bit(e.lineSoft >= 0); bit(e.lineExtra >= 0);
   bit(e.lineExpand >= 0); bit(e.lineHw >= 0); bit(e.lineLip >= 0); bit(e.lineAspHp >= 0); bit(e.lineFricLpr >= 0);
   bit(e.lineJetD >= 0); bit(e.lineX >= 0); bit(e.aspBurst); bit(e.creak >= 0); bit(e.expand >= 0);
-  bit(e.inhaleMs > 0); bit(e.speech >= 0); bit(e.lineFricReSmooth >= 0);
+  bit(e.inhaleMs > 0); bit(e.speech >= 0); bit(e.lineFricReSmooth >= 0); bit(e.lineHumpNorm > -1.5f);
   return m;
 }
 
@@ -6917,7 +6917,57 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     rel.pressMs = kLineClosurePressBackMs;
     closurePressEased_ = false;
   }
+  // (P agent 10 round K, lab; 0: off) a p before l ɹ opens at the lips first: the release keeps the p's place for
+  // LINE_P_LIQ_LIP_MS (its area LINE_P_LIQ_LIP_A, < 0: the liquid's), then the place moves on to the liquid's with its
+  // area. It carried the liquid's place (LINE_R_REL_OWN / LINE_L_REL_OWN): the closed hump slid from the lips to x 0.68
+  // in ~8 ms (LINE_X_ARTIC_MS) while the area opened, so the release was a tongue-body one, its burst at 0.3-2 kHz
+  // 3-8 dB under the word's peak (Kokoro: low and diffuse). With LINE_HUMP_NORM 1 (2026-11-12) the hump reaches its
+  // area between sections too: initial pɹ pl heard as k 128 -> 338 of 1680 (combo7 -> combo8: "Press" -> crash,
+  // "Plots" -> clocks).
+  // The same before j (LINE_P_J_LIP_MS: "Pure", "Popular"? pj 56 % wrong, mostly deleted) and before s z ʃ ʒ
+  // (LINE_P_SIB_LIP_MS: the closure slid to the ridge, x 0.90, while it opened into the s: "Reps" -> rats, ps heard t 40).
+  static const float kPLiqLipMs = param("LINE_P_LIQ_LIP_MS", 0.0f), kPLiqLipA = param("LINE_P_LIQ_LIP_A", -1.0f),
+                     kPJLipMs = param("LINE_P_J_LIP_MS", 0.0f), kPSibLipMs = param("LINE_P_SIB_LIP_MS", 0.0f);
+  const bool pSibNext = next && (*next == Ph::S || *next == Ph::Z || *next == Ph::SH || *next == Ph::ZH);
+  const float pLipMs = !next ? 0.0f : (*next == Ph::L || *next == Ph::RR) ? kPLiqLipMs : *next == Ph::J ? kPJLipMs : pSibNext ? kPSibLipMs : 0.0f;
+  const bool pLiqLip = tract_ == Tract::Line && tok.ph == Ph::P && pLipMs > 0 && !unreleased && rel.lineX >= 0;
+  Event pLiqOpen{release + pLipMs * ms};
+  if (pLiqLip) {
+    pLiqOpen.lineX = rel.lineX, pLiqOpen.lineXClosure = rel.lineXClosure;
+    pLiqOpen.ac = rel.ac;
+    pLiqOpen.acMs = rel.acMs;
+    rel.lineX = -1.0f;  // (the place stays at the lips)
+    if (kPLiqLipA >= 0 && !pSibNext) rel.ac = kPLiqLipA;
+  }
+  // (P agent 10 round K, lab; < 0: off) ... or the hump's sampling as before LINE_HUMP_NORM 1 (LINE_P_LIQ_NORM: its power)
+  // from the p's release for LINE_P_LIQ_NORM_MS: the sliding hump leaked between sections and its burst stayed weak
+  // (initial pɹ pl heard k 128 of 1680 at norm 0, 338 at 1).
+  static const float kPLiqNorm = param("LINE_P_LIQ_NORM", -1.0f), kPLiqNormMs = param("LINE_P_LIQ_NORM_MS", 40.0f);
+  const bool pLiqNorm = tract_ == Tract::Line && tok.ph == Ph::P && kPLiqNorm >= 0 && !unreleased && next && (*next == Ph::L || *next == Ph::RR);
+  if (pLiqNorm) rel.lineHumpNorm = kPLiqNorm;
   addEvent(rel);
+  if (pLiqLip) addEventAt(pLiqOpen);
+  if (pLiqNorm) {
+    Event back{release + kPLiqNormMs * ms};
+    back.lineHumpNorm = -1.0f;
+    addEventAt(back);
+  }
+  // (P agent 10 round K, lab; 0: off) a p into a vowel in two steps, as the k's slit (LINE_K_BURST_MS): the lips part
+  // through a slit of LINE_P_BURST_A cm^2 for LINE_P_BURST_MS first (its jet's hiss the burst), then open with the
+  // release's own time. puhuja's initial p burst is an 80-300 Hz thump with 2-8 kHz at -35..-46 dB re the word's peak
+  // in its first 12 ms ("Porch", "Pay", "Pit"); Kokoro's (af_heart, af_bella, am_adam) carry 2-8 kHz at -10..-30:
+  // a p before ɔ ɝ ɑ is heard as k (Porch -> courts, Purse -> curse, Pearl -> girl), elsewhere b or nothing.
+  static const float kPBurstMs = param("LINE_P_BURST_MS", 0.0f), kPBurstA = param("LINE_P_BURST_A", 0.05f);
+  if (tract_ == Tract::Line && tok.ph == Ph::P && kPBurstMs > 0 && !unreleased && next && isVowel(*next)) {
+    Event slit{release};
+    slit.ac = kPBurstA;
+    slit.acMs = 3;
+    addEvent(slit);
+    Event open{release + kPBurstMs * ms};
+    open.ac = rel.ac;
+    open.acMs = rel.acMs;
+    addEventAt(open);
+  }
   if (gRelRe || kRelRe) {  // (LINE_G_REL_RE, LINE_K_REL_RE, above)
     Event back{release + kGRelReMs * ms};
     back.lineFricReMul = 1.0f;
@@ -7085,7 +7135,18 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     const float vBackMs = vstopBurst && tok.ph == Ph::G && kGBurstBackMs >= 0 ? kGBurstBackMs : vstopBurst && kVstopBurstBackMs >= 0 ? kVstopBurstBackMs : -1.0f;
     Event back{release + (vBackMs >= 0 ? vBackMs : rel.acMs + 10.0f) * ms};
     back.lineFricMul = 1.0f;
+    // (P agent 10 round K, lab; < 0: 1) a p before l ɹ: the frication gain from here to the puff's end x LINE_P_LIQ_FRIC
+    // (the liquid's hump hisses with the puff's flow through it: a tongue-body noise, the k's cue).
+    static const float kPLiqFric = param("LINE_P_LIQ_FRIC", -1.0f);
+    const bool pLiqFric = tract_ == Tract::Line && kPLiqFric >= 0 && tok.ph == Ph::P && next && (*next == Ph::L || *next == Ph::RR) &&
+                          pendingAspEnd_.t > back.t;
+    if (pLiqFric) back.lineFricMul = kPLiqFric;
     addEventAt(back);
+    if (pLiqFric) {
+      Event full{pendingAspEnd_.t};
+      full.lineFricMul = 1.0f;
+      addEventAt(full);
+    }
   }
   if (tract_ == Tract::Line && tok.ph == Ph::P && kLinePJetD > 0 && rel.lineJetD == kLinePJetD) {
     Event back{release + (rel.acMs + 10.0f) * ms};  // (p's jet back to the slit's once the lips have parted)
@@ -7481,6 +7542,7 @@ float Synth::tick() {
       line_.setAspHp(e.lineAspHp, tAspPoles);
     }
     if (e.linePuffLpr >= 0) line_.setPuffLpRatio(e.linePuffLpr);
+    if (e.lineHumpNorm > -1.5f) line_.setHumpNorm(e.lineHumpNorm);
     if (e.lineGlotFc >= 0) line_.setGlotFcScale(e.lineGlotFc);
     if (e.lineHBreath >= 0) lineHBreath_ = e.lineHBreath;
     if (e.lineLip >= 0) lineLip_ = lineLipTarget_ = e.lineLip;

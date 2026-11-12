@@ -445,15 +445,16 @@ void VocalTractLine::setShapeAreas(std::vector<float> a, float length, float x, 
     const float acEff = std::max(acH, kClosureMin);
     const float xc = x * shapeLength;
     float gNorm = 1.0f;  // LINE_HUMP_NORM: 1 / (the largest sampled cos)^k
-    if (kHumpNorm > 0) {
+    const float humpNorm = humpNorm_ >= 0 ? humpNorm_ : kHumpNorm;  // (setHumpNorm: a p's release into l ɹ, LINE_P_LIQ_NORM)
+    if (humpNorm > 0) {
       const float dmin = std::fabs((std::floor(xc / oral_.dx()) + 0.5f) * oral_.dx() - xc) / humpHw_;  // the nearest centre
       const float gmax = std::cos(0.5f * kPiL * std::min(dmin, 1.0f));
-      if (gmax > 1e-3f) gNorm = std::pow(gmax, -kHumpNorm);
+      if (gmax > 1e-3f) gNorm = std::pow(gmax, -humpNorm);
     }
     for (int k = 0; k < oral_.sections(); ++k) {
       const float d = ((k + 0.5f) * oral_.dx() - xc) / humpHw_;
       if (std::fabs(d) >= 1.0f) continue;
-      const float g = kHumpNorm > 0 ? std::min(1.0f, std::cos(0.5f * kPiL * d) * gNorm) : std::cos(0.5f * kPiL * d);
+      const float g = humpNorm > 0 ? std::min(1.0f, std::cos(0.5f * kPiL * d) * gNorm) : std::cos(0.5f * kPiL * d);
       const float lnA = std::log(a[k]);
       const float lnC = std::log(acEff);
       if (lnC < lnA) a[k] = std::exp(lnA + (lnC - lnA) * g * g * depth);

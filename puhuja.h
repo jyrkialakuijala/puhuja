@@ -127,6 +127,7 @@ struct Event {
   float lineAspMul = -1;  // the glottal noise gain factor on the line (a stop's puff; < 0: unchanged)
   float lineGlotFc = -1;  // the glottal noise band's corner x this on the line (an h's breath colour, LINE_H_GFC; < 0: unchanged)
   float lineHBreath = -1;  // an h's unthresholded breath gain on the line (x LINE_ASP; LINE_H_BREATH; < 0: unchanged)
+  float lineHumpNorm = -2;  // the hump's sampling norm power on the line (-1: LINE_HUMP_NORM again; < -1: unchanged; P agent 10)
   float linePuffLpr = -1;  // the glottal noise low-pass ratio on the line during a stop's puff (0: off; < 0: unchanged)
   float lineFricFade = -1;  // the frication source's fade-out areas x this (voiced fricatives; < 0: unchanged)
   float lineFricReBoth = -1;  // > 0: the jet's Reynolds number low-passed both ways, 0: only its rise (LINE_Z_RE_BOTH; < 0: unchanged)
