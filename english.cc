@@ -887,6 +887,17 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
             for (size_t q = 0; q < tok.size(); ++q) vowels += isVowelToken(tok[q]);
             whole *= kAhLen * (vowels == 1 ? kAhMonoLen : 1.0f);
           } }
+        // ... x EN_AH_VLESS_LEN before a voiceless obstruent of its word, x EN_AH_INIT_LEN word-initial (round-I ʌ agent
+        // 2026-11-12 lab knobs; 1 / 1: as before): ʌ is heard as ɑ in "nut", "shut", "duct" (ɑ is the long one), and the
+        // word-initial ʌ ("other", "under", "us") 18 % wrong, heard ə ɑ.
+        { static const float kAhVlessLen = param("EN_AH_VLESS_LEN", 1.0f), kAhInitLen = param("EN_AH_INIT_LEN", 1.0f);
+          if (b == "AH" && stressed) {
+            if (kAhVlessLen != 1.0f && i + 1 < tok.size() && !isVowelToken(tok[i + 1])) {
+              const std::string n = baseName(tok[i + 1]);
+              if (isVoicelessPlosive(n) || n == "S" || n == "SH" || n == "F" || n == "TH") whole *= kAhVlessLen;
+            }
+            if (i == 0) whole *= kAhInitLen;
+          } }
       } else {
         if (i > 0) prc *= 0.85f;  // not word-initial
         const bool consBefore = i > 0 && !isVowelToken(tok[i - 1]);
