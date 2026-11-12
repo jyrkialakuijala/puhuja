@@ -845,6 +845,13 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
         // pause it ran 125-140 ms, heard as u / ɝ in 70 % of the final cells.
         { static const float kFinalSchwaLen = param("EN_FINAL_SCHWA_LEN", 1.0f);
           if (b == "AH" && !stressed && i + 1 == tok.size()) whole *= kFinalSchwaLen; }
+        // (round-J ə agent 9, lab knobs; 1: as before) a word-initial unstressed ə x EN_SCHWA_INIT_LEN ("about", "again":
+        // 19 % wrong, heard ɪ or lost), one in its word's last syllable before a consonant x EN_SCHWA_LAST_LEN ("Nixon",
+        // "Gibson": 11.4 % wrong in two-syllable words, heard ɪ; 124-134 ms phrase-finally), any other medial one x
+        // EN_SCHWA_MID_LEN.
+        { static const float kSwInitLen = param("EN_SCHWA_INIT_LEN", 1.0f), kSwLastLen = param("EN_SCHWA_LAST_LEN", 1.0f),
+                             kSwMidLen = param("EN_SCHWA_MID_LEN", 1.0f);
+          if (b == "AH" && !stressed && i + 1 < tok.size()) whole *= i == 0 ? kSwInitLen : inLastSyllable ? kSwLastLen : kSwMidLen; }
         // The ʊ's own length (EN_UH_LEN; 2026-11-09 UH agent: in isolated words puhuja's ʊ ran 220-260 ms, Kokoro's 150-280).
         { static const float kUhLen = param("EN_UH_LEN", 1.0f); if (b == "UH") whole *= kUhLen; }
         // ... and by its coda in the word (EN_UH_VL_LEN before p t k ʧ s ʃ f θ, EN_UH_L_LEN before l; round-H ʊ agent, lab;
@@ -2778,6 +2785,16 @@ void EnglishReader::sayPhrase(char end) {
           if (ay && k == 0) db += kAyADb;
           // (round I EH agent 2026-11-12 lab knob; 0: as before) the ɛ's level + EN_EH_DB.
           { static const float kEhDb = param("EN_EH_DB", 0.0f); if (kEhDb != 0 && s.ph[k] == Ph::EH) db += kEhDb; }
+          // (round-J ə agent 9, lab knobs; 0: as before) a word-initial unstressed ə's level + EN_SCHWA_INIT_DB (106 of its
+          // 351 dictionary errors are deletions: "allowed" -> loud, "asleep" -> sleep), an ə in its word's last syllable
+          // before a consonant + EN_SCHWA_LAST_DB.
+          { static const float kSwInitDb = param("EN_SCHWA_INIT_DB", 0.0f), kSwLastDb = param("EN_SCHWA_LAST_DB", 0.0f);
+            if (s.ph[k] == Ph::Schwa && vn[strlen(vn) - 1] == '0' && baseName(tokens[i]) == "AH") {
+              int lastV = -1;
+              for (size_t j = 0; j < tokens.size(); ++j) if (isVowelToken(tokens[j])) lastV = static_cast<int>(j);
+              if (i == 0 && i + 1 < tokens.size()) db += kSwInitDb;
+              else if (static_cast<int>(i) == lastV && i + 1 < tokens.size()) db += kSwLastDb;
+            } }
           // Secondary stress is a step down from the primary, not its equal:
           // Kokoro's "robot", "habitat", "antibody" end 5-15 dB under their
           // first syllable; here the last third was the loudest (2026-11-02).

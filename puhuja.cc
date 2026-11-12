@@ -3582,6 +3582,35 @@ void Synth::emit(const Token& tok, const Ph* next) {
         if (kSchwaLen != 1.0f) { sh.length *= kSchwaLen; sh.sc = lineVowelStrength(sh.xc, sh.wc, sh.length); }
       }
       if (tok.wordStart && kSchwaInitAph != 1.0f) sh.aPharynx *= kSchwaInitAph;
+      // (round-J ə agent 9, lab; 0 / 1: as before) the ə by context. Dictionary (combo7, 28864 ə): word-initial 19 %
+      // wrong (heard ɪ 108, deleted 106: "aside" -> decide, "abide" -> divide, "allowed" -> loud), the last syllable
+      // of a two-syllable word 11.4 % (ɪ 298: "Nixon" -> mixing, "Gibson" -> gets in), word-final 15 % (ɝ 160),
+      // medial in longer words 5 %. Ten Kokoro voices (k1k words, DTW frames, male): initial 349/1432/2225 Hz vs
+      // 457/1284/2563 (F1 -3.2, F2 +1.3, F3 -2.4 st: closer and fronter, an ɪ), last-syllable 334/1448/2242 vs
+      // 392/1496/2534 (F1 -2.8, F3 -1.2 st). A word-initial ə toward LINE_SCHWA_INIT_ROW (0: ʌ, 1: ɑ, 2: a) by
+      // LINE_SCHWA_INIT_MIX, the female voice's x LINE_SCHWA_F_INIT_MIX more; an ə inside a word (not its first or
+      // last sound, so not "the" / "a": LINE_SCHWA_MIX made "the generosity"'s ʤ snap) by LINE_SCHWA_IN_MIX, before a
+      // nasal by LINE_SCHWA_N_MIX instead (>= 0), after a vowel ("media", "Ian": heard j / uː) by LINE_SCHWA_HIATUS_MIX;
+      // a final ə after ɹ by LINE_SCHWA_FINAL_R_MIX more (heard ɝ, 22 %); every ə's lip area / lip length / tract
+      // length / constriction area x LINE_SCHWA_LIPA / _LIPL / _SHLEN / _AC (F3 sits 1-2.4 st low everywhere).
+      static const float kSwInitMix = param("LINE_SCHWA_INIT_MIX", 0.0f), kSwFInitMix = param("LINE_SCHWA_F_INIT_MIX", 0.0f),
+                         kSwInMix = param("LINE_SCHWA_IN_MIX", 0.0f), kSwNMix = param("LINE_SCHWA_N_MIX", -1.0f),
+                         kSwHiatusMix = param("LINE_SCHWA_HIATUS_MIX", 0.0f), kSwFinalRMix = param("LINE_SCHWA_FINAL_R_MIX", 0.0f),
+                         kSwLipA = param("LINE_SCHWA_LIPA", 1.0f), kSwLipL = param("LINE_SCHWA_LIPL", 1.0f),
+                         kSwShLen = param("LINE_SCHWA_SHLEN", 1.0f), kSwAc = param("LINE_SCHWA_AC", 1.0f);
+      static const int kSwInitRow = static_cast<int>(param("LINE_SCHWA_INIT_ROW", 0.0f));
+      const bool inWord = !tok.wordStart && !final && next && !nextWordStart_ && *next != Ph::JH && *next != Ph::CH;
+      const bool nasNext = next && info(*next).cls == Cls::Nasal;
+      float cmix = tok.wordStart && !final ? kSwInitMix + (female_ ? kSwFInitMix : 0.0f)
+                   : inWord ? (isVowel(lastPh_) && kSwHiatusMix > 0 ? kSwHiatusMix : nasNext && kSwNMix >= 0 ? kSwNMix : kSwInMix)
+                   : 0.0f;
+      const Ph crow = tok.wordStart ? (kSwInitRow == 1 ? Ph::AA : kSwInitRow == 2 ? Ph::A : Ph::AH) : Ph::AH;
+      if (final && lastPh_ == Ph::RR) cmix = kSwFinalRMix;
+      if (cmix > 0 && lineShapeOf(crow, &o)) sh = lineShapeMix(sh, o, std::min(cmix, 1.0f));
+      if (kSwLipA != 1.0f) sh.aLip *= kSwLipA;
+      if (kSwLipL != 1.0f) sh.lLip *= kSwLipL;
+      if (kSwAc != 1.0f) sh.ac *= kSwAc;
+      if (kSwShLen != 1.0f) { sh.length *= kSwShLen; sh.sc = lineVowelStrength(sh.xc, sh.wc, sh.length); }
     }
     // ɔ's own shape (AO agent 2026-11-11, lab knobs; 0 / 1: as before): mixed toward ɑ by LINE_AO_AA_MIX, its pharynx,
     // constriction place and area, oral cavity, lip area and length x these. Only the ɔ token (not ɔɪ's start, and before
@@ -4175,9 +4204,16 @@ void Synth::emit(const Token& tok, const Ph* next) {
             // from 30 % of it on ("call": F2 972 -> 750 Hz over the vowel).
             static const float kAoLTo = param("LINE_AO_L_TO", -1.0f);
             const float aoTo = aoD && next && *next == Ph::L && kAoLTo >= 0 ? kAoLTo : kAoTo;
-            const float vFrom = iy ? kIyFrom : uwD ? kUwFrom : eh ? kEhFrom : ahD ? kAhFrom : aoD ? kAoFrom : uhD ? kUhFrom : -1.0f,
-                        vTo = iy ? kIyTo : uwD ? (next && *next == Ph::L && kUwPreLTo >= 0 ? kUwPreLTo : kUwTo) : eh ? kEhTo : ahD ? kAhTo : aoD ? aoTo : uhD ? kUhTo : -1.0f,
-                        vW = iy ? kIyW : uwD ? kUwW : eh ? kEhW : ahD ? kAhW : aoD ? kAoW : kUhW, vPlaceW = iy ? kIyPlaceW : uwD ? kUwPlaceW : eh ? kEhPlaceW : ahD ? kAhPlaceW : aoD ? kAoPlaceW : kUhPlaceW;
+            // (round-J ə agent 9, lab; -1 / -1 / 1 / 0 / 0: as before) the same for the ə: LINE_SCHWA_FROM, _TO, _W, _PLACE_W,
+            // and a word-initial ə's shape asked for LINE_SCHWA_PAUSE_LEAD_MS before its voice after a pause (it glided out
+            // of the pause's own ə shape: Kokoro's "about", "again" start at F1 460-520 Hz, puhuja's at 330-350).
+            static const float kSwFrom = param("LINE_SCHWA_FROM", -1.0f), kSwTo = param("LINE_SCHWA_TO", -1.0f), kSwW = param("LINE_SCHWA_W", 1.0f),
+                               kSwPlaceW = param("LINE_SCHWA_PLACE_W", 0.0f), kSwPauseLeadMs = param("LINE_SCHWA_PAUSE_LEAD_MS", 0.0f);
+            const bool swD = tok.ph == Ph::Schwa && (kSwFrom >= 0 || kSwTo >= 0 || kSwW != 1.0f || kSwPlaceW != 0.0f);
+            if (tok.ph == Ph::Schwa && prevWasPause_ && kSwPauseLeadMs > 0) preMs = kSwPauseLeadMs;
+            const float vFrom = iy ? kIyFrom : uwD ? kUwFrom : eh ? kEhFrom : ahD ? kAhFrom : aoD ? kAoFrom : swD ? kSwFrom : uhD ? kUhFrom : -1.0f,
+                        vTo = iy ? kIyTo : uwD ? (next && *next == Ph::L && kUwPreLTo >= 0 ? kUwPreLTo : kUwTo) : eh ? kEhTo : ahD ? kAhTo : aoD ? aoTo : swD ? kSwTo : uhD ? kUhTo : -1.0f,
+                        vW = iy ? kIyW : uwD ? kUwW : eh ? kEhW : ahD ? kAhW : aoD ? kAoW : swD ? kSwW : kUhW, vPlaceW = iy ? kIyPlaceW : uwD ? kUwPlaceW : eh ? kEhPlaceW : ahD ? kAhPlaceW : aoD ? kAoPlaceW : swD ? kSwPlaceW : kUhPlaceW;
             // ... and its lead after a plosive (LINE_UH_STOP_LEAD_MS; < 0: LINE_AFTER_STOP_LEAD_MS).
             static const float kUhStopLeadMs = param("LINE_UH_STOP_LEAD_MS", -1.0f);
             if (uhD && !prevWasPause_ && prevWasPlosive_ && kUhStopLeadMs >= 0) preMs = kUhStopLeadMs;
@@ -4229,7 +4265,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
             static const float kLineWVowelKey = param("LINE_W_VOWEL_KEY", -1.0f);
             const double vowelFrom = isVowel(tok.ph) && lastPh_ == Ph::W && kLineWVowelKey >= 0 ? kLineWVowelKey : 0.3;
             const double wKeyTo = (wStop || wS) && kWStopKeyTo >= 0 ? kWStopKeyTo : kLineWKeyTo;
-            addShapeDemand(preMs > 0 ? t0 - preMs * ms : t0 + (er ? kLineErFrom : tok.ph == Ph::RR && kLineRKeyFrom >= 0 ? kLineRKeyFrom : vFrom >= 0 ? vFrom : vowelFrom) * dur, t0 + (er ? kLineErTo : tok.ph == Ph::W ? wKeyTo : tok.ph == Ph::RR && kLineRKeyTo >= 0 ? kLineRKeyTo : vTo >= 0 ? vTo : 0.7) * dur, sh, tok.ph, er ? ws * kLineErW : iy || uhD || uwD || ahD || aoD ? ws * vW : ws, er ? std::max(preR, kErPlaceW) : iy || uhD || uwD || ahD || aoD ? std::max(preR, vPlaceW) : preR);
+            addShapeDemand(preMs > 0 ? t0 - preMs * ms : t0 + (er ? kLineErFrom : tok.ph == Ph::RR && kLineRKeyFrom >= 0 ? kLineRKeyFrom : vFrom >= 0 ? vFrom : vowelFrom) * dur, t0 + (er ? kLineErTo : tok.ph == Ph::W ? wKeyTo : tok.ph == Ph::RR && kLineRKeyTo >= 0 ? kLineRKeyTo : vTo >= 0 ? vTo : 0.7) * dur, sh, tok.ph, er ? ws * kLineErW : iy || uhD || uwD || ahD || aoD || swD ? ws * vW : ws, er ? std::max(preR, kErPlaceW) : iy || uhD || uwD || ahD || aoD || swD ? std::max(preR, vPlaceW) : preR);
             // (round-I uː agent) the rounder late key (LINE_UW_LATE_*, LINE_UW_END_*) asked for over the last share of
             // the uː from LINE_UW_LATE_AT (0.7).
             static const float kUwLateAt = param("LINE_UW_LATE_AT", 0.7f);
@@ -5186,9 +5222,13 @@ void Synth::emit(const Token& tok, const Ph* next) {
         // (pressed shut, then released) starts them within a cycle. A brief
         // near-closure (LINE_ONSET_KICK_AG for LINE_ONSET_KICK_MS) as the
         // adduction begins; 0: none.
-        if (kLineOnsetKickAg > 0 && kLineOnsetKickMs > 0) {
+        // (round-J ə agent 9, lab; < 0: LINE_ONSET_KICK_AG) a word-initial ə's own kick: Whisper heard a consonant before
+        // 200 of the 351 wrong initial ə ("aside" -> decide, "assured" -> referred, "abide" -> divide: d 71, r 56, t 26).
+        static const float kSwKickAg = param("LINE_SCHWA_KICK_AG", -1.0f);
+        const float kickAg = tok.ph == Ph::Schwa && kSwKickAg >= 0 ? kSwKickAg : kLineOnsetKickAg;
+        if (kickAg > 0 && kLineOnsetKickMs > 0) {
           Event kick{e.t};
-          kick.ag = kLineOnsetKickAg;
+          kick.ag = kickAg;
           kick.agMs = kLineOnsetKickMs;
           addEventAt(kick);
           Event adduct{e.t + kLineOnsetKickMs * ms};
