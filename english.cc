@@ -918,6 +918,11 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
         if (b == "W") {
           static const float kWLen = param("EN_W_LEN", 1.0f);
           whole *= kWLen;
+          // (W agent round G, lab; 1: as before) a w after a plosive in its word x EN_STOP_W_LEN, after s x EN_S_W_LEN:
+          // "twice" released into a 64 ms w (Kokoro's t to vowel ~135 ms), the puff took 36 of it.
+          static const float kStopWLen = param("EN_STOP_W_LEN", 1.0f), kSWLen = param("EN_S_W_LEN", 1.0f);
+          if (i > 0 && (isVoicelessPlosive(baseName(tok[i - 1])) || isVoicedPlosive(baseName(tok[i - 1])))) whole *= kStopWLen;
+          if (i > 0 && baseName(tok[i - 1]) == "S") whole *= kSWLen;
         }
         // ɹ after a plosive in the same word ("proud", "tried", "great"): 53 ms
         // with F3 at 2100-2900 Hz, no r-colour, heard as an l ("proud" ->
@@ -1121,6 +1126,12 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
         if (vowel && kClusterVowelLen != 1.0f && i >= 2) {
           const std::string l1 = baseName(tok[i - 1]), p0 = baseName(tok[i - 2]);
           if ((l1 == "L" || l1 == "R") && (isVoicelessPlosive(p0) || isVoicedPlosive(p0))) whole *= kClusterVowelLen;
+        }
+        // (W agent round G, lab; 1: as before) ... and after a stop / s + w ("twice", "swim") x EN_CLUSTER_W_VOWEL_LEN.
+        static const float kClusterWVowelLen = param("EN_CLUSTER_W_VOWEL_LEN", 1.0f);
+        if (vowel && kClusterWVowelLen != 1.0f && i >= 2 && baseName(tok[i - 1]) == "W") {
+          const std::string p0 = baseName(tok[i - 2]);
+          if (isVoicelessPlosive(p0) || isVoicedPlosive(p0) || p0 == "S") whole *= kClusterWVowelLen;
         }
       }
       // Rate: vowels follow it, consonants less (a slow reader keeps the
