@@ -319,7 +319,7 @@ const float kHumpReleaseMs = param("LINE_HUMP_RELEASE_MS", 40.0f);  // the const
 // centre sat on a section: in between, 0.028 -> 0.050 cm^2 at the f -> ɹ of "different" (place 0.95 -> 0.68 while the
 // f's 0.03 cm^2 was still shut), the flow under 9 kPa beating 81 -> 124 cm^3/s once per section crossed (~1 kHz,
 // falling): a 300-1500 Hz pulse +27 dB in 1 ms, the "ping-knock at the ff" (Jyrki 2026-11-11, PUHUJA_ENERGY_TRACE).
-const float kHumpNorm = param("LINE_HUMP_NORM", 0.0f);
+const float kHumpNorm = param("LINE_HUMP_NORM", 1.0f);
 const float kHumpFastTo = param("LINE_HUMP_FAST_TO", 2.0f);  // (2.0: off; 0.4 held F2 low through the vowel and affricated the t puff)        // ... after opening fast (6 ms) to this area (cm^2): the acoustic release
 const float kNoiseDx = param("LINE_NOISE_DX", 0.2f);  // the turbulence source this far (cm) past the hump's downstream edge
 const float kNasalCavityArea = param("LINE_NASAL_CAVITY_A", 3.5f);  // the main nasal cavity, both sides (cm^2)
@@ -690,7 +690,7 @@ float VocalTractLine::substep(float u0) {
       // Re over about a pitch period, and the instantaneous Re is scaled by lagged mean / mean (<= 1): the onset is still
       // smoothed, the voicing's modulation of the noise (real in voiced fricatives) kept. At 4 ms: ʒ +5..+19 dB, ZH lab
       // errors 78 -> 58, V 151 -> 134, Z 62 -> 59, DH 57 -> 58; pclick on the snap list unchanged (2026-11-11).
-      static const float kReEnvMs = param("LINE_NOISE_RE_ENV_MS", 0.0f);
+      static const float kReEnvMs = param("LINE_NOISE_RE_ENV_MS", 4.0f);
       // (LINE_V_RE_ENV_MS, V agent round F: the envelope through a v alone while LINE_NOISE_RE_ENV_MS is 0; with the
       // global one the female Kennedy passage gained a 17-19 dB click at a z, a t and an s)
       static const float kVReEnvMs = param("LINE_V_RE_ENV_MS", 4.0f);
