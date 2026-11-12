@@ -26,8 +26,20 @@ constexpr float kFoldRestPressed = -0.15f; // ag 0: pressed shut (vibration stop
 // 2026-10-31). Real folds stop phonating well before 0.3 cm^2. From
 // kAgBreathy (a voiced h) the rest grows smoothly to this.
 const float kFoldRestOpen = param("kFoldRestOpen", 5.0f);  // (1.5 with STRING_REST 0.047 left the folds vibrating in f, a pitch swoop 126 -> 82 Hz through the f of "different", Jyrki: "a swirp", 2026-11-02)
-constexpr float kFoldNaturalF0 = 155;     // f0 of the fold model at tension 1
-constexpr float kPitchControl = 0.3f;     // per cycle: share of pitch error corrected
+// f0 of the fold model at tension 1: the tension mapping q = target / this.
+// 155 is the two-mass model's; the string folds (the default source,
+// STRING_F0 105.7) sound at about 128 Hz at q = 1 under the tract's load and
+// the speech pressure, so with 155 every vowel came out 0.82 of its command
+// (male 117.8 -> 97.6 Hz, female 168.6 -> 136.3; review voice.md B4,
+// 2026-11-11). The controller below then engaged only in strong vowels
+// (physVib > kPitchLearnVib) and pushed those up to 1.24x, so the melody
+// was partly the folds' (Kokoro mode: 20 % of cycles corrected, per-vowel
+// error sd 0.81 st, realised-vs-commanded slope 0.88). With 126 the vowels
+// sit at 1.00 / 0.98 of the command (sd 0.27 st, slope 0.98) and the
+// controller stays at 1. To keep today's average pitch with that, lower
+// kMaleF0 / kFemaleF0 by 0.83 / 0.81 (ref/opt/lab/BUG-PITCH/keep.params).
+const float kFoldNaturalF0 = param("PITCH_NATURAL_F0", 155.0f);
+const float kPitchControl = param("PITCH_CONTROL", 0.3f);     // per cycle: share of pitch error corrected
 const float kPitchLearnVib = param("kPitchLearnVib", 100.0f);     // flow fluctuation (cm^3/s) needed to learn (100 before 2026-11-02)
 const float kPitchCorrMin = param("kPitchCorrMin", 0.5f), kPitchCorrMax = param("kPitchCorrMax", 2.0f);  // (0.7-1.4 pinned the string folds half an octave low, 2026-11-02)  // the tension correction's range
 // Tract load on the folds: each formant mode turns the flow into pressure
