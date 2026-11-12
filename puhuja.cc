@@ -6052,7 +6052,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // vowel LINE_T_PRE_FRONT_MIX, < 0: the same) toward the row LINE_T_PRE_ROW (a Ph index; 8: ə, 9: ɪ), tongue only
   // (lips, larynx, length stay the vowel's), weight LINE_T_PRE_W.
   {
-    static const float kTPreMix = param("LINE_T_PRE_MIX", 0.0f), kTPreFrontMix = param("LINE_T_PRE_FRONT_MIX", -1.0f),
+    static const float kTPreMix = param("LINE_T_PRE_MIX", 0.4f), kTPreFrontMix = param("LINE_T_PRE_FRONT_MIX", -1.0f),
                        kTPreMs = param("LINE_T_PRE_MS", 60.0f), kTPreW = param("LINE_T_PRE_W", 1.0f);
     static const int kTPreRow = static_cast<int>(param("LINE_T_PRE_ROW", 9.0f));
     const bool backPrev = lastPh_ == Ph::AO || lastPh_ == Ph::AA || lastPh_ == Ph::OH || lastPh_ == Ph::O ||
@@ -6922,8 +6922,8 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // area LINE_T_FINAL_SLIT_A, jet LINE_T_FINAL_JET_D, place LINE_T_FINAL_SLIT_X) and before an s (LINE_T_SLIT_S_MS):
   // the final t released straight from the closure, its noise peaking at 2.3-3.7 kHz with 4.5-7 kHz 10-31 dB under it
   // (a k's or p's spectrum: "Not" -> knob, "Hot" -> hop, "Knots" -> knox); Kokoro's peaks at 5.0-5.4 kHz.
-  static const float kTFinalSlitMs = param("LINE_T_FINAL_SLIT_MS", 0.0f), kTFinalSlitA = param("LINE_T_FINAL_SLIT_A", -1.0f),
-                     kTFinalJetD = param("LINE_T_FINAL_JET_D", -1.0f), kTFinalSlitX = param("LINE_T_FINAL_SLIT_X", -1.0f),
+  static const float kTFinalSlitMs = param("LINE_T_FINAL_SLIT_MS", 45.0f), kTFinalSlitA = param("LINE_T_FINAL_SLIT_A", -1.0f),
+                     kTFinalJetD = param("LINE_T_FINAL_JET_D", 0.05f), kTFinalSlitX = param("LINE_T_FINAL_SLIT_X", -1.0f),
                      kTSlitSMs = param("LINE_T_SLIT_S_MS", 0.0f);
   const bool tFinalSlit = tract_ == Tract::Line && kTFinalSlitMs > 0 && tok.ph == Ph::T && !unreleased && nextIsPause;
   const bool tSlitS = tract_ == Tract::Line && kTSlitSMs > 0 && tok.ph == Ph::T && !unreleased && next && *next == Ph::S;

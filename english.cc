@@ -1219,7 +1219,7 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
           if (i + 1 < tok.size() && baseName(tok[i + 1]) == "S") whole *= kTsLen;
           // (T agent 10 round K, lab; 1: as before) a word-final t after p k ("Looked" -> look, "Jumped" -> jump: 23-29 %
           // deleted) x EN_T_AFTER_STOP_LEN.
-          static const float kTAfterStopLen = param("EN_T_AFTER_STOP_LEN", 1.0f);
+          static const float kTAfterStopLen = param("EN_T_AFTER_STOP_LEN", 1.5f);
           if (i > 0 && i + 1 == tok.size() && (baseName(tok[i - 1]) == "K" || baseName(tok[i - 1]) == "P")) whole *= kTAfterStopLen;
         }
         // (T agent 10 round K, lab; 1: as before) an ɹ l n between a vowel and a word-final t x EN_PRE_T_SON_LEN (the
