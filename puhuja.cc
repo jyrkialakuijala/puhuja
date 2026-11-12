@@ -2729,7 +2729,7 @@ void owEndShape(TractShape* sh) {
 void eyStartShape(TractShape* sh, bool female, unsigned ctx) {
   static const float kEyStartEh = param("LINE_EY_START_EH", 0.0f), kEyStartAe = param("LINE_EY_START_AE", 0.0f),
                      kEyStartDx = param("LINE_EY_START_DX", 0.0f), kEyStartAc = param("LINE_EY_START_AC", 1.0f),
-                     kEyStartAph = param("LINE_EY_START_APH", 1.0f), kEyStartLip = param("LINE_EY_START_LIP", 1.0f);
+                     kEyStartAph = param("LINE_EY_START_APH", 0.5f), kEyStartLip = param("LINE_EY_START_LIP", 1.0f);
   TractShape o;
   if (kEyStartEh > 0 && lineShapeOf(Ph::EH, &o)) *sh = lineShapeMix(*sh, o, kEyStartEh);
   if (kEyStartAe > 0 && lineShapeOf(Ph::AE, &o)) *sh = lineShapeMix(*sh, o, kEyStartAe);
@@ -2745,7 +2745,7 @@ void eyStartShape(TractShape* sh, bool female, unsigned ctx) {
   // before a nasal ("name", "main") by LINE_EY_NAS_START_EH as well.
   static const float kEyFStartEh = param("LINE_EY_F_START_EH", 0.0f), kEyFStartAe = param("LINE_EY_F_START_AE", 0.0f),
                      kEyFStartAph = param("LINE_EY_F_START_APH", 1.0f), kEyFStartDx = param("LINE_EY_F_START_DX", 0.0f),
-                     kEyClStartEh = param("LINE_EY_CL_START_EH", 0.0f), kEyNasStartEh = param("LINE_EY_NAS_START_EH", 0.0f);
+                     kEyClStartEh = param("LINE_EY_CL_START_EH", 0.4f), kEyNasStartEh = param("LINE_EY_NAS_START_EH", 0.0f);
   const float ehMix = (female ? kEyFStartEh : 0.0f) + ((ctx & 1) ? kEyClStartEh : 0.0f) + ((ctx & 2) ? kEyNasStartEh : 0.0f);
   if (ehMix > 0 && lineShapeOf(Ph::EH, &o)) *sh = lineShapeMix(*sh, o, std::min(ehMix, 1.0f));
   if (female && kEyFStartAe > 0 && lineShapeOf(Ph::AE, &o)) *sh = lineShapeMix(*sh, o, kEyFStartAe);
@@ -3812,7 +3812,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
                          kAaAc = param("LINE_AA_AC", 1.0f), kAaXc = param("LINE_AA_XC", -1.0f),
                          kAaLenCm = param("LINE_AA_LEN_CM", 0.0f), kAaFALip = param("LINE_AA_F_ALIP", 1.0f);
       static const float kAaMixAe = param("LINE_AA_MIX_AE", 0.0f), kAaMixAh = param("LINE_AA_MIX_AH", 0.0f),
-                         kAaMixA = param("LINE_AA_MIX_A", 0.0f);
+                         kAaMixA = param("LINE_AA_MIX_A", 0.2f);
       static const float kAaFinalMix = param("LINE_AA_FINAL_MIX", 0.0f), kAaNasMix = param("LINE_AA_NAS_MIX", 0.0f),
                          kAaLMix = param("LINE_AA_L_MIX", 0.0f), kAaInitMix = param("LINE_AA_INIT_MIX", 0.0f);
       static const int kAaCtxRow = param("LINE_AA_CTX_ROW", static_cast<int>(Ph::A));
@@ -4043,7 +4043,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
         // (rounding, F2 falling) and an ɑ differ. Not before ɹ. Lab (hard300: 180 dictionary words with >= 2 of 4 ɑ errors +
         // 120 common, both voices, two draws): LINE_AA_OFF_FRONT 0.5 223 -> 177 errors, words right 290 -> 326 (common 300:
         // 54 -> 42, words1000 1447 -> 1458); half of it is the late key becoming the ɑ's own demand (LATE_LIPA 1.001: 196).
-        static const float kAaOffFront = param("LINE_AA_OFF_FRONT", 0.0f), kAaFinalOff = param("LINE_AA_FINAL_OFF", 0.0f),
+        static const float kAaOffFront = param("LINE_AA_OFF_FRONT", 0.5f), kAaFinalOff = param("LINE_AA_FINAL_OFF", 0.0f),
                            kAaLateLipA = param("LINE_AA_LATE_LIPA", 1.0f);
         static const int kAaOffRow = param("LINE_AA_OFF_ROW", static_cast<int>(Ph::AH));
         if (tok.ph == Ph::AA && !(next && *next == Ph::RR) && (kAaOffFront > 0 || kAaFinalOff > 0 || kAaLateLipA != 1.0f)) {
