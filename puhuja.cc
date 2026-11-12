@@ -545,7 +545,38 @@ const float kLineJhAg = param("LINE_JH_AG", 0.4f);  // (0.4 for an hour on 2026-
 const float kLineJhExpandFlow = param("LINE_JH_EXPAND_FLOW", 800.0f) /* vil-J4, Jyrki 2026-11-05 */;
 const float kLineJhCloseFric = param("LINE_JH_CLOSE_FRIC", 0.3f);
 const float kLineZhFric = param("LINE_ZH_FRIC", 4.0f);
-const float kLineJhFric = param("LINE_JH_FRIC", -1.0f);  // the ʤ's frication gain (< 0: LINE_ZH_FRIC; the ʤ's frication is an emitted ʒ)
+const float kLineJhFric = param("LINE_JH_FRIC", -1.0f);  // the ʤ's frication gain (< 0: LINE_ZH_FRIC; the ʤ's frication is an emitted ʒ) (2026-11-12: inert for the ʤ: after the closure the ʒ's own event is not queued, the release carries its hiss: LINE_JH_REL_FRIC)
+// ʤ lab knobs (JH agent, round H, 2026-11-12; every default reproduces the deployed sound). The dictionary's ʤ errors
+// by place: initial 21.5 % (heard t, ʧ, ɹ), medial 11.6 % (t, ʧ), final 15.5 % (ʧ 47 of 64: stressed final 31 %).
+// Against Kokoro (am_adam / af_heart, "job", "major", "page"): puhuja's ʤ frication is 3.3-4 kHz (Kokoro 4.5-5.5),
+// -4..-9 dB re the word's peak and voiceless (Kokoro -8..-16, partly voiced in the middle of a word, a final ʤ often
+// only -25..-45 with its voice bar running on), and an initial one leaves a 15-20 ms voiced gap before the vowel.
+// Per place (INIT after a pause, MED, FINAL before a pause; 1 / < 0: off): _CLOSE x the closure's length, _FLEN x the
+// frication's, _FRIC x its hiss gain, _AG the glottis at the release (< 0: LINE_JH_AG), _ZAG the glottis of the
+// frication's second part (< 0: off; LINE_JH_ZAG_AT).
+const float kLineJhPosClose[3] = {param("LINE_JH_INIT_CLOSE", 1.0f), param("LINE_JH_MED_CLOSE", 1.0f), param("LINE_JH_FINAL_CLOSE", 1.0f)};
+const float kLineJhPosFlen[3] = {param("LINE_JH_INIT_FLEN", 1.0f), param("LINE_JH_MED_FLEN", 1.0f), param("LINE_JH_FINAL_FLEN", 1.0f)};
+const float kLineJhPosFric[3] = {param("LINE_JH_INIT_FRIC", 1.0f), param("LINE_JH_MED_FRIC", 1.0f), param("LINE_JH_FINAL_FRIC", 1.0f)};
+const float kLineJhPosAg[3] = {param("LINE_JH_INIT_AG", -1.0f), param("LINE_JH_MED_AG", -1.0f), param("LINE_JH_FINAL_AG", -1.0f)};
+const float kLineJhPosZag[3] = {param("LINE_JH_INIT_ZAG", -1.0f), param("LINE_JH_MED_ZAG", -1.0f), param("LINE_JH_FINAL_ZAG", -1.0f)};
+// ... and for every ʤ (< 0 / 1: the shared ʃ ʒ ʧ ʤ value): LINE_JH_FRIC_X the place of its frication (LINE_SH_X),
+// LINE_JH_SLIT x its slit, LINE_JH_LIP its lip rounding (LINE_POST_LIP), LINE_JH_JET_D its jet (LINE_POST_JET_D),
+// LINE_JH_LPR its band low-pass (LINE_POST_LPR), LINE_JH_FC_MIN its noise corner floor (LINE_POST_FC_MIN),
+// LINE_JH_HW its constriction width (LINE_POST_HW), LINE_JH_FADE its frication fade (LINE_VFRIC_FADE),
+// LINE_JH_OWN_REL_FRIC its release hiss (LINE_JH_REL_FRIC, shared with ʧ), LINE_JH_PRESS the lung pressure share
+// through its frication, LINE_JH_FINAL_EXPAND x a final ʤ's closure expansion flow (its voice bar).
+const float kLineJhFricX = param("LINE_JH_FRIC_X", -1.0f), kLineJhSlit = param("LINE_JH_SLIT", 1.0f),
+            kLineJhLip = param("LINE_JH_LIP", -1.0f), kLineJhJetD = param("LINE_JH_JET_D", -1.0f),
+            kLineJhLpr = param("LINE_JH_LPR", -1.0f), kLineJhFcMin = param("LINE_JH_FC_MIN", -1.0f),
+            kLineJhHw = param("LINE_JH_HW", -1.0f), kLineJhFade = param("LINE_JH_FADE", -1.0f),
+            kLineJhOwnRelFric = param("LINE_JH_OWN_REL_FRIC", -1.0f), kLineJhPress = param("LINE_JH_PRESS", 1.0f),
+            kLineJhFinalExpand = param("LINE_JH_FINAL_EXPAND", 1.0f);
+// The hiss's course through the frication (1 / 0: off): LINE_JH_RAMP_MS the release hiss rises from LINE_JH_RAMP0 x its
+// gain to the full gain over this long (Kokoro's initial ʤ hiss rises 20 dB over 20 ms; puhuja's switched on in 5 ms,
+// snap.py 4-27 dB at the release); LINE_JH_DECAY x the gain from LINE_JH_DECAY_AT of the way through the frication
+// (Kokoro's final ʤ fades from -14 to -25 dB re the word's peak).
+const float kLineJhRampMs = param("LINE_JH_RAMP_MS", 0.0f), kLineJhRamp0 = param("LINE_JH_RAMP0", 0.3f),
+            kLineJhDecay = param("LINE_JH_DECAY", 1.0f), kLineJhDecayAt = param("LINE_JH_DECAY_AT", 0.5f);
 // ʒ's own jet thickness / band low-pass / frication fade window (< 0: the ʃ ʒ ʧ ʤ LINE_POST_JET_D, LINE_POST_LPR, LINE_VFRIC_FADE; ʒ lab 2026-11-09)
 const float kLineZhJetD = param("LINE_ZH_JET_D", -1.0f), kLineZhLpr = param("LINE_ZH_LPR", 4.0f), kLineZhFade = param("LINE_ZH_FADE", -1.0f);
 const float kLineVoicedSoft = param("LINE_VOICED_SOFT", 2.0f);     // a voiced stop's closure: its sections lose this many times more (soft tissue; 6 -> 2 on 2026-11-04 with the wall radiation, Whisper on d words)
@@ -1056,7 +1087,8 @@ float linePlaceOf(Ph ph) {
     case Ph::D: { static const float x = param("LINE_D_X", 0.83f); return x; }  // (a lab knob 2026-11-10, D agent; t: LINE_T_X)
     case Ph::L: case Ph::R: return 0.87f;
     case Ph::SH: case Ph::ZH: { static const float x = param("LINE_SH_X", 0.78f); return x; }
-    case Ph::CH: case Ph::JH: return 0.78f;
+    case Ph::CH: return 0.78f;
+    case Ph::JH: { static const float x = param("LINE_JH_X", 0.78f); return x; }  // the ʤ closure's place (JH agent round H)
     case Ph::RR: { static const float x = param("LINE_R_X", 0.68f); return x; }  // (its hump: LINE_R_AC; 0.75 until 2026-11-04: F3 1700-1800 with the wider hump)
     case Ph::J: { static const float x = param("LINE_J_X", 0.70f); return x; }  // (0.66 / 0.74: F2 within 50 Hz, 2026-11-04)
     case Ph::K: { static const float x = param("LINE_K_X", 0.62f); return x; }
@@ -2931,6 +2963,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
   // The ʤ's frication is an emitted ʒ (emitAffricate): the ʒ's own glottis (LINE_AG_ZH) stays with the standalone ʒ
   // (2026-11-09: the ʒ candidate 0.17 took the ʤ's release hiss away, ʤ errors 172 -> 205 in the lab).
   if (inAffricate_ && tok.ph == Ph::ZH) aero.ag = kAgVoicedFric;
+  if (tract_ == Tract::Line && jhPressed_ && e.press < 0) { e.press = 1.0f; e.pressMs = 20; jhPressed_ = false; }  // (after LINE_JH_PRESS)
   // LINE_V_PRESS (lab 2026-11-09): the lung pressure eases to this share through a v (the voice bar and the hiss both
   // softer, an approximant-like v as Kokoro's) and comes back on the next sound; 1: unchanged.
   { static const float kVPress = param("LINE_V_PRESS", 0.85f);
@@ -5089,7 +5122,10 @@ void Synth::emit(const Token& tok, const Ph* next) {
 // same place: ʧ = closure + postalveolar burst + short ʃ, ʤ likewise with ʒ.
 void Synth::emitAffricate(const Token& tok, const Ph* next) {
   const Ph fric = tok.ph == Ph::CH ? Ph::SH : Ph::ZH;
-  emitPlosive(tok, &fric);  // a fricative next: no aspiration, no voice onset
+  jhPos_ = tok.ph != Ph::JH ? -1 : prevWasPause_ ? 0 : (!next || *next == Ph::Stop) ? 2 : 1;  // (the LINE_JH_INIT_* ... knobs)
+  Token closure = tok;
+  if (jhPos_ >= 0 && closure.shape.ms > 0) closure.shape.ms *= kLineJhPosClose[jhPos_];
+  emitPlosive(closure, &fric);  // a fricative next: no aspiration, no voice onset
   prevWasPlosive_ = true;
   inAffricate_ = true;
   // The English reader times the closure (tok.shape.ms); the frication
@@ -5097,9 +5133,38 @@ void Synth::emitAffricate(const Token& tok, const Ph* next) {
   // "which") shortens as a whole. (With the table's length the frication
   // stayed 92 ms whatever the reader asked for.)
   Shape fs;
-  if (tok.shape.ms > 0) fs.ms = tok.shape.ms * kAffricateFricationPerClosure;
+  if (tok.shape.ms > 0) fs.ms = tok.shape.ms * kAffricateFricationPerClosure * (jhPos_ >= 0 ? kLineJhPosFlen[jhPos_] : 1.0f);
+  const double tf0 = timeline_;
   emit(Token{fric, false, false, 0, false, kNoPitch, fs}, next);
+  // LINE_JH_*_ZAG (< 0: off): the glottis moves to this area LINE_JH_ZAG_AT of the way through the frication (the
+  // release opened it to LINE_JH_AG for the whole ʒ part): Kokoro's medial and final ʤ voice again before the vowel.
+  static const float kLineJhZagAt = param("LINE_JH_ZAG_AT", 0.5f);
+  if (tract_ == Tract::Line && jhPos_ >= 0 && kLineJhPosZag[jhPos_] >= 0) {
+    Event g{tf0 + kLineJhZagAt * (timeline_ - tf0)};
+    g.ac = g.an = -1;
+    g.ag = kLineJhPosZag[jhPos_];
+    g.agMs = kGlottalMs;
+    addEventAt(g);
+  }
+  if (tract_ == Tract::Line && jhPos_ >= 0 && jhRelFric_ > 0) {
+    const float ms = 0.001f * fs_;
+    if (kLineJhRampMs > 0)
+      for (int k = 1; k <= 4; ++k) {
+        Event r{tf0 + std::min(static_cast<double>(kLineJhRampMs) * ms, 0.8 * (timeline_ - tf0)) * k / 4};
+        r.ac = r.ag = r.an = -1;
+        r.lineFricMul = jhRelFric_ * (kLineJhRamp0 + (1.0f - kLineJhRamp0) * k / 4.0f);
+        addEventAt(r);
+      }
+    if (kLineJhDecay != 1.0f) {
+      Event d{tf0 + kLineJhDecayAt * (timeline_ - tf0)};
+      d.ac = d.ag = d.an = -1;
+      d.lineFricMul = jhRelFric_ * kLineJhDecay;
+      addEventAt(d);
+    }
+  }
+  jhRelFric_ = -1;
   inAffricate_ = false;
+  jhPos_ = -1;
 }
 
 // Coarticulation: the parts of the mouth a consonant does not use take part
@@ -5495,6 +5560,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     const bool post = tok.ph == Ph::CH || tok.ph == Ph::JH;
     close.lineHw = post ? kLinePostHw : 1.0f;
     close.lineLip = post ? kLinePostLip : 0.0f;
+    if (tok.ph == Ph::JH && kLineJhLip >= 0) close.lineLip = kLineJhLip;
     close.lineJetD = post ? kLinePostJetD : 0.0f;
     if (post) close.lineJetMix = kLinePostJetMix, close.lineSlitScale = kLinePostSlitScale, close.lineJetSmoothMs = kLinePostStSmoothMs, close.lineJetFcMin = kLinePostFcMin, close.lineJetFcMax = kLinePostFcMax;
     // t's jet (LINE_T_JET_D, cm; 0: the slit's height): the tongue tip closing
@@ -5516,7 +5582,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     // expansion. The velar closure leaves the smallest cavity behind it, so its voicing stops soonest and the pressure
     // builds for the burst; puhuja's g closure held 2500 dyn/cm^2 against the k's 7400 and released no burst.
     static const float kLineGExpandFlow = param("LINE_G_EXPAND_FLOW", -1.0f);
-    close.lineExpand = tok.ph == Ph::JH ? kLineJhExpandFlow : tok.ph == Ph::G && kLineGExpandFlow >= 0 ? std::max(kLineGExpandFlow, 1e-3f) : 0.0f;
+    close.lineExpand = tok.ph == Ph::JH ? kLineJhExpandFlow * (jhPos_ == 2 ? kLineJhFinalExpand : 1.0f) : tok.ph == Ph::G && kLineGExpandFlow >= 0 ? std::max(kLineGExpandFlow, 1e-3f) : 0.0f;
     if (tract_ == Tract::Line && tok.ph == Ph::JH && kLineJhCloseFric != 1.0f) close.lineFricMul = kLineJhCloseFric;
     if (tract_ == Tract::Line && kLineCloseFric != 1.0f && close.lineFricMul < 0 && tok.ph != Ph::T && tok.ph != Ph::JH && tok.ph != Ph::CH) close.lineFricMul = kLineCloseFric;
   }
@@ -5758,6 +5824,17 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     rel.lineHw = post ? kLinePostHw : 1.0f;
     rel.lineLip = post ? kLinePostLip : 0.0f;
     if (post) rel.lineJetD = kLinePostJetD, rel.lineJetMix = kLinePostJetMix, rel.lineSlitScale = kLinePostSlitScale, rel.lineJetSmoothMs = kLinePostStSmoothMs, rel.lineJetFcMin = kLinePostFcMin, rel.lineJetFcMax = kLinePostFcMax, rel.lineFricLpr = kLinePostLpr;
+    if (tok.ph == Ph::JH) {  // (the ʤ's own frication knobs, LINE_JH_FRIC_X ...: the release carries the ʒ's targets, its own event is not queued)
+      if (kLineJhFade >= 0) rel.lineFricFade = kLineJhFade;
+      if (kLineJhPress < 1.0f) { rel.press = kLineJhPress; rel.pressMs = 20; jhPressed_ = true; }
+      if (kLineJhFricX >= 0) rel.lineX = kLineJhFricX;
+      if (kLineJhLip >= 0) rel.lineLip = kLineJhLip;
+      if (kLineJhJetD >= 0) rel.lineJetD = kLineJhJetD;
+      if (kLineJhLpr >= 0) rel.lineFricLpr = kLineJhLpr;
+      if (kLineJhFcMin >= 0) rel.lineJetFcMin = kLineJhFcMin;
+      if (kLineJhHw >= 0) rel.lineHw = kLineJhHw;
+      if (kLineJhSlit != 1.0f) rel.ac *= kLineJhSlit;
+    }
     // ... and f's own jet, band, lip width and gain (LINE_STOP_F_OWN): the f
     // of "not forget", "at first" was made with the slit's jet and the full
     // width, a +10 dB, 4-24 kHz burst where the readers' t is silent and their
@@ -5938,7 +6015,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     static const float kLineGVotMs = param("LINE_G_VOT_MS", -1.0f);
     static const float kLineDVotMs = param("LINE_D_VOT_MS", -1.0f);  // (the same for the d; D agent 2026-11-10)
     rel.agMs = pi.voiced ? (tok.ph == Ph::G && kLineGVotMs >= 0 ? kLineGVotMs : tok.ph == Ph::D && kLineDVotMs >= 0 ? kLineDVotMs : kGlottalMs) : pi.adductMs;
-    if (tract_ == Tract::Line && tok.ph == Ph::JH && kLineJhAg >= 0) rel.ag = kLineJhAg;  // (half-devoiced ʤ)
+    if (tract_ == Tract::Line && tok.ph == Ph::JH && kLineJhAg >= 0) rel.ag = jhPos_ >= 0 && kLineJhPosAg[jhPos_] >= 0 ? kLineJhPosAg[jhPos_] : kLineJhAg;  // (half-devoiced ʤ)
     // A voiced stop releasing into a voiceless fricative ("and foo", "and
     // pharaoh"): the glottis opened in kGlottalMs at the release, so the burst
     // came out through an open glottis 20 dB louder than before a vowel
@@ -6158,7 +6235,10 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // 2026-11-07). The release restores the gain (LINE_JH_REL_FRIC).
   if (tract_ == Tract::Line && (tok.ph == Ph::JH || tok.ph == Ph::CH) && rel.lineFricMul < 0) {
     static const float kLineJhRelFric = param("LINE_JH_REL_FRIC", 5.0f);  // 2026-11-07, Jyrki: "pledge-l20vr5.wav is the best" (voiced ʤ, the hiss x5: -8..-15 dB re the s through the frication)
-    rel.lineFricMul = kLineJhRelFric;
+    rel.lineFricMul = tok.ph == Ph::JH && kLineJhOwnRelFric >= 0 ? kLineJhOwnRelFric : kLineJhRelFric;
+    if (tok.ph == Ph::JH && jhPos_ >= 0) rel.lineFricMul *= kLineJhPosFric[jhPos_];  // (LINE_JH_INIT_FRIC ...)
+    if (tok.ph == Ph::JH && jhPos_ >= 0) jhRelFric_ = rel.lineFricMul;  // (LINE_JH_RAMP_MS, LINE_JH_DECAY)
+    if (tok.ph == Ph::JH && jhPos_ >= 0 && kLineJhRampMs > 0) rel.lineFricMul *= kLineJhRamp0;
   }
   if (tract_ == Tract::Line && kLineCloseFric != 1.0f && rel.lineFricMul < 0 && tok.ph != Ph::T && tok.ph != Ph::JH && tok.ph != Ph::CH) rel.lineFricMul = 1.0f;  // (the release's burst keeps the full gain)
   // k's (and p's) release hiss x LINE_K_REL_FRIC / LINE_P_REL_FRIC while the

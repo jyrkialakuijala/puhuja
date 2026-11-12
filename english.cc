@@ -824,7 +824,9 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
           static const float kPreZVowel = param("EN_PRE_Z_VOWEL", 1.4f);
           // (EN_PRE_G_VOWEL, G agent 7 round H, lab; < 0: the voiced plosives' 1.2) the vowel before a g of the same word.
           static const float kPreGVowel = param("EN_PRE_G_VOWEL", -1.0f);
-          prc *= n == "ZH" ? kPreZhVowel : n == "Z" ? kPreZVowel : n == "G" && kPreGVowel >= 0 ? kPreGVowel : isVoicedFricative(n) ? 1.4f : isVoicedPlosive(n) ? 1.2f
+          // (EN_PRE_JH_VOWEL: before a ʤ x this instead of the voiced plosives' 1.2; JH agent round H: a final ʤ is heard as ʧ)
+          static const float kPreJhVowel = param("EN_PRE_JH_VOWEL", 1.2f);
+          prc *= n == "JH" ? kPreJhVowel : n == "ZH" ? kPreZhVowel : n == "Z" ? kPreZVowel : n == "G" && kPreGVowel >= 0 ? kPreGVowel : isVoicedFricative(n) ? 1.4f : isVoicedPlosive(n) ? 1.2f
                : isNasal(n) ? 0.9f : isVoicelessPlosive(n) ? (b == "AA" ? kAaPreVless : 0.75f) : 1.0f;
         }
         // The vowel before a ŋ in the same word x EN_PRE_NG_VOWEL_LEN (lab knob 2026-11-11, NG agent 3; 1: as before): the

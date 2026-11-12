@@ -501,6 +501,9 @@ class Synth {
   int prevVoicedObstruent_ = 0;  // the previous phone was a voiced fricative (1) or plosive (2) (LINE_GD_VOICED_CTX)
   bool inAffricate_ = false;  // emitting the frication part of ʧ / ʤ
   bool lastZhOwn_ = false;  // the last ʒ was a standalone one, not a ʤ's frication (LINE_ZH_OFF_MS)
+  int jhPos_ = -1;  // the ʤ being emitted: 0 after a pause, 1 medial, 2 before a pause (-1: none; LINE_JH_INIT_* ...)
+  float jhRelFric_ = -1;  // the ʤ release's hiss gain (LINE_JH_RAMP_MS, LINE_JH_DECAY)
+  bool jhPressed_ = false;  // LINE_JH_PRESS eased the breath through a ʤ: restore it on the next sound
   float lineFricMulS_ = 1.0f;  // LINE_FRIC_GLIDE_MS: the frication gain on its way to lineFricMul_
   bool closurePressEased_ = false;  // LINE_CLOSURE_PRESS eased the breath for the current closure
   double phonemeStart_ = 0;   // where the previous phoneme started (samples)
