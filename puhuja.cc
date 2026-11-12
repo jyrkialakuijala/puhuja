@@ -3806,7 +3806,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
             // (else SPLAN_GLIDE_END / 0.9).
             static const float kIyChainFrom = param("LINE_IY_CHAIN_FROM", -1.0f), kIyChainTo = param("LINE_IY_CHAIN_TO", -1.0f),
                                kIyChainW = param("LINE_IY_CHAIN_W", 1.0f), kIyNextFrom = param("LINE_IY_NEXT_FROM", -1.0f),
-                               kIyNextTo = param("LINE_IY_NEXT_TO", -1.0f), kIyChainPlaceW = param("LINE_IY_CHAIN_PLACE_W", 0.0f);
+                               kIyNextTo = param("LINE_IY_NEXT_TO", -1.0f), kIyChainPlaceW = param("LINE_IY_CHAIN_PLACE_W", 1.0f);
             const bool iyStart = chainStart && tok.ph == Ph::I, iyNext = chainEnd && lastPh_ == Ph::I;
             const double a = iyStart && kIyChainFrom >= 0 ? kIyChainFrom : iyNext && kIyNextFrom >= 0 ? kIyNextFrom : a0;
             const double b = iyStart && kIyChainTo >= 0 ? kIyChainTo : iyNext && kIyNextTo >= 0 ? kIyNextTo
@@ -3894,8 +3894,8 @@ void Synth::emit(const Token& tok, const Ph* next) {
             const bool er = tok.ph == Ph::ER;
             // A held iː's demand window and weight (IY agent 2026-11-11 lab knobs; -1 / -1 / 1: 0.3-0.7, as before): in
             // connected speech (kennedy) its F2 sat at 1730 Hz against Kokoro's 2010 (isolated "Dee" 2055 vs ~2300).
-            static const float kIyFrom = param("LINE_IY_FROM", -1.0f), kIyTo = param("LINE_IY_TO", -1.0f), kIyW = param("LINE_IY_W", 1.0f),
-                               kIyPlaceW = param("LINE_IY_PLACE_W", 0.0f);  // the tongue place's least weight (its 2 cm^2 opening counts as half open)
+            static const float kIyFrom = param("LINE_IY_FROM", -1.0f), kIyTo = param("LINE_IY_TO", -1.0f), kIyW = param("LINE_IY_W", 3.0f),
+                               kIyPlaceW = param("LINE_IY_PLACE_W", 1.0f);  // the tongue place's least weight (its 2 cm^2 opening counts as half open)
             const bool iy = tok.ph == Ph::I;
             // (round-H ʊ agent, lab; -1 / -1 / 1 / 0: as before) the same for a standalone ʊ: LINE_UH_FROM, _TO, _W, _PLACE_W.
             static const float kUhFrom = param("LINE_UH_FROM", -1.0f), kUhTo = param("LINE_UH_TO", -1.0f), kUhW = param("LINE_UH_W", 1.0f),
