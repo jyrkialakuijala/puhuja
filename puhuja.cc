@@ -3557,6 +3557,53 @@ void Synth::emit(const Token& tok, const Ph* next) {
       }
       if (tok.wordStart && kSchwaInitAph != 1.0f) sh.aPharynx *= kSchwaInitAph;
     }
+    // ɔ's own shape (AO agent 2026-11-11, lab knobs; 0 / 1: as before): mixed toward ɑ by LINE_AO_AA_MIX, its pharynx,
+    // constriction place and area, oral cavity, lip area and length x these. Only the ɔ token (not ɔɪ's start, and before
+    // an ɹ only with LINE_AO_R 1): the ɔ row also shapes aʊ's end, ɔɪ's start, the l and the p. Whisper heard the
+    // dictionary's ɔ as oʊ (219 of 848 errors: "Paul" -> "pole", "author" -> "over", "sort" -> "sword") and ɑ (116):
+    // male 479/920 Hz against Kokoro's 520/1035 (adam, onyx: "law, talk, dog, all"), F1 -1.4 and F2 -2 semitones.
+    if (have && tok.ph == Ph::AO && !(next && *next == Ph::IH)) {
+      static const float kAoAaMix = param("LINE_AO_AA_MIX", 0.0f), kAoAph = param("LINE_AO_APH", 1.0f),
+                         kAoXc = param("LINE_AO_XC", 1.0f), kAoAc = param("LINE_AO_AC", 1.0f), kAoAor = param("LINE_AO_AOR", 1.0f),
+                         kAoLipA = param("LINE_AO_LIPA", 1.0f), kAoLipL = param("LINE_AO_LIPL", 1.0f), kAoR = param("LINE_AO_R", 1.0f),
+                         kAoFLipA = param("LINE_AO_F_LIPA", 1.0f);
+      // (AO agent 8, round I, lab; 15 / 1: as before) LINE_AO_CTX: which ɔ these knobs shape, by what follows in the
+      // stream: 1 an l, 2 a voiceless obstruent (p t k ʧ f θ s ʃ), 4 a pause (word-final before silence), 8 anything
+      // else (the dictionary: 30 % / 31-67 % / 60 % / 15-41 % wrong). LINE_AO_SHLEN: the tract length x (< 1 raises every
+      // formant together: Kokoro's ɔ sits +4 st F1, +2 st F2 above puhuja's).
+      static const int kAoCtx = param("LINE_AO_CTX", 15);
+      static const float kAoShLen = param("LINE_AO_SHLEN", 1.0f);
+      const int aoCtx = next && *next == Ph::L ? 1 :
+                        next && (*next == Ph::P || *next == Ph::T || *next == Ph::K || *next == Ph::CH || *next == Ph::F ||
+                                 *next == Ph::TH || *next == Ph::S || *next == Ph::SH) ? 2 :
+                        !next || *next == Ph::Stop ? 4 : 8;
+      if ((kAoR > 0 || !(next && *next == Ph::RR)) && (kAoCtx & aoCtx)) {
+        if (kAoShLen != 1.0f) sh.length *= kAoShLen;
+        // (AO agent 8; 0 / 1: as before) the female voice's own ɑ mix (her F2 sits -4.2 st under Kokoro's, his -2.2) and the
+        // constriction's half-width x LINE_AO_WC.
+        static const float kAoFAaMix = param("LINE_AO_F_AA_MIX", 0.0f), kAoWc = param("LINE_AO_WC", 1.0f);
+        TractShape fa;
+        if (female_ && kAoFAaMix > 0 && lineShapeOf(Ph::AA, &fa)) sh = lineShapeMix(sh, fa, kAoFAaMix);
+        if (kAoWc != 1.0f) { sh.wc *= kAoWc; sh.sc = lineVowelStrength(sh.xc, sh.wc, sh.length); }
+        TractShape a;
+        if (kAoAaMix > 0 && lineShapeOf(Ph::AA, &a)) sh = lineShapeMix(sh, a, kAoAaMix);
+        if (kAoAph != 1.0f) sh.aPharynx *= kAoAph;
+        if (kAoAc != 1.0f) sh.ac *= kAoAc;
+        if (kAoAor != 1.0f) sh.aOral *= kAoAor;
+        if (kAoLipA != 1.0f) sh.aLip *= kAoLipA;
+        if (female_ && kAoFLipA != 1.0f) sh.aLip *= kAoFLipA;
+        if (kAoLipL != 1.0f) sh.lLip *= kAoLipL;
+        if (kAoXc != 1.0f) { sh.xc *= kAoXc; sh.sc = lineVowelStrength(sh.xc, sh.wc, sh.length); }
+      }
+    }
+    // (AO agent 8, round I, lab; 0: off) an l right after an ɔ mixed toward ə by LINE_L_AFTER_AO: puhuja's coda l after
+    // ɔ ran ~320 / 740 Hz, the vowel gliding down into it as an oʊ does ("call" -> "cole", "Paul" -> "pole", "mall" ->
+    // "mole": 72 of the 128 ɔ errors before l are oʊ); Kokoro's l there sits at 350-430 / 950-1050.
+    if (have && tok.ph == Ph::L && lastPh_ == Ph::AO) {
+      static const float kLAfterAo = param("LINE_L_AFTER_AO", 0.0f);
+      TractShape c;
+      if (kLAfterAo > 0 && lineShapeOf(Ph::Schwa, &c)) sh = lineShapeMix(sh, c, kLAfterAo);
+    }
     if (have && tok.ph == Ph::O && next && *next == Ph::UH) {
       // ... and starts open-mid and central (Kokoro 530-600/1060-1290 at 20 %;
       // puhuja's o held 450/1070 and drifted up: "know" was heard as "no-ʉ").
@@ -3877,11 +3924,35 @@ void Synth::emit(const Token& tok, const Ph* next) {
           if (next && *next == Ph::L && kEhLOffMix > 0 && lineShapeOf(Ph::L, &o)) late = lineShapeMix(late, o, kEhLOffMix);
           lateNoUw = late;  // (an ɛ has no uː changes: its late mix counts as its own end, as in the EH agent's lab)
         }
+        // The ɔ's late key mixed toward ʌ (LINE_AO_OFF_MIX; AO agent 2026-11-11, 0 = as before): a centring end against
+        // the oʊ reading (Whisper: "Paul" -> "pole"; oʊ closes, the American ɔ opens or centres).
+        static const float kAoOffMix = param("LINE_AO_OFF_MIX", 0.0f);
+        if (tok.ph == Ph::AO && kAoOffMix > 0 && !(next && (*next == Ph::IH || *next == Ph::RR))) {
+          TractShape c;
+          if (lineShapeOf(Ph::AH, &c)) late = lineShapeMix(late, c, kAoOffMix);
+        }
+        // (AO agent 8, round I, lab; 0 / 1: off) the ɔ's late key against the oʊ reading: toward ɑ by LINE_AO_OFF_AA (the
+        // jaw keeps opening: Kokoro's F1 rises to its peak at 50-70 % of the vowel, puhuja's stays at 400-450), toward ə
+        // before a pause only by LINE_AO_FINAL_OFF (Kokoro's "law", "saw" end level or rising in F2; puhuja's fall to
+        // ~800 and the dictionary's final ɔ is heard as l: "saw" -> "soul", "utah" -> "little"), its lips x
+        // LINE_AO_LATE_LIPA (the oʊ closes its lips at the end; the ɔ does not). Not before ɪ (ɔɪ) or ɹ.
+        static const float kAoOffAa = param("LINE_AO_OFF_AA", 0.0f), kAoFinalOff = param("LINE_AO_FINAL_OFF", 0.0f),
+                           kAoLateLipA = param("LINE_AO_LATE_LIPA", 1.0f);
+        if (tok.ph == Ph::AO && !(next && (*next == Ph::IH || *next == Ph::RR))) {
+          TractShape c;
+          if (kAoOffAa > 0 && lineShapeOf(Ph::AA, &c)) late = lineShapeMix(late, c, kAoOffAa);
+          if (kAoFinalOff > 0 && (!next || *next == Ph::Stop) && lineShapeOf(Ph::Schwa, &c)) late = lineShapeMix(late, c, kAoFinalOff);
+          if (kAoLateLipA != 1.0f) late.aLip *= kAoLateLipA;
+          lateNoUw = late;  // (an ɔ has no uː changes: its late mix counts as its own end, as in the AO agent's lab)
+        }
         // A coda l before a vowel or h across the word boundary ("mortal hands") leaves its shape at this share of
         // its length instead of 0.7 (LINE_CODA_L_KEY; the readers' l moves toward the vowel over its last 60 ms).
         static const float kLineCodaLKey = param("LINE_CODA_L_KEY", 0.7f);
+        // The ɔ's late hold key at this share instead of 0.7 (LINE_AO_KEY_TO, -1 = as every vowel; AO agent 2026-11-11: the coda
+        // pulled "talk" 574 -> 469 and "cross" F2 down over the last third).
+        static const float kLineAoKeyTo = param("LINE_AO_KEY_TO", -1.0f);
         const bool codaLRelease = tok.ph == Ph::L && next && *next == Ph::H;  // (a vowel next: no word-boundary knowledge here, so only before h)
-        lineKeys_.push_back({t0 + (codaLRelease ? kLineCodaLKey : tok.ph == Ph::W ? kLineWKeyTo : tok.ph == Ph::AA && kLineAaKeyTo >= 0 ? kLineAaKeyTo : hold ? 0.7 : 0.5) * dur, late});
+        lineKeys_.push_back({t0 + (codaLRelease ? kLineCodaLKey : tok.ph == Ph::W ? kLineWKeyTo : tok.ph == Ph::AA && kLineAaKeyTo >= 0 ? kLineAaKeyTo : tok.ph == Ph::AO && kLineAoKeyTo >= 0 ? kLineAoKeyTo : hold ? 0.7 : 0.5) * dur, late});
         {
           // The planner's demands: the held middle; an r-coloured end of its own.
           const bool rColoured = lateNoUw.ac != sh.ac || lateNoUw.xc != sh.xc || lateNoUw.aLip != sh.aLip || ((uhAlone || tok.ph == Ph::AH) && late.aPharynx != sh.aPharynx);  // (ʊ: LINE_UH_LATE_APH; uː: LINE_UW_LATE_*; ʌ: LINE_AH_LATE_APH)
@@ -4057,9 +4128,19 @@ void Synth::emit(const Token& tok, const Ph* next) {
             const bool ahD = tok.ph == Ph::AH && (kAhFrom >= 0 || kAhTo >= 0 || kAhW != 1.0f || kAhPlaceW != 0.0f);
             const bool uhD = uhAlone || (tok.ph == Ph::EH && (kEhFrom >= 0 || kEhTo >= 0 || kEhW != 1.0f || kEhPlaceW > 0));
             const bool eh = tok.ph == Ph::EH;
-            const float vFrom = iy ? kIyFrom : uwD ? kUwFrom : eh ? kEhFrom : ahD ? kAhFrom : uhD ? kUhFrom : -1.0f,
-                        vTo = iy ? kIyTo : uwD ? (next && *next == Ph::L && kUwPreLTo >= 0 ? kUwPreLTo : kUwTo) : eh ? kEhTo : ahD ? kAhTo : uhD ? kUhTo : -1.0f,
-                        vW = iy ? kIyW : uwD ? kUwW : eh ? kEhW : ahD ? kAhW : kUhW, vPlaceW = iy ? kIyPlaceW : uwD ? kUwPlaceW : eh ? kEhPlaceW : ahD ? kAhPlaceW : kUhPlaceW;
+            // (AO agent 8, round I, lab; -1 / -1 / 1 / 0: as before) the same for the ɔ: LINE_AO_FROM, _TO, _W, _PLACE_W.
+            // puhuja's male ɔ ran 400-450 / 750-900 Hz with F2 falling through the vowel ("call" 972 -> 750, "saw"
+            // 911 -> 815), Kokoro's 530-600 / 1000-1100 with F2 level or rising; Whisper heard oʊ in 251 of 760 errors.
+            static const float kAoFrom = param("LINE_AO_FROM", -1.0f), kAoTo = param("LINE_AO_TO", -1.0f), kAoW = param("LINE_AO_W", 1.0f),
+                               kAoPlaceW = param("LINE_AO_PLACE_W", 0.0f);
+            const bool aoD = tok.ph == Ph::AO;
+            // ... and before an l its window ends at LINE_AO_L_TO instead (< 0: as above): the l pulled the vowel down
+            // from 30 % of it on ("call": F2 972 -> 750 Hz over the vowel).
+            static const float kAoLTo = param("LINE_AO_L_TO", -1.0f);
+            const float aoTo = aoD && next && *next == Ph::L && kAoLTo >= 0 ? kAoLTo : kAoTo;
+            const float vFrom = iy ? kIyFrom : uwD ? kUwFrom : eh ? kEhFrom : ahD ? kAhFrom : aoD ? kAoFrom : uhD ? kUhFrom : -1.0f,
+                        vTo = iy ? kIyTo : uwD ? (next && *next == Ph::L && kUwPreLTo >= 0 ? kUwPreLTo : kUwTo) : eh ? kEhTo : ahD ? kAhTo : aoD ? aoTo : uhD ? kUhTo : -1.0f,
+                        vW = iy ? kIyW : uwD ? kUwW : eh ? kEhW : ahD ? kAhW : aoD ? kAoW : kUhW, vPlaceW = iy ? kIyPlaceW : uwD ? kUwPlaceW : eh ? kEhPlaceW : ahD ? kAhPlaceW : aoD ? kAoPlaceW : kUhPlaceW;
             // ... and its lead after a plosive (LINE_UH_STOP_LEAD_MS; < 0: LINE_AFTER_STOP_LEAD_MS).
             static const float kUhStopLeadMs = param("LINE_UH_STOP_LEAD_MS", -1.0f);
             if (uhD && !prevWasPause_ && prevWasPlosive_ && kUhStopLeadMs >= 0) preMs = kUhStopLeadMs;
@@ -4111,7 +4192,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
             static const float kLineWVowelKey = param("LINE_W_VOWEL_KEY", -1.0f);
             const double vowelFrom = isVowel(tok.ph) && lastPh_ == Ph::W && kLineWVowelKey >= 0 ? kLineWVowelKey : 0.3;
             const double wKeyTo = (wStop || wS) && kWStopKeyTo >= 0 ? kWStopKeyTo : kLineWKeyTo;
-            addShapeDemand(preMs > 0 ? t0 - preMs * ms : t0 + (er ? kLineErFrom : tok.ph == Ph::RR && kLineRKeyFrom >= 0 ? kLineRKeyFrom : vFrom >= 0 ? vFrom : vowelFrom) * dur, t0 + (er ? kLineErTo : tok.ph == Ph::W ? wKeyTo : tok.ph == Ph::RR && kLineRKeyTo >= 0 ? kLineRKeyTo : vTo >= 0 ? vTo : 0.7) * dur, sh, tok.ph, er ? ws * kLineErW : iy || uhD || uwD || ahD ? ws * vW : ws, er ? std::max(preR, kErPlaceW) : iy || uhD || uwD || ahD ? std::max(preR, vPlaceW) : preR);
+            addShapeDemand(preMs > 0 ? t0 - preMs * ms : t0 + (er ? kLineErFrom : tok.ph == Ph::RR && kLineRKeyFrom >= 0 ? kLineRKeyFrom : vFrom >= 0 ? vFrom : vowelFrom) * dur, t0 + (er ? kLineErTo : tok.ph == Ph::W ? wKeyTo : tok.ph == Ph::RR && kLineRKeyTo >= 0 ? kLineRKeyTo : vTo >= 0 ? vTo : 0.7) * dur, sh, tok.ph, er ? ws * kLineErW : iy || uhD || uwD || ahD || aoD ? ws * vW : ws, er ? std::max(preR, kErPlaceW) : iy || uhD || uwD || ahD || aoD ? std::max(preR, vPlaceW) : preR);
             // (round-I uː agent) the rounder late key (LINE_UW_LATE_*, LINE_UW_END_*) asked for over the last share of
             // the uː from LINE_UW_LATE_AT (0.7).
             static const float kUwLateAt = param("LINE_UW_LATE_AT", 0.7f);
@@ -5014,7 +5095,11 @@ void Synth::emit(const Token& tok, const Ph* next) {
         // adducts into voice over kLineOnsetMs. pre goes through addEvent, so
         // it cannot start before the events already queued (for a consonant,
         // the pre-pose's kPreposeMs before the sound).
-        Event pre{std::max(e.t - kLineOnsetMs * ms, phonemeStart_ + 1)};
+        // (AO agent 8, round I, lab; < 0: LINE_ONSET_MS) an ɔ after a pause adducts over this long instead: the
+        // dictionary's word-initial ɔ is 27 % wrong (oʊ 71 of 151: "author" -> "over", "all" -> "goal", "ought" -> "dope").
+        static const float kAoOnsetMs = param("LINE_AO_ONSET_MS", -1.0f);
+        const float onsetMs = tok.ph == Ph::AO && kAoOnsetMs >= 0 ? kAoOnsetMs : kLineOnsetMs;
+        Event pre{std::max(e.t - onsetMs * ms, phonemeStart_ + 1)};
         pre.ag = kAgBreathy;
         pre.agMs = 10;
         addEvent(pre);
@@ -5022,7 +5107,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
         // open glottis never reached voicing with the 80 ms adduction, so
         // "It cannot." lost its "It" (Jyrki 2026-11-05). At most
         // LINE_ONSET_SHARE of the sound's length.
-        e.agMs = std::min(kLineOnsetMs, kLineOnsetShare * static_cast<float>(dur / fs_ * 1000.0));
+        e.agMs = std::min(onsetMs, kLineOnsetShare * static_cast<float>(dur / fs_ * 1000.0));
         // ... and the string folds do not start from an open glottis on their
         // own: at 0.054 cm^2 with full pressure they sat still through the
         // whole "It" (silent, -56 dB), while an accented word's glottal onset

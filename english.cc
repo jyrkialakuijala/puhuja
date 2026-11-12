@@ -859,6 +859,24 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
           } }
         // The ɑ's own length (EN_AA_LEN; 2026-11-10 AA agent: a short ɑ is heard as ʌ / ə).
         { static const float kAaLen = param("EN_AA_LEN", 1.4f); if (b == "AA") whole *= kAaLen; }
+        // The ɔ's own length by what follows in its word (AO agent 8, round I, lab knobs; 1: as before): EN_AO_LEN not before
+        // an ɹ, EN_AO_R_LEN before it, EN_AO_VL_LEN before a voiceless obstruent (p t k f θ s ʃ ʧ), EN_AO_L_LEN before an l,
+        // EN_AO_FINAL_LEN at the word's end. The dictionary's ɔ: 8 % wrong before ɹ, 36 % elsewhere (oʊ 238 of 564).
+        {
+          static const float kAoLen = param("EN_AO_LEN", 1.0f), kAoRLen = param("EN_AO_R_LEN", 1.0f),
+                             kAoVlLen = param("EN_AO_VL_LEN", 1.0f), kAoLLen = param("EN_AO_L_LEN", 1.0f),
+                             kAoFinalLen = param("EN_AO_FINAL_LEN", 1.0f);
+          if (b == "AO") {
+            const std::string n = i + 1 < tok.size() ? baseName(tok[i + 1]) : "";
+            if (n == "R") whole *= kAoRLen;
+            else {
+              whole *= kAoLen;
+              if (n.empty()) whole *= kAoFinalLen;
+              else if (n == "L") whole *= kAoLLen;
+              else if (isVoicelessPlosive(n) || n == "CH" || n == "S" || n == "SH" || n == "F" || n == "TH") whole *= kAoVlLen;
+            }
+          }
+        }
         // The ɛ's own length (EN_EH_LEN), x EN_EH_MONO_LEN more in a word of one vowel, x EN_EH_NASAL_LEN more before a
         // nasal of its word (round E/F EH agents 2026-11-11 lab knobs; 1 / 1 / 1: as before): ɛ heard as æ 784 times in
         // the dictionary (352 before a nasal: "send" -> sand), 38 % wrong in monosyllables; its connected-speech label ran
