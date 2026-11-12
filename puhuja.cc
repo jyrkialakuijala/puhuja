@@ -3606,6 +3606,14 @@ void Synth::emit(const Token& tok, const Ph* next) {
       if (mixE > 0 && lineShapeOf(Ph::E, &o)) sh = lineShapeMix(sh, o, mixE);
       if (kEhIh > 0 && lineShapeOf(Ph::IH, &o)) sh = lineShapeMix(sh, o, kEhIh);
       if (kEhAc != 1.0f) sh.ac *= kEhAc;
+      // (round I EH agent 2026-11-12 lab knobs; 0: off) mixed toward ʌ (LINE_EH_MIX_AH) or ə (LINE_EH_MIX_AX), before an
+      // l toward ʌ by LINE_EH_L_MIX_AH more: against ten Kokoro voices the male ɛ's middle third sits at F2 +200..+250 Hz
+      // and F3 -150..-250 Hz (one-syllable words 1885-1906 / 2410 vs 1660-1680 / 2600); before l ("sells" -> sales) +230.
+      static const float kEhAh = param("LINE_EH_MIX_AH", 0.0f), kEhAx = param("LINE_EH_MIX_AX", 0.0f),
+                         kEhLAh = param("LINE_EH_L_MIX_AH", 0.0f);
+      const float mixAh = kEhAh + (next && *next == Ph::L ? kEhLAh : 0.0f);
+      if (mixAh > 0 && lineShapeOf(Ph::AH, &o)) sh = lineShapeMix(sh, o, mixAh);
+      if (kEhAx > 0 && lineShapeOf(Ph::Schwa, &o)) sh = lineShapeMix(sh, o, kEhAx);
     }
     if (have && next && *next == Ph::NG && (tok.ph == Ph::IH || tok.ph == Ph::EH || tok.ph == Ph::AE)) {
       // A front vowel before ŋ mixed toward i over its whole length (LINE_NG_PRE_I_MIX, lab knob 2026-11-11, NG agent 3;
@@ -3738,7 +3746,9 @@ void Synth::emit(const Token& tok, const Ph* next) {
           // (LINE_UH_R_MIX, LINE_UH_R_AT): "sure", "insure", "tour", "Moore" were heard as ɝ ("answer", "sir", "tur"),
           // 100 of the 280 ʊ word errors in the dictionary are before an ɹ.
           static const float kUhRMix = param("LINE_UH_R_MIX", -1.0f);
-          const float mix = uhAlone && kUhRMix >= 0 ? kUhRMix : open && kRColourOpenMix >= 0 ? kRColourOpenMix : frontVowel(tok.ph) && kRColourFrontMix >= 0 ? kRColourFrontMix : kRColourMix;
+          // (round I EH agent, lab; < 0: as the front vowels) the ɛ's own r-colour share: LINE_EH_R_MIX.
+          static const float kEhRMix = param("LINE_EH_R_MIX", -1.0f);
+          const float mix = tok.ph == Ph::EH && kEhRMix >= 0 ? kEhRMix : uhAlone && kUhRMix >= 0 ? kUhRMix : open && kRColourOpenMix >= 0 ? kRColourOpenMix : frontVowel(tok.ph) && kRColourFrontMix >= 0 ? kRColourFrontMix : kRColourMix;
           if (lineShapeOf(Ph::ER, &r)) late = lineShapeMix(sh, r, mix);
         }
         if (isVowel(tok.ph) && next && *next == Ph::L && kLColourMix > 0) {
@@ -3794,7 +3804,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
                            kUwLateAc = param("LINE_UW_LATE_AC", 1.0f), kUwEndAc = param("LINE_UW_END_AC", 1.0f),
                            kUwEndXc = param("LINE_UW_END_XC", -1.0f);
         const bool uwEnd = tok.ph == Ph::U && (!next || *next == Ph::Stop);
-        const TractShape lateNoUw = late;
+        TractShape lateNoUw = late;  // (refreshed after the ɛ's late mix below: only the uː's own changes are kept out)
         if (tok.ph == Ph::U) {
           late.aLip *= kUwLateLipA * (uwEnd ? kUwEndLipA : 1.0f);
           late.aOral *= kUwLateAor * (uwEnd ? kUwEndAor : 1.0f);
@@ -3814,6 +3824,23 @@ void Synth::emit(const Token& tok, const Ph* next) {
         if (tok.ph == Ph::AA && kAaOffMix > 0) {
           TractShape o;
           if (lineShapeOf(Ph::AO, &o)) late = lineShapeMix(late, o, kAaOffMix);
+        }
+        // The ɛ's late key (round I EH agent 2026-11-12 lab knobs; 0: off): toward ə (LINE_EH_OFF_MIX; before a nasal
+        // LINE_EH_N_OFF_MIX instead when >= 0), toward the l before an l (LINE_EH_L_OFF_MIX), toward ɪ before a nasal
+        // (LINE_EH_N_OFF_IH). Kokoro's ɛ before n falls into it (male one-syllable last third F1/F2 453/1507), puhuja's
+        // rises (576/2006: the tensed American æ of "bank"; "bent" -> bank, "tend" -> tank, 71 of the 150 ɛn errors).
+        // Lab: LINE_EH_N_OFF_MIX 0.5: "ten" end 638/2113 -> 570/1950 Hz, ɛ errors 82 -> 71, words 386 -> 408, no veto;
+        // with LINE_EH_W 2: 62 / 412, words1000 1409 -> 1397, VETO fspeed +1.0σ, bright +1.1σ.
+        static const float kEhOffMix = param("LINE_EH_OFF_MIX", 0.0f), kEhNOffMix = param("LINE_EH_N_OFF_MIX", -1.0f),
+                           kEhLOffMix = param("LINE_EH_L_OFF_MIX", 0.0f), kEhNOffIh = param("LINE_EH_N_OFF_IH", 0.0f);
+        if (tok.ph == Ph::EH) {
+          const bool nas = next && info(*next).cls == Cls::Nasal;
+          const float off = nas && kEhNOffMix >= 0 ? kEhNOffMix : kEhOffMix;
+          TractShape o;
+          if (off > 0 && lineShapeOf(Ph::Schwa, &o)) late = lineShapeMix(late, o, off);
+          if (nas && kEhNOffIh > 0 && lineShapeOf(Ph::IH, &o)) late = lineShapeMix(late, o, kEhNOffIh);
+          if (next && *next == Ph::L && kEhLOffMix > 0 && lineShapeOf(Ph::L, &o)) late = lineShapeMix(late, o, kEhLOffMix);
+          lateNoUw = late;  // (an ɛ has no uː changes: its late mix counts as its own end, as in the EH agent's lab)
         }
         // A coda l before a vowel or h across the word boundary ("mortal hands") leaves its shape at this share of
         // its length instead of 0.7 (LINE_CODA_L_KEY; the readers' l moves toward the vowel over its last 60 ms).
@@ -3961,6 +3988,11 @@ void Synth::emit(const Token& tok, const Ph* next) {
             // reached only ~1750 by its end; Kokoro holds 2100-2200 from the start).
             float preMs = !prevWasPause_ ? (prevWasPlosive_ && isVowel(tok.ph) ? kLineAfterStopLeadMs : 0.0f) : tok.ph == Ph::J ? kLineJPreShapeMs : tok.ph == Ph::L ? kLineLPreShapeMs : tok.ph == Ph::W ? kLineWPreShapeMs : tok.ph == Ph::RR ? kLineRPreShapeMs : tok.ph == Ph::ER ? kLineErPreMs : 0.0f;
             const bool er = tok.ph == Ph::ER;
+            // (round I EH agent, lab; 0: none, as before) a phrase-initial ɛ's shape asked for this long before its
+            // voice (LINE_EH_PAUSE_PRE_MS): word-initial ɛ 17.5 % wrong, heard as æ 83, ɪ 59, with a consonant ("Ellis" ->
+            // valleys/palace, "Erik" -> direct): its onset glided from the pause's ə.
+            static const float kEhPausePreMs = param("LINE_EH_PAUSE_PRE_MS", 0.0f);
+            if (prevWasPause_ && tok.ph == Ph::EH && kEhPausePreMs > 0) preMs = kEhPausePreMs;
             // A held iː's demand window and weight (IY agent 2026-11-11 lab knobs; -1 / -1 / 1: 0.3-0.7, as before): in
             // connected speech (kennedy) its F2 sat at 1730 Hz against Kokoro's 2010 (isolated "Dee" 2055 vs ~2300).
             static const float kIyFrom = param("LINE_IY_FROM", -1.0f), kIyTo = param("LINE_IY_TO", -1.0f), kIyW = param("LINE_IY_W", 3.0f),
@@ -3978,10 +4010,16 @@ void Synth::emit(const Token& tok, const Ph* next) {
             static const float kUwPreLTo = param("LINE_UW_PRE_L_TO", -1.0f);
             const bool uwD = tok.ph == Ph::U;
             if (uwD && kUwLeadMs > 0 && !prevWasPause_ && !isVowel(lastPh_)) preMs = std::max(preMs, kUwLeadMs);
-            const bool uhD = uhAlone;
-            const float vFrom = iy ? kIyFrom : uwD ? kUwFrom : uhD ? kUhFrom : -1.0f,
-                        vTo = iy ? kIyTo : uwD ? (next && *next == Ph::L && kUwPreLTo >= 0 ? kUwPreLTo : kUwTo) : uhD ? kUhTo : -1.0f,
-                        vW = iy ? kIyW : uwD ? kUwW : kUhW, vPlaceW = iy ? kIyPlaceW : uwD ? kUwPlaceW : kUhPlaceW;
+            // (round I EH agent, lab; -1 / -1 / 1 / 0: as before) the same for ɛ: LINE_EH_FROM, _TO, _W, _PLACE_W. Lab
+            // (300 one-syllable / stressed two-syllable ɛ words, 2 voices, 2 draws): _W 2: ɛ errors 82 -> 67, words right
+            // 386 -> 406, words1000 1409 -> 1402, no hybrid veto, guards clean (base placebos 67 / 86: noise is wide).
+            static const float kEhFrom = param("LINE_EH_FROM", -1.0f), kEhTo = param("LINE_EH_TO", -1.0f), kEhW = param("LINE_EH_W", 1.0f),
+                               kEhPlaceW = param("LINE_EH_PLACE_W", 0.0f);
+            const bool uhD = uhAlone || (tok.ph == Ph::EH && (kEhFrom >= 0 || kEhTo >= 0 || kEhW != 1.0f || kEhPlaceW > 0));
+            const bool eh = tok.ph == Ph::EH;
+            const float vFrom = iy ? kIyFrom : uwD ? kUwFrom : eh ? kEhFrom : uhD ? kUhFrom : -1.0f,
+                        vTo = iy ? kIyTo : uwD ? (next && *next == Ph::L && kUwPreLTo >= 0 ? kUwPreLTo : kUwTo) : eh ? kEhTo : uhD ? kUhTo : -1.0f,
+                        vW = iy ? kIyW : uwD ? kUwW : eh ? kEhW : kUhW, vPlaceW = iy ? kIyPlaceW : uwD ? kUwPlaceW : eh ? kEhPlaceW : kUhPlaceW;
             // ... and its lead after a plosive (LINE_UH_STOP_LEAD_MS; < 0: LINE_AFTER_STOP_LEAD_MS).
             static const float kUhStopLeadMs = param("LINE_UH_STOP_LEAD_MS", -1.0f);
             if (uhD && !prevWasPause_ && prevWasPlosive_ && kUhStopLeadMs >= 0) preMs = kUhStopLeadMs;
@@ -4032,7 +4070,11 @@ void Synth::emit(const Token& tok, const Ph* next) {
           else {
             const bool open = tok.ph == Ph::AA || tok.ph == Ph::A;
             static const float kUhRAt = param("LINE_UH_R_AT", -1.0f);
-            const double at = uhAlone && kUhRAt >= 0 && next && *next == Ph::RR ? kUhRAt : open && kRColourOpenAt >= 0 ? kRColourOpenAt : frontVowel(tok.ph) && kRColourFrontAt >= 0 ? kRColourFrontAt : kRColourAt;
+            // (round I EH agent; < 0: as below) the ɛ's late key at LINE_EH_R_AT before an ɹ, LINE_EH_LATE_AT otherwise:
+            // Kokoro's ɛ before r has its F3 down by the last third (male 2313, female 2187; puhuja 2396 / 2688).
+            static const float kEhRAt = param("LINE_EH_R_AT", -1.0f), kEhLateAt = param("LINE_EH_LATE_AT", -1.0f);
+            const float ehAt = next && *next == Ph::RR ? kEhRAt : kEhLateAt;
+            const double at = tok.ph == Ph::EH && ehAt >= 0 ? ehAt : uhAlone && kUhRAt >= 0 && next && *next == Ph::RR ? kUhRAt : open && kRColourOpenAt >= 0 ? kRColourOpenAt : frontVowel(tok.ph) && kRColourFrontAt >= 0 ? kRColourFrontAt : kRColourAt;
             addShapeDemand(t0 + 0.3 * dur, t0 + std::max(0.3, at - 0.15) * dur, sh, tok.ph, ws, preR);
             addShapeDemand(t0 + at * dur, t0 + std::min(1.0, at + 0.15) * dur, late, tok.ph, ws);
           }
@@ -4979,9 +5021,15 @@ void Synth::emit(const Token& tok, const Ph* next) {
   const bool isN = tok.ph == Ph::N;
   float approachMs = isM ? kLineMApproachMs : tok.ph == Ph::NG ? kLineNgApproachMs : isN ? kLineNApproachMs : 0.0f;
   if (tok.ph == Ph::NG && kNgApShare > 0) approachMs = std::max(approachMs, kNgApShare * static_cast<float>((e.t - phonemeStart_) / ms));
+  // (round I EH agent 2026-11-12 lab knobs; 0: off) an n or m after ɛ: the approach over LINE_EH_N_APPROACH_MS to
+  // LINE_EH_N_APPROACH_A cm^2 (an m keeps its own when longer). Kokoro's ɛ closes into the n (male F1 550 -> 450 -> 300,
+  // F2 1750 -> 1550 over the last 60 ms); puhuja's kept its formants to the closure and rose (F1 +120, F2 +500 Hz).
+  static const float kEhNApMs = param("LINE_EH_N_APPROACH_MS", 0.0f), kEhNApA = param("LINE_EH_N_APPROACH_A", 0.4f);
+  const bool ehNAp = (isN || isM) && lastPh_ == Ph::EH && kEhNApMs > 0 && kEhNApMs > approachMs;
+  if (ehNAp) approachMs = kEhNApMs;
   if (tract_ == Tract::Line && approachMs > 0 && prevWasVowel_ && !prevWasPlosive_) {
     Event ap{std::max(e.t - approachMs * ms, phonemeStart_ + 1)};
-    ap.ac = isM ? kLineMApproachA : isN ? kLineNApproachA : kLineNgApproachA;
+    ap.ac = ehNAp ? kEhNApA : isM ? kLineMApproachA : isN ? kLineNApproachA : kLineNgApproachA;
     ap.acMs = static_cast<float>((e.t - ap.t) / ms);
     ap.lineX = tok.ph == Ph::NG ? (kNgApX >= 0 ? kNgApX : lineNgPlace(lastPh_, next)) : isN && kLineNApproachX > 0 ? kLineNApproachX : linePlaceOf(tok.ph);
     if (tok.ph == Ph::NG && kNgApHw >= 0) ap.lineHw = kNgApHw;

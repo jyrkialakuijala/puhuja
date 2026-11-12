@@ -873,6 +873,11 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
             // an æ length: æ 100 of the ɛ errors before b d g.)
             static const float kEhVplosLen = param("EN_EH_VPLOS_LEN", 1.0f);
             if (i + 1 < tok.size() && isVoicedPlosive(baseName(tok[i + 1]))) whole *= kEhVplosLen;
+            // (round I EH agent 2026-11-12 lab knobs; 1: as before) x EN_EH_R_LEN before an r, x EN_EH_L_LEN before an l
+            // of its word: one-syllable ɛr 40 % wrong ("fares" -> fails, "pairs" -> pals), ɛl 19 % ("cells" -> sales).
+            static const float kEhRLen = param("EN_EH_R_LEN", 1.0f), kEhLLen = param("EN_EH_L_LEN", 1.0f);
+            if (i + 1 < tok.size() && baseName(tok[i + 1]) == "R") whole *= kEhRLen;
+            if (i + 1 < tok.size() && baseName(tok[i + 1]) == "L") whole *= kEhLLen;
           } }
         // The stressed ʌ x EN_AH_LEN, in a one-syllable word x EN_AH_MONO_LEN as well (round-F ʌ agent 2026-11-11 lab knobs;
         // 1 / 1: as before; ʌ is the shortest stressed vowel, 140 ms base against ɑ's 240 and æ's 230).
@@ -2739,6 +2744,8 @@ void EnglishReader::sayPhrase(char end) {
           else if (!phrase_[w].accent) db += kFunctionWordDb;
           { static const float kEmoDb = param("EN_EMOTIVE_DB", 1.5f); if (kEmoDb != 0 && isEmotiveWord(phrase_[w].text)) db += kEmoDb; }
           if (ay && k == 0) db += kAyADb;
+          // (round I EH agent 2026-11-12 lab knob; 0: as before) the ɛ's level + EN_EH_DB.
+          { static const float kEhDb = param("EN_EH_DB", 0.0f); if (kEhDb != 0 && s.ph[k] == Ph::EH) db += kEhDb; }
           // Secondary stress is a step down from the primary, not its equal:
           // Kokoro's "robot", "habitat", "antibody" end 5-15 dB under their
           // first syllable; here the last third was the loudest (2026-11-02).
