@@ -3245,8 +3245,8 @@ void Synth::emit(const Token& tok, const Ph* next) {
     if (have && tok.ph == Ph::W && (prevWasPlosive_ || lastPh_ == Ph::S)) {
       const bool afterS = !prevWasPlosive_;
       static const float kWStopLipA = param("LINE_W_STOP_LIPA", 1.0f), kWStopLipL = param("LINE_W_STOP_LIPL", 1.0f),
-                         kWStopAc = param("LINE_W_STOP_AC", 1.0f), kWStopXc = param("LINE_W_STOP_XC", -1.0f),
-                         kWStopAph = param("LINE_W_STOP_APH", 1.0f), kWSLipA = param("LINE_W_S_LIPA", -1.0f);
+                         kWStopAc = param("LINE_W_STOP_AC", 0.3f), kWStopXc = param("LINE_W_STOP_XC", -1.0f),
+                         kWStopAph = param("LINE_W_STOP_APH", 1.5f), kWSLipA = param("LINE_W_S_LIPA", -1.0f);
       const float lipA = afterS && kWSLipA >= 0 ? kWSLipA : kWStopLipA;
       if (lipA != 1.0f) sh.aLip *= lipA;
       if (kWStopLipL != 1.0f) sh.lLip *= kWStopLipL;
@@ -3679,7 +3679,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
             // (W agent round G, lab; 0 / 1 / -1: as before) the same for a w after a plosive (the lips round during the
             // closure: "twice", "quick") and after s (LINE_W_S_LEAD_MS: the s rounded, "swim"); the demand's end x dur.
             static const float kWStopLeadMs = param("LINE_W_STOP_LEAD_MS", 0.0f), kWStopW = param("LINE_W_STOP_W", 1.0f),
-                               kWSLeadMs = param("LINE_W_S_LEAD_MS", 0.0f), kWStopKeyTo = param("LINE_W_STOP_KEY_TO", -1.0f);
+                               kWSLeadMs = param("LINE_W_S_LEAD_MS", 0.0f), kWStopKeyTo = param("LINE_W_STOP_KEY_TO", 1.2f);
             const bool wStop = tok.ph == Ph::W && prevWasPlosive_, wS = tok.ph == Ph::W && !prevWasPlosive_ && lastPh_ == Ph::S;
             if (wStop && kWStopLeadMs > 0) preMs = kWStopLeadMs;
             if (wS && kWSLeadMs > 0) preMs = kWSLeadMs;
@@ -5415,7 +5415,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   }
   // ... and for a w or j (LINE_GLIDE_REL_OWN, R agent round F, lab; 0: as before): the same dropped event, "twin" made
   // its w at the ridge, "cute" its j at the velum (w after p t k: 21 % errors, j after p b: 23-27 %, 9 % after n).
-  static const float kGlideRelOwn = param("LINE_GLIDE_REL_OWN", 0.0f);
+  static const float kGlideRelOwn = param("LINE_GLIDE_REL_OWN", 1.0f);
   if (tract_ == Tract::Line && kGlideRelOwn > 0 && next && *next == Ph::W) {
     rel.ac = lineSlit(*next, rel.ac);
     rel.lineX = linePlaceOf(*next);
