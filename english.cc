@@ -820,6 +820,8 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
           static const float kPreZhVowel = param("EN_PRE_ZH_VOWEL", 0.5f);
           // (EN_AA_PRE_VLESS: the ɑ before a voiceless plosive x this instead of 0.75; 2026-11-10 AA agent: "not, got, hot, stop")
           static const float kAaPreVless = param("EN_AA_PRE_VLESS", 0.75f);
+          // (EN_PRE_T_VOWEL, T agent 10 round K, lab; < 0: as the other voiceless plosives) the vowel before a t x this.
+          static const float kPreTVowel = param("EN_PRE_T_VOWEL", -1.0f);
           // (EN_PRE_Z_VOWEL: before a z x this instead of 1.4; lab 2026-11-11, the z heard as s: "his" ɪ 237 ms vs "hiss" 158)
           static const float kPreZVowel = param("EN_PRE_Z_VOWEL", 1.4f);
           // (EN_PRE_G_VOWEL, G agent 7 round H, lab; < 0: the voiced plosives' 1.2) the vowel before a g of the same word.
@@ -838,7 +840,21 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
             if (f >= 0) prc *= f / 1.2f;
           }
           prc *= n == "JH" ? kPreJhVowel : n == "ZH" ? kPreZhVowel : n == "Z" ? kPreZVowel : n == "G" && kPreGVowel >= 0 ? kPreGVowel : isVoicedFricative(n) ? 1.4f : isVoicedPlosive(n) ? 1.2f
-               : isNasal(n) ? 0.9f : isVoicelessPlosive(n) ? (b == "AA" ? kAaPreVless : 0.75f) : 1.0f;
+               : isNasal(n) ? 0.9f : isVoicelessPlosive(n) ? (n == "T" && kPreTVowel >= 0 ? kPreTVowel : b == "AA" ? kAaPreVless : 0.75f) : 1.0f;
+        }
+        // (T agent 10 round K, lab; 1: as before) the vowel before a word-final t (also t + s, and with an ɹ l n between:
+        // "Cart", "Built", "Brent") x EN_PRE_FINAL_T_VOWEL: the final t is heard as d 238 times in the dictionary ("Gate"
+        // -> good, "Mate" -> maid, "Cart" -> card). Kokoro's voiced stretch before a final t is 0.61-0.76 of the same word
+        // with d (Mate 280 / Made 420 ms), puhuja's 0.80-0.91 (435 / 510): the clipping above acts on the vowel's
+        // variable part only, and not at all across an ɹ l n.
+        {
+          static const float kPreFinalTVowel = param("EN_PRE_FINAL_T_VOWEL", 1.0f);
+          if (kPreFinalTVowel != 1.0f) {
+            size_t j = i + 1;
+            if (j < tok.size() && (baseName(tok[j]) == "R" || baseName(tok[j]) == "L" || baseName(tok[j]) == "N")) ++j;
+            if (j < tok.size() && baseName(tok[j]) == "T" && (j + 1 == tok.size() || (j + 2 == tok.size() && baseName(tok[j + 1]) == "S")))
+              whole *= kPreFinalTVowel;
+          }
         }
         // The vowel before a ŋ in the same word x EN_PRE_NG_VOWEL_LEN (lab knob 2026-11-11, NG agent 3; 1: as before): the
         // vowel carries the velar pinch (F2 and F3 converging into the ŋ), the cue that tells ŋ from n.
@@ -1201,6 +1217,18 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
           whole *= kTLen;
           if (phraseFinal && i > static_cast<size_t>(lastVowel) && i + 1 == tok.size()) whole *= kFinalTLen;
           if (i + 1 < tok.size() && baseName(tok[i + 1]) == "S") whole *= kTsLen;
+          // (T agent 10 round K, lab; 1: as before) a word-final t after p k ("Looked" -> look, "Jumped" -> jump: 23-29 %
+          // deleted) x EN_T_AFTER_STOP_LEN.
+          static const float kTAfterStopLen = param("EN_T_AFTER_STOP_LEN", 1.0f);
+          if (i > 0 && i + 1 == tok.size() && (baseName(tok[i - 1]) == "K" || baseName(tok[i - 1]) == "P")) whole *= kTAfterStopLen;
+        }
+        // (T agent 10 round K, lab; 1: as before) an ɹ l n between a vowel and a word-final t x EN_PRE_T_SON_LEN (the
+        // voicing cue of "Cart" -> card, "Built" -> build, "Brent" -> brand lies in the sonorant too).
+        {
+          static const float kPreTSonLen = param("EN_PRE_T_SON_LEN", 1.0f);
+          if (kPreTSonLen != 1.0f && (b == "R" || b == "L" || b == "N") && i > 0 && isVowelToken(tok[i - 1]) && i + 1 < tok.size() &&
+              baseName(tok[i + 1]) == "T" && (i + 2 == tok.size() || (i + 3 == tok.size() && baseName(tok[i + 2]) == "S")))
+            whole *= kPreTSonLen;
         }  // the k's own length (K lab 2026-11-10; 1: unchanged)  // the p's own length (P lab 2026-11-10; 1: unchanged)  // the v's own length (lab 2026-11-09; 1: unchanged)  // the ʒ's own length (2026-11-09: 50 ms against Kokoro's ~100)
         { static const float kThLen = param("EN_TH_LEN", 0.6f), kDhLen = param("EN_DH_LEN", 0.7f); if (b == "TH") whole *= kThLen; else if (b == "DH") whole *= kDhLen; }
         // θ's length by context (TH agent7, round H; 1: unchanged): word-initial (EN_INIT_TH_LEN), between two vowels of a

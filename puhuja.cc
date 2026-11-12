@@ -6023,15 +6023,48 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     // was 57 % wrong ("Park" -> part, "Mark" -> north, "Stark" -> start).
     static const float kKApproachLiq = param("LINE_K_APPROACH_LIQ", 0.0f);
     const bool kApLiq = tok.ph == Ph::K && kKApproachLiq > 0 && (lastPh_ == Ph::RR || lastPh_ == Ph::L);
-    if (tract_ == Tract::Line && apMs > 0 && (prevWasVowel_ || kApLiq) && !prevWasPlosive_ && !afterUnreleased) {
-      Event ap{std::max(tClosed - apMs * ms, phonemeStart_ + 1)};
+    // (T agent 10 round K, lab; < 0 / 0: as before) the t's own approach after a back vowel ɑ ɔ ʌ o u ʊ
+    // (LINE_T_APPROACH_MS_BACK, its area LINE_T_APPROACH_A_BACK) and after ɹ l (LINE_T_APPROACH_LIQ 1): the final t
+    // after ɑ is 62 % wrong in the dictionary, heard p / k ("Not" -> knob, "Hot" -> hop, "Knots" -> knox), after ɹ l
+    // 18 % (d: "Cart" -> card, "Built" -> build).
+    static const float kTApMsBack = param("LINE_T_APPROACH_MS_BACK", -1.0f), kTApABack = param("LINE_T_APPROACH_A_BACK", -1.0f),
+                       kTApLiq = param("LINE_T_APPROACH_LIQ", 0.0f);
+    const bool tBackV = alveolarT && (lastPh_ == Ph::AA || lastPh_ == Ph::AO || lastPh_ == Ph::AH || lastPh_ == Ph::OH ||
+                                      lastPh_ == Ph::O || lastPh_ == Ph::U || lastPh_ == Ph::UH);
+    const bool tApLiq = alveolarT && kTApLiq > 0 && (lastPh_ == Ph::RR || lastPh_ == Ph::L);
+    const float apMsT = tBackV && kTApMsBack >= 0 ? kTApMsBack : apMs;
+    if (tract_ == Tract::Line && apMsT > 0 && (prevWasVowel_ || kApLiq || tApLiq) && !prevWasPlosive_ && !afterUnreleased) {
+      Event ap{std::max(tClosed - apMsT * ms, phonemeStart_ + 1)};
       if (ap.t < closeStart - ms) {
-        ap.ac = tok.ph == Ph::G && kGApproachA >= 0 ? kGApproachA : velar ? kLineKgApproachA : labial ? kLineBpApproachA : kLineTApproachA;
+        ap.ac = tok.ph == Ph::G && kGApproachA >= 0 ? kGApproachA : velar ? kLineKgApproachA : labial ? kLineBpApproachA : tBackV && kTApABack >= 0 ? kTApABack : kLineTApproachA;
         ap.acMs = static_cast<float>((closeStart - ap.t) / ms);
         ap.lineX = lineKPlace(tok.ph, kVowel);
         ap.lineXClosure = true;
         addEventAt(ap);
       }
+    }
+  }
+  // t's tongue body (T agent 10 round K, lab knobs; 0: off), as the n's LINE_N_PRE_MIX: the t's closure is only the
+  // tip, so after a back vowel the body stayed back and the ridge narrowing alone lowered F2 into the closure, a labial
+  // pattern ("Not" F2 ~930 -> 770 over its last 20 ms; Kokoro ~1150 -> 1500-1590: the alveolar locus). The final t
+  // after ɑ is 62 % wrong ("Not" -> knob, "Hot" -> hop), ts after ɑ alike ("Knots" -> knox).
+  // The vowel's last LINE_T_PRE_MS and the closure are asked for the vowel's shape mixed LINE_T_PRE_MIX (after a front
+  // vowel LINE_T_PRE_FRONT_MIX, < 0: the same) toward the row LINE_T_PRE_ROW (a Ph index; 8: ə, 9: ɪ), tongue only
+  // (lips, larynx, length stay the vowel's), weight LINE_T_PRE_W.
+  {
+    static const float kTPreMix = param("LINE_T_PRE_MIX", 0.0f), kTPreFrontMix = param("LINE_T_PRE_FRONT_MIX", -1.0f),
+                       kTPreMs = param("LINE_T_PRE_MS", 60.0f), kTPreW = param("LINE_T_PRE_W", 1.0f);
+    static const int kTPreRow = static_cast<int>(param("LINE_T_PRE_ROW", 9.0f));
+    const bool backPrev = lastPh_ == Ph::AO || lastPh_ == Ph::AA || lastPh_ == Ph::OH || lastPh_ == Ph::O ||
+                          lastPh_ == Ph::U || lastPh_ == Ph::UH || lastPh_ == Ph::AH;
+    const float mix = !backPrev && kTPreFrontMix >= 0 ? kTPreFrontMix : kTPreMix;
+    TractShape v, o;
+    if (tract_ == Tract::Line && tok.ph == Ph::T && mix > 0 && prevWasVowel_ && !afterUnreleased && lineShapeOf(lastPh_, &v) &&
+        lineShapeOf(static_cast<Ph>(kTPreRow), &o)) {
+      TractShape m = lineShapeMix(v, o, mix);
+      m.aLip = v.aLip; m.lLip = v.lLip; m.aLarynx = v.aLarynx; m.length = v.length;
+      m.sc = lineVowelStrength(m.xc, m.wc, m.length);
+      addShapeDemand(std::max(closeStart - kTPreMs * ms, phonemeStart_ + 1.0), release, m, lastPh_, kTPreW);
     }
   }
   // d after l (LINE_LD_SEAL_FADE, 2026-11-05; 0: off): the tongue tip is on
@@ -6723,16 +6756,24 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     // glottis or the opening speed (2026-11-10).
     {
       static const float kLineFinalPressLeadMs = param("LINE_FINAL_PRESS_LEAD_MS", 46.0f), kLineFinalPressFloor = param("LINE_FINAL_PRESS_FLOOR", 0.3f);
-      if (kLineFinalPressLeadMs > 0) {
-        Event ease{std::max(release - kLineFinalPressLeadMs * ms, t_ + 1.0)};
+      // (T agent 10 round K, lab; < 0: LINE_FINAL_PRESS_LEAD_MS) a final t's own lead: an earlier ease stops the voice
+      // sooner in its closure (the voice bar of a final t is a d cue: heard as d 238 times word-finally).
+      static const float kLineFinalTPressLeadMs = param("LINE_FINAL_T_PRESS_LEAD_MS", -1.0f);
+      const float leadMs = tok.ph == Ph::T && kLineFinalTPressLeadMs >= 0 ? kLineFinalTPressLeadMs : kLineFinalPressLeadMs;
+      if (leadMs > 0) {
+        Event ease{std::max(release - leadMs * ms, t_ + 1.0)};
         // (K agent 9 round J, lab; < 0: LINE_FINAL_PRESS_FLOOR) a final k's own floor: at 0.3 its release came out as a
         // 1-kHz thump with its 1-8 kHz part 28-42 dB under the vowel ("Park", "Like"; Kokoro's final k -19 dB at 2-4 kHz).
         // Lab (300 k-context words, two draws, base 168.5 k errors of 634): 0.45 150, 0.7 140.5; with the final slit
         // (LINE_K_FINAL_SLIT_MS 30, _A 0.1) 0.6 130.5, 0.45 132, words1000 +13 / +15; clip snap of 20 final-k words
         // 8.4 -> 12.3 dB male (Kokoro's 16.8): the release comes back toward Kokoro's, not over it.
         static const float kLineFinalKPressFloor = param("LINE_FINAL_K_PRESS_FLOOR", 0.45f);
-        ease.press = tok.ph == Ph::K && kLineFinalKPressFloor >= 0 ? kLineFinalKPressFloor : kLineFinalPressFloor;
-        ease.pressMs = kLineFinalPressLeadMs;
+        // (T agent 10 round K, lab; < 0: LINE_FINAL_PRESS_FLOOR) a final t's own floor (the k's fix: the t's release
+        // peaked at 2.3-3.7 kHz, a k's band, against Kokoro's 5 kHz; heard p / k / d 14 % word-finally).
+        static const float kLineFinalTPressFloor = param("LINE_FINAL_T_PRESS_FLOOR", -1.0f);
+        ease.press = tok.ph == Ph::K && kLineFinalKPressFloor >= 0 ? kLineFinalKPressFloor
+                     : tok.ph == Ph::T && kLineFinalTPressFloor >= 0 ? kLineFinalTPressFloor : kLineFinalPressFloor;
+        ease.pressMs = leadMs;
         addEventAt(ease);
       }
     }
@@ -6808,8 +6849,10 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // 7 dB under; the aspiration alone (LINE_K_STOP_ASP) took only 4 dB off).
   // (K agent 9 round J, lab; < 0: LINE_K_REL_FRIC) a final k's (before a pause) own release hiss.
   static const float kLineKFinalRelFric = param("LINE_K_FINAL_REL_FRIC", -1.0f);
+  // (T agent 10 round K, lab; < 0: LINE_T_REL_FRIC) a final t's own release hiss.
+  static const float kLineTFinalRelFric = param("LINE_T_FINAL_REL_FRIC", -1.0f);
   const float relFric = tok.ph == Ph::K ? ((!next || nextIsPause) && kLineKFinalRelFric >= 0 ? kLineKFinalRelFric : kLineKRelFric)
-                        : tok.ph == Ph::P ? kLinePRelFric : tok.ph == Ph::T ? kLineTRelFric : 1.0f;
+                        : tok.ph == Ph::P ? kLinePRelFric : tok.ph == Ph::T ? ((!next || nextIsPause) && kLineTFinalRelFric >= 0 ? kLineTFinalRelFric : kLineTRelFric) : 1.0f;
   const bool relFricOn = tract_ == Tract::Line && relFric != 1.0f && !unreleased && !(next && info(*next).cls == Cls::Fricative);
   const bool nasalBurst = nasalVel && kNasalStopBurst != 1.0f && !relFricOn && !(next && info(*next).cls == Cls::Fricative);
   if (relFricOn) rel.lineFricMul = relFric;
@@ -6875,15 +6918,28 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // t into a vowel (or l r w j: LINE_T_BURST_LIQ) in two steps too (LINE_T_BURST_MS, T agent 3; 0: off): the tongue
   // tip leaves the ridge through a slit first, an alveolar affrication (Kokoro's t burst peaks at 5-6.5 kHz).
   static const float kLineTBurstW = param("LINE_T_BURST_W", 1.0f);  // (W agent round G, lab; 0: no two-step t burst before a w)
-  const bool tBurst = tract_ == Tract::Line && kLineTBurstMs > 0 && tok.ph == Ph::T && !unreleased && next &&
-                      (isVowel(*next) || (kLineTBurstLiq > 0 && (*next == Ph::L || *next == Ph::RR || (*next == Ph::W && kLineTBurstW > 0) || *next == Ph::J)));
+  // (T agent 10 round K, lab; 0 / < 0: off / as the vowel's) the same slit step into a pause (LINE_T_FINAL_SLIT_MS, its
+  // area LINE_T_FINAL_SLIT_A, jet LINE_T_FINAL_JET_D, place LINE_T_FINAL_SLIT_X) and before an s (LINE_T_SLIT_S_MS):
+  // the final t released straight from the closure, its noise peaking at 2.3-3.7 kHz with 4.5-7 kHz 10-31 dB under it
+  // (a k's or p's spectrum: "Not" -> knob, "Hot" -> hop, "Knots" -> knox); Kokoro's peaks at 5.0-5.4 kHz.
+  static const float kTFinalSlitMs = param("LINE_T_FINAL_SLIT_MS", 0.0f), kTFinalSlitA = param("LINE_T_FINAL_SLIT_A", -1.0f),
+                     kTFinalJetD = param("LINE_T_FINAL_JET_D", -1.0f), kTFinalSlitX = param("LINE_T_FINAL_SLIT_X", -1.0f),
+                     kTSlitSMs = param("LINE_T_SLIT_S_MS", 0.0f);
+  const bool tFinalSlit = tract_ == Tract::Line && kTFinalSlitMs > 0 && tok.ph == Ph::T && !unreleased && nextIsPause;
+  const bool tSlitS = tract_ == Tract::Line && kTSlitSMs > 0 && tok.ph == Ph::T && !unreleased && next && *next == Ph::S;
+  const bool tBurst = (tract_ == Tract::Line && kLineTBurstMs > 0 && tok.ph == Ph::T && !unreleased && next &&
+                       (isVowel(*next) || (kLineTBurstLiq > 0 && (*next == Ph::L || *next == Ph::RR || (*next == Ph::W && kLineTBurstW > 0) || *next == Ph::J)))) ||
+                      tFinalSlit || tSlitS;
+  const float tSlitMs = tFinalSlit ? kTFinalSlitMs : tSlitS ? kTSlitSMs : kLineTBurstMs;
+  const float tSlitJetD = tFinalSlit && kTFinalJetD >= 0 ? kTFinalJetD : kLineTBurstJetD;
   if (tBurst) {
     Event slit{release};
-    slit.ac = kLineTBurstA;
+    slit.ac = tFinalSlit && kTFinalSlitA >= 0 ? kTFinalSlitA : kLineTBurstA;
     slit.acMs = 3;
-    if (kLineTBurstJetD > 0) slit.lineJetD = kLineTBurstJetD, slit.lineJetMix = 1.0f;
+    if (tSlitJetD > 0) slit.lineJetD = tSlitJetD, slit.lineJetMix = 1.0f;
     if (kLineTBurstFric >= 0) slit.lineFricMul = kLineTBurstFric;
     if (kLineTBurstX >= 0) slit.lineX = kLineTBurstX;
+    if (tFinalSlit && kTFinalSlitX >= 0) slit.lineX = kTFinalSlitX;
     addEvent(slit);
   }
   // (G agent 7 round H, lab; 0: off) a g released into l ɹ makes its slit at its own place, the velum (LINE_G_LIQ_SLIT_X 1;
@@ -6954,10 +7010,10 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     hasPendingAspEnd_ = false;
   }
   if (tBurst) {
-    Event open{release + kLineTBurstMs * ms};
+    Event open{release + tSlitMs * ms};
     open.ac = rel.ac;
     open.acMs = rel.acMs;
-    if (kLineTBurstJetD > 0) open.lineJetD = 0.0f;
+    if (tSlitJetD > 0) open.lineJetD = 0.0f;
     if (kLineTBurstFric >= 0) open.lineFricMul = relFricOn ? relFric : 1.0f;
     addEventAt(open);
   }
