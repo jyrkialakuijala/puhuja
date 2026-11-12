@@ -1025,7 +1025,10 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
       if (phraseFinal && !vowel && i > static_cast<size_t>(lastVowel) && (b == "L" || isNasal(b))) {
         // ... a final ŋ x EN_FINAL_NG_LEN on top (lab knob 2026-11-11, NG agent 3; 1: as before).
         static const float kFinalNgLen = param("EN_FINAL_NG_LEN", 1.0f);
-        prc *= kFinalCodaSonorant * (b == "NG" ? kFinalNgLen : 1.0f);
+        // ... a final m x EN_FINAL_M_LEN (round J, M agent; 1: as before): Kokoro's phrase-final m murmur runs 100-150 ms
+        // ("Kim", "Blame", "Seems"), puhuja's 70-80.
+        static const float kFinalMLen = param("EN_FINAL_M_LEN", 1.0f);
+        prc *= kFinalCodaSonorant * (b == "NG" ? kFinalNgLen : b == "M" ? kFinalMLen : 1.0f);
       }
       // A phrase-final voiceless fricative after a vowel or sonorant is held
       // too (goog/11labs "house.": the s 120-125 ms, here 60: "hou"; after a

@@ -3412,6 +3412,32 @@ void Synth::emit(const Token& tok, const Ph* next) {
         if (kLineHAph != 1.0f) sh.aPharynx *= kLineHAph;
       }
     }
+    // The m's own key (round J, M agent; LINE_M_SHAPE 0: none, as before: the m glided between its neighbours' keys).
+    // m was heard as n 602 times in the dictionary (word-initial before ɑ 31 %: "Mom" -> nom, "Ma" -> nah; final 18 %).
+    // With no key, an initial m sat in the pause's ə (F2 1250 Hz at the release) and the ɑ's F2 fell 1250 -> 900 over
+    // 100 ms after it: an alveolar transition. Kokoro's m sits in the next vowel's shape (F2 at the release = the
+    // vowel's, then level or rising). LINE_M_SHAPE 1: the next vowel's shape (else the previous vowel's, else ə's), mixed
+    // LINE_M_SHAPE_MIX toward the row LINE_M_SHAPE_ROW (0 o, 1 uː, 2 ʊ, 3 ɔ, 4 ə; the tract behind the lips, as b / p
+    // take o's); LINE_M_SHAPE_FINAL_MIX (< 0: the same) when no vowel follows. Lab (300 hard m words, 2 voices, two
+    // pairs of draws): SHAPE 1, MIX 0.3, FINAL_MIX 0.7: m errors 302 -> 141 and 268 -> 132 (heard as n 196 -> 64),
+    // words right +82 / +76 of 600, words1000 1406 (1414); "Kim" F2 1810 -> 946 Hz into the m (Kokoro 1970 -> 1100).
+    {
+      static const float kMShape = param("LINE_M_SHAPE", 0.0f), kMShapeMix = param("LINE_M_SHAPE_MIX", 0.0f),
+                         kMShapeFinalMix = param("LINE_M_SHAPE_FINAL_MIX", -1.0f);
+      static const int kMShapeRow = static_cast<int>(param("LINE_M_SHAPE_ROW", 0.0f));
+      if (!have && tok.ph == Ph::M && kMShape > 0) {
+        const bool vNext = next && isVowel(*next);
+        const Ph nb = vNext ? *next : isVowel(lastPh_) ? lastPh_ : Ph::Schwa;
+        have = lineShapeOf(nb, &sh);
+        static const Ph kRows[5] = {Ph::O, Ph::U, Ph::UH, Ph::AO, Ph::Schwa};
+        const float mix = !vNext && kMShapeFinalMix >= 0 ? kMShapeFinalMix : kMShapeMix;
+        TractShape r;
+        if (have && mix > 0 && lineShapeOf(kRows[std::clamp(kMShapeRow, 0, 4)], &r)) sh = lineShapeMix(sh, r, std::min(mix, 1.0f));
+        // ... its lips x LINE_M_LIPL long (protruded: every formant lower in the transitions; 1: the row's)
+        static const float kMLipL = param("LINE_M_LIPL", 1.0f);
+        if (have && kMLipL != 1.0f) sh.lLip *= kMLipL;
+      }
+    }
     // (only a word-initial r, after a pause or a vowel: in a cluster, "different",
     // the shape's pharyngeal narrowing glided in from the f as a chirp, F1
     // 1500 -> 470 Hz over 80 ms; Jyrki: "a wild spectral event, a swirp")
@@ -3960,6 +3986,17 @@ void Synth::emit(const Token& tok, const Ph* next) {
           TractShape own;
           const bool borrowed = !isVowel(tok.ph) && !lineShapeOf(tok.ph, &own);  // f in the next vowel's shape
           float ws = borrowed ? kShapeBorrowedW : 1.0f;
+          // The m's key demanded from LINE_M_PRE_MS before it (round J, M agent; 0: off), weight x LINE_M_PRE_W: the
+          // vowel's F2 bends toward the lips over its end (Kokoro "Kim" 1970 -> 1100 over 50-60 ms into the m).
+          static const float kMPreMs = param("LINE_M_PRE_MS", 0.0f), kMPreW = param("LINE_M_PRE_W", 1.0f);
+          if (tok.ph == Ph::M && kMPreMs > 0 && prevWasVowel_)
+            addShapeDemand(std::max(t0 - kMPreMs * ms, phonemeStart_ + 1), t0 + 0.5 * dur, sh, Ph::M, kMPreW * ws);
+          // ... and before a consonant the m's shape held to LINE_M_HOLD_TO of its length (round J, M agent; 0: off): the
+          // next consonant's key pulled the closed tract toward it ("Claimed": the murmur's F2 rose 1263 -> 1644 Hz over
+          // the m's last 30 ms toward the d's ɪ shape; Kokoro's stays ~1100 to the d).
+          static const float kMHoldTo = param("LINE_M_HOLD_TO", 0.0f);
+          if (tok.ph == Ph::M && kMHoldTo > 0.7f && next && !isVowel(*next) && *next != Ph::Stop)
+            lineKeys_.push_back({t0 + std::min(kMHoldTo, 1.0f) * dur, sh});
           if (tok.ph == Ph::DH && kLineDhShape > 0) ws *= kLineDhShape;  // (LINE_DH_SHAPE)
           // A vowel chain (aʊ, aɪ, oʊ, Finnish ai, uo) is one glide: the first
           // vowel is reached early and briefly, the second only near its end.
@@ -4336,6 +4373,28 @@ void Synth::emit(const Token& tok, const Ph* next) {
     static const float kLineNgAn = param("LINE_NG_AN", 1.0f);
     if (tract_ == Tract::Line && tok.ph == Ph::NG) e.an *= kLineNgAn;
   }
+  // An m before a non-labial obstruent (d t k g s z ʃ θ ...) shuts its velum over its last LINE_M_VEL_LEAD_MS (round J,
+  // M agent; 0: off, as before: the port closed with the next sound's own event, after the tongue had closed at the
+  // alveolar ridge, so the d of "armed" began as an n's murmur: m before d 46 % wrong, "armed" -> darned).
+  {
+    static const float kMVelLeadMs = param("LINE_M_VEL_LEAD_MS", 0.0f);
+    if (tract_ == Tract::Line && tok.ph == Ph::M && kMVelLeadMs > 0 && next) {
+      const Cls nc = info(*next).cls;
+      const bool labialNext = *next == Ph::P || *next == Ph::B || *next == Ph::F || *next == Ph::VV;
+      if ((nc == Cls::Plosive || nc == Cls::Fricative) && !labialNext) {
+        const float lead = std::min(kMVelLeadMs, 0.8f * static_cast<float>(dur / ms));
+        Event shut{e.t + dur - lead * ms};
+        shut.an = 0.0f;
+        shut.anMs = lead;
+        addEventAt(shut);
+      }
+    }
+  }
+  // m's own port x LINE_M_PORT_SCALE (round J, M agent; 1: as before).
+  {
+    static const float kMPort = param("LINE_M_PORT_SCALE", 1.0f);
+    if (tract_ == Tract::Line && tok.ph == Ph::M && kMPort != 1.0f) e.an *= kMPort;
+  }
   // n's own port (round E, N agent): 1.5 cm^2 against a physiological
   // 0.2-0.5, and the murmur sits 5-9 dB over Kokoro's. LINE_N_PORT_SCALE
   // scales it (1: as before).
@@ -4363,7 +4422,20 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // over its whole 139 ms is the American [ɛə̃n] of "and": ɛ before a nasal was heard as æ 352 times ("send" -> sand).
     static const float kEhAnScale = param("LINE_EH_ANTICIP_SCALE", 1.3f), kEhAnLate = param("LINE_EH_NASAL_LATE", 0.85f);
     const bool ehLate = tok.ph == Ph::EH && (kEhAnScale >= 0 || kEhAnLate > 0);
-    if (ehLate || (*next == Ph::N && (kAnN != 1.0f || kAnNLate > 0))) {
+    // ... and before an m (round J, M agent; 1 / 0: as before): LINE_ANTICIP_M_SCALE, LINE_ANTICIP_M_LATE as the n's.
+    static const float kAnM = param("LINE_ANTICIP_M_SCALE", 1.0f), kAnMLate = param("LINE_ANTICIP_M_LATE", 0.0f);
+    const bool mAnt = !ehLate && *next == Ph::M && (kAnM != 1.0f || kAnMLate > 0);
+    if (mAnt) {
+      e.an = kAnNasal * kLineAnticipNasal * kAnM;
+      if (kAnMLate > 0) {
+        Event late{e.t + kAnMLate * dur};
+        late.an = e.an;
+        late.anMs = static_cast<float>((1.0f - kAnMLate) * dur / ms);
+        addEventAt(late);
+        e.an = aero.an;
+        e.anMs = kBoundaryMs;
+      }
+    } else if (ehLate || (*next == Ph::N && (kAnN != 1.0f || kAnNLate > 0))) {
       const float lateShare = ehLate ? kEhAnLate : kAnNLate;
       if (ehLate) {
         if (kEhAnScale >= 0) e.an *= kEhAnScale;
@@ -5239,7 +5311,11 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // up to the teeth more slowly; Whisper hears 419 of the v's 830 dictionary substitutions as b.
     static const float vApMs = param("LINE_V_APPROACH_MS", -1.0f), vApA = param("LINE_V_APPROACH_A", -1.0f);
     const float apMs = tok.ph == Ph::Z && zApMs >= 0 ? zApMs : tok.ph == Ph::VV && vApMs >= 0 ? vApMs : frApMs;
-    if (tract_ == Tract::Line && apMs > 0 && fric && sonBefore && !prevWasPlosive_) {
+    // ... not after an m with LINE_M_FRIC_AP 0 (round J, M agent; 1: as before): the approach moved the closure from the
+    // lips to the z's place over the m's last 25 ms while the port was open, an n's murmur ("seems" -> scenes, "cams"
+    // -> cans; m before z 28 % wrong, heard as n 87 of 120). Lab: worse (m errors +30 alone, +43 with LINE_M_SHAPE).
+    static const float kMFricAp = param("LINE_M_FRIC_AP", 1.0f);
+    if (tract_ == Tract::Line && apMs > 0 && fric && sonBefore && !prevWasPlosive_ && !(lastPh_ == Ph::M && kMFricAp <= 0)) {
       Event ap{std::max(e.t - apMs * ms, phonemeStart_ + 1)};
       ap.ac = tok.ph == Ph::VV && vApA >= 0 ? vApA : frApA;
       ap.acMs = static_cast<float>((e.t - ap.t) / ms);
