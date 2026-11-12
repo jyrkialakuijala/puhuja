@@ -1502,7 +1502,7 @@ constexpr float kDoubledConsonantFactor = 1.4f;
 // air 0.3, bandwidths x0.5/0.55/0.6 and the source tilt -8 dB, 3 kHz cut
 // -10 dB, 1 kHz lift +6 dB land on its spectrum within 1-2 dB, contrast 24.
 // (Pitch and gain are research parameters: tools/word_opt.py --sweep.)
-const Voice kMaleVoice = {param("kMaleF0", 115.5) /* cost 1814 whisper-run1-phon_err */, {param("kMaleFormant", 0.9625), param("kMaleFormant", 0.9625), param("kMaleFormant", 0.9625)}, 1.0f, 1.0f, 1.7f, 1.0f, param("kMaleGain", 4.163f) /* cost 0.0322859615827058 n13-speaker-w30 */, -6, 0.3f,
+const Voice kMaleVoice = {param("kMaleF0", 95.5) /* cost 1814 whisper-run1-phon_err */, {param("kMaleFormant", 0.9625), param("kMaleFormant", 0.9625), param("kMaleFormant", 0.9625)}, 1.0f, 1.0f, 1.7f, 1.0f, param("kMaleGain", 4.163f) /* cost 0.0322859615827058 n13-speaker-w30 */, -6, 0.3f,
                           {0.5f, 0.55f, 0.6f}, 1.0f, 1.0f, 0.0f, 3500, 4500, 3.0f, 1.0f, 1.0f, -8, -10, 6};
 // Female: F1/F2/F3 from the measured FLEURS female / CSS10 male ratios
 // (F1 x1.27, F2 x1.04, F3 x1.18), moderated toward usual values; tempo and
@@ -1522,7 +1522,7 @@ const Voice kMaleVoice = {param("kMaleF0", 115.5) /* cost 1814 whisper-run1-phon
 // bandwidths x1.15/1.1/1.05, no gap, breathiness 1.1, micro 3: HNR ~18,
 // H1-H2 1.7 (goog 2.0), H1-A1 -2.5, H1-A3 15.4, jitter 0.8 % (goog 1.2),
 // F0 207; female Whisper WER on 60 statements 10.4 -> 7.6 %.
-const Voice kFemaleVoice = {param("kFemaleF0", 165.7) /* cost 0.0298241432933307 n14-stringline-w30-c */, {1.12f, 1.15f, 1.06f}, 1.15f, 0.92f, 1.8f, 1.1f, param("kFemaleGain", 3.704f) /* cost 0.0322859615827058 n13-speaker-w30 */, 7, 1.0f,
+const Voice kFemaleVoice = {param("kFemaleF0", 134) /* cost 0.0298241432933307 n14-stringline-w30-c */, {1.12f, 1.15f, 1.06f}, 1.15f, 0.92f, 1.8f, 1.1f, param("kFemaleGain", 3.704f) /* cost 0.0322859615827058 n13-speaker-w30 */, 7, 1.0f,
                                 {1.15f, 1.1f, 1.05f}, 1.12f, 1.41f, 0.0f,
                                 // F4, F5: goog and the female voice-over have F4 at ~3.98 kHz (LPC of
                                 // the vowel middles). F3 x1.15 (2960 Hz vs 2770-2840) with F4 3850

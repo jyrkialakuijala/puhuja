@@ -38,7 +38,7 @@ const float kFoldRestOpen = param("kFoldRestOpen", 5.0f);  // (1.5 with STRING_R
 // sit at 1.00 / 0.98 of the command (sd 0.27 st, slope 0.98) and the
 // controller stays at 1. To keep today's average pitch with that, lower
 // kMaleF0 / kFemaleF0 by 0.83 / 0.81 (ref/opt/lab/BUG-PITCH/keep.params).
-const float kFoldNaturalF0 = param("PITCH_NATURAL_F0", 155.0f);
+const float kFoldNaturalF0 = param("PITCH_NATURAL_F0", 126.0f);
 const float kPitchControl = param("PITCH_CONTROL", 0.3f);     // per cycle: share of pitch error corrected
 const float kPitchLearnVib = param("kPitchLearnVib", 100.0f);     // flow fluctuation (cm^3/s) needed to learn (100 before 2026-11-02)
 const float kPitchCorrMin = param("kPitchCorrMin", 0.5f), kPitchCorrMax = param("kPitchCorrMax", 2.0f);  // (0.7-1.4 pinned the string folds half an octave low, 2026-11-02)  // the tension correction's range
