@@ -1125,6 +1125,11 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
               kEnglishTokens[tok[i + 1] - 0x80][strlen(kEnglishTokens[tok[i + 1] - 0x80]) - 1] == '0') whole *= kThUnstrLen;
           if (i + 1 < tok.size() && baseName(tok[i + 1]) == "S") whole *= kThSLen;
         }  // (ð separately: shortened with the θ it lost, 2026-11-09)
+        // ð's length word-initially (EN_DH_INIT_LEN: the, this, that) and between vowels (EN_DH_MED_LEN: other, either); DH
+        // agent7, round H (1: unchanged). Kokoro's ð in kennedy runs 50 ms (median), puhuja's 35.
+        { static const float kDhInitLen = param("EN_DH_INIT_LEN", 1.0f), kDhMedLen = param("EN_DH_MED_LEN", 1.0f);
+          if (b == "DH" && i == 0) whole *= kDhInitLen;
+          if (b == "DH" && i > 0 && isVowelToken(tok[i - 1]) && i + 1 < tok.size() && isVowelToken(tok[i + 1])) whole *= kDhMedLen; }
         // ... and h's (EN_H_LEN; Jyrki 2026-11-06: "hand of God" sounds too close to "land of God", make h here
         // more clear -- consider noise shaping, making it longer, or slightly stronger). Kokoro's h runs ~60 ms
         // against puhuja's 41.
