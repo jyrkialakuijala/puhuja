@@ -893,6 +893,16 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
           } }
         // The ɑ's own length (EN_AA_LEN; 2026-11-10 AA agent: a short ɑ is heard as ʌ / ə).
         { static const float kAaLen = param("EN_AA_LEN", 1.4f); if (b == "AA") whole *= kAaLen; }
+        // ... and by its place (AA agent 10, round K, lab knobs; 1: as before): EN_AA_FINAL_LEN at the word's end (puhuja's
+        // "Pa", "La", "Las" ran 335-425 ms, Kokoro's 175-235: a long open back vowel reads as ɔ, "La" -> law),
+        // EN_AA_UNSTR_LEN unstressed (16 % wrong, heard ə), EN_AA_NAS_LEN before a nasal of its word ("On" -> john).
+        { static const float kAaFinalLen = param("EN_AA_FINAL_LEN", 1.0f), kAaUnstrLen = param("EN_AA_UNSTR_LEN", 1.0f),
+                             kAaNasLen = param("EN_AA_NAS_LEN", 1.0f);
+          if (b == "AA") {
+            if (i + 1 == tok.size()) whole *= kAaFinalLen;
+            if (name[strlen(name) - 1] == '0') whole *= kAaUnstrLen;
+            if (i + 1 < tok.size() && isNasal(baseName(tok[i + 1]))) whole *= kAaNasLen;
+          } }
         // The ɔ's own length by what follows in its word (AO agent 8, round I, lab knobs; 1: as before): EN_AO_LEN not before
         // an ɹ, EN_AO_R_LEN before it, EN_AO_VL_LEN before a voiceless obstruent (p t k f θ s ʃ ʧ), EN_AO_L_LEN before an l,
         // EN_AO_FINAL_LEN at the word's end. The dictionary's ɔ: 8 % wrong before ɹ, 36 % elsewhere (oʊ 238 of 564).

@@ -3798,6 +3798,40 @@ void Synth::emit(const Token& tok, const Ph* next) {
       static const float kLineAaAoMix = param("LINE_AA_AO_MIX", 0.0f);
       TractShape o;
       if (kLineAaAoMix > 0 && lineShapeOf(Ph::AO, &o)) sh = lineShapeMix(sh, o, kLineAaAoMix);
+      // (AA agent 10, round K, lab knobs; 1 / 0 / -1: off) the ɑ token's own shape, leaving row 14 alone (ɔ, ʌ, the ɔɪ
+      // start and the schwa variants mix toward the row). Since tonight's ɔ fix (LINE_AO_AA_MIX 0.25) puhuja's ɑ and ɔ
+      // differ in F1 only: male middle third 620/930 Hz vs 525/960 ("Lot" vs "Law"); Kokoro's ɑ sits at F2 1000-1200
+      // (am_onyx / am_adam) and its F2 rises over the last third in open syllables ("Pa" 1215 -> 1257, "La" 1201 ->
+      // 1303). Dictionary: ɑ heard as ɔ 221 of 677 errors. Lips (area x LINE_AA_ALIP, length x LINE_AA_LLIP), mouth
+      // cavity x LINE_AA_AOR, pharynx x LINE_AA_APH, constriction area x LINE_AA_AC, place LINE_AA_XC (-1: the row's),
+      // tract cm added LINE_AA_LEN_CM; whole mixes toward æ (LINE_AA_MIX_AE), ʌ (LINE_AA_MIX_AH), the open front a
+      // (LINE_AA_MIX_A); by context toward row LINE_AA_CTX_ROW: before a pause (LINE_AA_FINAL_MIX), before a nasal
+      // (LINE_AA_NAS_MIX), before an l (LINE_AA_L_MIX), after a pause (LINE_AA_INIT_MIX); the female's lips x LINE_AA_F_ALIP.
+      static const float kAaALip = param("LINE_AA_ALIP", 1.0f), kAaLLip = param("LINE_AA_LLIP", 1.0f),
+                         kAaAor = param("LINE_AA_AOR", 1.0f), kAaAph = param("LINE_AA_APH", 1.0f),
+                         kAaAc = param("LINE_AA_AC", 1.0f), kAaXc = param("LINE_AA_XC", -1.0f),
+                         kAaLenCm = param("LINE_AA_LEN_CM", 0.0f), kAaFALip = param("LINE_AA_F_ALIP", 1.0f);
+      static const float kAaMixAe = param("LINE_AA_MIX_AE", 0.0f), kAaMixAh = param("LINE_AA_MIX_AH", 0.0f),
+                         kAaMixA = param("LINE_AA_MIX_A", 0.0f);
+      static const float kAaFinalMix = param("LINE_AA_FINAL_MIX", 0.0f), kAaNasMix = param("LINE_AA_NAS_MIX", 0.0f),
+                         kAaLMix = param("LINE_AA_L_MIX", 0.0f), kAaInitMix = param("LINE_AA_INIT_MIX", 0.0f);
+      static const int kAaCtxRow = param("LINE_AA_CTX_ROW", static_cast<int>(Ph::A));
+      if (kAaMixAe > 0 && lineShapeOf(Ph::AE, &o)) sh = lineShapeMix(sh, o, kAaMixAe);
+      if (kAaMixAh > 0 && lineShapeOf(Ph::AH, &o)) sh = lineShapeMix(sh, o, kAaMixAh);
+      if (kAaMixA > 0 && lineShapeOf(Ph::A, &o)) sh = lineShapeMix(sh, o, kAaMixA);
+      const bool aaFinal = !next || *next == Ph::Stop;
+      const bool aaNas = next && (*next == Ph::M || *next == Ph::N || *next == Ph::NG);
+      const float aaCtx = (aaFinal ? kAaFinalMix : 0.0f) + (aaNas ? kAaNasMix : 0.0f) +
+                          (next && *next == Ph::L ? kAaLMix : 0.0f) + (prevWasPause_ ? kAaInitMix : 0.0f);
+      if (aaCtx > 0 && lineShapeOf(static_cast<Ph>(kAaCtxRow), &o)) sh = lineShapeMix(sh, o, std::min(aaCtx, 1.0f));
+      sh.aLip *= kAaALip * (female_ ? kAaFALip : 1.0f);
+      sh.lLip *= kAaLLip;
+      sh.aOral *= kAaAor;
+      sh.aPharynx *= kAaAph;
+      sh.ac *= kAaAc;
+      sh.length += kAaLenCm;
+      if (kAaXc >= 0) sh.xc = kAaXc;
+      if (kAaXc >= 0 || kAaLenCm != 0.0f) sh.sc = lineVowelStrength(sh.xc, sh.wc, sh.length);
     }
     if (have && tok.ph == Ph::L) {
       // l's shape by its place (L agent, round E 2026-11-11; all 1 / 0: the one o-like row as before). Kokoro's onset l
@@ -4002,6 +4036,22 @@ void Synth::emit(const Token& tok, const Ph* next) {
         if (tok.ph == Ph::AA && kAaOffMix > 0) {
           TractShape o;
           if (lineShapeOf(Ph::AO, &o)) late = lineShapeMix(late, o, kAaOffMix);
+        }
+        // (AA agent 10, round K, lab knobs; 0 / 1: off) the ɑ's late key opens or fronts instead: toward row LINE_AA_OFF_ROW
+        // by LINE_AA_OFF_FRONT, and by LINE_AA_FINAL_OFF more before a pause; its lips x LINE_AA_LATE_LIPA. Kokoro's ɑ
+        // ends with F2 rising 100-250 Hz in "Pa", "La", "Las", "Lot", "Hot"; puhuja's holds ~910 to the end, where an ɔ
+        // (rounding, F2 falling) and an ɑ differ. Not before ɹ. Lab (hard300: 180 dictionary words with >= 2 of 4 ɑ errors +
+        // 120 common, both voices, two draws): LINE_AA_OFF_FRONT 0.5 223 -> 177 errors, words right 290 -> 326 (common 300:
+        // 54 -> 42, words1000 1447 -> 1458); half of it is the late key becoming the ɑ's own demand (LATE_LIPA 1.001: 196).
+        static const float kAaOffFront = param("LINE_AA_OFF_FRONT", 0.0f), kAaFinalOff = param("LINE_AA_FINAL_OFF", 0.0f),
+                           kAaLateLipA = param("LINE_AA_LATE_LIPA", 1.0f);
+        static const int kAaOffRow = param("LINE_AA_OFF_ROW", static_cast<int>(Ph::AH));
+        if (tok.ph == Ph::AA && !(next && *next == Ph::RR) && (kAaOffFront > 0 || kAaFinalOff > 0 || kAaLateLipA != 1.0f)) {
+          const float off = kAaOffFront + (!next || *next == Ph::Stop ? kAaFinalOff : 0.0f);
+          TractShape o;
+          if (off > 0 && lineShapeOf(static_cast<Ph>(kAaOffRow), &o)) late = lineShapeMix(late, o, std::min(off, 1.0f));
+          late.aLip *= kAaLateLipA;
+          lateNoUw = late;  // (an ɑ has no uː changes: its late mix counts as its own end, as the ɔ's)
         }
         // The ɛ's late key (round I EH agent 2026-11-12 lab knobs; 0: off): toward ə (LINE_EH_OFF_MIX; before a nasal
         // LINE_EH_N_OFF_MIX instead when >= 0), toward the l before an l (LINE_EH_L_OFF_MIX), toward ɪ before a nasal
