@@ -831,6 +831,12 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
           static const float kPreNgVowel = param("EN_PRE_NG_VOWEL_LEN", 1.0f);
           whole *= kPreNgVowel;
         }
+        // ... and before a θ x EN_PRE_TH_VOWEL_LEN (TH agent7, round H; 1: as before): the clipping of a vowel before a
+        // voiceless consonant ("author" -> "over": the long voiced ɔː told Whisper the next consonant was voiced).
+        if (i + 1 < tok.size() && baseName(tok[i + 1]) == "TH") {
+          static const float kPreThVowel = param("EN_PRE_TH_VOWEL_LEN", 1.0f);
+          whole *= kPreThVowel;
+        }
         // A word-final unstressed ə x this (EN_FINAL_SCHWA_LEN, lab knob 2026-11-11, AX agent; 1: as before): before a
         // pause it ran 125-140 ms, heard as u / ɝ in 70 % of the final cells.
         { static const float kFinalSchwaLen = param("EN_FINAL_SCHWA_LEN", 1.0f);
@@ -1100,7 +1106,19 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
           if (phraseFinal && i > static_cast<size_t>(lastVowel) && i + 1 == tok.size()) whole *= kFinalTLen;
           if (i + 1 < tok.size() && baseName(tok[i + 1]) == "S") whole *= kTsLen;
         }  // the k's own length (K lab 2026-11-10; 1: unchanged)  // the p's own length (P lab 2026-11-10; 1: unchanged)  // the v's own length (lab 2026-11-09; 1: unchanged)  // the ʒ's own length (2026-11-09: 50 ms against Kokoro's ~100)
-        { static const float kThLen = param("EN_TH_LEN", 0.6f), kDhLen = param("EN_DH_LEN", 0.7f); if (b == "TH") whole *= kThLen; else if (b == "DH") whole *= kDhLen; }  // (ð separately: shortened with the θ it lost, 2026-11-09)
+        { static const float kThLen = param("EN_TH_LEN", 0.6f), kDhLen = param("EN_DH_LEN", 0.7f); if (b == "TH") whole *= kThLen; else if (b == "DH") whole *= kDhLen; }
+        // θ's length by context (TH agent7, round H; 1: unchanged): word-initial (EN_INIT_TH_LEN), between two vowels of a
+        // word (EN_MED_TH_LEN: "author" -> "over", "nothing": V the commonest medial confusion, 45 % errors before an
+        // unstressed vowel), before an unstressed vowel (EN_TH_UNSTR_LEN), before an s (EN_TH_S_LEN: "paths" -> "pass").
+        if (b == "TH") {
+          static const float kInitThLen = param("EN_INIT_TH_LEN", 1.0f), kMedThLen = param("EN_MED_TH_LEN", 1.0f),
+                             kThUnstrLen = param("EN_TH_UNSTR_LEN", 1.0f), kThSLen = param("EN_TH_S_LEN", 1.0f);
+          if (i == 0) whole *= kInitThLen;
+          if (i > 0 && isVowelToken(tok[i - 1]) && i + 1 < tok.size() && isVowelToken(tok[i + 1])) whole *= kMedThLen;
+          if (i + 1 < tok.size() && isVowelToken(tok[i + 1]) &&
+              kEnglishTokens[tok[i + 1] - 0x80][strlen(kEnglishTokens[tok[i + 1] - 0x80]) - 1] == '0') whole *= kThUnstrLen;
+          if (i + 1 < tok.size() && baseName(tok[i + 1]) == "S") whole *= kThSLen;
+        }  // (ð separately: shortened with the θ it lost, 2026-11-09)
         // ... and h's (EN_H_LEN; Jyrki 2026-11-06: "hand of God" sounds too close to "land of God", make h here
         // more clear -- consider noise shaping, making it longer, or slightly stronger). Kokoro's h runs ~60 ms
         // against puhuja's 41.

@@ -2989,6 +2989,16 @@ void Synth::emit(const Token& tok, const Ph* next) {
       if (thCarry_ >= 0 && e.lineFricMul == 1.0f) e.lineFricMul = thCarry_;
       if (std::getenv("PUHUJA_LINE_TRACE")) std::fprintf(stderr, "thcarry t %.3f cls %d last %d mul %.3f\n", e.t / fs_, static_cast<int>(in.cls), static_cast<int>(lastPh_), e.lineFricMul);
     } }
+  // LINE_TH_PAUSE_CARRY (TH agent7, round H; 0: off): only the pause after a θ keeps x this of its gain (LINE_TH_FRIC), not
+  // the vowel after it (the +10 dB end burst into a vowel is a cue Whisper uses: LINE_TH_FRIC_CARRY cost 20 errors), while
+  // the pause's +10 dB, 5.5-6 kHz tail after a final θ is an s ("paths" -> "pass", "Seth" -> "sex", "both" -> "bose").
+  { static const float kThPauseCarry = param("LINE_TH_PAUSE_CARRY", 0.0f);
+    if (tract_ == Tract::Line && kThPauseCarry > 0) {
+      static const float thFric = param("LINE_TH_FRIC", 0.3f);
+      if (lastPh_ == Ph::TH) thPauseCarry_ = tok.ph == Ph::Stop ? thFric * kThPauseCarry : -1.0f;  // (the pause is a run of tokens)
+      else if (tok.ph != Ph::Stop) thPauseCarry_ = -1.0f;
+      if (thPauseCarry_ >= 0 && e.lineFricMul == 1.0f) e.lineFricMul = thPauseCarry_;
+    } }
   // The f before another voiceless fricative ("beliefs") x this (LINE_F_CLUSTER_FRIC; Jyrki 2026-11-08: "in 'beliefs',
   // the f and s could have roughly equal strength and duration": the f 6 dB under the s).
   if (tract_ == Tract::Line && tok.ph == Ph::F && next && (*next == Ph::S || *next == Ph::SH || *next == Ph::TH) && e.lineFricMul > 0) {
@@ -2999,6 +3009,8 @@ void Synth::emit(const Token& tok, const Ph* next) {
   if (tract_ == Tract::Line && tok.ph == Ph::S && (lastPh_ == Ph::F || lastPh_ == Ph::TH || lastPh_ == Ph::SH) && e.lineFricMul > 0) {
     static const float kLineClusterSFric = param("LINE_CLUSTER_S_FRIC", 0.71f);
     e.lineFricMul *= kLineClusterSFric;
+    static const float kLineThSFric = param("LINE_TH_S_FRIC", 1.0f);  // ... x this more after a θ ("paths" -> "pass"; TH agent7)
+    if (lastPh_ == Ph::TH) e.lineFricMul *= kLineThSFric;
   }
   // ... and a phrase-final f x this (LINE_FINAL_F_FRIC; Jyrki 2026-11-08: "the ending f could be less strong by 3 db
   // in 'life'": that f -36 dB, 10 dB over the one of "belief").
@@ -3010,6 +3022,13 @@ void Synth::emit(const Token& tok, const Ph* next) {
   if (tract_ == Tract::Line && tok.ph == Ph::TH && (!next || *next == Ph::Stop) && e.lineFricMul > 0) {
     static const float kLineFinalThFric = param("LINE_FINAL_TH_FRIC", 1.0f);
     e.lineFricMul *= kLineFinalThFric;
+  }
+  // ... and a phrase-initial θ x LINE_INIT_TH_FRIC, a θ inside the phrase (not before a pause) x LINE_MED_TH_FRIC (TH agent7,
+  // round H; 1: as before).
+  if (tract_ == Tract::Line && tok.ph == Ph::TH && e.lineFricMul > 0) {
+    static const float kLineInitThFric = param("LINE_INIT_TH_FRIC", 1.0f), kLineMedThFric = param("LINE_MED_TH_FRIC", 1.0f);
+    if (prevWasPause_) e.lineFricMul *= kLineInitThFric;
+    else if (next && *next != Ph::Stop) e.lineFricMul *= kLineMedThFric;
   }
   // ... and a phrase-final z x this (LINE_FINAL_Z_FRIC, lab 2026-11-11; 1: as before): "his" hissed at -6..-9 dB re the
   // word's peak for 140 ms (its 59 ms and ~80 more into the pause while the breath decays), Kokoro's final z -17..-20.
@@ -3150,6 +3169,11 @@ void Synth::emit(const Token& tok, const Ph* next) {
     if (zhOwn && kLineZhSlit >= 0) e.lineSlitScale = kLineZhSlit;
     if (zhOwn && kLineZhJetMix >= 0) e.lineJetMix = kLineZhJetMix;
     e.lineFricLpr = tok.ph == Ph::Z && kLineZLpr > 0 ? kLineZLpr : tok.ph == Ph::ZH && !inAffricate_ && kLineZhLpr >= 0 ? kLineZhLpr : tok.ph == Ph::SH || tok.ph == Ph::ZH ? kLinePostLpr : tok.ph == Ph::F ? kLineFLpr : tok.ph == Ph::VV ? kLineVLpr : 0.0f;  // (not ʧ ʤ: at 3 they lost 39 -> 34, 26 -> 23 of 54, 56)
+    // θ's constriction length (LINE_TH_HW, x the shared 1; TH agent7 round H: the tongue tip on the teeth is a short contact)
+    // and its noise band (LINE_TH_LPR: low-pass at this x the jet's corner; 0: LINE_NOISE_LPR 10).
+    { static const float kLineThHw = param("LINE_TH_HW", 1.0f), kLineThLpr = param("LINE_TH_LPR", 0.0f);
+      if (tok.ph == Ph::TH && kLineThHw != 1.0f) e.lineHw = kLineThHw;
+      if (tok.ph == Ph::TH && kLineThLpr > 0) e.lineFricLpr = kLineThLpr; }
     // A sound without frication leaves the jet as it was (LINE_JET_KEEP): the
     // n after ʃ snapped it back to the slit's height and the full band while
     // the slit was still hissing, a +10 dB spike at the end of every -tion.
@@ -3779,6 +3803,13 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // voice already on, a z (2026-11-05).
     static const float fricOff = param("LINE_FRIC_OFF_MS", 0.0f);
     if ((lastPh_ == Ph::S || lastPh_ == Ph::F || lastPh_ == Ph::TH) && fricOff > 0 && in.cls != Cls::Fricative && in.cls != Cls::Plosive) e.acMs = std::max(e.acMs, fricOff);
+    // ... θ's own (LINE_TH_OFF_MS, TH agent7 round H; 0: as above): the slit opens into the next voiced sound over this.
+    static const float thOff = param("LINE_TH_OFF_MS", 0.0f);
+    if (lastPh_ == Ph::TH && thOff > 0 && in.cls != Cls::Fricative && in.cls != Cls::Plosive) e.acMs = thOff;
+    // ... and its closing (LINE_TH_ON_MS; 0: the 20 ms boundary). With the glottis opened early (LINE_TH_AB_LEAD_MS) the
+    // hiss rose 20 dB in 6 ms as the slit closed (snap 2.2 dB mean on ten medial-θ words, female; 35 ms: 1.5, 50 ms: 0.7).
+    static const float thOn = param("LINE_TH_ON_MS", 0.0f);
+    if (tok.ph == Ph::TH && thOn > 0 && !prevWasPause_) e.acMs = thOn;
     // v into a vowel or sonorant (V agent, round F; 0: the 20 ms boundary): the lip leaves the teeth over
     // LINE_V_OFF_MS. A quick opening from a hiss-less v is a b's release to Whisper (initial v: B 214 of 467 errors).
     static const float vOff = param("LINE_V_OFF_MS", 40.0f);
@@ -3797,11 +3828,20 @@ void Synth::emit(const Token& tok, const Ph* next) {
   }
   e.agMs = tract_ == Tract::Line && in.cls == Cls::Fricative && aero.ag > kAgBreathy ? kLineAbductMs : kGlottalMs;
   if (tract_ == Tract::Line && tok.ph == Ph::Z && kZAbductMs >= 0 && aero.ag > kAgBreathy) e.agMs = kZAbductMs;
+  // θ's own abduction (LINE_TH_ABDUCT_MS, TH agent7 round H; < 0: LINE_ABDUCT_MS): in "author" the glottis reached the
+  // θ's opening 30 ms into its 59 ms and began closing 15 ms before its end, the voice running through half the θ
+  // ("author" -> "over": V the commonest medial-θ confusion); Kokoro's θ is voiceless from its first ms.
+  { static const float kThAbductMs = param("LINE_TH_ABDUCT_MS", -1.0f);
+    if (tract_ == Tract::Line && tok.ph == Ph::TH && kThAbductMs >= 0 && aero.ag > kAgBreathy) e.agMs = kThAbductMs; }
   e.aspGain = in.cls == Cls::H ? hAspirationGain_ * kHGain : kAspirationGain * kAspirationTiltGain;
   if (lineHAsp_ && in.cls != Cls::H) {  // after a voiceless h: the noise gain back
     e.lineAspMul = 1.0f;
     lineHAsp_ = false;
   }
+  // θ's glottal hiss x LINE_TH_ASP (TH agent7, round H; 1: off): a broadband breath noise under the dental slit's
+  // narrow band (puhuja's θ 0.5-2 kHz 12-15 dB under its 2-8 kHz, Kokoro's ~8: flatter). Reset at the next sound.
+  { static const float kLineThAsp = param("LINE_TH_ASP", 1.0f);
+    if (tract_ == Tract::Line && tok.ph == Ph::TH && kLineThAsp != 1.0f) { e.lineAspMul = kLineThAsp; lineHAsp_ = true; } }
   if (lineHSpec_ && in.cls != Cls::H) {  // after an h with its own breath (LINE_H_GFC ...): back to the shared values
     e.lineGlotFc = 1.0f;
     if (kLineHBreath > 0) e.lineHBreath = 0.0f;
@@ -4448,6 +4488,10 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // the h -> vowel path, which ends breathy, voiced at once (2026-11-02).
     e.agMs = kLineAdductMs;
     if (kLineHVowelAgMs > 0 && lastPh_ == Ph::H && isVowel(tok.ph)) e.agMs = kLineHVowelAgMs;  // (LINE_H_VOWEL_AG_MS; the h path lands here, 30 ms)
+    // After a θ (TH agent7, round H; < 0: as for the others): the folds adduct over LINE_TH_ADDUCT_MS, starting
+    // LINE_TH_ADDUCT_LEAD_MS before the opening (below; LINE_ADDUCT_LEAD_MS 15 put the voice under the θ's last 15 ms).
+    static const float kThAdductMs = param("LINE_TH_ADDUCT_MS", -1.0f);
+    if (lastPh_ == Ph::TH && kThAdductMs >= 0) e.agMs = kThAdductMs;
     if (kLineRestartMs > 0) {
       // ... or, what the string folds actually need: a moment pressed shut
       // first, as after a pause, from which they start within a cycle (the
@@ -4482,8 +4526,10 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // hiss fall before the release, and the voice is there when it opens.
     // 0: off (the adduction starts with the release, as before).
     static const float kLineAdductLeadMs = param("LINE_ADDUCT_LEAD_MS", 15.0f);
-    if (kLineAdductLeadMs > 0 && e.ag >= 0) {
-      Event adduct{std::max(e.t - kLineAdductLeadMs * ms, phonemeStart_ + 1.0)};
+    static const float kThAdductLeadMs = param("LINE_TH_ADDUCT_LEAD_MS", -1.0f);
+    const float adductLeadMs = lastPh_ == Ph::TH && kThAdductLeadMs >= 0 ? kThAdductLeadMs : kLineAdductLeadMs;
+    if (adductLeadMs > 0 && e.ag >= 0) {
+      Event adduct{std::max(e.t - adductLeadMs * ms, phonemeStart_ + 1.0)};
       adduct.ag = e.ag;
       adduct.agMs = e.agMs;
       e.ag = -1;
@@ -4519,6 +4565,14 @@ void Synth::emit(const Token& tok, const Ph* next) {
       Event prePress{std::max(e.t - kLinePrePressMs * ms, earlyBreath ? std::min(inPauseFrom, e.t) : phonemeStart_ + 1)};
       prePress.press = 1.0f;
       prePress.pressMs = kLinePrePressMs;
+      // A phrase-initial θ (TH agent7, round H; LINE_TH_PRE_MS 0: off): the breath starts rising this long before it,
+      // over LINE_TH_PRE_RAMP_MS (< 0: LINE_PRE_PRESS_MS). The 80 ms rise from the θ's own start left "three"'s 60 ms θ
+      // at -52 dB re the word's peak (2-8 kHz) for its first 50 ms, hiss only in its last 15; Kokoro -41 rising to -19.
+      static const float kThPreMs = param("LINE_TH_PRE_MS", 0.0f), kThPreRampMs = param("LINE_TH_PRE_RAMP_MS", -1.0f);
+      if (tok.ph == Ph::TH && kThPreMs > 0) {
+        prePress.t = std::max(e.t - kThPreMs * ms, std::min(inPauseFrom, e.t));
+        if (kThPreRampMs >= 0) prePress.pressMs = kThPreRampMs;
+      }
       prePress.ac = prePress.ag = prePress.an = -1;
       prePress.speech = -1;
       prePress.aspGain = -1;
@@ -4735,6 +4789,20 @@ void Synth::emit(const Token& tok, const Ph* next) {
       addEventAt(late);
     }
   }
+  // LINE_TH_AB_LEAD_MS (TH agent7, round H; 0: off): the θ's glottis starts opening this long before its gesture,
+  // inside the vowel before it (the same voice-into-θ as LINE_TH_ABDUCT_MS, from the other end). Lab (297 θ words, both
+  // voices, two draws): 20 ms: θ errors 160 -> 124, words right 376 -> 403, words1000 1383 -> 1382; with LINE_TH_ABDUCT_MS
+  // 15 and LINE_TH_ON_MS 35: 114 / 414 / 1385. "Author": the θ voiced 29 % -> 0 %, its hiss -47 -> -42 dB (Kokoro -26).
+  {
+    static const float thAbLead = param("LINE_TH_AB_LEAD_MS", 0.0f);
+    if (tract_ == Tract::Line && tok.ph == Ph::TH && thAbLead > 0 && !prevWasPlosive_ && !prevWasPause_ && e.ag >= 0) {
+      Event early{std::max(e.t - thAbLead * ms, phonemeStart_ + 1.0)};
+      early.ag = e.ag;
+      early.agMs = e.agMs;
+      e.ag = -1;
+      addEventAt(early);
+    }
+  }
   if (!prevWasPlosive_) {
     if (!events_.empty() && e.t < events_.back().t) addEventAt(e); else addEvent(e);
     if (hasVelLag) addEventAt(velLag);
@@ -4802,6 +4870,12 @@ void Synth::emit(const Token& tok, const Ph* next) {
   if (pulseFric)
     addPressPulse(t0 - std::max(kLinePulseLeadMs, 0.0f) * ms, std::max(phonemeStart_, t_) + 1,
                   kLinePulse * kLinePulseFric);  // the diaphragm's push (LINE_PULSE)
+  // θ's own push (LINE_TH_PULSE, TH agent7 round H; 0: off, as LINE_PULSE 0 leaves every fricative): the breath pressure
+  // rises by this (relative) to a peak LINE_TH_PULSE_AT_MS into the θ: its hiss 15-25 dB under Kokoro's, where a louder
+  // gain alone (LINE_TH_FRIC) brought s confusions; flow, not the noise gain, makes a dental hiss.
+  { static const float kThPulse = param("LINE_TH_PULSE", 0.0f), kThPulseAt = param("LINE_TH_PULSE_AT_MS", 20.0f);
+    if (tract_ == Tract::Line && tok.ph == Ph::TH && kThPulse > 0)
+      addPressPulse(t0 + kThPulseAt * ms, std::max(phonemeStart_, t_) + 1, kThPulse); }
   // The syllable's start: its first onset consonant after a vowel or a pause.
   if (in.cls != Cls::Vowel && in.cls != Cls::Stop && (prevWasVowel_ || prevWasPause_ || syllOnsetT_ < 0)) syllOnsetT_ = t0;
   if (stressExtra > 0) {
