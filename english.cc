@@ -826,6 +826,17 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
           static const float kPreGVowel = param("EN_PRE_G_VOWEL", -1.0f);
           // (EN_PRE_JH_VOWEL: before a ʤ x this instead of the voiced plosives' 1.2; JH agent round H: a final ʤ is heard as ʧ)
           static const float kPreJhVowel = param("EN_PRE_JH_VOWEL", 1.2f);
+          // (EN_PRE_D_VOWEL: before a d x this instead of the voiced plosives' 1.2; < 0: 1.2. D agent9 round J: the d is
+          // heard as t 519 times in the dictionary, "beads" -> beats, "trader" -> traitor: the vowel's length is the
+          // listener's voicing cue. EN_PRE_D_VOWEL_VV: only before a d between vowels; EN_PRE_D_VOWEL_DZ: before a d + s/z.)
+          static const float kPreDVowel = param("EN_PRE_D_VOWEL", -1.0f), kPreDVowelVv = param("EN_PRE_D_VOWEL_VV", -1.0f),
+                             kPreDVowelDz = param("EN_PRE_D_VOWEL_DZ", -1.0f);
+          if (n == "D") {
+            const std::string nn = i + 2 < tok.size() ? baseName(tok[i + 2]) : "";
+            const bool vv = i + 2 < tok.size() && isVowelToken(tok[i + 2]), dz = nn == "Z" || nn == "S";
+            const float f = vv && kPreDVowelVv >= 0 ? kPreDVowelVv : dz && kPreDVowelDz >= 0 ? kPreDVowelDz : kPreDVowel;
+            if (f >= 0) prc *= f / 1.2f;
+          }
           prc *= n == "JH" ? kPreJhVowel : n == "ZH" ? kPreZhVowel : n == "Z" ? kPreZVowel : n == "G" && kPreGVowel >= 0 ? kPreGVowel : isVoicedFricative(n) ? 1.4f : isVoicedPlosive(n) ? 1.2f
                : isNasal(n) ? 0.9f : isVoicelessPlosive(n) ? (b == "AA" ? kAaPreVless : 0.75f) : 1.0f;
         }
@@ -1135,7 +1146,20 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
         static const float vfricLen = param("EN_VFRIC_LEN", 1.4f) /* cost Whisper 898 composite 24.95/28.30 95d-all3 */, vstopLen = param("EN_VSTOP_LEN", 1.3f);
         if (b == "S" || b == "SH" || b == "F" || b == "TH") whole *= vfricLen;
         else if (isVoicelessPlosive(b)) whole *= vstopLen;
-        else if (b == "D") { static const float kDLen = param("EN_D_LEN", 1.0f); whole *= kDLen; }  // (lab knob 2026-11-10, D agent)
+        else if (b == "D") {
+          static const float kDLen = param("EN_D_LEN", 1.0f);  // (lab knob 2026-11-10, D agent)
+          whole *= kDLen;
+          // D agent9 round J lab knobs (1: as before): the d between a vowel and an unstressed vowel of its word
+          // (EN_D_VV_LEN; "reader" -> creator, "trader" -> traitor: puhuja's closure 40 ms at -27 dB, Kokoro's tap
+          // 25 ms at -17), a d before s z (EN_DZ_D_LEN), a d after a nasal or l at the word's end or before its s z
+          // (EN_ND_D_LEN; "cleaned" -> clean, "finds" -> fines).
+          static const float kDVvLen = param("EN_D_VV_LEN", 1.0f), kDzDLen = param("EN_DZ_D_LEN", 1.0f), kNdDLen = param("EN_ND_D_LEN", 1.0f);
+          const std::string pb = i > 0 ? baseName(tok[i - 1]) : "", nb = i + 1 < tok.size() ? baseName(tok[i + 1]) : "";
+          if (i > 0 && isVowelToken(tok[i - 1]) && i + 1 < tok.size() && isVowelToken(tok[i + 1]) &&
+              kEnglishTokens[tok[i + 1] - 0x80][strlen(kEnglishTokens[tok[i + 1] - 0x80]) - 1] == '0') whole *= kDVvLen;
+          if (nb == "Z" || nb == "S") whole *= kDzDLen;
+          if ((isNasal(pb) || pb == "L") && (nb.empty() || nb == "Z" || nb == "S")) whole *= kNdDLen;
+        }
         else if (b == "G") {  // the g's own length, initial / medial / final (G agent 7 round H, lab knobs; 1: unchanged)
           static const float kGLen = param("EN_G_LEN", 1.0f), kGInitLen = param("EN_G_INIT_LEN", 1.0f), kGFinalLen = param("EN_G_FINAL_LEN", 1.0f);
           whole *= kGLen * (i == 0 ? kGInitLen : i + 1 == tok.size() ? kGFinalLen : 1.0f);
@@ -1160,6 +1184,14 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
         { static const float kZLen = param("EN_Z_LEN", 1.0f), kMedZLen = param("EN_MED_Z_LEN", 1.3f);
           if (b == "Z") whole *= kZLen;
           if (b == "Z" && i > 0 && isVowelToken(tok[i - 1]) && i + 1 < tok.size() && isVowelToken(tok[i + 1])) whole *= kMedZLen; }
+        // D agent9 round J lab knobs (1: as before): a nasal or l before a d at its word's end or before the word's
+        // final s z x EN_ND_N_LEN (Kokoro's n of "cleaned", "band" 80-140 ms, puhuja's 60: "cleaned" -> clean),
+        // a z after a d x EN_DZ_Z_LEN ("beads" -> beats).
+        { static const float kNdNLen = param("EN_ND_N_LEN", 1.0f), kDzZLen = param("EN_DZ_Z_LEN", 1.0f);
+          if ((isNasal(b) || b == "L") && i + 1 < tok.size() && baseName(tok[i + 1]) == "D" &&
+              (i + 2 == tok.size() || (i + 3 == tok.size() && (baseName(tok[i + 2]) == "Z" || baseName(tok[i + 2]) == "S"))))
+            whole *= kNdNLen;
+          if (b == "Z" && i > 0 && baseName(tok[i - 1]) == "D") whole *= kDzZLen; }
         { static const float kPLen = param("EN_P_LEN", 1.0f); if (b == "P") whole *= kPLen; }
         { static const float kKLen = param("EN_K_LEN", 1.0f); if (b == "K") whole *= kKLen; }
         // t's own (T agent 3, lab knobs 2026-11-11; 1: unchanged): its length, a phrase-final t's, a t before s ("its",
@@ -2746,6 +2778,26 @@ void EnglishReader::sayPhrase(char end) {
         if (i < 32 && (phrase_[w].flaps >> i & 1)) {
           shape.flap = true;
           shape.ms = kFlapMs;
+        }
+        // The d's context for the line's d knobs (D agent9 round J): 1 between a vowel and an unstressed vowel of
+        // its word, 2 before s z, 3 at the word's end after a nasal or l, 4 at the word's end after a vowel, 5 before
+        // ɹ, 6 at the word's start before a vowel, 7 between l and an unstressed vowel ("builder"). EN_FLAP_D 1: a d in context 1 is a tap (kFlapMs, as kFlapping 1
+        // but the t keeps its full closure: the t / d contrast is then tap against stop).
+        if (baseName(tokens[i]) == "D") {
+          static const float kFlapD = param("EN_FLAP_D", 0.0f), kFlapDMs = param("EN_FLAP_D_MS", -1.0f);
+          const bool pv = i > 0 && isVowelToken(tokens[i - 1]), nv = i + 1 < tokens.size() && isVowelToken(tokens[i + 1]);
+          const std::string pb = i > 0 ? baseName(tokens[i - 1]) : "", nb = i + 1 < tokens.size() ? baseName(tokens[i + 1]) : "";
+          if (pv && nv && kEnglishTokens[tokens[i + 1] - 0x80][strlen(kEnglishTokens[tokens[i + 1] - 0x80]) - 1] == '0') shape.dctx = 1;
+          else if (nb == "Z" || nb == "S") shape.dctx = 2;
+          else if (i + 1 == tokens.size() && (isNasal(pb) || pb == "L")) shape.dctx = 3;
+          else if (i + 1 == tokens.size() && pv) shape.dctx = 4;
+          else if (nb == "R") shape.dctx = 5;
+          else if (i == 0 && nv) shape.dctx = 6;
+          else if (pb == "L" && nv && kEnglishTokens[tokens[i + 1] - 0x80][strlen(kEnglishTokens[tokens[i + 1] - 0x80]) - 1] == '0') shape.dctx = 7;
+          if (shape.dctx == 1 && kFlapD > 0.5f && !shape.flap) {
+            shape.flap = true;
+            shape.ms = kFlapDMs >= 0 ? kFlapDMs : kFlapMs;
+          }
         }
         // Plosives: Klatt's duration includes the release; this is the closure.
         if (isVoicelessPlosive(baseName(tokens[i])) || isVoicedPlosive(baseName(tokens[i])))

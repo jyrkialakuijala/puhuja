@@ -3008,6 +3008,13 @@ void Synth::emit(const Token& tok, const Ph* next) {
     if (tok.ph == Ph::Z) { e.press = kZPress; e.pressMs = 20; }
     else if (lastPh_ == Ph::Z && e.press < 0) { e.press = 1.0f; e.pressMs = 20; }
   }
+  // (LINE_DZ_Z_AG / LINE_DZ_Z_EXPAND, D agent9 round J, below at the d's release, where a z after a d gets its glottis
+  // and sink: its own event rides on the release) here: the same for a z that emits after a d, and the sink's end.
+  static const float kDzZAg = param("LINE_DZ_Z_AG", -1.0f), kDzZExpand = param("LINE_DZ_Z_EXPAND", 0.0f);
+  if (tract_ == Tract::Line && tok.ph == Ph::Z && lastPh_ == Ph::D) {
+    if (kDzZAg >= 0) aero.ag = kDzZAg;
+    if (kDzZExpand > 1.0f) { e.expand = kDzZExpand; e.expandMs = static_cast<float>(dur / ms); }
+  } else if (tract_ == Tract::Line && kDzZExpand > 1.0f && lastPh_ == Ph::Z && e.expand < 0) { e.expand = 1.0f; e.expandMs = 5; }
   if (tract_ == Tract::Line && tok.ph == Ph::Z) {
     const bool zFinal = !next || *next == Ph::Stop;
     if (zFinal && kZAgFinal >= 0) aero.ag = kZAgFinal;
@@ -5840,6 +5847,10 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     if (kLineEnJhDevoice > 0 && aspirate_ && tok.ph == Ph::JH && !prevWasVowel_ && !voicedBefore)
       pi.closureAg = kAgVoice + kLineEnJhDevoice * (kAgOpen - kAgVoice);
   }
+  {  // (D agent9 round J lab knob; < 0: off) the closure glottis of a d between a vowel and an unstressed vowel (cm^2)
+    static const float kDVvAg = param("LINE_D_VV_AG", -1.0f);
+    if (tok.ph == Ph::D && tok.shape.dctx == 1 && kDVvAg >= 0) pi.closureAg = kDVvAg;
+  }
   if (englishB) {
     pi.closureAg = kAgVoice + kEnglishBOpening * (kAgOpen - kAgVoice);
     pi.noiseGain = kEnglishBNoise;
@@ -5885,8 +5896,12 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   const bool nextFric = next && info(*next).cls == Cls::Fricative;
   const bool nextVoicedFric = nextFric && (*next == Ph::VV || *next == Ph::Z || *next == Ph::ZH || *next == Ph::DH);
   if (tract_ == Tract::Line && pi.voiced) line_.setExpandOffAllowed(nextFric);  // (LINE_EXPAND_OFF_FRIC)
+  // LINE_DZ_REL (D agent9 round J lab knob; 0: as before): 1: a d before z is released into it (the dictionary hears the
+  // d + z of "beads", "codes" as t + s: 106 of 692; its 17 ms unreleased closure is a bare gap before the z).
+  static const float kDzRel = param("LINE_DZ_REL", 0.0f);
+  const bool dzRelD = tok.ph == Ph::D && kDzRel > 0.5f && next && *next == Ph::Z;
   const bool unreleased = next && (info(*next).cls == Cls::Plosive ||
-                                   (tract_ == Tract::Line && pi.voiced && nextFric && tok.ph != Ph::JH && (nextVoicedFric ? kVstopVfricUnrel : kVstopFricUnrel) > 0.5f));  // (not the affricate's own release into its ʒ: inAffricate_ is set after this)
+                                   (tract_ == Tract::Line && pi.voiced && nextFric && tok.ph != Ph::JH && !dzRelD && (nextVoicedFric ? kVstopVfricUnrel : kVstopFricUnrel) > 0.5f));  // (not the affricate's own release into its ʒ: inAffricate_ is set after this)
   if (unreleased) closure *= kUnreleasedClosure;
   const bool afterUnreleased = prevUnreleased_;
   prevUnreleased_ = unreleased;
@@ -5942,7 +5957,12 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     }
   }
   const bool nextIsPause = !next || *next == Ph::Stop;
-  const Aero nextAero = next ? aeroOf(*next) : aeroOf(Ph::Stop);
+  Aero nextAero = next ? aeroOf(*next) : aeroOf(Ph::Stop);
+  {  // (D agent9 round J lab knob; < 0: as before) the glottis of a z after a d (cm^2; the z's event rides on the d's
+     // release): the z of "beads" ran voiceless (LF -43 dB re the word peak, Kokoro's -15..-20): d + s = "beats".
+    static const float kDzZAg2 = param("LINE_DZ_Z_AG", -1.0f);
+    if (tract_ == Tract::Line && tok.ph == Ph::D && next && *next == Ph::Z && kDzZAg2 >= 0) nextAero.ag = kDzZAg2;
+  }
 
   // Closure start: formants bend toward the consonant from the sound before.
   Params a = last_;
@@ -6133,6 +6153,24 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     }
   }
   if (ldSeal) close.lineFricFade = kLdSealFade;  // (LINE_LD_SEAL_FADE, above)
+  // D agent9 round J lab knobs (0 / < 0: off), by the d's context (english.cc Shape::dctx): a d between a vowel and an
+  // unstressed vowel (1: "reader", "lady") held with a slit of LINE_D_VV_AC cm^2 (the voice runs through: Kokoro's
+  // d there dips 13-17 dB with its voice bar at -12..-14 dB re the word peak, puhuja's closure -27..-29 dB, bar -21; the
+  // dictionary hears 224 of these as t) and with the cavity's expansion flow LINE_D_VV_EXPAND (cm^3/s); a word-final
+  // d (3 after n l, 4 after a vowel) with LINE_D_FINAL_EXPAND.
+  {
+    static const float kDVvAc = param("LINE_D_VV_AC", 0.0f), kDVvExpand = param("LINE_D_VV_EXPAND", -1.0f),
+                       kDFinalExpand = param("LINE_D_FINAL_EXPAND", -1.0f);
+    if (tract_ == Tract::Line && tok.ph == Ph::D && !tok.shape.flap) {
+      if (tok.shape.dctx == 1 && kDVvAc > 0) { close.ac = kDVvAc; close.lineFricFade = 0.2f; }
+      static const float kDLvAc = param("LINE_D_LV_AC", 0.0f);  // ... and between l and an unstressed vowel (7: "builder" -> belter)
+      if (tok.shape.dctx == 7 && kDLvAc > 0) { close.ac = kDLvAc; close.lineFricFade = 0.2f; }
+      if (tok.shape.dctx == 1 && kDVvExpand >= 0) close.lineExpand = std::max(kDVvExpand, 1e-3f);
+      if ((tok.shape.dctx == 3 || tok.shape.dctx == 4) && kDFinalExpand >= 0) close.lineExpand = std::max(kDFinalExpand, 1e-3f);
+      static const float kDzDExpand = param("LINE_DZ_D_EXPAND", -1.0f);  // ... a d before s z (2): "beads", "hands"
+      if (tok.shape.dctx == 2 && kDzDExpand >= 0) close.lineExpand = std::max(kDzDExpand, 1e-3f);
+    }
+  }
   close.acMs = sealMs;
   close.an = nasalVel ? -1.0f : 0.0f;  // (LINE_NASAL_STOP_VEL_MS: the velum stays open, closed below)
   close.anMs = closeMs;
@@ -6238,6 +6276,10 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   bool aspiratedRelease = false;  // (for the diaphragm's push, LINE_PULSE)
   rel.expand = 1;
   rel.expandMs = kVoicedExpansionReleaseMs;
+  {  // (D agent9 round J lab knob; <= 1: off) the cavity walls' expansion sink through a z after a d, from the d's release
+    static const float kDzZExpand2 = param("LINE_DZ_Z_EXPAND", 0.0f);
+    if (tract_ == Tract::Line && tok.ph == Ph::D && next && *next == Ph::Z && kDzZExpand2 > 1.0f) { rel.expand = kDzZExpand2; rel.expandMs = 10; }
+  }
   rel.ac = nextIsPause ? kAcOpen : nextAero.ac;
   // On the line the release is also the next sound's own event (emit drops
   // the event of a sound after a plosive): it carries that sound's slit, place
@@ -6357,6 +6399,10 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // (Kokoro's final d: a soft -21..-24 dB release where puhuja's pops at -9).
   static const float kLineFinalDReleaseScale = param("LINE_FINAL_D_RELEASE_SCALE", -1.0f);
   if (tract_ == Tract::Line && tok.ph == Ph::D && nextIsPause && kLineFinalDReleaseScale >= 0) rel.acMs = pi.releaseMs * kLineFinalDReleaseScale;
+  {  // (D agent9 round J lab knob; 1: as before) a d between a vowel and an unstressed vowel opens x LINE_D_VV_REL faster
+    static const float kDVvRel = param("LINE_D_VV_REL", 1.0f);
+    if (tract_ == Tract::Line && tok.ph == Ph::D && tok.shape.dctx == 1 && kDVvRel != 1.0f) rel.acMs *= kDVvRel;
+  }
   if (jRel && kJRelMs >= 0) rel.acMs = kJRelMs;  // (LINE_J_REL_MS)
   // A voiced stop before a fricative, released (LINE_VSTOP_FRIC_UNREL 0): the
   // release slowed x this, a softer pop (Jyrki 2026-11-07 on "and foo": the
@@ -6730,6 +6776,12 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   const bool nasalBurst = nasalVel && kNasalStopBurst != 1.0f && !relFricOn && !(next && info(*next).cls == Cls::Fricative);
   if (relFricOn) rel.lineFricMul = relFric;
   if (nasalBurst) rel.lineFricMul = kNasalStopBurst;  // (LINE_NASAL_STOP_BURST, restored below)
+  // (D agent9 round J lab knobs; < 0: as above) a word-final d's release frication gain after a nasal or l
+  // (LINE_ND_BURST: "band" -> bang, "cleaned" -> clean) or after a vowel (LINE_VD_BURST: "bad" -> bag).
+  static const float kNdBurst = param("LINE_ND_BURST", -1.0f), kVdBurst = param("LINE_VD_BURST", -1.0f);
+  const bool dCtxBurst = tract_ == Tract::Line && tok.ph == Ph::D && !unreleased && !(next && info(*next).cls == Cls::Fricative) &&
+                         ((tok.shape.dctx == 3 && kNdBurst >= 0) || (tok.shape.dctx == 4 && kVdBurst >= 0));
+  if (dCtxBurst) rel.lineFricMul = tok.shape.dctx == 3 ? kNdBurst : kVdBurst;
   {  // (W agent round G, lab; < 0: as before) the release's slit noise into a w x LINE_W_BURST (back to 1 with the gain below)
     static const float kWBurst2 = param("LINE_W_BURST", -1.0f);
     if (tract_ == Tract::Line && kWBurst2 >= 0 && next && *next == Ph::W && relFricOn) rel.lineFricMul *= kWBurst2;
@@ -6764,8 +6816,14 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
                      kLineBJetD = param("LINE_B_JET_D", 0.0f), kLineDJetD = param("LINE_D_JET_D", 0.0f);
   const float kgBurstMs = tok.ph == Ph::G && kLineGBurstMs >= 0 ? kLineGBurstMs : tok.ph == Ph::B ? kLineBBurstMs : tok.ph == Ph::D ? kLineDBurstMs : kLineKBurstMs;
   const bool vSlitLiq = pi.voiced && kVstopSlitLiq > 0 && vNextLiq;
-  const bool kBurst = tract_ == Tract::Line && kgBurstMs > 0 && (tok.ph == Ph::K || tok.ph == Ph::G || tok.ph == Ph::B || tok.ph == Ph::D) &&
-                      !unreleased && next && (isVowel(*next) || vSlitLiq);
+  // (D agent9 round J lab knob; 0: off) a word-final d (after a vowel, a nasal or l) opens in two steps too, through
+  // the slit for LINE_D_FINAL_SLIT_MS: without it the final release made no jet whatever its frication gain
+  // (LINE_ND_BURST, LINE_VD_BURST did nothing), and the d of "band" is heard as ŋ 68 times, "bad" as g 62.
+  static const float kDFinalSlitMs = param("LINE_D_FINAL_SLIT_MS", 0.0f);
+  const bool dFinalSlit = tract_ == Tract::Line && kDFinalSlitMs > 0 && tok.ph == Ph::D && !unreleased &&
+                          (tok.shape.dctx == 3 || tok.shape.dctx == 4) && !(next && info(*next).cls == Cls::Fricative);
+  const bool kBurst = (tract_ == Tract::Line && kgBurstMs > 0 && (tok.ph == Ph::K || tok.ph == Ph::G || tok.ph == Ph::B || tok.ph == Ph::D) &&
+                       !unreleased && next && (isVowel(*next) || vSlitLiq)) || dFinalSlit;
   const float vJetD = tract_ != Tract::Line || unreleased || !next || nextIsPause || info(*next).cls == Cls::Fricative ? 0.0f
                       : tok.ph == Ph::G ? kLineGJetD : tok.ph == Ph::B ? kLineBJetD : tok.ph == Ph::D ? kLineDJetD : 0.0f;
   // t into a vowel (or l r w j: LINE_T_BURST_LIQ) in two steps too (LINE_T_BURST_MS, T agent 3; 0: off): the tongue
@@ -6787,7 +6845,14 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // LINE_G_LIQ_BURST_MS (< 0: LINE_G_BURST_MS), then on to the liquid's place.
   static const float kGLiqSlitX = param("LINE_G_LIQ_SLIT_X", 0.0f), kGLiqBurstMs = param("LINE_G_LIQ_BURST_MS", -1.0f);
   const bool gLiqSlit = kBurst && tok.ph == Ph::G && kGLiqSlitX > 0 && next && (*next == Ph::L || *next == Ph::RR);
-  const float slitMs = gLiqSlit && kGLiqBurstMs >= 0 ? kGLiqBurstMs : kgBurstMs;
+  // (D agent9 round J lab knobs; < 0: as before) a d before ɹ: its slit held LINE_DR_SLIT_MS with area LINE_DR_SLIT_A
+  // (cm^2), frication gain LINE_DR_FRIC and place LINE_DR_X (share of the line: behind the ridge, the [dʒɹ] of
+  // English "drain"). Kokoro's dr opens with 30-40 ms of 2-8 kHz affrication at -9..-15 dB re the word peak;
+  // puhuja's has none (below -27 dB) and the dictionary hears dr as br 35 times, gr 13 ("drain" -> brain).
+  static const float kDrSlitMs = param("LINE_DR_SLIT_MS", -1.0f), kDrSlitA = param("LINE_DR_SLIT_A", -1.0f),
+                     kDrFric = param("LINE_DR_FRIC", -1.0f), kDrX = param("LINE_DR_X", -1.0f);
+  const bool drSlit = kBurst && tok.ph == Ph::D && next && *next == Ph::RR;
+  const float slitMs = gLiqSlit && kGLiqBurstMs >= 0 ? kGLiqBurstMs : dFinalSlit ? kDFinalSlitMs : drSlit && kDrSlitMs >= 0 ? kDrSlitMs : kgBurstMs;
   if (kBurst) {
     Event slit{release};
     if (gLiqSlit) slit.lineX = lineKPlace(Ph::G, *next), slit.lineXClosure = true;
@@ -6795,6 +6860,9 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     slit.acMs = 3;
     if (tok.ph == Ph::K && kLineKJetD > 0) slit.lineJetD = kLineKJetD, slit.lineJetMix = 1.0f;  // (LINE_K_JET_D)
     if (vJetD > 0) slit.lineJetD = vJetD, slit.lineJetMix = 1.0f;
+    if (drSlit && kDrSlitA >= 0) slit.ac = kDrSlitA;
+    if (drSlit && kDrFric >= 0) slit.lineFricMul = kDrFric;
+    if (drSlit && kDrX >= 0) slit.lineX = kDrX, slit.lineXClosure = true;
     addEvent(slit);
   } else if (vJetD > 0) {  // (no slit: the jet rides on the release, back to the slit's own below)
     Event jet{release};
@@ -6843,6 +6911,8 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     open.acMs = rel.acMs;
     if (gLiqSlit) open.lineX = rel.lineX, open.lineXClosure = rel.lineXClosure;
     if ((tok.ph == Ph::K && kLineKJetD > 0) || vJetD > 0) open.lineJetD = 0.0f;  // (the slit's own jet again)
+    if (drSlit && kDrFric >= 0) open.lineFricMul = rel.lineFricMul >= 0 ? rel.lineFricMul : 1.0f;  // (LINE_DR_FRIC)
+    if (drSlit && kDrX >= 0) open.lineX = rel.lineX, open.lineXClosure = rel.lineXClosure;
     addEventAt(open);
   }
   if (jBurst) {

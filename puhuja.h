@@ -264,6 +264,7 @@ class Synth {
     float wordMs = 0;  // the planned total of the word's tokens (same units; Kokoro mode's word rhythm, 0 unknown)
     float press = 1;   // vowels: glottal opening multiplier (< 1 pressed, > 1 lax)
     bool flap = false;  // a d said as a tap (English t/d between vowels)
+    unsigned char dctx = 0;  // a d's context for the line's d knobs (english.cc, D agent9 round J; 0: none)
   };
   void shapeNext(const Shape& s) { nextShape_ = s; }
 
