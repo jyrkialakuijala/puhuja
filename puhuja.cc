@@ -6926,7 +6926,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // "Plots" -> clocks).
   // The same before j (LINE_P_J_LIP_MS: "Pure", "Popular"? pj 56 % wrong, mostly deleted) and before s z ʃ ʒ
   // (LINE_P_SIB_LIP_MS: the closure slid to the ridge, x 0.90, while it opened into the s: "Reps" -> rats, ps heard t 40).
-  static const float kPLiqLipMs = param("LINE_P_LIQ_LIP_MS", 0.0f), kPLiqLipA = param("LINE_P_LIQ_LIP_A", -1.0f),
+  static const float kPLiqLipMs = param("LINE_P_LIQ_LIP_MS", 20.0f), kPLiqLipA = param("LINE_P_LIQ_LIP_A", -1.0f),
                      kPJLipMs = param("LINE_P_J_LIP_MS", 0.0f), kPSibLipMs = param("LINE_P_SIB_LIP_MS", 0.0f);
   const bool pSibNext = next && (*next == Ph::S || *next == Ph::Z || *next == Ph::SH || *next == Ph::ZH);
   const float pLipMs = !next ? 0.0f : (*next == Ph::L || *next == Ph::RR) ? kPLiqLipMs : *next == Ph::J ? kPJLipMs : pSibNext ? kPSibLipMs : 0.0f;
@@ -6942,7 +6942,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // (P agent 10 round K, lab; < 0: off) ... or the hump's sampling as before LINE_HUMP_NORM 1 (LINE_P_LIQ_NORM: its power)
   // from the p's release for LINE_P_LIQ_NORM_MS: the sliding hump leaked between sections and its burst stayed weak
   // (initial pɹ pl heard k 128 of 1680 at norm 0, 338 at 1).
-  static const float kPLiqNorm = param("LINE_P_LIQ_NORM", -1.0f), kPLiqNormMs = param("LINE_P_LIQ_NORM_MS", 40.0f);
+  static const float kPLiqNorm = param("LINE_P_LIQ_NORM", 0.5f), kPLiqNormMs = param("LINE_P_LIQ_NORM_MS", 40.0f);
   const bool pLiqNorm = tract_ == Tract::Line && tok.ph == Ph::P && kPLiqNorm >= 0 && !unreleased && next && (*next == Ph::L || *next == Ph::RR);
   if (pLiqNorm) rel.lineHumpNorm = kPLiqNorm;
   addEvent(rel);
