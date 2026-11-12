@@ -3979,7 +3979,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
     if (lastPh_ == Ph::TH && thOff > 0 && in.cls != Cls::Fricative && in.cls != Cls::Plosive) e.acMs = thOff;
     // ... and its closing (LINE_TH_ON_MS; 0: the 20 ms boundary). With the glottis opened early (LINE_TH_AB_LEAD_MS) the
     // hiss rose 20 dB in 6 ms as the slit closed (snap 2.2 dB mean on ten medial-θ words, female; 35 ms: 1.5, 50 ms: 0.7).
-    static const float thOn = param("LINE_TH_ON_MS", 0.0f);
+    static const float thOn = param("LINE_TH_ON_MS", 35.0f);
     if (tok.ph == Ph::TH && thOn > 0 && !prevWasPause_) e.acMs = thOn;
     // v into a vowel or sonorant (V agent, round F; 0: the 20 ms boundary): the lip leaves the teeth over
     // LINE_V_OFF_MS. A quick opening from a hiss-less v is a b's release to Whisper (initial v: B 214 of 467 errors).
@@ -4992,7 +4992,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
   // voices, two draws): 20 ms: θ errors 160 -> 124, words right 376 -> 403, words1000 1383 -> 1382; with LINE_TH_ABDUCT_MS
   // 15 and LINE_TH_ON_MS 35: 114 / 414 / 1385. "Author": the θ voiced 29 % -> 0 %, its hiss -47 -> -42 dB (Kokoro -26).
   {
-    static const float thAbLead = param("LINE_TH_AB_LEAD_MS", 0.0f);
+    static const float thAbLead = param("LINE_TH_AB_LEAD_MS", 20.0f);
     if (tract_ == Tract::Line && tok.ph == Ph::TH && thAbLead > 0 && !prevWasPlosive_ && !prevWasPause_ && e.ag >= 0) {
       Event early{std::max(e.t - thAbLead * ms, phonemeStart_ + 1.0)};
       early.ag = e.ag;
