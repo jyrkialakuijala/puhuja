@@ -781,6 +781,7 @@ const float kLineLOnsetMs = param("LINE_L_ONSET_MS", 25.0f);  // (2026-11-04: in
 const float kLineGlideLeadMs = param("LINE_GLIDE_LEAD_MS", 0.0f);
 const float kLineGlideVoiceLagMs = param("LINE_GLIDE_VOICE_LAG_MS", 0.0f);
 const float kLineGlideOnsetMs = param("LINE_GLIDE_ONSET_MS", -1.0f);
+const float kLineWOnsetMs = param("LINE_W_ONSET_MS", -2.0f);  // (W agent round I, lab; -2: LINE_GLIDE_ONSET_MS) the phrase-initial w's voice onset
 const float kLineJLeadMs = param("LINE_J_LEAD_MS", -1.0f);
 const float kLineJVoiceLagMs = param("LINE_J_VOICE_LAG_MS", -1.0f);
 const float kLineJOnsetMs = param("LINE_J_ONSET_MS", 25.0f);  // (2026-11-04: with the j shaped in the pause, see LINE_J_PRE_SHAPE_MS)
@@ -800,6 +801,7 @@ const float kLineJPreShapeMs = param("LINE_J_PRE_SHAPE_MS", 40.0f);
 const float kLineLPreShapeMs = param("LINE_L_PRE_SHAPE_MS", 40.0f);
 const float kLineWPreShapeMs = param("LINE_W_PRE_SHAPE_MS", 60.0f);  // the same for a phrase-initial w (0: at 30 %; 2026-11-09 W agent: the w's F2 sat at the pause's 1100-1170 Hz for its first 15-20 ms)
 const float kLineWKeyTo = param("LINE_W_KEY_TO", 0.7f);
+const float kLineWOnMs = param("LINE_W_ON_MS", -1.0f);  // (W agent round I, lab; < 0: the 20 ms boundary) the lips close into a w over this
 // Lab knobs (R agent 2026-11-10; defaults reproduce the previous sound): a phrase-initial ɹ shaped in the pause this long
 // before its voice (0: at 30 %), and the ɹ holds its shape from / to these shares of it (-1: the 0.3 / 0.7 of all sounds).
 const float kLineRPreShapeMs = param("LINE_R_PRE_SHAPE_MS", 0.0f);
@@ -821,7 +823,8 @@ inline SonorantOnset sonorantOnset(Ph ph) {
     case Ph::RR: case Ph::R:
       return {pick(kLineRLeadMs, kLineGlideLeadMs), pick(kLineRVoiceLagMs, kLineGlideVoiceLagMs),
               pick(kLineROnsetMs, kLineGlideOnsetMs)};
-    case Ph::W: case Ph::V: return {kLineGlideLeadMs, kLineGlideVoiceLagMs, kLineGlideOnsetMs};
+    case Ph::W: return {kLineGlideLeadMs, kLineGlideVoiceLagMs, kLineWOnsetMs != -2.0f ? kLineWOnsetMs : kLineGlideOnsetMs};
+    case Ph::V: return {kLineGlideLeadMs, kLineGlideVoiceLagMs, kLineGlideOnsetMs};
     default: return {0, 0, -1};
   }
 }
@@ -1808,7 +1811,9 @@ Aero aeroOf(Ph ph) {
       // 0.25 cm^2 the w's F2 stayed at 1100-1300 Hz after "by", an l; Kokoro's
       // w is at 520-570 Hz.
       static const float wAc = param("LINE_W_AC", 0.25f);
-      return {ph == Ph::J ? jAc : wAc, kAgVoice, 0};
+      // (W agent round I, lab; 1: as before) the w's glottal area x this (> 1 breathier, < 1 pressed).
+      static const float wAg = param("LINE_W_AG", 1.0f);
+      return {ph == Ph::J ? jAc : wAc, ph == Ph::W && wAg != 1.0f ? kAgVoice * wAg : kAgVoice, 0};
     }
     case Cls::Fricative:
       switch (ph) {
@@ -3463,6 +3468,27 @@ void Synth::emit(const Token& tok, const Ph* next) {
       if (kWStopAph != 1.0f) sh.aPharynx *= kWStopAph;
       if (kWStopXc >= 0) { sh.xc = kWStopXc; sh.sc = lineVowelStrength(sh.xc, sh.wc, sh.length); }
     }
+    // (W agent round I, lab; 1 / -1 / 0: as before) every other w (after a pause, a vowel, l, n ...: word-initial w 24 % errors,
+    // heard as l or ɹ, "wine" -> "line", "went" -> "rent"): its hump area, hump place (< 0: the row's), pharynx, lip area, lip
+    // length x these (LINE_W_GEN_INIT 1: only a w after a pause); the female voice's hump area x LINE_W_F_AC, its pharynx x
+    // LINE_W_F_APH, its lip length x LINE_W_F_LIPL on top (the female w 24 % vs male 14 %).
+    if (have && tok.ph == Ph::W && !prevWasPlosive_ && lastPh_ != Ph::S) {
+      static const float kWGenAc = param("LINE_W_GEN_AC", 1.0f), kWGenXc = param("LINE_W_GEN_XC", -1.0f),
+                         kWGenAph = param("LINE_W_GEN_APH", 1.0f), kWGenLipA = param("LINE_W_GEN_LIPA", 1.0f),
+                         kWGenLipL = param("LINE_W_GEN_LIPL", 1.0f), kWGenInit = param("LINE_W_GEN_INIT", 0.0f),
+                         kWFAc = param("LINE_W_F_AC", 1.0f), kWFAph = param("LINE_W_F_APH", 1.0f),
+                         kWFLipL = param("LINE_W_F_LIPL", 1.0f);
+      if (kWGenInit == 0.0f || prevWasPause_) {
+        if (kWGenAc != 1.0f) sh.ac *= kWGenAc;
+        if (kWGenAph != 1.0f) sh.aPharynx *= kWGenAph;
+        if (kWGenLipA != 1.0f) sh.aLip *= kWGenLipA;
+        if (kWGenLipL != 1.0f) sh.lLip *= kWGenLipL;
+        if (kWGenXc >= 0) { sh.xc = kWGenXc; sh.sc = lineVowelStrength(sh.xc, sh.wc, sh.length); }
+      }
+      if (female_ && kWFAc != 1.0f) sh.ac *= kWFAc;
+      if (female_ && kWFAph != 1.0f) sh.aPharynx *= kWFAph;
+      if (female_ && kWFLipL != 1.0f) sh.lLip *= kWFLipL;
+    }
     // ɜ's own shape (ER agent 2026-11-11, lab knobs; 1 / 0: as before): its pharynx, constriction area, lip area and
     // length x these, mixed toward ə by LINE_ER_SCHWA_MIX; the stressed (long) ɜː's pharynx x LINE_ER_LONG_APH, the
     // female voice's pharynx and lips x LINE_ER_F_APH / LINE_ER_F_LIPA. Only the ɜ token: the r colour of the vowels
@@ -3929,8 +3955,22 @@ void Synth::emit(const Token& tok, const Ph* next) {
             if (wStop && kWStopLeadMs > 0) preMs = kWStopLeadMs;
             if (wS && kWSLeadMs > 0) preMs = kWSLeadMs;
             if ((wStop || wS) && kWStopW != 1.0f) ws *= kWStopW;
+            // (W agent round I, lab; 1 / 1 / 0: as before) every other w: its demand's weight x LINE_W_GEN_W, x LINE_W_OPENV_W
+            // more before an open vowel (ɑ aɪ ɔ oʊ: initial w before aɪ 77 %, ɑ 60 % errors, before ɪ iː ɜ 1-7 %), its lead
+            // before the w after a vowel / liquid (LINE_W_GEN_LEAD_MS). (Its end: LINE_W_KEY_TO, which only this w uses.)
+            static const float kWGenW = param("LINE_W_GEN_W", 1.0f), kWOpenVW = param("LINE_W_OPENV_W", 1.0f),
+                               kWGenLeadMs = param("LINE_W_GEN_LEAD_MS", 0.0f);
+            const bool wGen = tok.ph == Ph::W && !wStop && !wS;
+            const bool openNext = next && (*next == Ph::AA || *next == Ph::A || *next == Ph::AO || *next == Ph::O || *next == Ph::OH);
+            if (wGen && kWGenW != 1.0f) ws *= kWGenW;
+            if (wGen && openNext && kWOpenVW != 1.0f) ws *= kWOpenVW;
+            if (wGen && !prevWasPause_ && kWGenLeadMs > 0) preMs = kWGenLeadMs;
+            // (W agent round I, lab; < 0: 0.3, as before) a vowel after a w asks for its own shape from this share of it: the
+            // w's rise into the vowel (LINE_GLIDE_VOWEL_KEY moves only the unplanned keys).
+            static const float kLineWVowelKey = param("LINE_W_VOWEL_KEY", -1.0f);
+            const double vowelFrom = isVowel(tok.ph) && lastPh_ == Ph::W && kLineWVowelKey >= 0 ? kLineWVowelKey : 0.3;
             const double wKeyTo = (wStop || wS) && kWStopKeyTo >= 0 ? kWStopKeyTo : kLineWKeyTo;
-            addShapeDemand(preMs > 0 ? t0 - preMs * ms : t0 + (er ? kLineErFrom : tok.ph == Ph::RR && kLineRKeyFrom >= 0 ? kLineRKeyFrom : vFrom >= 0 ? vFrom : 0.3) * dur, t0 + (er ? kLineErTo : tok.ph == Ph::W ? wKeyTo : tok.ph == Ph::RR && kLineRKeyTo >= 0 ? kLineRKeyTo : vTo >= 0 ? vTo : 0.7) * dur, sh, tok.ph, er ? ws * kLineErW : iy || uhD ? ws * vW : ws, er ? std::max(preR, kErPlaceW) : iy || uhD ? std::max(preR, vPlaceW) : preR);
+            addShapeDemand(preMs > 0 ? t0 - preMs * ms : t0 + (er ? kLineErFrom : tok.ph == Ph::RR && kLineRKeyFrom >= 0 ? kLineRKeyFrom : vFrom >= 0 ? vFrom : vowelFrom) * dur, t0 + (er ? kLineErTo : tok.ph == Ph::W ? wKeyTo : tok.ph == Ph::RR && kLineRKeyTo >= 0 ? kLineRKeyTo : vTo >= 0 ? vTo : 0.7) * dur, sh, tok.ph, er ? ws * kLineErW : iy || uhD ? ws * vW : ws, er ? std::max(preR, kErPlaceW) : iy || uhD ? std::max(preR, vPlaceW) : preR);
           }
           else {
             const bool open = tok.ph == Ph::AA || tok.ph == Ph::A;
@@ -3990,6 +4030,12 @@ void Synth::emit(const Token& tok, const Ph* next) {
     static const float dhOn = param("LINE_DH_ON_MS", 0.0f), dhOff = param("LINE_DH_OFF_MS", 0.0f);
     if (tok.ph == Ph::DH && dhOn > 0) e.acMs = dhOn;
     if (lastPh_ == Ph::DH && dhOff > 0 && in.cls != Cls::Fricative && in.cls != Cls::Plosive) e.acMs = dhOff;
+    // (W agent round I, lab; < 0: the 20 ms boundary, as before) the lips open from a w into the next sound over LINE_W_OFF_MS
+    // and close into a w over LINE_W_ON_MS: the w's F2 and F3 switched on in one step at the vowel (spectrogram "wine",
+    // "went": a dark F1-only murmur, then the vowel's formants at once, an l's release; Kokoro's w rises over ~100 ms).
+    static const float wOff = param("LINE_W_OFF_MS", -1.0f);
+    if (lastPh_ == Ph::W && wOff >= 0 && in.cls != Cls::Fricative && in.cls != Cls::Plosive) e.acMs = wOff;
+    if (tok.ph == Ph::W && kLineWOnMs >= 0) e.acMs = kLineWOnMs;
   }
   e.ag = aero.ag;
   if (in.cls == Cls::Vowel) e.ag *= tok.shape.press;  // voice quality by prosody
@@ -4135,7 +4181,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // starts (no vowel-like onset before "they"); the glottis opens on time.
     Event pre{t0 - kPreposeMs * ms};
     pre.ac = e.ac;
-    pre.acMs = kBoundaryMs;
+    pre.acMs = tok.ph == Ph::W && tract_ == Tract::Line && kLineWOnMs >= 0 ? kLineWOnMs : kBoundaryMs;  // (LINE_W_ON_MS)
     pre.an = e.an;
     pre.anMs = kBoundaryMs;
     addEvent(pre);
@@ -7881,7 +7927,10 @@ void shapeNeeds(Ph ph, float w[kCh]) {
       // (SPLAN_W_BACK_W, 2026-11-07: at 0.5 the w's back constriction lost to the
       // neighbours and its F2 stayed at 1000-1300 Hz, an l: "by war" -> "by loor".)
       static const float kWBackW = param("SPLAN_W_BACK_W", 2.5f);
-      all(0.2f); w[LIPA] = w[LIPL] = 1.0f; w[XC] = w[AC] = w[SC] = kWBackW; return;
+      // (W agent round I, lab; 0.2 / 1: as before) the w's other channels (jaw/oral, pharynx, larynx, length) and its lips:
+      // with 0.2 the open vowel after it pulled them (female w F1 422 Hz before ɑ aɪ ɔ oʊ, Kokoro 314: "wine" -> "line").
+      static const float kWRestW = param("SPLAN_W_REST_W", 0.2f), kWLipW = param("SPLAN_W_LIP_W", 1.0f);
+      all(kWRestW); w[LIPA] = w[LIPL] = kWLipW; w[XC] = w[AC] = w[SC] = kWBackW; return;
     }
     case Ph::J:  // the tongue body at the palate
       all(0.2f); w[XC] = w[AC] = w[WC] = w[SC] = 1.0f; return;
