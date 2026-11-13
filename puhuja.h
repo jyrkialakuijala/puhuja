@@ -275,6 +275,8 @@ class Synth {
     unsigned char ihctx = 0;  // a standalone ɪ's context for the line's ɪ knobs (english.cc, IH-STRESSED agent14 round M):
                               // 1 stressed, 2 an l next in its word, 4 an n / m next, 8 after l ɹ w, 16 after m n,
                               // 32 a one-vowel word; on the l / n / m after a stressed ɪ: 64
+    unsigned char gctx = 0;  // the line's initial-g knobs (english.cc, G-INITIAL agent14 round M): 1 a word-initial g
+                             // before a vowel (LINE_GI_*)
   };
   void shapeNext(const Shape& s) { nextShape_ = s; }
 

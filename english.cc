@@ -3053,6 +3053,8 @@ void EnglishReader::sayPhrase(char end) {
         // its word, 2 before s z, 3 at the word's end after a nasal or l, 4 at the word's end after a vowel, 5 before
         // ɹ, 6 at the word's start before a vowel, 7 between l and an unstressed vowel ("builder"). EN_FLAP_D 1: a d in context 1 is a tap (kFlapMs, as kFlapping 1
         // but the t keeps its full closure: the t / d contrast is then tap against stop).
+        // The g's context for the line's initial-g knobs (G-INITIAL agent14 round M): 1 at the word's start before a vowel.
+        if (baseName(tokens[i]) == "G" && i == 0 && i + 1 < tokens.size() && isVowelToken(tokens[i + 1])) shape.gctx = 1;
         if (baseName(tokens[i]) == "D") {
           static const float kFlapD = param("EN_FLAP_D", 0.0f), kFlapDMs = param("EN_FLAP_D_MS", -1.0f);
           const bool pv = i > 0 && isVowelToken(tokens[i - 1]), nv = i + 1 < tokens.size() && isVowelToken(tokens[i + 1]);
