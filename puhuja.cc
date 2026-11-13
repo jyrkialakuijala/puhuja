@@ -6510,7 +6510,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // dictionary hears 224 of these as t) and with the cavity's expansion flow LINE_D_VV_EXPAND (cm^3/s); a word-final
   // d (3 after n l, 4 after a vowel) with LINE_D_FINAL_EXPAND.
   {
-    static const float kDVvAc = param("LINE_D_VV_AC", 0.0f), kDVvExpand = param("LINE_D_VV_EXPAND", -1.0f),
+    static const float kDVvAc = param("LINE_D_VV_AC", 0.0f), kDVvExpand = param("LINE_D_VV_EXPAND", 600.0f),
                        kDFinalExpand = param("LINE_D_FINAL_EXPAND", -1.0f);
     if (tract_ == Tract::Line && tok.ph == Ph::D && !tok.shape.flap) {
       if (tok.shape.dctx == 1 && kDVvAc > 0) { close.ac = kDVvAc; close.lineFricFade = 0.2f; }

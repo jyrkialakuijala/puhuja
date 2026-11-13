@@ -1208,7 +1208,7 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
           // (EN_D_VV_LEN; "reader" -> creator, "trader" -> traitor: puhuja's closure 40 ms at -27 dB, Kokoro's tap
           // 25 ms at -17), a d before s z (EN_DZ_D_LEN), a d after a nasal or l at the word's end or before its s z
           // (EN_ND_D_LEN; "cleaned" -> clean, "finds" -> fines).
-          static const float kDVvLen = param("EN_D_VV_LEN", 1.0f), kDzDLen = param("EN_DZ_D_LEN", 1.0f), kNdDLen = param("EN_ND_D_LEN", 1.0f);
+          static const float kDVvLen = param("EN_D_VV_LEN", 0.7f), kDzDLen = param("EN_DZ_D_LEN", 1.0f), kNdDLen = param("EN_ND_D_LEN", 1.0f);
           const std::string pb = i > 0 ? baseName(tok[i - 1]) : "", nb = i + 1 < tok.size() ? baseName(tok[i + 1]) : "";
           if (i > 0 && isVowelToken(tok[i - 1]) && i + 1 < tok.size() && isVowelToken(tok[i + 1]) &&
               kEnglishTokens[tok[i + 1] - 0x80][strlen(kEnglishTokens[tok[i + 1] - 0x80]) - 1] == '0') whole *= kDVvLen;
@@ -1253,8 +1253,8 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
         // stop x EN_BZ_Z_LEN (EN_FINAL_Z_LEN leaves it alone). Lab (245 hard final-z words, both voices, two draws;
         // base 125 final-z errors, placebos 108.5 / 124): EN_NZ_N_LEN 1.5 103, EN_BZ_Z_LEN 0.8 100, both (0.65, 1.5) 83
         // with the total length unchanged (the z after b d g 73 -> 47 ms; 11labs's z after d in Kennedy 40-50 ms).
-        { static const float kNzNLen = param("EN_NZ_N_LEN", 1.0f), kBzBLen = param("EN_BZ_B_LEN", 1.0f),
-                             kBzZLen = param("EN_BZ_Z_LEN", 1.0f);
+        { static const float kNzNLen = param("EN_NZ_N_LEN", 1.5f), kBzBLen = param("EN_BZ_B_LEN", 1.0f),
+                             kBzZLen = param("EN_BZ_Z_LEN", 0.65f);
           if (i + 2 == tok.size() && baseName(tok[i + 1]) == "Z") {
             if (isNasal(b) || b == "L") whole *= kNzNLen;
             else if (isVoicedPlosive(b)) whole *= kBzBLen;
