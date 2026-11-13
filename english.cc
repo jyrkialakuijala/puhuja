@@ -2998,6 +2998,13 @@ void EnglishReader::sayPhrase(char end) {
                              !(i + 1 < tokens.size() && isVowelToken(tokens[i + 1])) &&
                              !(i + 1 == tokens.size() && w + 1 < phrase_.size() && !phrase_[w + 1].tokens.empty() && isVowelToken(phrase_[w + 1].tokens[0]));
           if (codaR) shape.ms *= kCodaRLen;
+          // (R-POSTVOCALIC agent14 round M, lab; 1: as before) the vowel before a coda ɹ x EN_PRE_CODA_R_VLEN (with
+          // EN_CODA_R_LEN: the r-coloured tail longer at the same word length; 11labs "dare", "share": ɹ 30-100 ms).
+          static const float kPreCodaRVLen = param("EN_PRE_CODA_R_VLEN", 1.0f);
+          if (kPreCodaRVLen != 1.0f && vowel && s.n == 1 && i + 1 < tokens.size() && baseName(tokens[i + 1]) == "R" &&
+              !(i + 2 < tokens.size() && isVowelToken(tokens[i + 2])) &&
+              !(i + 2 == tokens.size() && w + 1 < phrase_.size() && !phrase_[w + 1].tokens.empty() && isVowelToken(phrase_[w + 1].tokens[0])))
+            shape.ms *= kPreCodaRVLen;
         }
         if (phrase_[w].syllabicN && i + 1 == tokens.size()) shape.ms *= kSyllabicNLength;
         if (phrase_[w].syllabicL && i + 1 == tokens.size()) shape.ms *= kSyllabicLLength;

@@ -3046,6 +3046,30 @@ void uhShape(TractShape* sh, Ph prev, const Ph* next, bool female) {
 }
 
 
+// (R-POSTVOCALIC agent14 round M, lab; 1 / -1 / 0: as before) the coda ɹ (after a vowel, not before one: "bare",
+// "bears"; the post-vocalic ɹ was heard as l 315 and as ɝ 259 of the 925 ɹ errors of the dictionary, "Bears -> bells",
+// "Hair -> hell"): its pharynx, lip area, hump area, oral area x LINE_R_CODA_APH / _LIPA / _AC / _AOR, its place
+// LINE_R_CODA_X (-1: the row's), a mix toward the row LINE_R_CODA_ROW (Ph number) by LINE_R_CODA_MIX. The 11labs coda ɹ
+// after ɛ sits at F2 1520-1600 / F3 1800-1900 Hz (after ɔ ɑ at F2 1000-1400); puhuja's after ɛ at 1270 / 1700 with F1
+// 370 and its 1.4-2.2 kHz bands 15-20 dB under Kokoro's: a dark l. LINE_R_CODA_SCOPE 1: only after a front vowel.
+bool rCodaScope(Ph prev) {
+  static const float kRCodaScope = param("LINE_R_CODA_SCOPE", 0.0f);
+  return kRCodaScope <= 0 || frontVowel(prev);
+}
+void rCodaShape(TractShape* sh) {
+  static const float kRCodaAph = param("LINE_R_CODA_APH", 1.0f), kRCodaLipA = param("LINE_R_CODA_LIPA", 1.0f),
+                     kRCodaAc = param("LINE_R_CODA_AC", 1.0f), kRCodaX = param("LINE_R_CODA_X", -1.0f),
+                     kRCodaMix = param("LINE_R_CODA_MIX", 0.0f), kRCodaAor = param("LINE_R_CODA_AOR", 1.0f);
+  static const int kRCodaRow = param("LINE_R_CODA_ROW", static_cast<int>(Ph::IH));
+  TractShape row;
+  if (kRCodaMix > 0 && lineShapeOf(static_cast<Ph>(kRCodaRow), &row)) *sh = lineShapeMix(*sh, row, kRCodaMix);
+  if (kRCodaAph != 1.0f) sh->aPharynx *= kRCodaAph;
+  if (kRCodaLipA != 1.0f) sh->aLip *= kRCodaLipA;
+  if (kRCodaAc != 1.0f) sh->ac *= kRCodaAc;
+  if (kRCodaAor != 1.0f) sh->aOral *= kRCodaAor;
+  if (kRCodaX > 0) { sh->xc = kRCodaX; sh->sc = lineVowelStrength(sh->xc, sh->wc, sh->length); }
+}
+
 }  // namespace
 
 void Synth::emit(const Token& tok, const Ph* next) {
@@ -3071,7 +3095,11 @@ void Synth::emit(const Token& tok, const Ph* next) {
   // (the prosodic factor only: shape.level also carries the cascade's
   // per-phoneme loudness table, and fed to the pressure it took 10-15 dB
   // off ɪ, f, ɹ, ð and z in "The world is very different now", 14:40)
-  const float lineLevelNow = tract_ == Tract::Line && (isVowel(tok.ph) || isSonorant(tok.ph)) ? std::clamp(tok.shape.prosody, 0.3f, 3.0f) : -1.0f;
+  // (R-POSTVOCALIC agent14 round M, lab; 1: as before) the coda ɹ's (after a vowel, not before one) lung pressure x
+  // LINE_R_CODA_PRESS: Kokoro's coda ɹ fades 5-10 dB under its vowel ("Bare", "Hair"), puhuja's stays within 1-3 dB.
+  static const float kRCodaPress = param("LINE_R_CODA_PRESS", 1.0f);
+  const float rCodaP = tok.ph == Ph::RR && isVowel(lastPh_) && !(next && isVowel(*next)) ? kRCodaPress : 1.0f;
+  const float lineLevelNow = tract_ == Tract::Line && (isVowel(tok.ph) || isSonorant(tok.ph)) ? std::clamp(tok.shape.prosody * rCodaP, 0.3f, 3.0f) : -1.0f;
   if (lineLevelNow > 0 && std::getenv("PUHUJA_LINE_TRACE")) std::fprintf(stderr, "linelevel t %.3f ph %d level %.3f\n", timeline_ / fs_, static_cast<int>(tok.ph), tok.shape.prosody);
   if (!inAffricate_) addLabel(tok);
   if (tok.wordStart) {
@@ -3753,6 +3781,8 @@ void Synth::emit(const Token& tok, const Ph* next) {
         if (kRFLipA != 1.0f) sh.aLip *= kRFLipA;
         if (kRFX > 0) { sh.xc = kRFX; sh.sc = lineVowelStrength(sh.xc, sh.wc, sh.length); }
       }
+      // (R-POSTVOCALIC agent14 round M, lab) the coda ɹ's own knobs: rCodaShape().
+      if (isVowel(lastPh_) && !(next && isVowel(*next)) && rCodaScope(lastPh_)) rCodaShape(&sh);
     }
     // (Y agent round G, lab; 1: as before) the j after a plosive: its pharynx, lip area, oral area and hump x these.
     if (have && tok.ph == Ph::J && prevWasPlosive_) {
@@ -4159,9 +4189,13 @@ void Synth::emit(const Token& tok, const Ph* next) {
         // stopped, and relaxes to neutral only then. Interpolating toward the
         // neutral key through the vowel's tail made every final vowel glide
         // to ə (Whisper: "to" -> "Do it", "you" -> "Yolo it", 2026-11-02).
-        lineKeys_.push_back({t0 + 0.15 * dur, lastKeyShape_});
+        // (R-POSTVOCALIC agent14 round M, lab; < 0: 0.15) after an ɹ the mouth keeps its shape to this share of the
+        // pause (a final ɹ's F3 rose back to 3000-4000 Hz while the voice died away: Kokoro's "Bare" ends at F3 ~1750).
+        static const float kRFinalHold = param("LINE_R_FINAL_HOLD", -1.0f);
+        const double pHold = lastPh_ == Ph::RR && kRFinalHold >= 0 ? std::min(kRFinalHold, 0.55f) : 0.15;
+        lineKeys_.push_back({t0 + pHold * dur, lastKeyShape_});
         lineKeys_.push_back({t0 + 0.6 * dur, sh});
-        addShapeDemand(t0, t0 + 0.15 * dur, lastKeyShape_, lastPh_, 1.0f);
+        addShapeDemand(t0, t0 + pHold * dur, lastKeyShape_, lastPh_, 1.0f);
         addShapeDemand(t0 + 0.6 * dur, t0 + dur, sh, Ph::Stop, kShapePauseW);
       } else {
         // The ɑ's hold keys at these shares instead of 0.3 / 0.7 (LINE_AA_KEY_FROM / _TO, -1 = as every vowel; 2026-11-10 AA agent:
@@ -4189,7 +4223,28 @@ void Synth::emit(const Token& tok, const Ph* next) {
           // (round I EH agent, lab; < 0: as the front vowels) the ɛ's own r-colour share: LINE_EH_R_MIX.
           static const float kEhRMix = param("LINE_EH_R_MIX", -1.0f);
           const float mix = tok.ph == Ph::EH && kEhRMix >= 0 ? kEhRMix : uhAlone && kUhRMix >= 0 ? kUhRMix : open && kRColourOpenMix >= 0 ? kRColourOpenMix : frontVowel(tok.ph) && kRColourFrontMix >= 0 ? kRColourFrontMix : kRColourMix;
-          if (lineShapeOf(Ph::ER, &r)) late = lineShapeMix(sh, r, mix);
+          // (R-POSTVOCALIC agent14 round M, lab; 0: off) LINE_RCOLOR_CODA 1: the colouring heads for the ɜ row with the
+          // coda ɹ's knobs (rCodaShape) applied, so a fronted coda ɹ does not drag the vowel's F2 down first.
+          static const float kRcCoda = param("LINE_RCOLOR_CODA", 0.0f);
+          const bool rcCoda = kRcCoda > 0 && rCodaScope(tok.ph);
+          if (lineShapeOf(Ph::ER, &r)) { if (rcCoda) rCodaShape(&r); late = lineShapeMix(sh, r, mix); }
+          // (R-POSTVOCALIC agent14 round M, lab; -1 / 1 / 0: as before) the r-coloured late key of a front vowel (all
+          // vowels with LINE_RCOLOR_K_ALL 1): its place moves this share of the way to the mix's (LINE_RCOLOR_KEEPX;
+          // 0 keeps the vowel's place), pharynx, lip area, hump area, oral area x LINE_RCOLOR_APH / _LIPA / _AC / _AOR. "Bare" male: the
+          // ɛ's F2 fell to 1190 Hz while its F3 rose 2250 -> 2660 (an l: Kokoro's "Bell" 900 / 2600) before the ɹ
+          // brought F3 to 1700; Kokoro's "Bare" lowers F2 and F3 together (1850 / 2440 -> 1270 / 1790).
+          static const float kRcKeepX = param("LINE_RCOLOR_KEEPX", -1.0f), kRcAph = param("LINE_RCOLOR_APH", 1.0f),
+                             kRcLipA = param("LINE_RCOLOR_LIPA", 1.0f), kRcAc = param("LINE_RCOLOR_AC", 1.0f),
+                             kRcAll = param("LINE_RCOLOR_K_ALL", 0.0f), kRcAor = param("LINE_RCOLOR_AOR", 1.0f),
+                             kRcSc = param("LINE_RCOLOR_SC", 1.0f);  // (the hump's strength x: a weak hump passes the l's place 0.40 unheard)
+          if (frontVowel(tok.ph) || kRcAll > 0) {
+            if (kRcKeepX >= 0) { late.xc = sh.xc + (late.xc - sh.xc) * kRcKeepX; late.sc = lineVowelStrength(late.xc, late.wc, late.length); }
+            if (kRcAph != 1.0f) late.aPharynx *= kRcAph;
+            if (kRcLipA != 1.0f) late.aLip *= kRcLipA;
+            if (kRcAc != 1.0f) late.ac *= kRcAc;
+            if (kRcAor != 1.0f) late.aOral *= kRcAor;
+            if (kRcSc != 1.0f) late.sc *= kRcSc;
+          }
         }
         if (isVowel(tok.ph) && next && *next == Ph::L && kLColourMix > 0) {
           TractShape l;
@@ -4643,8 +4698,21 @@ void Synth::emit(const Token& tok, const Ph* next) {
             // lands in this branch).
             static const float kAhW2 = param("LINE_AH_W", 1.0f);
             const float wv = tok.ph == Ph::AH && kAhW2 != 1.0f ? ws * kAhW2 : ws;
-            addShapeDemand(t0 + 0.3 * dur, t0 + std::max(0.3, at - 0.15) * dur, sh, tok.ph, wv, preR);
-            addShapeDemand(t0 + at * dur, t0 + std::min(1.0, at + 0.15) * dur, late, tok.ph, wv);
+            // (R-POSTVOCALIC agent14 round M, lab; -1 / 1 / 0: as before) a vowel before an ɹ (front vowels; all with
+            // LINE_RCOLOR_K_ALL 1): from LINE_RCOLOR_PRE_AT of it a middle demand with the vowel's place and the late
+            // key's pharynx, lips and hump area (the F3 falls before the tongue moves back); the late demand's weight x
+            // LINE_RCOLOR_W, its place floor LINE_RCOLOR_PLACE_W (the planner's place weight, as SPLAN_PRE_R_FRONT_W).
+            static const float kRcPreAt = param("LINE_RCOLOR_PRE_AT", -1.0f), kRcW = param("LINE_RCOLOR_W", 1.0f),
+                               kRcPlaceW = param("LINE_RCOLOR_PLACE_W", 0.0f), kRcAll2 = param("LINE_RCOLOR_K_ALL", 0.0f);
+            const bool rcK = next && *next == Ph::RR && (frontVowel(tok.ph) || kRcAll2 > 0);
+            const bool rcPre = rcK && kRcPreAt >= 0 && kRcPreAt + 0.05 < at;
+            addShapeDemand(t0 + 0.3 * dur, t0 + std::max(0.3, rcPre ? std::min<double>(kRcPreAt, at - 0.15) : at - 0.15) * dur, sh, tok.ph, wv, preR);
+            if (rcPre) {
+              TractShape pre = sh;
+              pre.aPharynx = late.aPharynx; pre.aLip = late.aLip; pre.ac = late.ac; pre.lLip = late.lLip;
+              addShapeDemand(t0 + (kRcPreAt + 0.05) * dur, t0 + std::max<double>(kRcPreAt + 0.05, at - 0.05) * dur, pre, tok.ph, wv, std::max(preR, 1.0f));
+            }
+            addShapeDemand(t0 + at * dur, t0 + std::min(1.0, at + 0.15) * dur, late, tok.ph, rcK ? wv * kRcW : wv, rcK ? kRcPlaceW : 0.0f);
           }
         }
         lastKeyShape_ = late;
