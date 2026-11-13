@@ -268,6 +268,8 @@ class Synth {
     unsigned char dctx = 0;  // a d's context for the line's d knobs (english.cc, D agent9 round J; 0: none)
     unsigned char eyctx = 0;  // eɪ's context bits for the line's eɪ knobs (english.cc, EY agent10 round K): 1 closed
                               // syllable (a consonant follows in the word), 2 that consonant a nasal, 4 word-initial
+    unsigned char nctx = 0;  // the line's final-n knobs (english.cc, N agent13 round L): 1 an unstressed vowel right before
+                             // its word's final n, 2 that final n
   };
   void shapeNext(const Shape& s) { nextShape_ = s; }
 

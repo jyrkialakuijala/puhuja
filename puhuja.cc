@@ -3348,6 +3348,10 @@ void Synth::emit(const Token& tok, const Ph* next) {
   { static const float kLineZhX = param("LINE_ZH_X", -1.0f);  // ʒ's own place (ZH agent, round H; < 0: LINE_SH_X)
     if (tok.ph == Ph::ZH && !inAffricate_ && kLineZhX >= 0) e.lineX = kLineZhX; }
   e.lineXClosure = in.cls == Cls::Nasal;
+  // A word-final n after an unstressed vowel closes at LINE_FN_X (Shape::nctx 2; N agent13 round L lab knob, 0: LINE_N_X):
+  // its murmur's F2 sat at 1500-1700 Hz (male), Kokoro's at 1250-1400 ("Hansen", "Ryan", "Gavin").
+  { static const float kFnX = param("LINE_FN_X", 0.0f);
+    if (tok.ph == Ph::N && (tok.shape.nctx & 2) && kFnX > 0) e.lineX = kFnX; }
   if (tok.ph == Ph::SH && shFullVowel && kLineShVowelX > 0) e.lineX = kLineShVowelX;  // (LINE_SH_VOWEL_X)
   if (tok.ph == Ph::SH && shFullVowel && kLineShVowelAc != 1.0f && e.ac > 0) e.ac *= kLineShVowelAc;  // (LINE_SH_VOWEL_AC)
   // Stress as a push of the diaphragm (Jyrki 2026-11-04: "a soft pulse in
@@ -4585,7 +4589,11 @@ void Synth::emit(const Token& tok, const Ph* next) {
   {
     static const float kLineNPress = param("LINE_N_PRESS", 1.0f), kLineNFinalPress = param("LINE_N_FINAL_PRESS", -1.0f);
     const bool fin = !next || *next == Ph::Stop;
-    const float p = fin && kLineNFinalPress >= 0 ? kLineNFinalPress : kLineNPress;
+    // ... a word-final n after an unstressed vowel (Shape::nctx 2; N agent13 round L lab knob, < 0: as above) eases to
+    // LINE_FN_PRESS: the -ən / -ɪn murmur is 1.5-3 dB under its vowel in ElevenLabs' Kennedy readings (n -7..-11 dB re
+    // the local peak, 33 / 32 / 26 tokens), in puhuja 2.7 dB over it (-3.1 vs -5.8).
+    static const float kLineFnPress = param("LINE_FN_PRESS", -1.0f);
+    const float p = (tok.shape.nctx & 2) && kLineFnPress >= 0 ? kLineFnPress : fin && kLineNFinalPress >= 0 ? kLineNFinalPress : kLineNPress;
     if (tract_ == Tract::Line && tok.ph == Ph::N && p != 1.0f && e.press < 0) {
       e.press = p;
       e.pressMs = static_cast<float>(dur / ms);
@@ -4624,6 +4632,9 @@ void Synth::emit(const Token& tok, const Ph* next) {
   {
     static const float kNPort = param("LINE_N_PORT_SCALE", 1.0f);
     if (tract_ == Tract::Line && tok.ph == Ph::N && kNPort != 1.0f) e.an *= kNPort;
+    // ... a word-final n after an unstressed vowel x LINE_FN_PORT as well (Shape::nctx 2; N agent13 round L; 1: as before).
+    static const float kFnPort = param("LINE_FN_PORT", 1.0f);
+    if (tract_ == Tract::Line && tok.ph == Ph::N && (tok.shape.nctx & 2) && kFnPort != 1.0f) e.an *= kFnPort;
   }
   // English nasalizes a vowel before a nasal through most of it: the velum
   // opens part way during the vowel ("man", "and", "on"); on the line the
@@ -4648,7 +4659,25 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // ... and before an m (round J, M agent; 1 / 0: as before): LINE_ANTICIP_M_SCALE, LINE_ANTICIP_M_LATE as the n's.
     static const float kAnM = param("LINE_ANTICIP_M_SCALE", 1.0f), kAnMLate = param("LINE_ANTICIP_M_LATE", 0.0f);
     const bool mAnt = !ehLate && *next == Ph::M && (kAnM != 1.0f || kAnMLate > 0);
-    if (mAnt) {
+    // ... and the unstressed vowel before its word's final n (Shape::nctx 1; N agent13 round L lab knobs, < 0 / 0: as
+    // above): its port x LINE_FN_ANTICIP, shut until LINE_FN_ANTICIP_LATE of the vowel. Over the whole vowel the port
+    // put "Gavin"'s ɪ at F2 2170 / F3 3500 Hz (male; port 0: 1860 / 2250; before s 1745 / 2310; Kokoro 1500-1750 /
+    // 2400-2600), the very ɪ puhuja says before ŋ ("Driving" 2156 / 3140): heard as -ing. Alone (0) it did not move the
+    // n lab (56 -> 54 errors); with the -ɪn said -ən (EN_FN_IH_SCHWA 1) 34.
+    static const float kFnAn = param("LINE_FN_ANTICIP", -1.0f), kFnAnLate = param("LINE_FN_ANTICIP_LATE", 0.0f);
+    const bool fnAnt = !ehLate && (tok.shape.nctx & 1) && *next == Ph::N && (kFnAn >= 0 || kFnAnLate > 0);
+    if (fnAnt) {
+      e.an = kAnNasal * kLineAnticipNasal * (kFnAn >= 0 ? kFnAn : kAnN);
+      const float lateShare = kFnAnLate > 0 ? kFnAnLate : kAnNLate;
+      if (lateShare > 0) {
+        Event late{e.t + lateShare * dur};
+        late.an = e.an;
+        late.anMs = static_cast<float>((1.0f - lateShare) * dur / ms);
+        addEventAt(late);
+        e.an = aero.an;
+        e.anMs = kBoundaryMs;
+      }
+    } else if (mAnt) {
       e.an = kAnNasal * kLineAnticipNasal * kAnM;
       if (kAnMLate > 0) {
         Event late{e.t + kAnMLate * dur};
@@ -5248,6 +5277,16 @@ void Synth::emit(const Token& tok, const Ph* next) {
           e.ac = kLineNgFinalRelA;
           e.acMs = kLineNgFinalRelMs;
         }
+        // ... and after a final n the tongue tip leaves the ridge at the pause, to LINE_N_FINAL_REL_A cm^2 over
+        // LINE_N_FINAL_REL_MS (N agent13 round L lab knobs; 0: as before): Kokoro's final n ("Linen", "Ryan") ends
+        // in an audible release, breath noise 13-23 dB under the vowel, the alveolar cue a ŋ does not have. N lab: 30 ms
+        // alone 56 -> 42 n errors (placebo sd 5.3); with EN_FN_IH_SCHWA 1, LINE_FN_ANTICIP 0, LINE_FN_PORT 0.6: 16 (heard
+        // ŋ 40.5 -> 1), words1000 1478 -> 1496, the lab's level term +2.6σ (the brighter tail).
+        static const float kLineNFinalRelMs = param("LINE_N_FINAL_REL_MS", 0.0f), kLineNFinalRelA = param("LINE_N_FINAL_REL_A", 0.5f);
+        if (prevWasNasal_ && lastPh_ == Ph::N && kLineNFinalRelMs > 0 && !prevWasPause_) {
+          e.ac = kLineNFinalRelA;
+          e.acMs = kLineNFinalRelMs;
+        }
       }
       syllable_ = 0;
       resolveRanges(nullptr, -1);  // no vowel follows: they hold the last one's
@@ -5590,9 +5629,19 @@ void Synth::emit(const Token& tok, const Ph* next) {
       return m;
     };
     TractShape v, o;
-    if (tract_ == Tract::Line && isN && mix > 0 && prevWasVowel_ && lineShapeOf(lastPh_, &v) &&
-        lineShapeOf(static_cast<Ph>(kNPreRow), &o))
-      addShapeDemand(std::max(e.t - kNPreMs * ms, phonemeStart_ + 1), e.t + dur, mixN(v, o, mix), lastPh_, kNPreW);
+    // A word-final n after an unstressed vowel (Shape::nctx 2; N agent13 round L lab knobs, LINE_FN_PRE_MIX < 0: as
+    // above): the mix LINE_FN_PRE_MIX toward the row LINE_FN_PRE_ROW (< 0: LINE_N_PRE_ROW) over the vowel's last
+    // LINE_FN_PRE_MS (< 0: LINE_N_PRE_MS; long: the whole vowel), weight LINE_FN_PRE_W (< 0: LINE_N_PRE_W).
+    static const float kFnPreMix = param("LINE_FN_PRE_MIX", -1.0f), kFnPreMs = param("LINE_FN_PRE_MS", -1.0f),
+                       kFnPreW = param("LINE_FN_PRE_W", -1.0f);
+    static const int kFnPreRow = static_cast<int>(param("LINE_FN_PRE_ROW", -1.0f));
+    const bool fnPre = isN && (tok.shape.nctx & 2) && kFnPreMix >= 0;
+    const float preMix = fnPre ? kFnPreMix : mix;
+    const float preMs = fnPre && kFnPreMs >= 0 ? kFnPreMs : kNPreMs, preW = fnPre && kFnPreW >= 0 ? kFnPreW : kNPreW;
+    const int preRow = fnPre && kFnPreRow >= 0 ? kFnPreRow : kNPreRow;
+    if (tract_ == Tract::Line && isN && preMix > 0 && prevWasVowel_ && lineShapeOf(lastPh_, &v) &&
+        lineShapeOf(static_cast<Ph>(preRow), &o))
+      addShapeDemand(std::max(e.t - preMs * ms, phonemeStart_ + 1), e.t + dur, mixN(v, o, preMix), lastPh_, preW);
     // Out of an n not after a vowel (word-initial, after a consonant; LINE_N_REL_ALL 1: every n before a vowel): the n
     // and the next vowel's first LINE_N_REL_ON_MS are asked for the vowel's shape mixed LINE_N_REL_MIX (before a back
     // vowel LINE_N_REL_BACK_MIX, < 0: the same) toward the row LINE_N_REL_ROW (< 0: LINE_N_PRE_ROW), the lips at least LINE_N_REL_LIPA cm^2 (0: as

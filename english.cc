@@ -1115,6 +1115,18 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
         static const float kFinalDLen = param("EN_FINAL_D_LEN", 1.0f);
         whole *= kFinalDLen;
       }
+      // (N agent13 round L, lab knobs; 1: as before) a word-final n after an unstressed vowel x EN_FN_N_LEN, that vowel x
+      // EN_FN_V_LEN: Kokoro's -in / -en ("Gavin", "Griffin") has a short vowel (~90 ms) and a long murmur (130-200 ms);
+      // puhuja's vowel 123 ms, the n 71.
+      {
+        static const float kFnNLen = param("EN_FN_N_LEN", 1.0f), kFnVLen = param("EN_FN_V_LEN", 1.0f);
+        auto unstressedAt = [&](size_t j) {
+          const char* nm = kEnglishTokens[tok[j] - 0x80];
+          return isVowelToken(tok[j]) && nm[strlen(nm) - 1] == '0';
+        };
+        if (b == "N" && i + 1 == tok.size() && i > 0 && unstressedAt(i - 1)) whole *= kFnNLen;
+        if (vowel && i + 2 == tok.size() && baseName(tok[i + 1]) == "N" && unstressedAt(i)) whole *= kFnVLen;
+      }
       // A phrase-final v after a vowel ("Have."): 50 ms, Kokoro holds ~150-200
       // of fading voiced frication (2026-11-04, EN_FINAL_V_LEN; 1 = today's).
       if (phraseFinal && !vowel && i > static_cast<size_t>(lastVowel) && b == "V") {
@@ -2253,6 +2265,23 @@ void EnglishReader::sayPhrase(char end) {
         t.erase(t.end() - 2);
         word.syllabicN = true;
       }
+      // (N agent13 round L, lab knobs; 0: off) a final unstressed -ɪn as -ən (EN_FN_IH_SCHWA 1; 2: as -ɛn; Kokoro's ɪ there sits
+      // at F2 1500-1750, F3 2400-2600, between ɪ and ə), and -tən -dən -sən -zən with a syllabic n (EN_FN_SYLLABIC 1:
+      // "Latin", "Aston", "Hansen"; as -ʃən above). N lab (228 final-n words + 50 -ing + 30 -m words, 2 voices, two
+      // draws; base 56 n errors, placebo sd 5.3): EN_FN_IH_SCHWA 1 with LINE_FN_ANTICIP 0 34 (heard ŋ 40.5 -> 21), words
+      // right 422 -> 422, words1000 1478 -> 1474; + LINE_FN_PRE_MIX 0.3 toward ɪ (row 9) 36, words 433, words1000 1494.
+      // EN_FN_SYLLABIC 1: 96 (the n deleted).
+      {
+        static const float kFnIhSchwa = param("EN_FN_IH_SCHWA", 0.0f), kFnSyllabic = param("EN_FN_SYLLABIC", 0.0f);
+        static const uint8_t kIH0 = tokenOf("IH0"), kT = tokenOf("T"), kD = tokenOf("D"), kS = tokenOf("S"), kZ = tokenOf("Z");
+        const size_t m = t.size();
+        if (kFnIhSchwa > 0.5f && m >= 3 && t[m - 1] == kN && t[m - 2] == kIH0) t[m - 2] = kFnIhSchwa > 1.5f ? tokenOf("EH0") : kAH0;
+        if (kFnSyllabic > 0.5f && !word.syllabicN && m >= 4 && t[m - 1] == kN && t[m - 2] == kAH0 &&
+            (t[m - 3] == kT || t[m - 3] == kD || t[m - 3] == kS || t[m - 3] == kZ)) {
+          t.erase(t.end() - 2);
+          word.syllabicN = true;
+        }
+      }
       // -tle, -ple, -ble, -dle, -kle, -gle, -fle, -vle, -sle, -zle ("little",
       // "people", "trouble"): a syllabic l (l̩), no schwa (with it "little"
       // was "lit-tuhl", a schwa and an l of 90 ms each).
@@ -2871,6 +2900,16 @@ void EnglishReader::sayPhrase(char end) {
             shape.flap = true;
             shape.ms = kFlapDMs >= 0 ? kFlapDMs : kFlapMs;
           }
+        }
+        // The final unstressed n's context for the line (Shape::nctx; N agent13 round L): 1 the unstressed vowel right
+        // before the word's final n, 2 that n ("Gavin", "Linen", "Aspen": the -in / -en heard as -ing).
+        {
+          auto unstressedAt = [&](size_t j) {
+            const char* nm = kEnglishTokens[tokens[j] - 0x80];
+            return isVowelToken(tokens[j]) && nm[strlen(nm) - 1] == '0';
+          };
+          if (i + 1 == tokens.size() && i > 0 && baseName(tokens[i]) == "N" && unstressedAt(i - 1)) shape.nctx = 2;
+          if (i + 2 == tokens.size() && baseName(tokens[i + 1]) == "N" && unstressedAt(i)) shape.nctx = 1;
         }
         // Plosives: Klatt's duration includes the release; this is the closure.
         if (isVoicelessPlosive(baseName(tokens[i])) || isVoicedPlosive(baseName(tokens[i])))
