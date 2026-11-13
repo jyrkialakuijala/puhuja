@@ -2272,7 +2272,7 @@ void EnglishReader::sayPhrase(char end) {
       // right 422 -> 422, words1000 1478 -> 1474; + LINE_FN_PRE_MIX 0.3 toward ɪ (row 9) 36, words 433, words1000 1494.
       // EN_FN_SYLLABIC 1: 96 (the n deleted).
       {
-        static const float kFnIhSchwa = param("EN_FN_IH_SCHWA", 0.0f), kFnSyllabic = param("EN_FN_SYLLABIC", 0.0f);
+        static const float kFnIhSchwa = param("EN_FN_IH_SCHWA", 1.0f), kFnSyllabic = param("EN_FN_SYLLABIC", 0.0f);
         static const uint8_t kIH0 = tokenOf("IH0"), kT = tokenOf("T"), kD = tokenOf("D"), kS = tokenOf("S"), kZ = tokenOf("Z");
         const size_t m = t.size();
         if (kFnIhSchwa > 0.5f && m >= 3 && t[m - 1] == kN && t[m - 2] == kIH0) t[m - 2] = kFnIhSchwa > 1.5f ? tokenOf("EH0") : kAH0;

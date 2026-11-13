@@ -4633,7 +4633,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
     static const float kNPort = param("LINE_N_PORT_SCALE", 1.0f);
     if (tract_ == Tract::Line && tok.ph == Ph::N && kNPort != 1.0f) e.an *= kNPort;
     // ... a word-final n after an unstressed vowel x LINE_FN_PORT as well (Shape::nctx 2; N agent13 round L; 1: as before).
-    static const float kFnPort = param("LINE_FN_PORT", 1.0f);
+    static const float kFnPort = param("LINE_FN_PORT", 0.6f);
     if (tract_ == Tract::Line && tok.ph == Ph::N && (tok.shape.nctx & 2) && kFnPort != 1.0f) e.an *= kFnPort;
   }
   // English nasalizes a vowel before a nasal through most of it: the velum
@@ -4664,7 +4664,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // put "Gavin"'s ɪ at F2 2170 / F3 3500 Hz (male; port 0: 1860 / 2250; before s 1745 / 2310; Kokoro 1500-1750 /
     // 2400-2600), the very ɪ puhuja says before ŋ ("Driving" 2156 / 3140): heard as -ing. Alone (0) it did not move the
     // n lab (56 -> 54 errors); with the -ɪn said -ən (EN_FN_IH_SCHWA 1) 34.
-    static const float kFnAn = param("LINE_FN_ANTICIP", -1.0f), kFnAnLate = param("LINE_FN_ANTICIP_LATE", 0.0f);
+    static const float kFnAn = param("LINE_FN_ANTICIP", 0.0f), kFnAnLate = param("LINE_FN_ANTICIP_LATE", 0.0f);
     const bool fnAnt = !ehLate && (tok.shape.nctx & 1) && *next == Ph::N && (kFnAn >= 0 || kFnAnLate > 0);
     if (fnAnt) {
       e.an = kAnNasal * kLineAnticipNasal * (kFnAn >= 0 ? kFnAn : kAnN);
@@ -5282,7 +5282,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
         // in an audible release, breath noise 13-23 dB under the vowel, the alveolar cue a ŋ does not have. N lab: 30 ms
         // alone 56 -> 42 n errors (placebo sd 5.3); with EN_FN_IH_SCHWA 1, LINE_FN_ANTICIP 0, LINE_FN_PORT 0.6: 16 (heard
         // ŋ 40.5 -> 1), words1000 1478 -> 1496, the lab's level term +2.6σ (the brighter tail).
-        static const float kLineNFinalRelMs = param("LINE_N_FINAL_REL_MS", 0.0f), kLineNFinalRelA = param("LINE_N_FINAL_REL_A", 0.5f);
+        static const float kLineNFinalRelMs = param("LINE_N_FINAL_REL_MS", 30.0f), kLineNFinalRelA = param("LINE_N_FINAL_REL_A", 0.5f);
         if (prevWasNasal_ && lastPh_ == Ph::N && kLineNFinalRelMs > 0 && !prevWasPause_) {
           e.ac = kLineNFinalRelA;
           e.acMs = kLineNFinalRelMs;
