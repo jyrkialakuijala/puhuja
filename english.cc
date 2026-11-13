@@ -841,6 +841,12 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
           }
           prc *= n == "JH" ? kPreJhVowel : n == "ZH" ? kPreZhVowel : n == "Z" ? kPreZVowel : n == "G" && kPreGVowel >= 0 ? kPreGVowel : isVoicedFricative(n) ? 1.4f : isVoicedPlosive(n) ? 1.2f
                : isNasal(n) ? 0.9f : isVoicelessPlosive(n) ? (n == "T" && kPreTVowel >= 0 ? kPreTVowel : b == "AA" ? kAaPreVless : 0.75f) : 1.0f;
+          // Z-FINAL agent13 round L (lab; 1: as before): the vowel before a nasal / voiced stop + the word's final z
+          // x EN_PRE_NZ_VOWEL / EN_PRE_BZ_VOWEL ("pens" ɛ 209 ms = "pence" 209: the z's voicing cue never reached the
+          // vowel across the n; Kokoro's voiced stretch of "pens" "means" "beds" is ~420 ms, puhuja's ~347).
+          static const float kPreNzVowel = param("EN_PRE_NZ_VOWEL", 1.0f), kPreBzVowel = param("EN_PRE_BZ_VOWEL", 1.0f);
+          if ((kPreNzVowel != 1.0f || kPreBzVowel != 1.0f) && i + 3 == tok.size() && baseName(tok[i + 2]) == "Z")
+            prc *= isNasal(n) ? kPreNzVowel : isVoicedPlosive(n) ? kPreBzVowel : 1.0f;
         }
         // (T agent 10 round K, lab; 1: as before) the vowel before a word-final t (also t + s, and with an ɹ l n between:
         // "Cart", "Built", "Brent") x EN_PRE_FINAL_T_VOWEL: the final t is heard as d 238 times in the dictionary ("Gate"
@@ -1226,6 +1232,19 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
               (i + 2 == tok.size() || (i + 3 == tok.size() && (baseName(tok[i + 2]) == "Z" || baseName(tok[i + 2]) == "S"))))
             whole *= kNdNLen;
           if (b == "Z" && i > 0 && baseName(tok[i - 1]) == "D") whole *= kDzZLen; }
+        // Z-FINAL agent13 round L (lab; 1: as before): a nasal / l / voiced stop right before the word's final z
+        // x EN_NZ_N_LEN / EN_BZ_B_LEN (the n of "pens" 63 ms = the n of "pence"; Kokoro's voiced stretch before
+        // the hiss is ~70 ms longer than puhuja's after a nasal or a voiced stop), and the final z after a voiced
+        // stop x EN_BZ_Z_LEN (EN_FINAL_Z_LEN leaves it alone). Lab (245 hard final-z words, both voices, two draws;
+        // base 125 final-z errors, placebos 108.5 / 124): EN_NZ_N_LEN 1.5 103, EN_BZ_Z_LEN 0.8 100, both (0.65, 1.5) 83
+        // with the total length unchanged (the z after b d g 73 -> 47 ms; 11labs's z after d in Kennedy 40-50 ms).
+        { static const float kNzNLen = param("EN_NZ_N_LEN", 1.0f), kBzBLen = param("EN_BZ_B_LEN", 1.0f),
+                             kBzZLen = param("EN_BZ_Z_LEN", 1.0f);
+          if (i + 2 == tok.size() && baseName(tok[i + 1]) == "Z") {
+            if (isNasal(b) || b == "L") whole *= kNzNLen;
+            else if (isVoicedPlosive(b)) whole *= kBzBLen;
+          }
+          if (b == "Z" && i + 1 == tok.size() && i > 0 && isVoicedPlosive(baseName(tok[i - 1]))) whole *= kBzZLen; }
         { static const float kPLen = param("EN_P_LEN", 1.0f); if (b == "P") whole *= kPLen; }
         { static const float kKLen = param("EN_K_LEN", 1.0f); if (b == "K") whole *= kKLen; }
         // t's own (T agent 3, lab knobs 2026-11-11; 1: unchanged): its length, a phrase-final t's, a t before s ("its",

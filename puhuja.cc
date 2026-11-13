@@ -3228,6 +3228,19 @@ void Synth::emit(const Token& tok, const Ph* next) {
     if (tok.ph == Ph::Z) zPauseFric_ = kLineZFric * kLineFinalZFric;
     else if (tok.ph != Ph::Stop) zPauseFric_ = 1.0f;
     if (tract_ == Tract::Line && tok.ph == Ph::Stop && zPauseFric_ != 1.0f) e.lineFricMul = zPauseFric_;
+    // Z-FINAL agent13 round L (lab; 1: as before): the hiss held into the pause after a final z x LINE_Z_PAUSE_FRIC.
+    // Puhuja's final z hisses on 130-140 ms after its voice has gone (Kokoro 30-105 ms; an s 150-165): the tail is s.
+    static const float kZPauseFric = param("LINE_Z_PAUSE_FRIC", 1.0f);
+    if (tract_ == Tract::Line && tok.ph == Ph::Stop && zPauseFric_ != 1.0f && kZPauseFric != 1.0f) e.lineFricMul *= kZPauseFric;
+  }
+  // Z-FINAL agent13 round L (lab; 1: off): a final z's lung pressure x LINE_FINAL_Z_PRESS over LINE_FINAL_Z_PRESS_MS
+  // (back to 1 after the pause): the breath eases off at the phrase's end, the hiss weakens, the folds keep going longer.
+  {
+    static const float kFinalZPress = param("LINE_FINAL_Z_PRESS", 1.0f), kFinalZPressMs = param("LINE_FINAL_Z_PRESS_MS", 30.0f);
+    if (tract_ == Tract::Line && kFinalZPress != 1.0f && tok.ph == Ph::Z && (!next || *next == Ph::Stop)) {
+      e.press = kFinalZPress;
+      e.pressMs = kFinalZPressMs;
+    }
   }
   if (tract_ == Tract::Line && kLineCloseFric != 1.0f && in.cls == Cls::Nasal) e.lineFricMul = kLineCloseFric;  // (LINE_CLOSE_FRIC: the nasal's oral closure)
   // LINE_T_ASP_HP (2026-11-05): a t's breath alone is high-passed (Hz, with
@@ -3257,6 +3270,19 @@ void Synth::emit(const Token& tok, const Ph* next) {
   static const float kLineZReBoth = param("LINE_Z_RE_BOTH", 0.0f);
   if (tract_ == Tract::Line && kLineZReBoth > 0) e.lineFricReBoth = tok.ph == Ph::Z || (tok.ph == Ph::Stop && zBeforePause_) ? 1.0f : 0.0f;
   if (tract_ == Tract::Line && kLineZReScale != 1.0f) e.lineFricReMul = tok.ph == Ph::Z || (tok.ph == Ph::Stop && zBeforePause_) ? kLineZReScale : 1.0f;  // (kept into the pause while the slit is still narrow)
+  // Z-FINAL agent13 round L (lab; 1: off): the same for a phrase-final z alone (and its pause), x LINE_FINAL_Z_RE: the
+  // hiss starts earlier under the voice while the folds still run (Kokoro's final z: 20-40 ms of overlap, puhuja 0-10).
+  static const float kLineFinalZRe = param("LINE_FINAL_Z_RE", 1.0f);
+  if (tract_ == Tract::Line && kLineFinalZRe != 1.0f) {
+    const bool fz = tok.ph == Ph::Z && (!next || *next == Ph::Stop);
+    e.lineFricReMul = fz || (tok.ph == Ph::Stop && zBeforePause_) ? kLineFinalZRe * kLineZReScale : tok.ph == Ph::Z ? kLineZReScale : 1.0f;
+  }
+  {
+    static const float kBzRe = param("LINE_BZ_RE", 1.0f);
+    if (tract_ == Tract::Line && kBzRe != 1.0f && kLineFinalZRe == 1.0f && kLineZReScale == 1.0f && tok.ph != Ph::Z &&
+        !(tok.ph == Ph::Stop && zBeforePause_) && info(tok.ph).cls != Cls::Plosive)
+      e.lineFricReMul = 1.0f;
+  }
   // LINE_V_RE_SCALE (V agent, round F; 1: off): the v's jet Reynolds number x this. Through the v's 0.147 cm^2 slit
   // (LINE_V_AC 2) the voiced flow pulses 0..230 cm^3/s and Re crosses LINE_RE_CRIT 1400 only at each pulse's peak
   // (noise trace of "over": the drive term > 0 a quarter of the cycle): the v's 2-8 kHz band sat at -42..-50 dB re the
@@ -4673,6 +4699,26 @@ void Synth::emit(const Token& tok, const Ph* next) {
       velLag.anMs = velMs;
       e.an = -1;
       hasVelLag = true;
+    }
+  }
+  // Z-FINAL agent13 round L (lab; 0: off): a word-final z after a nasal keeps the velum port open (LINE_NZ_VEL_A x the
+  // nasals' port) for its first LINE_NZ_VEL_MS, closing over that time: the mouth pressure leaks through the nose, the
+  // folds keep going under the rising hiss. Puhuja's "pens" "means": the voice bar -38 dB re the word's peak over the
+  // hiss's first 20 ms, overlap 0 ms; Kokoro -18..-20 dB, the voice and the hiss overlap 20-30 ms.
+  {
+    static const float kNzVelMs = param("LINE_NZ_VEL_MS", 0.0f), kNzVelA = param("LINE_NZ_VEL_A", 0.5f);
+    // ... and LINE_VZ_VEL_MS / _A the same after a vowel (a sink that keeps the folds going, not a nasal: the vowel's
+    // port is shut, so the leak opens with the z).
+    static const float kVzVelMs = param("LINE_VZ_VEL_MS", 0.0f), kVzVelA = param("LINE_VZ_VEL_A", 0.2f);
+    const bool fz = tract_ == Tract::Line && tok.ph == Ph::Z && (!next || *next == Ph::Stop);
+    const float velMs = fz && prevWasNasal_ ? kNzVelMs : fz && prevWasVowel_ ? kVzVelMs : 0.0f;
+    if (velMs > 0) {
+      e.an = kAnNasal * (prevWasNasal_ ? kNzVelA : kVzVelA);
+      e.anMs = prevWasNasal_ ? kBoundaryMs : 10.0f;
+      Event shut{e.t + velMs * ms};
+      shut.an = 0.0f;
+      shut.anMs = velMs;
+      addEventAt(shut);
     }
   }
   e.speech = in.cls == Cls::Stop ? 0.0f : 1.0f;
@@ -6616,6 +6662,18 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
       dzRel = tract_ == Tract::Line && dzRelFric >= 0 && *next == Ph::Z && pi.voiced;
       if (dzRel) rel.lineFricMul = dzRelFric * zFric;
       dzBackFric = zFric;
+      // Z-FINAL agent13 round L (lab; 1: as before): the z after b d g ("beds", "dogs": nearly always word-final) x
+      // LINE_BZ_FRIC. It rides on the stop's release and never got LINE_FINAL_Z_FRIC: its hiss -15 / -10 dB re the
+      // word's peak (m / f), Kokoro's -21..-24.
+      static const float kBzFric = param("LINE_BZ_FRIC", 1.0f);
+      if (tract_ == Tract::Line && kBzFric != 1.0f && *next == Ph::Z && pi.voiced) {
+        if (rel.lineFricMul >= 0) rel.lineFricMul *= kBzFric;
+        dzBackFric *= kBzFric;
+      }
+      // ... and its jet's Reynolds number x LINE_BZ_RE (1: off; back to 1 at the next phrase's first sound): the hiss
+      // starts while the folds still run on from the stop's closure.
+      static const float kBzRe = param("LINE_BZ_RE", 1.0f);
+      if (tract_ == Tract::Line && kBzRe != 1.0f && *next == Ph::Z && pi.voiced) rel.lineFricReMul = kBzRe;
     }
     if (*next == Ph::F && kLineStopFOwn > 0) {
       rel.lineHw = kLineFHw;
