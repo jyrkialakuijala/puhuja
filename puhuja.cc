@@ -3059,6 +3059,22 @@ void Synth::emit(const Token& tok, const Ph* next) {
     else if (lastPh_ == Ph::Z && e.expand < 0) { e.expand = 1.0f; e.expandMs = 5; }
   }
   const bool shFullVowel = tok.ph == Ph::SH && next && isVowel(*next) && *next != Ph::Schwa;  // (LINE_SH_VOWEL_*)
+  // ʃ before a full vowel, its own (SH agent 10, round K; lab knobs, < 0 / 1: as before). Dictionary (combo9): this ʃ
+  // is 40 % wrong word-initially (heard s 177, f 105: "Shall" -> sell, "Share" -> fair), the -tion ʃ before ə 3 %.
+  // Against Kokoro's initial ʃ (14 words, 4 voices) puhuja's is silent for ~25 ms and then swells over 40-50 ms to
+  // -5..-12 dB re the vowel (Kokoro a flat block at -12..-16 from its first 5 ms), peaks at 4.5 kHz (Kokoro male
+  // 3.4) and leaves no palatal transition (the 0.7-2.7 kHz centroid at the vowel's start 800-1300 Hz, Kokoro male
+  // 1500-1900 falling ~400 Hz in 60 ms). Not the ʧ's frication (inAffricate_), not the -tion ʃ.
+  //   LINE_SH_V_AG: its glottis (cm^2; < 0: LINE_AG_FRIC). LINE_SH_V_PRESS: the breath x this through it (back at the
+  //   vowel). LINE_SH_V_PAUSE_FRIC: its frication gain x this after a pause (a word-initial ʃ phrase-first).
+  const bool shV = shFullVowel && !inAffricate_;
+  static const float kShVAg = param("LINE_SH_V_AG", -1.0f), kShVPress = param("LINE_SH_V_PRESS", 1.0f),
+                     kShVPressMs = param("LINE_SH_V_PRESS_MS", 20.0f), kShVPauseFric = param("LINE_SH_V_PAUSE_FRIC", 1.0f);
+  if (tract_ == Tract::Line && shV && kShVAg >= 0) aero.ag = kShVAg;
+  if (tract_ == Tract::Line && kShVPress != 1.0f) {
+    if (shV) { e.press = kShVPress; e.pressMs = kShVPressMs; }
+    else if (lastPh_ == Ph::SH && e.press < 0) { e.press = 1.0f; e.pressMs = 20; }
+  }
   // ð lab knobs (DH agent7, round H; < 0 / 1: as before): after a pause its glottis LINE_DH_PAUSE_AG (cm^2) and its slit
   // x LINE_DH_PAUSE_AC (pause-initial ð 67 % wrong in the dictionary, medial 44 %); the lung pressure share through a ð
   // LINE_DH_PRESS and the cavity walls' expansion sink LINE_DH_EXPAND (as the z's: keep the voice under the slit).
@@ -3109,6 +3125,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
   static const float kLineVFric = param("LINE_V_FRIC", 8.0f);
   static const float kLineZFric = param("LINE_Z_FRIC", 1.0f);
   if (tract_ == Tract::Line) e.lineFricMul = tok.ph == Ph::VV ? kLineVFric : tok.ph == Ph::F ? (curStress_ ? kLineFFric : kLineFFricUnstr) : tok.ph == Ph::Z ? kLineZFric : tok.ph == Ph::ZH ? (inAffricate_ && kLineJhFric >= 0 ? kLineJhFric : kLineZhFric) : tok.ph == Ph::S ? kLineSFric : tok.ph == Ph::SH ? kLineShFric * (shFullVowel ? (tok.wordStart || kLineShVowelFricLink < 0 ? kLineShVowelFric : kLineShVowelFricLink) : 1.0f) : 1.0f;
+  if (tract_ == Tract::Line && shV && prevWasPause_ && kShVPauseFric != 1.0f) e.lineFricMul *= kShVPauseFric;  // (LINE_SH_V_PAUSE_FRIC)
   // a word-final ʒ's frication gain x LINE_ZH_FRIC_FINAL (ZH agent, round H; 1: off): Kokoro's final ʒ ("garage", "beige",
   // "rouge") is voiceless (80-500 Hz -37..-45 dB re the word's peak) with a quieter hiss (2-8 kHz -17..-26) than a medial one
   { static const float kLineZhFricFinal = param("LINE_ZH_FRIC_FINAL", 0.37f);
@@ -3350,6 +3367,28 @@ void Synth::emit(const Token& tok, const Ph* next) {
     if (zhOwn && kLineZhSlit >= 0) e.lineSlitScale = kLineZhSlit;
     if (zhOwn && kLineZhJetMix >= 0) e.lineJetMix = kLineZhJetMix;
     e.lineFricLpr = tok.ph == Ph::Z && kLineZLpr > 0 ? kLineZLpr : tok.ph == Ph::ZH && !inAffricate_ && kLineZhLpr >= 0 ? kLineZhLpr : tok.ph == Ph::SH || tok.ph == Ph::ZH ? kLinePostLpr : tok.ph == Ph::F ? kLineFLpr : tok.ph == Ph::VV ? kLineVLpr : 0.0f;  // (not ʧ ʤ: at 3 they lost 39 -> 34, 26 -> 23 of 54, 56)
+    // The full-vowel ʃ's own groove (SH agent 10, round K; < 0: the shared ʃ ʒ ʧ ʤ values above): lip rounding
+    // LINE_SH_V_LIP (cm^2), groove half-width LINE_SH_V_HW, jet thickness LINE_SH_V_JET_D, noise band LINE_SH_V_LPR,
+    // slit-height scale LINE_SH_V_SLIT_SCALE, jet mix LINE_SH_V_JET_MIX; its jet's Reynolds number x LINE_SH_V_RE (1: as
+    // before; an earlier, steadier hiss). Kokoro's male ʃ is flat 2.5-5 kHz (puhuja's peaks at 4-5 kHz, 2.5 kHz -7 dB).
+    {
+      static const float kShVLip = param("LINE_SH_V_LIP", -1.0f), kShVHw = param("LINE_SH_V_HW", -1.0f),
+                         kShVJetD = param("LINE_SH_V_JET_D", -1.0f), kShVLpr = param("LINE_SH_V_LPR", -1.0f),
+                         kShVSlit = param("LINE_SH_V_SLIT_SCALE", -1.0f), kShVJetMix = param("LINE_SH_V_JET_MIX", -1.0f),
+                         kShVRe = param("LINE_SH_V_RE", 1.0f);
+      if (shV) {
+        if (kShVLip >= 0) e.lineLip = kShVLip;
+        if (kShVHw >= 0) e.lineHw = kShVHw;
+        if (kShVJetD >= 0) e.lineJetD = kShVJetD;
+        if (kShVLpr >= 0) e.lineFricLpr = kShVLpr;
+        if (kShVSlit >= 0) e.lineSlitScale = kShVSlit;
+        if (kShVJetMix >= 0) e.lineJetMix = kShVJetMix;
+      }
+      if (tract_ == Tract::Line && kShVRe != 1.0f) {
+        if (shV) e.lineFricReMul = kShVRe;
+        else if (lastPh_ == Ph::SH && e.lineFricReMul < 0) e.lineFricReMul = 1.0f;
+      }
+    }
     // θ's constriction length (LINE_TH_HW, x the shared 1; TH agent7 round H: the tongue tip on the teeth is a short contact)
     // and its noise band (LINE_TH_LPR: low-pass at this x the jet's corner; 0: LINE_NOISE_LPR 10).
     { static const float kLineThHw = param("LINE_TH_HW", 1.0f), kLineThLpr = param("LINE_TH_LPR", 0.0f);
@@ -4415,6 +4454,12 @@ void Synth::emit(const Token& tok, const Ph* next) {
     if (tok.ph == Ph::ZH && !inAffricate_ && zhOn >= 0) e.acMs = zhOn;
     if (lastPh_ == Ph::ZH && lastZhOwn_ && zhOff >= 0) e.acMs = std::max(acMsOwn, zhOff);  // (not after a ʤ's ʒ)
     lastZhOwn_ = tok.ph == Ph::ZH && !inAffricate_;
+    // The full-vowel ʃ's own (SH agent 10, round K; < 0: as above): not after a pause its slit closes over
+    // LINE_SH_V_ON_MS (after a pause: LINE_SH_INIT_ON_MS, below); the vowel after it opens over LINE_SH_V_OFF_MS.
+    static const float shVOn = param("LINE_SH_V_ON_MS", -1.0f), shVOff = param("LINE_SH_V_OFF_MS", -1.0f);
+    if (shV && !prevWasPause_ && shVOn >= 0) e.acMs = shVOn;
+    if (lastPh_ == Ph::SH && lastShV_ && shVOff >= 0) e.acMs = std::max(acMsOwn, shVOff);
+    lastShV_ = shV;
     // s f θ into a voiced sound: the groove opens over LINE_FRIC_OFF_MS (0: the
     // 20 ms boundary). Kokoro's s in "save" fades over its last 30 ms before
     // the vowel starts; puhuja's hiss rose 12 dB in its last 10 ms with the
@@ -4637,6 +4682,10 @@ void Synth::emit(const Token& tok, const Ph* next) {
     Event pre{t0 - kPreposeMs * ms};
     pre.ac = e.ac;
     pre.acMs = tok.ph == Ph::W && tract_ == Tract::Line && kLineWOnMs >= 0 ? kLineWOnMs : kBoundaryMs;  // (LINE_W_ON_MS)
+    // (SH agent 10, round K; < 0: as before) a full-vowel ʃ's slit closes over LINE_SH_INIT_ON_MS here
+    static const float kShInitOnMs = param("LINE_SH_INIT_ON_MS", -1.0f);
+    if (tract_ == Tract::Line && kShInitOnMs >= 0 && tok.ph == Ph::SH && !inAffricate_ && next && isVowel(*next) && *next != Ph::Schwa)
+      pre.acMs = kShInitOnMs;
     pre.an = e.an;
     pre.anMs = kBoundaryMs;
     addEvent(pre);
@@ -5254,6 +5303,18 @@ void Synth::emit(const Token& tok, const Ph* next) {
         prePress.t = std::max(e.t - kThPreMs * ms, std::min(inPauseFrom, e.t));
         if (kThPreRampMs >= 0) prePress.pressMs = kThPreRampMs;
       }
+      // A phrase-initial ʃ before a full vowel (SH agent 10, round K; LINE_SH_PRE_MS 0: off): the breath starts rising
+      // this long before it, over LINE_SH_PRE_RAMP_MS (< 0: LINE_PRE_PRESS_MS), and the tongue is at the slit (its own
+      // place) from the same moment over LINE_SH_PRE_AC_MS, so the rise does not puff out of an open mouth. Puhuja's
+      // initial ʃ swelled with the 80 ms pressure rise: -36 / -12 / -10 dB re the vowel over its thirds, Kokoro's flat
+      // -16 / -13 / -14 (male) from its first 5 ms; heard s / f ("Shall" -> sell, "Share" -> fair).
+      static const float kShPreMs = param("LINE_SH_PRE_MS", 0.0f), kShPreRampMs = param("LINE_SH_PRE_RAMP_MS", -1.0f),
+                         kShPreAcMs = param("LINE_SH_PRE_AC_MS", 20.0f);
+      const bool shPre = kShPreMs > 0 && tok.ph == Ph::SH && !inAffricate_ && next && isVowel(*next) && *next != Ph::Schwa;
+      if (shPre) {
+        prePress.t = std::max(e.t - kShPreMs * ms, std::min(inPauseFrom, e.t));
+        if (kShPreRampMs >= 0) prePress.pressMs = kShPreRampMs;
+      }
       prePress.ac = prePress.ag = prePress.an = -1;
       prePress.speech = -1;
       prePress.aspGain = -1;
@@ -5262,6 +5323,21 @@ void Synth::emit(const Token& tok, const Ph* next) {
       prePress.pop = -1;
       // (not over a stop's push, LINE_PULSE: it starts from the same rise)
       if (prePress.t >= pulseEnd_) addEventAt(prePress);
+      if (shPre && prePress.t >= pulseEnd_ && prePress.t < e.t) {
+        // (the whole ʃ setting: its gain, groove, lips and band; a slit alone, with the ʃ's gain and groove switched on at
+        // the ʃ itself, burst 6-10 dB over the hiss at 1.5-4 kHz there)
+        Event sl = e;
+        sl.t = std::max(prePress.t - kShPreAcMs * ms, std::min(inPauseFrom, e.t));
+        if (sl.ac <= 0) sl.ac = aero.ac;
+        sl.acMs = kShPreAcMs;
+        sl.planAir = 0; sl.press = -1; sl.speech = -1; sl.aspGain = -1; sl.expand = -1; sl.inhaleMs = 0; sl.pop = -1;
+        // ... and the glottis opens to the ʃ's over LINE_SH_PRE_AG_MS from the same moment (0: at the ʃ, as before:
+        // with the breath already up, the glottis opening at the ʃ burst out over the hiss)
+        static const float kShPreAgMs = param("LINE_SH_PRE_AG_MS", 0.0f);
+        sl.ag = -1;
+        if (kShPreAgMs > 0) { sl.ag = aero.ag; sl.agMs = kShPreAgMs; }
+        addEventAt(sl);
+      }
       // (prePress is the rise; e's own, at the sound, would cut the push)
       if (pulseFric) e.press = -1;
     }
@@ -5486,6 +5562,36 @@ void Synth::emit(const Token& tok, const Ph* next) {
         if (kNRelLipA > 0) s.aLip = std::max(s.aLip, kNRelLipA);
         addShapeDemand(e.t, e.t + dur + kNRelOnMs * ms, s, *next, kNRelW);
       }
+    }
+  }
+  // The full-vowel ʃ's tongue body (SH agent 10, round K; lab knobs, LINE_SH_REL_MIX 0: off). The ʃ had no shape of its
+  // own: after a pause the line glided from the pause's ə straight into the vowel, which started at its own F2 (the
+  // 0.7-2.7 kHz centroid at its start 800-1300 Hz, flat), a labial-like onset Whisper heard as f ("Share" -> fair,
+  // "Shown" -> phone). Kokoro's ʃ raises the tongue body toward the palate: the vowel starts at ~1500-1900 Hz (male)
+  // and falls ~400 Hz over 60 ms. The ʃ and the vowel's first LINE_SH_REL_ON_MS are asked for the vowel's shape mixed
+  // LINE_SH_REL_MIX toward the row LINE_SH_REL_ROW (a Ph index; 2: i, 9: ɪ), weight LINE_SH_REL_W; LINE_SH_REL_TONGUE 1:
+  // the tongue only (lips, larynx, length stay the vowel's); the lips at most LINE_SH_REL_LIPA cm^2 (rounded; 0: as mixed);
+  // LINE_SH_REL_PRE_MS: the demand starts this long before the ʃ (into the pause before it). Lab (the 220 dictionary
+  // words with a ʃ before a stressed vowel + 80 -tion words, x 2 voices, two draws; base 246 ʃ errors, 313.5 words
+  // right, words1000 1447): MIX 1, W 4: 105.5 / 386 / 1456; W 2: 86 / 404; ROW 9 (ɪ), MIX 0.8, W 4: 81.5 / 431.5; with
+  // the lower slit LINE_SH_VOWEL_X 0.78 and LINE_SH_VOWEL_FRIC 3: MIX 1, W 2 41 / 438 / 1450, ROW 9, W 4 49.5 / 425.5 /
+  // 1452 (no hybrid veto). The vowel's centroid at its start 1023 -> 1571 Hz (male), +60 ms 1311 (Kokoro 1727, 1300).
+  // Longer (ON_MS 80) the vowel was heard as iː; rounded lips (LIPA 0.5) cost level and brightness.
+  {
+    static const float kShRelMix = param("LINE_SH_REL_MIX", 0.0f), kShRelOnMs = param("LINE_SH_REL_ON_MS", 50.0f),
+                       kShRelW = param("LINE_SH_REL_W", 2.0f), kShRelTongue = param("LINE_SH_REL_TONGUE", 1.0f),
+                       kShRelLipA = param("LINE_SH_REL_LIPA", 0.0f), kShRelPreMs = param("LINE_SH_REL_PRE_MS", 0.0f);
+    static const int kShRelRow = static_cast<int>(param("LINE_SH_REL_ROW", 2.0f));
+    const bool shVHere = tok.ph == Ph::SH && !inAffricate_ && next && isVowel(*next) && *next != Ph::Schwa;
+    TractShape v, o;
+    if (tract_ == Tract::Line && shVHere && kShRelMix > 0 && lineShapeOf(*next, &v) && lineShapeOf(static_cast<Ph>(kShRelRow), &o)) {
+      TractShape m = lineShapeMix(v, o, std::min(kShRelMix, 1.0f));
+      if (kShRelTongue > 0) {
+        m.aLip = v.aLip; m.lLip = v.lLip; m.aLarynx = v.aLarynx; m.length = v.length;
+        m.sc = lineVowelStrength(m.xc, m.wc, m.length);
+      }
+      if (kShRelLipA > 0) m.aLip = std::min(m.aLip, kShRelLipA);
+      addShapeDemand(std::max(e.t - kShRelPreMs * ms, phonemeStart_ + 1), e.t + dur + kShRelOnMs * ms, m, *next, kShRelW);
     }
   }
   // ʃ ʒ after a vowel (LINE_SH_APPROACH_MS, 2026-11-05): the tongue rises

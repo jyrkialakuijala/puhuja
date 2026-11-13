@@ -1171,6 +1171,14 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
         }
         static const float vfricLen = param("EN_VFRIC_LEN", 1.4f) /* cost Whisper 898 composite 24.95/28.30 95d-all3 */, vstopLen = param("EN_VSTOP_LEN", 1.3f);
         if (b == "S" || b == "SH" || b == "F" || b == "TH") whole *= vfricLen;
+        // A ʃ before a stressed vowel (SH agent 10, round K; 1: unchanged): EN_SH_STRESS_LEN, word-initial
+        // EN_SH_INIT_LEN instead (< 0: the same). Puhuja's initial ʃ was 122-132 ms ("Shall", "Short"), Kokoro's 80-90.
+        if (b == "SH" && i + 1 < tok.size() && isVowelToken(tok[i + 1])) {
+          const char* nv = kEnglishTokens[tok[i + 1] - 0x80];
+          const char st = nv[strlen(nv) - 1];
+          static const float kShStressLen = param("EN_SH_STRESS_LEN", 1.0f), kShInitLen = param("EN_SH_INIT_LEN", -1.0f);
+          if (st == '1' || st == '2') whole *= i == 0 && kShInitLen >= 0 ? kShInitLen : kShStressLen;
+        }
         else if (isVoicelessPlosive(b)) whole *= vstopLen;
         else if (b == "D") {
           static const float kDLen = param("EN_D_LEN", 1.0f);  // (lab knob 2026-11-10, D agent)

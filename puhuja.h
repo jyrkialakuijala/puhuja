@@ -479,6 +479,7 @@ class Synth {
   bool jAfterStop_ = false;  // the last token was a j released from a plosive (LINE_U_AFTER_STOP_J)
   bool prevWasNasal_ = false;
   bool prevWasPause_ = false;  // the last emitted phoneme was a pause
+  bool lastShV_ = false;  // the last emitted phoneme was a ʃ before a full vowel (LINE_SH_V_OFF_MS)
   bool vAfterFric_ = false;  // this v follows a fricative (LINE_V_FRIC_AFTER_FRIC)
   double oyEndT_ = -1;  // the end of the last ɔɪ's ɪ (samples; LINE_PAUSE_RUN_OY)
   float lastVowelF_[3] = {0, 0, 0};  // previous vowel's own targets (for sharpening)
