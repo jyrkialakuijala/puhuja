@@ -1835,7 +1835,7 @@ struct BreathWeights {
   int rounds = static_cast<int>(breathKnob("BREATH_ROUNDS", 6));
   // (PROSODY agent11, lab knobs; 0: as before) a cost on long breath groups, BREATH_LEN_W x (seconds / BREATH_LEN_T)^2
   // per group: the 11labs readers breathe at 52-77 % of the commas (groups 3.5 s median), puhuja at 3-6 % (6.2 s).
-  float lenW = breathKnob("BREATH_LEN_W", 0.0f);
+  float lenW = breathKnob("BREATH_LEN_W", 0.3f);
   float lenT = breathKnob("BREATH_LEN_T", 3.5f);
   bool off = std::getenv("BREATH_OFF") != nullptr;
   bool debug = std::getenv("BREATH_DEBUG") != nullptr;
@@ -1871,7 +1871,7 @@ float bgStep(float a, float b, float x) {
   const float t = std::clamp((x - a) / std::max(b - a, 1e-3f), 0.0f, 1.0f);
   return t * t * (3.0f - 2.0f * t);
 }
-float bgStartTo() { static const float v = param("EN_BG_START_TO", 0.3f); return v; }
+float bgStartTo() { static const float v = param("EN_BG_START_TO", 0.4f); return v; }
 float bgFinalFrom() { static const float v = param("EN_BG_FINAL_FROM", 0.7f); return v; }
 }  // namespace
 
@@ -2590,7 +2590,7 @@ void EnglishReader::sayPhrase(char end) {
     // off its last part (from EN_BG_FINAL_FROM): the readers' 7.5 st sit in a high start and a final drop, the middle
     // declines only ~0.5 st/s.
     static const float kBgSt = param("EN_BG_ST", 0.0f), kAirSt = param("EN_AIR_ST", 0.0f),
-                       kBgStartSt = param("EN_BG_START_ST", 0.0f), kBgFinSt = param("EN_BG_FINAL_ST", 0.0f);
+                       kBgStartSt = param("EN_BG_START_ST", 3.5f), kBgFinSt = param("EN_BG_FINAL_ST", 2.5f);
     if ((kBgSt != 0 || kAirSt != 0 || kBgStartSt != 0 || kBgFinSt != 0) && !wordGroupPos_.empty())
       for (Syl& y : syl) {
         if (y.word >= wordGroupPos_.size()) continue;
@@ -3030,7 +3030,7 @@ void EnglishReader::sayPhrase(char end) {
           // last word 3.2 under the group's mean), puhuja 1.9 (1.2).
           {
             static const float kBgDb = param("EN_BG_DB", 0.0f), kAirDb = param("EN_AIR_DB", 0.0f),
-                               kBgFinDb = param("EN_BG_FINAL_DB", 0.0f), kBgStartDb = param("EN_BG_START_DB", 0.0f);
+                               kBgFinDb = param("EN_BG_FINAL_DB", 1.0f), kBgStartDb = param("EN_BG_START_DB", 0.8f);
             if ((kBgDb != 0 || kAirDb != 0 || kBgFinDb != 0 || kBgStartDb != 0) && w < wordGroupPos_.size()) {
               const float g = wordGroupPos_[w];
               db += kBgDb * (0.5f - g) + kAirDb * (wordAirU_[w] - 0.5f) +

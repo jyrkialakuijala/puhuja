@@ -1418,7 +1418,7 @@ constexpr float kInhaleRiseMs = 70, kInhaleFallMs = 120;
 constexpr FricShape kInhaleSnatchShape = {700, 6500, 2500, 3000, 1.0f};
 // Lung pressure eases off as the breath is used up (loudness declination)
 // and falls steeply near empty.
-const float kLungPressureSpent = param("kLungPressureSpent", 0.85f);  // relative pressure at kLungRest and below
+const float kLungPressureSpent = param("kLungPressureSpent", 0.7f);  // relative pressure at kLungRest and below
 constexpr float kLungEmpty = 150;            // below this the pressure collapses
 constexpr float kVowelLevelRiseMs = 40;  // a vowel's level after a sonorant consonant
 constexpr float kNoiseCrossfadeMs = 4;  // noise fading in from silence
