@@ -66,6 +66,9 @@ class EnglishReader {
   std::vector<float> wordTempo_;    // the plan's tempo per word of the phrase (1: as fitted)
   std::vector<char> breathPlan_;    // a planned breath before this word of the phrase ...
   std::vector<char> breathSnatch_;  // ... and whether it is the quick one (a poor place)
+  std::vector<float> wordGroupPos_;  // (PROSODY agent11) each word's place in its breath group by the planned air, 0 start .. 1 end
+  float groupElapsed_ = 0;  // (PROSODY agent11) seconds of planned speech since the last breath, at this phrase's start
+  std::vector<float> wordAirU_;      // ... and the lungs' planned fullness at the word, 0 floor .. 1 full
   std::vector<Word> splitTail_;  // the rest of a phrase split in two, while its head is spoken
   std::string lookahead_;  // the text being read (a sentence or more)
   size_t lookPos_ = 0;     // where in it the reader is

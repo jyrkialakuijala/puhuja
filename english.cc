@@ -644,8 +644,8 @@ constexpr float kRepeatLift = 1.5f, kRepeatLiftMax = 4.5f;  // st per repetition
 constexpr size_t kRecentPhrases = 12;
 constexpr float kExclaimLift = 3.0f;  // st on the accents of an exclamation
 constexpr float kExclaimDb = 2.0f;    // and louder
-constexpr float kFirstAccent = 11.0f;      // first accent above the baseline
-constexpr float kDownstep = 0.85f;         // each further accent: this much of the last
+const float kFirstAccent = param("EN_FIRST_ACCENT", 11.0f);      // first accent above the baseline
+const float kDownstep = param("EN_DOWNSTEP", 0.85f);         // each further accent: this much of the last
 constexpr float kMinAccent = 5.5f;
 constexpr float kPostAccent = 0.2f;       // syllable after an accent keeps this share
 // Unaccented syllables between two accents: a single quick one sits on the
@@ -661,18 +661,18 @@ constexpr float kQuestionHigh = 6.0f;     // end of a question
 constexpr float kContinuation = -3.0f;    // end before a comma (a little above the baseline)
 // Pauses in 15 ms stops: about 200 ms after a comma (longer when the speaker
 // breathes there); after a sentence 120 ms plus the breath (>= 180 ms).
-constexpr int kCommaPauseStops = 13;     // 195 ms after a phrase of 5 syllables, growing:
-constexpr int kCommaPauseMaxStops = 24;  // at most 360 ms
+const int kCommaPauseStops = static_cast<int>(param("EN_COMMA_PAUSE_STOPS", 13));     // 195 ms after a phrase of 5 syllables, growing:
+const int kCommaPauseMaxStops = static_cast<int>(param("EN_COMMA_PAUSE_MAX_STOPS", 24));  // at most 360 ms
 constexpr int kShortPhraseSyllables = 4; // a phrase this short gets the short pause:
 constexpr int kShortCommaPauseStops = 8; // 120 ms
 constexpr int kClausePauseStops = 18;    // after ; and : at least 270 ms
 constexpr float kPauseVariation = 0.15f; // +- share
-const float kFinalLengthSentence = param("kFinalLengthSentence", 1.3f) /* 1.17: the sentence-final word was 1.18x a content word, goog 1.41, 11labs 1.21 */, kFinalLengthPhrase = 1.15f;  // final lengthening
+const float kFinalLengthSentence = param("kFinalLengthSentence", 1.3f) /* 1.17: the sentence-final word was 1.18x a content word, goog 1.41, 11labs 1.21 */, kFinalLengthPhrase = param("kFinalLengthPhrase", 1.15f);  // final lengthening
 constexpr float kFinalLengthClause = 1.25f;  // before ; or :
 const float kFunctionWordVowel = param("kFunctionWordVowel", 0.8f);  // vowel length in a function word inside the phrase
 constexpr float kFinalCodaSonorant = 3.5f;  // a phrase-final l m n ŋ coda
 constexpr float kFinalCodaFricative = 2.7f;  // a phrase-final s ʃ f θ after a vowel or sonorant
-constexpr int kSentencePauseStops = 10;  // + the breath before the next sentence
+const int kSentencePauseStops = static_cast<int>(param("EN_SENTENCE_PAUSE_STOPS", 10));  // + the breath before the next sentence
 constexpr int kDashPauseStops = 8;        // parenthesis: ~120 ms
 constexpr int kThinkingPauseStops = 20;   // en/em dash: a pause for thought, ~300 ms (400 outranked sentence ends)
 constexpr int kQuotePauseStops = 5;       // before a quotation: ~75 ms
@@ -797,6 +797,9 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
         // do;", "yes, I can."): its stressed syllable is not shortened.
         const bool stressed = (phrase_[w].accent || phraseFinal) && name[strlen(name) - 1] != '0';
         if (!phraseFinal) prc *= 0.6f;
+        // (PROSODY agent11, lab knob; 1: as before) a phrase-final vowel x EN_FINAL_VOWEL_LEN: its last vowel ran 1.50x
+        // the same vowel inside the phrase (both voices), the 11labs readers' 1.19 (1.12-1.25).
+        { static const float kFinVowelLen = param("EN_FINAL_VOWEL_LEN", 1.0f); if (phraseFinal && kFinVowelLen != 1.0f) prc *= kFinVowelLen; }
         if (!inLastSyllable) prc *= 0.85f;
         if (vowels > 1) prc *= 0.8f;
         if (!stressed) {
@@ -1739,7 +1742,7 @@ void applyForeign(std::vector<EnglishReader::Word>& phrase, const ForeignWord (&
 }
 
 // Loudness shape of a phrase (dB, vowels).
-constexpr float kArcStartDb = 1.0f, kArcEndDb = -2.0f;  // (-3: with the end release too steep)
+const float kArcStartDb = param("EN_ARC_START_DB", 1.0f), kArcEndDb = param("EN_ARC_END_DB", -2.0f);  // (-3: with the end release too steep)
 constexpr float kCreakBelow = -6.5f;  // st: statement endings this low get creaky voice (-5: nearly all)
 constexpr float kPressedAccent = 0.9f, kLaxUnstressed = 1.08f, kLaxFinal = 1.12f;  // glottal opening
 constexpr float kAccentDb = 1.5f, kFunctionWordDb = -1.5f;
@@ -1821,7 +1824,7 @@ bool EnglishReader::symmetricAt(size_t j) const {
 namespace {
 float breathKnob(const char* name, float d) {
   const char* v = std::getenv(name);
-  return v ? static_cast<float>(std::atof(v)) : d;
+  return v ? static_cast<float>(std::atof(v)) : param(name, d);
 }
 struct BreathWeights {
   float placeCost[4] = {breathKnob("BREATH_PUNCT", 0.3f), breathKnob("BREATH_SEAM", 1.0f), breathKnob("BREATH_PLAIN", 3.0f), 1e9f};
@@ -1830,6 +1833,10 @@ struct BreathWeights {
   float floorMargin = breathKnob("BREATH_FLOOR_MARGIN", 100.0f);  // cm^3 kept above the sag point
   float floorW = breathKnob("BREATH_FLOOR_W", 2.0f);
   int rounds = static_cast<int>(breathKnob("BREATH_ROUNDS", 6));
+  // (PROSODY agent11, lab knobs; 0: as before) a cost on long breath groups, BREATH_LEN_W x (seconds / BREATH_LEN_T)^2
+  // per group: the 11labs readers breathe at 52-77 % of the commas (groups 3.5 s median), puhuja at 3-6 % (6.2 s).
+  float lenW = breathKnob("BREATH_LEN_W", 0.0f);
+  float lenT = breathKnob("BREATH_LEN_T", 3.5f);
   bool off = std::getenv("BREATH_OFF") != nullptr;
   bool debug = std::getenv("BREATH_DEBUG") != nullptr;
 };
@@ -1857,6 +1864,16 @@ std::string EnglishReader::restOfSentence() const {
   }
   return std::string(rest.substr(0, end));
 }
+
+// (PROSODY agent11) the breath-group contour's steps.
+namespace {
+float bgStep(float a, float b, float x) {
+  const float t = std::clamp((x - a) / std::max(b - a, 1e-3f), 0.0f, 1.0f);
+  return t * t * (3.0f - 2.0f * t);
+}
+float bgStartTo() { static const float v = param("EN_BG_START_TO", 0.3f); return v; }
+float bgFinalFrom() { static const float v = param("EN_BG_FINAL_FROM", 0.7f); return v; }
+}  // namespace
 
 void EnglishReader::planBreaths() {
   static const BreathWeights W;
@@ -1990,8 +2007,11 @@ void EnglishReader::planBreaths() {
     sumC[k + 1] = sumC[k] + items[k].airC;
     sumD[k + 1] = sumD[k] + items[k].dur;
   }
+  // (BREATH_LEN_W) the group running at the phrase's start began this long ago.
+  const double elapsed0 = V0 >= Vmax - 1.0f ? 0.0 : groupElapsed_;
   auto groupCost = [&](size_t i, size_t j, float& rate) {
     const double aV = sumV[j] - sumV[i], aC = sumC[j] - sumC[i], d = sumD[j] - sumD[i];
+    const double dLen = d + (i == 0 ? elapsed0 : 0.0);
     const double start = i == 0 ? V0 : Vmax;
     // The tempo: 1 if the air carries to the floor, else the smallest that
     // does (iterated: the consonants follow it only by its square root).
@@ -2009,6 +2029,7 @@ void EnglishReader::planBreaths() {
     const double need = aV / r + aC / std::sqrt(r);
     const double end = start - need;
     double cost = W.rateW * d * std::log(r) * std::log(r);
+    if (W.lenW > 0) cost += W.lenW * (dLen / W.lenT) * (dLen / W.lenT);
     if (end < floor) cost += W.floorW * ((floor - end) / 100.0) * ((floor - end) / 100.0);
     if (end < empty) cost += kHuge;
     return cost;
@@ -2058,6 +2079,7 @@ void EnglishReader::planBreaths() {
         }
         const double need = aV / r + aC / std::sqrt(r), end = Vmax - need;
         double c = W.rateW * d * std::log(r) * std::log(r);
+        if (W.lenW > 0) c += W.lenW * (d / W.lenT) * (d / W.lenT);
         if (end < floor) c += W.floorW * ((floor - end) / 100.0) * ((floor - end) / 100.0);
         if (end < empty) c += kHuge;
         if (j < N) { if (items[j].place == 3) continue; c += W.placeCost[items[j].place] + bestFull[j]; }
@@ -2084,6 +2106,40 @@ void EnglishReader::planBreaths() {
       breathSnatch_[nb] = items[nb].place == 2;
     }
     start = static_cast<size_t>(nb);
+  }
+  // (PROSODY agent11) each word's planned air and its place in its breath group (the groups as planned, the air at
+  // mid-word; a group that began in an earlier phrase began full, at a breath).
+  {
+    wordGroupPos_.assign(n, 0.0f);
+    wordAirU_.assign(n, 1.0f);
+    size_t s = 0;
+    double air = V0;
+    bool firstGroup = true;
+    while (true) {
+      const int nb = nextBreath[s];
+      const size_t e = nb < 0 ? N : static_cast<size_t>(nb);
+      if (!firstGroup || (s == 0 && breathPlan_[0])) air = Vmax;
+      const double r = groupRate[s];
+      const double gStart = Vmax;
+      const double gEnd = air - ((sumV[e] - sumV[s]) / r + (sumC[e] - sumC[s]) / std::sqrt(r));
+      for (size_t k = s; k < e && k < n; ++k) {
+        const double need = items[k].airV / r + items[k].airC / std::sqrt(r);
+        const double mid = air - 0.5 * need;
+        wordGroupPos_[k] = static_cast<float>(std::clamp((gStart - mid) / std::max(gStart - gEnd, 1.0), 0.0, 1.0));
+        wordAirU_[k] = static_cast<float>(std::clamp((mid - synth_.lungFloor()) / std::max(Vmax - synth_.lungFloor(), 1.0f), 0.0, 1.0));
+        air -= need;
+      }
+      if (nb < 0 || e >= n) break;
+      s = e;
+      firstGroup = false;
+    }
+    // The running group's length after this phrase (BREATH_LEN_W).
+    size_t lastBreath = 0;
+    bool any = V0 >= Vmax - 1.0f;
+    for (size_t k = 0; k < n; ++k) if (breathPlan_[k]) lastBreath = k, any = true;
+    double el = any ? 0.0 : groupElapsed_;
+    for (size_t k = lastBreath; k < n; ++k) el += items[k].dur;
+    groupElapsed_ = static_cast<float>(el);
   }
   if (W.debug) {
     std::fprintf(stderr, "breath plan: %zu words of this phrase + %zu ahead, air left %.0f, scale %.2f, cost %.2f\n", n, N - n, V0, scale, best[0]);
@@ -2525,6 +2581,26 @@ void EnglishReader::sayPhrase(char end) {
   }
 
   planBreaths();  // where to breathe in this phrase, and its tempo (sets wordTempo_)
+  // (PROSODY agent11, lab knobs; 0: as before) the pitch follows the breath group: EN_BG_ST st from the group's start
+  // (+half) to its end (-half), by the planned air spent (11labs: 7.5 st from a group's first words to its last, a
+  // 7.4 st reset after a breath; puhuja 3.6-5 and 2.9); EN_AIR_ST st by the lungs' planned fullness (full +half,
+  // floor -half).
+  {
+    // ... and the shape: EN_BG_START_ST on the group's first part (fading out by EN_BG_START_TO of it), EN_BG_FINAL_ST
+    // off its last part (from EN_BG_FINAL_FROM): the readers' 7.5 st sit in a high start and a final drop, the middle
+    // declines only ~0.5 st/s.
+    static const float kBgSt = param("EN_BG_ST", 0.0f), kAirSt = param("EN_AIR_ST", 0.0f),
+                       kBgStartSt = param("EN_BG_START_ST", 0.0f), kBgFinSt = param("EN_BG_FINAL_ST", 0.0f);
+    if ((kBgSt != 0 || kAirSt != 0 || kBgStartSt != 0 || kBgFinSt != 0) && !wordGroupPos_.empty())
+      for (Syl& y : syl) {
+        if (y.word >= wordGroupPos_.size()) continue;
+        const float g = wordGroupPos_[y.word];
+        const float d = kBgSt * (0.5f - g) + kAirSt * (wordAirU_[y.word] - 0.5f) +
+                        kBgStartSt * (1.0f - bgStep(0.0f, bgStartTo(), g)) - kBgFinSt * bgStep(bgFinalFrom(), 1.0f, g);
+        y.pitch += d;
+        if (y.end != Synth::kNoPitch) y.end += d;
+      }
+  }
   const std::vector<std::vector<float>> dur = durations();
   // "the" before a vowel sound is "thee" (ði): "the heirs" with ðə ran into
   // one syllable, "theirs". The spelling does not tell (heir, hour, honest,
@@ -2948,6 +3024,19 @@ void EnglishReader::sayPhrase(char end) {
           float db = kArcStartDb + (kArcEndDb - kArcStartDb) * frac;
           const char* vn = kEnglishTokens[tokens[i] - 0x80];
           if (sentenceEnd_ && lastEnd_ == '!') db += kExclaimDb;
+          // (PROSODY agent11, lab knobs; 0: as before) the level follows the breath group: EN_BG_DB dB from its start
+          // (+half) to its end (-half), EN_AIR_DB by the planned fullness, and EN_BG_FINAL_DB more over the group's
+          // last part (from EN_BG_FINAL_FROM of it): 11labs fall 6.3 dB from a group's first words to its last (the
+          // last word 3.2 under the group's mean), puhuja 1.9 (1.2).
+          {
+            static const float kBgDb = param("EN_BG_DB", 0.0f), kAirDb = param("EN_AIR_DB", 0.0f),
+                               kBgFinDb = param("EN_BG_FINAL_DB", 0.0f), kBgStartDb = param("EN_BG_START_DB", 0.0f);
+            if ((kBgDb != 0 || kAirDb != 0 || kBgFinDb != 0 || kBgStartDb != 0) && w < wordGroupPos_.size()) {
+              const float g = wordGroupPos_[w];
+              db += kBgDb * (0.5f - g) + kAirDb * (wordAirU_[w] - 0.5f) +
+                    kBgStartDb * (1.0f - bgStep(0.0f, bgStartTo(), g)) - kBgFinDb * bgStep(bgFinalFrom(), 1.0f, g);
+            }
+          }
           if (phrase_[w].accent && vn[strlen(vn) - 1] == '1') db += kAccentDb;
           else if (!phrase_[w].accent) db += kFunctionWordDb;
           { static const float kEmoDb = param("EN_EMOTIVE_DB", 1.5f); if (kEmoDb != 0 && isEmotiveWord(phrase_[w].text)) db += kEmoDb; }

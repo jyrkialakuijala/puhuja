@@ -1396,13 +1396,13 @@ constexpr float kLungRest = 1000;        // before the first breath
 const float kLungRangeInv = 1.0f / (kLungMax - kLungRest);
 constexpr float kCommaBreathBelow = 900; // breathe at a comma below this (1600: three breaths in a row at the commas of "Let every nation know, whether it wishes us well or ill, that we shall pay any price,", 360-435 ms each where the recordings' commas are 170 ms; 1000: breaths fell at phrase splits)
 constexpr float kInhaleRate = 2500;      // cm^3/s while breathing in
-constexpr float kInhaleMinMs = 180, kInhaleMaxMs = 600;
-constexpr float kCatchInhaleMaxMs = 300;  // within a sentence (at a comma or a seam): a quick catch breath
+const float kInhaleMinMs = param("kInhaleMinMs", 180.0f), kInhaleMaxMs = param("kInhaleMaxMs", 600.0f);
+const float kCatchInhaleMaxMs = param("kCatchInhaleMaxMs", 300.0f);  // within a sentence (at a comma or a seam): a quick catch breath
 // The breath's length by its place: a catch breath inside a sentence shorter,
 // between sentences longer, after an empty line (a paragraph) longer still.
-constexpr float kCatchBreathScale = 0.85f, kSentenceBreathScale = 1.10f, kParagraphBreathScale = 1.30f;
+const float kCatchBreathScale = param("kCatchBreathScale", 0.85f), kSentenceBreathScale = param("kSentenceBreathScale", 1.10f), kParagraphBreathScale = param("kParagraphBreathScale", 1.30f);
 constexpr int kBreathHoldStops = 0;  // silence between the inhale and the first sound
-constexpr float kInhaleNoise = 0.035f;  // breathing-in noise (0.09: 23 dB under the vowels, a reader's breath is 35 under; heard as artificial)
+const float kInhaleNoise = param("kInhaleNoise", 0.035f);  // breathing-in noise (0.09: 23 dB under the vowels, a reader's breath is 35 under; heard as artificial)
 // Breathing in: turbulence at the lips, nose and glottis, heard as a broad
 // airy hiss (not shaped by the vocal tract, which would make it a nasal hum).
 // Darker and flatter than it was ({700, 6500, 2500, 3000}): a reader's
@@ -1418,7 +1418,7 @@ constexpr float kInhaleRiseMs = 70, kInhaleFallMs = 120;
 constexpr FricShape kInhaleSnatchShape = {700, 6500, 2500, 3000, 1.0f};
 // Lung pressure eases off as the breath is used up (loudness declination)
 // and falls steeply near empty.
-constexpr float kLungPressureSpent = 0.85f;  // relative pressure at kLungRest and below
+const float kLungPressureSpent = param("kLungPressureSpent", 0.85f);  // relative pressure at kLungRest and below
 constexpr float kLungEmpty = 150;            // below this the pressure collapses
 constexpr float kVowelLevelRiseMs = 40;  // a vowel's level after a sonorant consonant
 constexpr float kNoiseCrossfadeMs = 4;  // noise fading in from silence
@@ -2339,6 +2339,9 @@ void Synth::breathPoint(bool sentence, bool paragraph, bool snatched, bool plann
                    (paragraph ? kParagraphBreathScale : sentence ? kSentenceBreathScale : kCatchBreathScale);
   nextInhaleMs_ = ms;
   nextInhaleSnatched_ = snatched;
+  // Debug: PUHUJA_BREATH_TRACE=file writes every breath taken (timeline s, ms, kind, the planned air before it).
+  static FILE* btrace = std::getenv("PUHUJA_BREATH_TRACE") ? std::fopen(std::getenv("PUHUJA_BREATH_TRACE"), "w") : nullptr;
+  if (btrace) std::fprintf(btrace, "%.4f\t%.0f\t%d\t%.0f\n", timeline_ / fs_, ms, paragraph ? 2 : sentence ? 1 : 0, planVolume_), std::fflush(btrace);
   // ... and a short silent hold after it before the first sound (the inhale
   // ran up to it: its noise just before a vowel was heard as ð, "a" -> "the").
   const int stops = static_cast<int>(std::ceil(ms / 15.0f)) + kBreathHoldStops;
@@ -8572,7 +8575,10 @@ float Synth::tick() {
     y = line_.output() * kLineGain;
     if (kLineEqShelfDb != 0) y = lineEqShelf_.process(y);
     if (kLineEqPeakDb != 0) y = lineEqPeak_.process(y);
-    cPar = 0;
+    // (PROSODY agent11, lab knob; 0: as before) the breathing-in noise x LINE_INHALE_GAIN: the line tract dropped it
+    // with the parallel branch, so every breath was silent (the 11labs readers' are ~9 dB over puhuja's room tone).
+    static const float kLineInhaleGain = param("LINE_INHALE_GAIN", 0.0f);
+    cPar = kLineInhaleGain != 0 ? inhale * kLineInhaleGain : 0.0f;
   }
   float out = lowCut_.process(outHp_.process(y * kOutGain + cPar));
   if (voice_.treble != 0) out = trebleShelf_.process(out);
