@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
+#include <cstring>
 
 namespace puhuja {
 
@@ -85,14 +87,70 @@ struct AreaPre {
 
 float TractShape::area(float x) const { return AreaPre(*this).area(x); }
 
+// exp(x) for the log areas (|x| < ~10): 2^n x a degree-6 polynomial on [-ln2/2, ln2/2]; relative error ~2e-7.
+// Branch-free and call-free, so the sections loop vectorizes (AVX-512: 16 points per instruction).
+inline float fastExp(float x) {
+  const float n = std::nearbyint(x * 1.44269504f);
+  const float r = x - n * 0.693145752f - n * 1.42860677e-6f;
+  float p = 1.0f / 720.0f;
+  p = p * r + 1.0f / 120.0f;
+  p = p * r + 1.0f / 24.0f;
+  p = p * r + 1.0f / 6.0f;
+  p = p * r + 0.5f;
+  p = p * r + 1.0f;
+  p = p * r + 1.0f;
+  const int32_t e = static_cast<int32_t>(n) + 127;
+  float scale;
+  const int32_t bits = e << 23;
+  std::memcpy(&scale, &bits, 4);
+  return p * scale;
+}
+// cos^2(pi/2 d) for |d| <= 1, as a polynomial in u = d^2 (the Taylor series of (1 + cos(pi d)) / 2 to u^7; error
+// < 3e-6 at |d| = 1).
+inline float cos2Half(float d) {
+  const float u = d * d;
+  const float c[] = {1.0f, -2.4674011f, 2.0293560f, -0.66763150f, 0.11766490f, -0.012903506f, 0.00096478745f, -5.2321e-5f};
+  float p = c[7];
+  for (int i = 6; i >= 0; --i) p = p * u + c[i];
+  return p;
+}
+
 std::vector<float> TractShape::sections(int n) const {
-  const AreaPre pre(*this);
-  std::vector<float> a(n);
+  const AreaPre p(*this);
+  // 8 points per section (the average smooths the hump's and the ramps' edges), all at once: the loop has no
+  // calls and no branches on x, so it runs 16 points per AVX-512 instruction.
+  const int m = 8 * n;
   const float dx = length / n;
+  std::vector<float> v(m);
+  const float iLar = 1.0f / p.lar.w, iHyIn = 1.0f / p.hyIn.w, iHyOut = 1.0f / p.hyOut.w, iVel = 1.0f / p.velum.w,
+              iFrIn = 1.0f / p.frIn.w, iFrOut = 1.0f / p.frOut.w, iLip = 1.0f / p.lip.w, iWc = 1.0f / p.wcM;
+  auto rmp = [](float x, float x0, float inv) {
+    const float t = std::min(std::max((x - x0) * inv, 0.0f), 1.0f);
+    return t * t * (3.0f - 2.0f * t);
+  };
+  const bool hypo = p.hypo, front = p.front, hump = p.hump;
+  for (int i = 0; i < m; ++i) {
+    const float x = (static_cast<float>(i >> 3) + (static_cast<float>(i & 7) + 0.5f) * 0.125f) * dx;
+    float lnA = p.lnLar + (p.lnPh - p.lnLar) * rmp(x, p.lar.x0, iLar);
+    if (hypo) {
+      const float w = rmp(x, p.hyIn.x0, iHyIn) * (1.0f - rmp(x, p.hyOut.x0, iHyOut));
+      lnA += std::max(p.lnHy - lnA, 0.0f) * w;
+    }
+    lnA += (p.lnOr - p.lnPh) * rmp(x, p.velum.x0, iVel);
+    if (front) lnA += p.lnFront * rmp(x, p.frIn.x0, iFrIn) * (1.0f - rmp(x, p.frOut.x0, iFrOut));
+    if (hump) {
+      const float d = (x - p.xcL) * iWc;
+      const float in = std::fabs(d) < 1.0f ? 1.0f : 0.0f;
+      lnA += in * p.scM * (p.lnAc - lnA) * cos2Half(std::min(std::fabs(d), 1.0f));
+    }
+    lnA += (p.lnLip - lnA) * rmp(x, p.lip.x0, iLip);
+    v[i] = fastExp(lnA);
+  }
+  std::vector<float> a(n);
   for (int k = 0; k < n; ++k) {
     float sum = 0;
-    for (int s = 0; s < 8; ++s) sum += pre.area((k + (s + 0.5f) / 8.0f) * dx);
-    a[k] = sum / 8.0f;
+    for (int s = 0; s < 8; ++s) sum += v[8 * k + s];
+    a[k] = sum * 0.125f;
   }
   return a;
 }
