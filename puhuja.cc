@@ -677,13 +677,13 @@ const float kLinePauseStopPressMs = param("LINE_PAUSE_STOP_PRESS_MS", 0.0f);
 // (a louder release jet, 1-2 kHz about -20 dB as Kokoro's) 13 / 10, control +6 / +6; a faster opening
 // (LINE_GI_REL_SCALE 0.6) 22 alone. A
 // louder breath (PRESS 1.3) or a palatal place is heard d (66, 99), a held slit ɹ (70), the voice bar does nothing (30-36).
-const float kGiBurst = param("LINE_GI_BURST", -1.0f), kGiRelRe = param("LINE_GI_REL_RE", -1.0f),
+const float kGiBurst = param("LINE_GI_BURST", -1.0f), kGiRelRe = param("LINE_GI_REL_RE", 3.0f),
             kGiRelReMs = param("LINE_GI_REL_RE_MS", -1.0f), kGiPress = param("LINE_GI_PRESS", -1.0f),
             kGiDevoice = param("LINE_GI_DEVOICE", -1.0f), kGiLeadMs = param("LINE_GI_LEAD_MS", -1.0f),
             kGiExpand = param("LINE_GI_EXPAND_FLOW", -1.0f), kGiVotMs = param("LINE_GI_VOT_MS", -1.0f),
             kGiPinchW = param("LINE_GI_PINCH_W", -1.0f), kGiPinchX = param("LINE_GI_PINCH_X", -1.0f),
             kGiPinchAc = param("LINE_GI_PINCH_AC", -1.0f), kGiPinchMs = param("LINE_GI_PINCH_MS", -1.0f),
-            kGiPinchWc = param("LINE_GI_PINCH_WC", -1.0f), kGiJetD = param("LINE_GI_JET_D", -1.0f),
+            kGiPinchWc = param("LINE_GI_PINCH_WC", 7.0f), kGiJetD = param("LINE_GI_JET_D", -1.0f),
             kGiBurstMs = param("LINE_GI_BURST_MS", -1.0f), kGiBurstA = param("LINE_GI_BURST_A", -1.0f),
             kGiRelScale = param("LINE_GI_REL_SCALE", -1.0f), kGiSoft = param("LINE_GI_SOFT", -1.0f);
 const float kLinePauseStopPressRampMs = param("LINE_PAUSE_STOP_PRESS_RAMP_MS", 30.0f);
@@ -2993,7 +2993,7 @@ void ihShape(TractShape* sh, unsigned char ctx) {
   // LINE_IHS_FA (the front space). Against five Kokoro voices (words1k, male, middle) F2 1842 vs 1688 Hz before l, 2054
   // vs 1951 before n / m, 2066 vs 1763 after l ɹ w before a nasal; F3 2292 vs 2510 before l.
   if (!ihsCtx(ctx)) return;
-  static const float kIhsE = param("LINE_IHS_E", -1.0f), kIhsSchwa = param("LINE_IHS_SCHWA", 0.0f),
+  static const float kIhsE = param("LINE_IHS_E", -1.0f), kIhsSchwa = param("LINE_IHS_SCHWA", 0.45f),
                      kIhsEh = param("LINE_IHS_EH", 0.0f), kIhsAc = param("LINE_IHS_AC", 1.0f),
                      kIhsAph = param("LINE_IHS_APH", 1.0f), kIhsDx = param("LINE_IHS_DX", 0.0f),
                      kIhsHa = param("LINE_IHS_HA", 0.0f), kIhsFa = param("LINE_IHS_FA", 0.0f);
@@ -3124,8 +3124,8 @@ bool rCodaScope(Ph prev) {
   return kRCodaScope <= 0 || frontVowel(prev);
 }
 void rCodaShape(TractShape* sh) {
-  static const float kRCodaAph = param("LINE_R_CODA_APH", 1.0f), kRCodaLipA = param("LINE_R_CODA_LIPA", 1.0f),
-                     kRCodaAc = param("LINE_R_CODA_AC", 1.0f), kRCodaX = param("LINE_R_CODA_X", -1.0f),
+  static const float kRCodaAph = param("LINE_R_CODA_APH", 0.7f), kRCodaLipA = param("LINE_R_CODA_LIPA", 1.5f),
+                     kRCodaAc = param("LINE_R_CODA_AC", 1.0f), kRCodaX = param("LINE_R_CODA_X", 0.8f),
                      kRCodaMix = param("LINE_R_CODA_MIX", 0.0f), kRCodaAor = param("LINE_R_CODA_AOR", 1.0f);
   static const int kRCodaRow = param("LINE_R_CODA_ROW", static_cast<int>(Ph::IH));
   TractShape row;
@@ -4340,8 +4340,8 @@ void Synth::emit(const Token& tok, const Ph* next) {
           // 0 keeps the vowel's place), pharynx, lip area, hump area, oral area x LINE_RCOLOR_APH / _LIPA / _AC / _AOR. "Bare" male: the
           // ɛ's F2 fell to 1190 Hz while its F3 rose 2250 -> 2660 (an l: Kokoro's "Bell" 900 / 2600) before the ɹ
           // brought F3 to 1700; Kokoro's "Bare" lowers F2 and F3 together (1850 / 2440 -> 1270 / 1790).
-          static const float kRcKeepX = param("LINE_RCOLOR_KEEPX", -1.0f), kRcAph = param("LINE_RCOLOR_APH", 1.0f),
-                             kRcLipA = param("LINE_RCOLOR_LIPA", 1.0f), kRcAc = param("LINE_RCOLOR_AC", 1.0f),
+          static const float kRcKeepX = param("LINE_RCOLOR_KEEPX", -1.0f), kRcAph = param("LINE_RCOLOR_APH", 0.35f),
+                             kRcLipA = param("LINE_RCOLOR_LIPA", 1.5f), kRcAc = param("LINE_RCOLOR_AC", 1.0f),
                              kRcAll = param("LINE_RCOLOR_K_ALL", 0.0f), kRcAor = param("LINE_RCOLOR_AOR", 1.0f),
                              kRcSc = param("LINE_RCOLOR_SC", 1.0f);  // (the hump's strength x: a weak hump passes the l's place 0.40 unheard)
           if (frontVowel(tok.ph) || kRcAll > 0) {
@@ -5069,7 +5069,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // The stressed standalone ɪ before n / m likewise (IH-STRESSED agent14 round M lab knobs; -1 / 0: as every vowel):
     // its port x LINE_IHS_ANTICIP_SCALE, shut until LINE_IHS_NASAL_LATE of the vowel ("Lin" -> plan, "Min" -> men:
     // the nasalised ɪ is heard open).
-    static const float kIhsAnScale = param("LINE_IHS_ANTICIP_SCALE", -1.0f), kIhsAnLate = param("LINE_IHS_NASAL_LATE", 0.0f);
+    static const float kIhsAnScale = param("LINE_IHS_ANTICIP_SCALE", -1.0f), kIhsAnLate = param("LINE_IHS_NASAL_LATE", 0.8f);
     const bool ihsLate = tok.ph == Ph::IH && (tok.shape.ihctx & 1) && (tok.shape.ihctx & 4) && (kIhsAnScale >= 0 || kIhsAnLate > 0);
     const bool ehLate = (tok.ph == Ph::EH && (kEhAnScale >= 0 || kEhAnLate > 0)) || ihsLate;
     // ... and before an m (round J, M agent; 1 / 0: as before): LINE_ANTICIP_M_SCALE, LINE_ANTICIP_M_LATE as the n's.

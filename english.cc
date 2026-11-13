@@ -2993,9 +2993,9 @@ void EnglishReader::sayPhrase(char end) {
         // l, EN_IHS_NAS_LEN before n / m, EN_IHS_LPREV_LEN after l ɹ w, EN_IHS_NPREV_LEN after m n; the l / n / m after
         // a stressed ɪ x EN_IHS_CODA_LEN.
         {
-          static const float kIhsLLen = param("EN_IHS_L_LEN", 1.0f), kIhsNasLen = param("EN_IHS_NAS_LEN", 1.0f),
+          static const float kIhsLLen = param("EN_IHS_L_LEN", 0.75f), kIhsNasLen = param("EN_IHS_NAS_LEN", 0.75f),
                              kIhsLPrevLen = param("EN_IHS_LPREV_LEN", 1.0f), kIhsNPrevLen = param("EN_IHS_NPREV_LEN", 1.0f),
-                             kIhsCodaLen = param("EN_IHS_CODA_LEN", 1.0f);
+                             kIhsCodaLen = param("EN_IHS_CODA_LEN", 1.4f);
           auto stressedIh = [&](size_t j) {
             const char* nm = kEnglishTokens[tokens[j] - 0x80];
             return baseName(tokens[j]) == "IH" && (nm[strlen(nm) - 1] == '1' || nm[strlen(nm) - 1] == '2');
