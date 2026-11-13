@@ -870,12 +870,12 @@ const float kLineFFric = param("LINE_F_FRIC", 1.062f) /* cost Whisper 897 compos
 // its -tion ʃ dark (0.4-1.3 kHz), which Jyrki wanted kept dark. LINE_SH_FRIC: every ʃ's gain (x LINE_FRIC); before a
 // vowel other than ə additionally LINE_SH_VOWEL_FRIC, and the place LINE_SH_VOWEL_X (< 0: LINE_SH_X).
 const float kLineShFric = param("LINE_SH_FRIC", 1.0f);
-const float kLineShVowelFric = param("LINE_SH_VOWEL_FRIC", 6.0f);
+const float kLineShVowelFric = param("LINE_SH_VOWEL_FRIC", 3.0f);
 // ... for a ʃ that does not start its word (a word-final ʃ linking into the next word's vowel, "abolish all": Jyrki
 // 2026-11-06 "sounds too sharp"): at 6 it ran 7 dB louder than Kokoro's (level +1.4 vs -3.8 re the vowel, > 5 kHz
 // -8.6 vs -16) while the word-initial ones ("shall") sat at Kokoro's. < 0: LINE_SH_VOWEL_FRIC.
 const float kLineShVowelFricLink = param("LINE_SH_VOWEL_FRIC_LINK", 2.2f);
-const float kLineShVowelX = param("LINE_SH_VOWEL_X", 0.84f);
+const float kLineShVowelX = param("LINE_SH_VOWEL_X", 0.78f);
 const float kLineShVowelAc = param("LINE_SH_VOWEL_AC", 1.0f);  // ... and its slit area x this (narrower: a faster jet, a higher band; it only lost level)
 const float kLineFinalPressMs = param("LINE_FINAL_PRESS_MS", 60.0f);  // (2026-11-04: final k heard 4 -> 8 of 80, Whisper; the "uh" after final p t k gone)
 //  // after a final voiceless stop the breath stops over this long from the release (0: at the pause)
@@ -5578,10 +5578,10 @@ void Synth::emit(const Token& tok, const Ph* next) {
   // 1452 (no hybrid veto). The vowel's centroid at its start 1023 -> 1571 Hz (male), +60 ms 1311 (Kokoro 1727, 1300).
   // Longer (ON_MS 80) the vowel was heard as iː; rounded lips (LIPA 0.5) cost level and brightness.
   {
-    static const float kShRelMix = param("LINE_SH_REL_MIX", 0.0f), kShRelOnMs = param("LINE_SH_REL_ON_MS", 50.0f),
-                       kShRelW = param("LINE_SH_REL_W", 2.0f), kShRelTongue = param("LINE_SH_REL_TONGUE", 1.0f),
+    static const float kShRelMix = param("LINE_SH_REL_MIX", 1.0f), kShRelOnMs = param("LINE_SH_REL_ON_MS", 50.0f),
+                       kShRelW = param("LINE_SH_REL_W", 4.0f), kShRelTongue = param("LINE_SH_REL_TONGUE", 1.0f),
                        kShRelLipA = param("LINE_SH_REL_LIPA", 0.0f), kShRelPreMs = param("LINE_SH_REL_PRE_MS", 0.0f);
-    static const int kShRelRow = static_cast<int>(param("LINE_SH_REL_ROW", 2.0f));
+    static const int kShRelRow = static_cast<int>(param("LINE_SH_REL_ROW", 9.0f));
     const bool shVHere = tok.ph == Ph::SH && !inAffricate_ && next && isVowel(*next) && *next != Ph::Schwa;
     TractShape v, o;
     if (tract_ == Tract::Line && shVHere && kShRelMix > 0 && lineShapeOf(*next, &v) && lineShapeOf(static_cast<Ph>(kShRelRow), &o)) {
