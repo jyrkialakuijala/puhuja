@@ -8779,7 +8779,11 @@ float Synth::tick() {
   // silence (which sounded like the recording switching off).
   roomLp1_ += kRoomLp_ * (noise() - roomLp1_);
   roomLp2_ += kRoomLp_ * (roomLp1_ - roomLp2_);
-  out += kRoomTone * roomLp2_;
+  // (LINE_ROOM_TONE, 0.038: as before; 0 = digital silence: EH-AE agent14 round M found Whisper reads the floor before
+  // a soft l onset as a voiceless stop's aspiration, Len -> plan; Jyrki 2026-11-13: "you can make digital silence again,
+  // I'll listen to it if it gives 100+ words")
+  static const float kRoomToneK = param("LINE_ROOM_TONE", kRoomTone);
+  out += kRoomToneK * roomLp2_;
   return kMasterGain * voice_.gain * out;
 }
 
