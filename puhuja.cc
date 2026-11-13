@@ -2945,7 +2945,12 @@ void eyEndShape(TractShape* sh, bool female, unsigned ctx) {
 // one-syllable words of words1k) the ɪ's middle sits at 374/1973 Hz (male; Kokoro 469/1795), female 434/2230
 // (547/2106): F2 at puhuja's own iː (1969) and eɪ's end (1923), F1 2-4 st low; Whisper heard ɪ as eɪ 361 and iː 178
 // times in one-syllable words (dict rank 9: 45 % wrong).
-void ihShape(TractShape* sh) {
+bool ihsCtx(unsigned char ctx) {
+  static const int kIhsMask = param("LINE_IHS_CTX_MASK", 30);
+  return (ctx & 1) && (ctx & kIhsMask);
+}
+void ihShape(TractShape* sh, unsigned char ctx) {
+  const TractShape row = *sh;
   static const float kIhE = param("LINE_IH_MIX_E", 0.3f), kIhEh = param("LINE_IH_MIX_EH", 0.0f),
                      kIhSchwa = param("LINE_IH_MIX_SCHWA", 0.0f), kIhDx = param("LINE_IH_DX", 0.0f),
                      kIhAc = param("LINE_IH_AC", 1.0f);
@@ -2955,6 +2960,42 @@ void ihShape(TractShape* sh) {
   if (kIhSchwa > 0 && lineShapeOf(Ph::Schwa, &o)) *sh = lineShapeMix(*sh, o, kIhSchwa);
   if (kIhAc != 1.0f) sh->ac *= kIhAc;
   if (kIhDx != 0) { sh->xc += kIhDx; sh->sc = lineVowelStrength(sh->xc, sh->wc, sh->length); }
+  // (IH-STRESSED agent14 round M lab knobs; -1 / 0 / 1: as above) a stressed ɪ beside l / n (Shape::ihctx 1 and any bit
+  // of LINE_IHS_CTX_MASK: 2 l next, 4 n / m next, 8 after l ɹ w, 16 after m n), heard as eɪ / ɛ ("Mill" -> mail, "Lin"
+  // -> plan): its e share LINE_IHS_E (< 0: LINE_IH_MIX_E), then toward ə by LINE_IHS_SCHWA, ɛ by LINE_IHS_EH; its
+  // opening x LINE_IHS_AC, pharynx x LINE_IHS_APH, place + LINE_IHS_DX, cavity colour + LINE_IHS_HA (hypopharynx) and
+  // LINE_IHS_FA (the front space). Against five Kokoro voices (words1k, male, middle) F2 1842 vs 1688 Hz before l, 2054
+  // vs 1951 before n / m, 2066 vs 1763 after l ɹ w before a nasal; F3 2292 vs 2510 before l.
+  if (!ihsCtx(ctx)) return;
+  static const float kIhsE = param("LINE_IHS_E", -1.0f), kIhsSchwa = param("LINE_IHS_SCHWA", 0.0f),
+                     kIhsEh = param("LINE_IHS_EH", 0.0f), kIhsAc = param("LINE_IHS_AC", 1.0f),
+                     kIhsAph = param("LINE_IHS_APH", 1.0f), kIhsDx = param("LINE_IHS_DX", 0.0f),
+                     kIhsHa = param("LINE_IHS_HA", 0.0f), kIhsFa = param("LINE_IHS_FA", 0.0f);
+  if (kIhsE >= 0 && kIhsE != kIhE) {
+    *sh = row;
+    if (kIhsE > 0 && lineShapeOf(Ph::E, &o)) *sh = lineShapeMix(*sh, o, kIhsE);
+    if (kIhEh > 0 && lineShapeOf(Ph::EH, &o)) *sh = lineShapeMix(*sh, o, kIhEh);
+    if (kIhSchwa > 0 && lineShapeOf(Ph::Schwa, &o)) *sh = lineShapeMix(*sh, o, kIhSchwa);
+    if (kIhAc != 1.0f) sh->ac *= kIhAc;
+    if (kIhDx != 0) { sh->xc += kIhDx; sh->sc = lineVowelStrength(sh->xc, sh->wc, sh->length); }
+  }
+  // (before n / m the ə share LINE_IHS_SCHWA_N instead when >= 0: with the port shut late, LINE_IHS_NASAL_LATE, the
+  // oral ɪ is no longer pulled up by the port, and 0.3 put its F2 under Kokoro's: male 1758 vs 1931 Hz)
+  static const float kIhsSchwaN = param("LINE_IHS_SCHWA_N", -1.0f);
+  const float sw = (ctx & 4) && kIhsSchwaN >= 0 ? kIhsSchwaN : kIhsSchwa;
+  if (sw > 0 && lineShapeOf(Ph::Schwa, &o)) *sh = lineShapeMix(*sh, o, sw);
+  if (kIhsEh > 0 && lineShapeOf(Ph::EH, &o)) *sh = lineShapeMix(*sh, o, kIhsEh);
+  if (kIhsAc != 1.0f) sh->ac *= kIhsAc;
+  if (kIhsAph != 1.0f) sh->aPharynx *= kIhsAph;
+  // ... its lips x LINE_IHS_LIPA and the tract + LINE_IHS_LEN cm: the ə share lowers F2 and with it the voice's 1-3 kHz
+  // share, already 8-10 dB under Kokoro's and 11labs' (male, hard words: -19.2 dB re total vs -8.9 / -11.2; LINE_IHS_SCHWA
+  // 0.45: -19.9): the lab's bright term; wider lips or a shorter tract lift it back.
+  static const float kIhsLipA = param("LINE_IHS_LIPA", 1.0f), kIhsLen = param("LINE_IHS_LEN", 0.0f);
+  if (kIhsLipA != 1.0f) sh->aLip *= kIhsLipA;
+  if (kIhsLen != 0.0f) { sh->length += kIhsLen; sh->sc = lineVowelStrength(sh->xc, sh->wc, sh->length); }
+  if (kIhsDx != 0) { sh->xc += kIhsDx; sh->sc = lineVowelStrength(sh->xc, sh->wc, sh->length); }
+  if (kIhsHa != 0) sh->dHypoA += kIhsHa;
+  if (kIhsFa != 0) sh->dFrontA += kIhsFa;
 }
 
 
@@ -4132,7 +4173,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
     }
     if (have && tok.ph == Ph::E && next && *next == Ph::IH) eyStartShape(&sh, female_, tok.shape.eyctx);
     if (have && tok.ph == Ph::IH && lastPh_ == Ph::E) eyEndShape(&sh, female_, tok.shape.eyctx);
-    if (have && tok.ph == Ph::IH && lastPh_ != Ph::E && lastPh_ != Ph::A && lastPh_ != Ph::AO) ihShape(&sh);
+    if (have && tok.ph == Ph::IH && lastPh_ != Ph::E && lastPh_ != Ph::A && lastPh_ != Ph::AO) ihShape(&sh, tok.shape.ihctx);
     if (have && tok.ph == Ph::AH) ahShape(&sh, lastPh_, next, female_, prevWasPause_);
     // (round-H ʊ agent, lab) the standalone ʊ (not the end of aʊ / oʊ): its own shape (uhShape); uhRow keeps the row's
     // shape for its late key (LINE_UH_LATE_ROW below).
@@ -4374,6 +4415,22 @@ void Synth::emit(const Token& tok, const Ph* next) {
           if (next && *next == Ph::L && kEhLOffMix > 0 && lineShapeOf(Ph::L, &o)) late = lineShapeMix(late, o, kEhLOffMix);
           lateNoUw = late;  // (an ɛ has no uː changes: its late mix counts as its own end, as in the EH agent's lab)
         }
+        // (IH-STRESSED agent14 round M lab knobs; 0 / -1 / 1: off) the stressed ɪ's late key beside l / n (ihsCtx): toward
+        // the l's shape before an l (LINE_IHS_L_OFF), toward ə (LINE_IHS_OFF_SCHWA; before n / m LINE_IHS_N_OFF_SCHWA
+        // when >= 0), its opening x LINE_IHS_LATE_AC. Kokoro's "Mill" holds F2 ~1800 Hz for 40-50 ms, then falls into
+        // the l over ~100 ms (F1 rising 430 -> 550); puhuja's holds 1880-1910 for 130 ms (F1 ~410): a long front vowel.
+        static const float kIhsLOff = param("LINE_IHS_L_OFF", 0.0f), kIhsOffSw = param("LINE_IHS_OFF_SCHWA", 0.0f),
+                           kIhsNOffSw = param("LINE_IHS_N_OFF_SCHWA", -1.0f), kIhsLateAc = param("LINE_IHS_LATE_AC", 1.0f);
+        if (tok.ph == Ph::IH && ihsCtx(tok.shape.ihctx) && lastPh_ != Ph::E && lastPh_ != Ph::A && lastPh_ != Ph::AO &&
+            (kIhsLOff > 0 || kIhsOffSw > 0 || kIhsNOffSw >= 0 || kIhsLateAc != 1.0f)) {
+          const bool nas = next && (*next == Ph::N || *next == Ph::M);
+          const float off = nas && kIhsNOffSw >= 0 ? kIhsNOffSw : kIhsOffSw;
+          TractShape o;
+          if (off > 0 && lineShapeOf(Ph::Schwa, &o)) late = lineShapeMix(late, o, off);
+          if (next && *next == Ph::L && kIhsLOff > 0 && lineShapeOf(Ph::L, &o)) late = lineShapeMix(late, o, kIhsLOff);
+          late.ac *= kIhsLateAc;
+          lateNoUw = late;  // (an ɪ has no uː changes: its late mix counts as its own end, as the ɛ's)
+        }
         // The ɔ's late key mixed toward ʌ (LINE_AO_OFF_MIX; AO agent 2026-11-11, 0 = as before): a centring end against
         // the oʊ reading (Whisper: "Paul" -> "pole"; oʊ closes, the American ɔ opens or centres).
         static const float kAoOffMix = param("LINE_AO_OFF_MIX", 0.0f);
@@ -4403,6 +4460,12 @@ void Synth::emit(const Token& tok, const Ph* next) {
         static const float kLineAoKeyTo = param("LINE_AO_KEY_TO", -1.0f);
         const bool codaLRelease = tok.ph == Ph::L && next && *next == Ph::H;  // (a vowel next: no word-boundary knowledge here, so only before h)
         lineKeys_.push_back({t0 + (codaLRelease ? kLineCodaLKey : tok.ph == Ph::W ? kLineWKeyTo : tok.ph == Ph::AA && kLineAaKeyTo >= 0 ? kLineAaKeyTo : tok.ph == Ph::AO && kLineAoKeyTo >= 0 ? kLineAoKeyTo : hold ? 0.7 : 0.5) * dur, late});
+        // (IH-STRESSED agent14 round M lab knobs; -1 / 1: as every vowel) the stressed ɪ beside l / n (ihsCtx): its shape
+        // demanded from LINE_IHS_FROM to LINE_IHS_TO of its length (else 0.3 / 0.7), weight x LINE_IHS_W; with a late key
+        // of its own (LINE_IHS_L_OFF ...) that key demanded from LINE_IHS_LATE_AT (else the r-colour share).
+        static const float kIhsFrom = param("LINE_IHS_FROM", -1.0f), kIhsTo = param("LINE_IHS_TO", -1.0f),
+                           kIhsW = param("LINE_IHS_W", 1.0f), kIhsLateAt = param("LINE_IHS_LATE_AT", -1.0f);
+        const bool ihsKey = tok.ph == Ph::IH && ihsCtx(tok.shape.ihctx) && lastPh_ != Ph::E && lastPh_ != Ph::A && lastPh_ != Ph::AO;
         {
           // The planner's demands: the held middle; an r-coloured end of its own.
           const bool rColoured = lateNoUw.ac != sh.ac || lateNoUw.xc != sh.xc || lateNoUw.aLip != sh.aLip || ((uhAlone || tok.ph == Ph::AH) && late.aPharynx != sh.aPharynx);  // (ʊ: LINE_UH_LATE_APH; uː: LINE_UW_LATE_*; ʌ: LINE_AH_LATE_APH)
@@ -4676,6 +4739,11 @@ void Synth::emit(const Token& tok, const Ph* next) {
             // (Shape::erctx 1 / 2, english.cc EN_ER_INIT): their demand windows (shares of the sound) LINE_ERI_FROM /
             // _TO and LINE_ERI_R_FROM / _R_TO, weights x LINE_ERI_W / _R_W, the ə's lead after a pause LINE_ERI_LEAD_MS
             // (> 0; else the ə's LINE_SCHWA_PAUSE_LEAD_MS).
+            if (ihsKey) {
+              if (kIhsFrom >= 0) dFrom = kIhsFrom;
+              if (kIhsTo >= 0) dTo = kIhsTo;
+              dW *= kIhsW;
+            }
             if (tok.shape.erctx) {
               static const float kEriFrom = param("LINE_ERI_FROM", -1.0f), kEriTo = param("LINE_ERI_TO", -1.0f), kEriW = param("LINE_ERI_W", 1.0f),
                                  kEriRFrom = param("LINE_ERI_R_FROM", -1.0f), kEriRTo = param("LINE_ERI_R_TO", -1.0f),
@@ -4699,11 +4767,11 @@ void Synth::emit(const Token& tok, const Ph* next) {
             // Kokoro's ɛ before r has its F3 down by the last third (male 2313, female 2187; puhuja 2396 / 2688).
             static const float kEhRAt = param("LINE_EH_R_AT", -1.0f), kEhLateAt = param("LINE_EH_LATE_AT", -1.0f);
             const float ehAt = next && *next == Ph::RR ? kEhRAt : kEhLateAt;
-            const double at = tok.ph == Ph::EH && ehAt >= 0 ? ehAt : uhAlone && kUhRAt >= 0 && next && *next == Ph::RR ? kUhRAt : open && kRColourOpenAt >= 0 ? kRColourOpenAt : frontVowel(tok.ph) && kRColourFrontAt >= 0 ? kRColourFrontAt : kRColourAt;
+            const double at = ihsKey && kIhsLateAt >= 0 ? kIhsLateAt : tok.ph == Ph::EH && ehAt >= 0 ? ehAt : uhAlone && kUhRAt >= 0 && next && *next == Ph::RR ? kUhRAt : open && kRColourOpenAt >= 0 ? kRColourOpenAt : frontVowel(tok.ph) && kRColourFrontAt >= 0 ? kRColourFrontAt : kRColourAt;
             // (round-I ʌ agent, lab) LINE_AH_W weighs the ʌ's two demands here too (its late key, LINE_AH_OFF_SCHWA,
             // lands in this branch).
             static const float kAhW2 = param("LINE_AH_W", 1.0f);
-            const float wv = tok.ph == Ph::AH && kAhW2 != 1.0f ? ws * kAhW2 : ws;
+            const float wv = (tok.ph == Ph::AH && kAhW2 != 1.0f ? ws * kAhW2 : ws) * (ihsKey ? kIhsW : 1.0f);
             // (R-POSTVOCALIC agent14 round M, lab; -1 / 1 / 0: as before) a vowel before an ɹ (front vowels; all with
             // LINE_RCOLOR_K_ALL 1): from LINE_RCOLOR_PRE_AT of it a middle demand with the vowel's place and the late
             // key's pharynx, lips and hump area (the F3 falls before the tongue moves back); the late demand's weight x
@@ -4935,7 +5003,12 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // (< 0: as every vowel), shut until LINE_EH_NASAL_LATE of the vowel and opened over the rest. A ɛ nasalized
     // over its whole 139 ms is the American [ɛə̃n] of "and": ɛ before a nasal was heard as æ 352 times ("send" -> sand).
     static const float kEhAnScale = param("LINE_EH_ANTICIP_SCALE", 1.3f), kEhAnLate = param("LINE_EH_NASAL_LATE", 0.85f);
-    const bool ehLate = tok.ph == Ph::EH && (kEhAnScale >= 0 || kEhAnLate > 0);
+    // The stressed standalone ɪ before n / m likewise (IH-STRESSED agent14 round M lab knobs; -1 / 0: as every vowel):
+    // its port x LINE_IHS_ANTICIP_SCALE, shut until LINE_IHS_NASAL_LATE of the vowel ("Lin" -> plan, "Min" -> men:
+    // the nasalised ɪ is heard open).
+    static const float kIhsAnScale = param("LINE_IHS_ANTICIP_SCALE", -1.0f), kIhsAnLate = param("LINE_IHS_NASAL_LATE", 0.0f);
+    const bool ihsLate = tok.ph == Ph::IH && (tok.shape.ihctx & 1) && (tok.shape.ihctx & 4) && (kIhsAnScale >= 0 || kIhsAnLate > 0);
+    const bool ehLate = (tok.ph == Ph::EH && (kEhAnScale >= 0 || kEhAnLate > 0)) || ihsLate;
     // ... and before an m (round J, M agent; 1 / 0: as before): LINE_ANTICIP_M_SCALE, LINE_ANTICIP_M_LATE as the n's.
     static const float kAnM = param("LINE_ANTICIP_M_SCALE", 1.0f), kAnMLate = param("LINE_ANTICIP_M_LATE", 0.0f);
     const bool mAnt = !ehLate && *next == Ph::M && (kAnM != 1.0f || kAnMLate > 0);
@@ -4968,8 +5041,10 @@ void Synth::emit(const Token& tok, const Ph* next) {
         e.anMs = kBoundaryMs;
       }
     } else if (ehLate || (*next == Ph::N && (kAnN != 1.0f || kAnNLate > 0))) {
-      const float lateShare = ehLate ? kEhAnLate : kAnNLate;
-      if (ehLate) {
+      const float lateShare = ihsLate ? kIhsAnLate : ehLate ? kEhAnLate : kAnNLate;
+      if (ihsLate) {
+        if (kIhsAnScale >= 0) e.an *= kIhsAnScale;
+      } else if (ehLate) {
         if (kEhAnScale >= 0) e.an *= kEhAnScale;
       } else {
         e.an = kAnNasal * kLineAnticipNasal * kAnN;

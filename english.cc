@@ -2961,6 +2961,40 @@ void EnglishReader::sayPhrase(char end) {
           for (size_t q = 0; q < tokens.size(); ++q) vowels += isVowelToken(tokens[q]);
           shape.ms *= kIhLen * (vowels == 1 ? kIhMonoLen : 1.0f);
         }
+        // The standalone ɪ's context for the line (Shape::ihctx) and the stressed ɪ's length beside l / n (IH-STRESSED
+        // agent14 round M lab knobs; 1: as before). A stressed ɪ beside l / n was heard as eɪ / ɛ ("Mill" -> mail, "Lin"
+        // -> plan): against five Kokoro voices per sex (words1k) its DTW-mapped span is 181 vs 121 ms before l (male),
+        // 145 vs 112 before n / m, 140 vs 97 after l ɹ w before a nasal; elsewhere 177 vs 174. x EN_IHS_L_LEN before an
+        // l, EN_IHS_NAS_LEN before n / m, EN_IHS_LPREV_LEN after l ɹ w, EN_IHS_NPREV_LEN after m n; the l / n / m after
+        // a stressed ɪ x EN_IHS_CODA_LEN.
+        {
+          static const float kIhsLLen = param("EN_IHS_L_LEN", 1.0f), kIhsNasLen = param("EN_IHS_NAS_LEN", 1.0f),
+                             kIhsLPrevLen = param("EN_IHS_LPREV_LEN", 1.0f), kIhsNPrevLen = param("EN_IHS_NPREV_LEN", 1.0f),
+                             kIhsCodaLen = param("EN_IHS_CODA_LEN", 1.0f);
+          auto stressedIh = [&](size_t j) {
+            const char* nm = kEnglishTokens[tokens[j] - 0x80];
+            return baseName(tokens[j]) == "IH" && (nm[strlen(nm) - 1] == '1' || nm[strlen(nm) - 1] == '2');
+          };
+          if (s.n == 1 && s.ph[0] == Ph::IH) {
+            const std::string pb = i > 0 ? baseName(tokens[i - 1]) : "", nb = i + 1 < tokens.size() ? baseName(tokens[i + 1]) : "";
+            int vowels = 0;
+            for (size_t q = 0; q < tokens.size(); ++q) vowels += isVowelToken(tokens[q]);
+            const bool st = stressedIh(i);
+            shape.ihctx = (st ? 1 : 0) | (nb == "L" ? 2 : 0) | (nb == "N" || nb == "M" ? 4 : 0) |
+                          (pb == "L" || pb == "R" || pb == "W" ? 8 : 0) | (pb == "M" || pb == "N" ? 16 : 0) | (vowels == 1 ? 32 : 0);
+            if (st) {
+              if (nb == "L") shape.ms *= kIhsLLen;
+              if (nb == "N" || nb == "M") shape.ms *= kIhsNasLen;
+              if (pb == "L" || pb == "R" || pb == "W") shape.ms *= kIhsLPrevLen;
+              if (pb == "M" || pb == "N") shape.ms *= kIhsNPrevLen;
+            }
+          }
+          const std::string cb = baseName(tokens[i]);
+          if (i > 0 && (cb == "L" || cb == "N" || cb == "M") && stressedIh(i - 1)) {
+            shape.ihctx = 64;
+            shape.ms *= kIhsCodaLen;
+          }
+        }
         // The unstressed ɜ after aʊ ("power", "hour", "flower") x this (EN_AW_ER_LEN;
         // Jyrki 2026-11-05: "the rhythm of the words is a little off, first
         // syllable should be stressed, 2nd unstressed": its ɜ ran 115 ms at the

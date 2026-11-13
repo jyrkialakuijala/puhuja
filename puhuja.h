@@ -272,6 +272,9 @@ class Synth {
                              // its word's final n, 2 that final n
     unsigned char erctx = 0;  // a word-initial ER0 before a vowel said ə + ɹ (english.cc EN_ER_INIT / EN_ER_INIT_AH,
                               // ER-INITIAL agent13 round L): 1 its ə, 2 its ɹ
+    unsigned char ihctx = 0;  // a standalone ɪ's context for the line's ɪ knobs (english.cc, IH-STRESSED agent14 round M):
+                              // 1 stressed, 2 an l next in its word, 4 an n / m next, 8 after l ɹ w, 16 after m n,
+                              // 32 a one-vowel word; on the l / n / m after a stressed ɪ: 64
   };
   void shapeNext(const Shape& s) { nextShape_ = s; }
 
