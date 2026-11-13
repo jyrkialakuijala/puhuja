@@ -2153,7 +2153,9 @@ Synth::Synth(float sampleRate, float baseF0) : fs_(sampleRate), baseF0_(baseF0 >
   ag_.set(0);
   an_.set(0);
   np_.set(kNasalPoleHz, kNasalBw, fs_);
-  kRoomLp_ = 1.0f - std::exp(-2.0f * kPi * kRoomToneHz / fs_);
+  // (LINE_ROOM_TONE_HZ, 1500: as before; EH-AE agent14 round M: a darker floor, 300, halves the stop Whisper hears
+  // before a word-initial l, Len -> plan)
+  kRoomLp_ = 1.0f - std::exp(-2.0f * kPi * param("LINE_ROOM_TONE_HZ", kRoomToneHz) / fs_);
   kNasLp_ = 1.0f - std::exp(-2.0f * kPi * kNasalLowCutHz / fs_);
   outHp_.highPass1(kOutputHighPassHz, fs_);
   lowCut_.highPass(kLowCutHz, fs_);
