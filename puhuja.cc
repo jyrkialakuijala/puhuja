@@ -3967,7 +3967,41 @@ void Synth::emit(const Token& tok, const Ph* next) {
                    : 0.0f;
       const Ph crow = tok.wordStart ? (kSwInitRow == 1 ? Ph::AA : kSwInitRow == 2 ? Ph::A : Ph::AH) : Ph::AH;
       if (final && lastPh_ == Ph::RR) cmix = kSwFinalRMix;
-      if (cmix > 0 && lineShapeOf(crow, &o)) sh = lineShapeMix(sh, o, std::min(cmix, 1.0f));
+      // (AX-NASAL agent14 round M, lab knobs; < 0 / 0 / 1: as before) an ə before a nasal of its word (Shape::axctx),
+      // heard ɪ or lost (combo10: "Commits" -> gimmicks, "Sutton" -> certain, "Lions" -> clients). Ten Kokoro voices
+      // (k1k words, DTW, male F1/F2/F3): "com-" 422/1431/2365 Hz vs 493/1352/2485 (F1 -3.4 st), other ə before n
+      // 365-410 vs 383-440 (F1 -1..-1.5, F3 -1.3..-1.8 st). Its mix toward LINE_AXN_ROW (0: ʌ, 1: ɑ, 2: a, 3: ɛ, 4: æ)
+      // is LINE_AXN_MIX (the word's first vowel after one consonant: LINE_AXC_MIX; after t / d: LINE_AXT_MIX; after a
+      // vowel: LINE_AXH_MIX; each < 0: the next one / as above), the female voice's + LINE_AXN_F_MIX; pharynx, lip
+      // area, lip length, tract length, constriction area and place x LINE_AXN_APH / _LIPA / _LIPL / _SHLEN / _AC / _XC.
+      const unsigned axc = tok.shape.axctx;
+      static const float kAxnMix = param("LINE_AXN_MIX", -1.0f), kAxcMix = param("LINE_AXC_MIX", -1.0f),
+                         kAxtMix = param("LINE_AXT_MIX", -1.0f), kAxhMix = param("LINE_AXH_MIX", -1.0f),
+                         kAxnFMix = param("LINE_AXN_F_MIX", 0.0f);
+      static const int kAxnRow = static_cast<int>(param("LINE_AXN_ROW", 0.0f));
+      Ph arow = crow;
+      if (axc) {
+        const float am = (axc & 2) && kAxcMix >= 0 ? kAxcMix : (axc & 4) && kAxtMix >= 0 ? kAxtMix
+                         : (axc & 8) && kAxhMix >= 0 ? kAxhMix : kAxnMix;
+        if (am >= 0) {
+          cmix = am + (female_ ? kAxnFMix : 0.0f);
+          arow = kAxnRow == 1 ? Ph::AA : kAxnRow == 2 ? Ph::A : kAxnRow == 3 ? Ph::EH : kAxnRow == 4 ? Ph::AE : Ph::AH;
+        }
+      }
+      if (cmix > 0 && lineShapeOf(arow, &o)) sh = lineShapeMix(sh, o, std::min(cmix, 1.0f));
+      if (axc) {
+        static const float kAxnAph = param("LINE_AXN_APH", 1.0f), kAxnLipA = param("LINE_AXN_LIPA", 1.0f),
+                           kAxnLipL = param("LINE_AXN_LIPL", 1.0f), kAxnShLen = param("LINE_AXN_SHLEN", 1.0f),
+                           kAxnAc = param("LINE_AXN_AC", 1.0f), kAxnXc = param("LINE_AXN_XC", 1.0f);
+        if (kAxnAph != 1.0f) sh.aPharynx *= kAxnAph;
+        if (kAxnLipA != 1.0f) sh.aLip *= kAxnLipA;
+        if (kAxnLipL != 1.0f) sh.lLip *= kAxnLipL;
+        if (kAxnAc != 1.0f) sh.ac *= kAxnAc;
+        if (kAxnXc != 1.0f || kAxnShLen != 1.0f) {
+          sh.xc *= kAxnXc; sh.length *= kAxnShLen;
+          sh.sc = lineVowelStrength(sh.xc, sh.wc, sh.length);
+        }
+      }
       if (kSwLipA != 1.0f) sh.aLip *= kSwLipA;
       if (kSwLipL != 1.0f) sh.lLip *= kSwLipL;
       if (kSwAc != 1.0f) sh.ac *= kSwAc;
@@ -4730,6 +4764,9 @@ void Synth::emit(const Token& tok, const Ph* next) {
             const bool rStop = tok.ph == Ph::RR && prevWasPlosive_;
             if (rStop && kRStopLeadMs > 0) preMs = kRStopLeadMs;
             if (rStop && kRStopW != 1.0f) ws *= kRStopW;
+            // (AX-NASAL agent14 round M, lab knob; 1: as before) an ə before a nasal of its word: its demand x LINE_AXN_W.
+            static const float kAxnW = param("LINE_AXN_W", 1.0f);
+            if (tok.ph == Ph::Schwa && tok.shape.axctx && kAxnW != 1.0f) ws *= kAxnW;
             // (Y agent round G, lab; 0 / 1: as before) the same for a j after a plosive ("cute", "beauty").
             static const float kJStopLeadMs = param("LINE_J_STOP_LEAD_MS", 30.0f), kJStopW = param("LINE_J_STOP_W", 4.0f);
             const bool jStop = tok.ph == Ph::J && prevWasPlosive_;
@@ -5090,6 +5127,23 @@ void Synth::emit(const Token& tok, const Ph* next) {
   {
     static const float kAhAn = param("LINE_AH_ANTICIP", 1.0f);
     if (tract_ == Tract::Line && tok.ph == Ph::AH && kAhAn != 1.0f && next && info(*next).cls == Cls::Nasal) e.an *= kAhAn;
+  }
+  // (AX-NASAL agent14 round M, lab knobs; 1 / 0: as before) an ə before a nasal of its word (Shape::axctx): its velum
+  // port x LINE_AXN_ANTICIP, shut until LINE_AXN_ANTICIP_LATE of it (the port over the whole vowel raised the -ɪn's F2 /
+  // F3 to an ɪ before a final n: N agent13's LINE_FN_ANTICIP 0, which already holds for an ə before its word's final n).
+  {
+    static const float kAxnAn = param("LINE_AXN_ANTICIP", 1.0f), kAxnAnLate = param("LINE_AXN_ANTICIP_LATE", 0.0f);
+    if (tract_ == Tract::Line && tok.ph == Ph::Schwa && tok.shape.axctx && next && info(*next).cls == Cls::Nasal) {
+      if (kAxnAn != 1.0f) e.an *= kAxnAn;
+      if (kAxnAnLate > 0 && e.an > 0) {
+        Event late{e.t + kAxnAnLate * dur};
+        late.an = e.an;
+        late.anMs = static_cast<float>((1.0f - kAxnAnLate) * dur / ms);
+        addEventAt(late);
+        e.an = aero.an;
+        e.anMs = kBoundaryMs;
+      }
+    }
   }
   // The release of a nasal into a vowel: how fast the mouth opens and the
   // velum closes, and how long the velum stays open into the vowel.
@@ -6017,9 +6071,14 @@ void Synth::emit(const Token& tok, const Ph* next) {
                        kFnPreW = param("LINE_FN_PRE_W", -1.0f);
     static const int kFnPreRow = static_cast<int>(param("LINE_FN_PRE_ROW", -1.0f));
     const bool fnPre = isN && (tok.shape.nctx & 2) && kFnPreMix >= 0;
-    const float preMix = fnPre ? kFnPreMix : mix;
+    // (AX-NASAL agent14 round M, lab knob; < 0: as before) after an ə the mix is LINE_AXN_NPRE_MIX: row 8 is the ə's raw
+    // row, so the n asked the ə's last 60 ms back to its raw close shape (F1 330-370 Hz), undoing LINE_SCHWA_IN_MIX.
+    static const float kAxnNPreMix = param("LINE_AXN_NPRE_MIX", -1.0f);
+    const bool axPre = isN && lastPh_ == Ph::Schwa && kAxnNPreMix >= 0 && !fnPre;
+    const float preMix = fnPre ? kFnPreMix : axPre ? kAxnNPreMix : mix;
     const float preMs = fnPre && kFnPreMs >= 0 ? kFnPreMs : kNPreMs, preW = fnPre && kFnPreW >= 0 ? kFnPreW : kNPreW;
-    const int preRow = fnPre && kFnPreRow >= 0 ? kFnPreRow : kNPreRow;
+    static const int kAxnNPreRow = static_cast<int>(param("LINE_AXN_NPRE_ROW", -1.0f));  // ... toward this row (13: ʌ; < 0: as above)
+    const int preRow = fnPre && kFnPreRow >= 0 ? kFnPreRow : axPre && kAxnNPreRow >= 0 ? kAxnNPreRow : kNPreRow;
     if (tract_ == Tract::Line && isN && preMix > 0 && prevWasVowel_ && lineShapeOf(lastPh_, &v) &&
         lineShapeOf(static_cast<Ph>(preRow), &o))
       addShapeDemand(std::max(e.t - preMs * ms, phonemeStart_ + 1), e.t + dur, mixN(v, o, preMix), lastPh_, preW);

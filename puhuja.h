@@ -277,6 +277,9 @@ class Synth {
                               // 32 a one-vowel word; on the l / n / m after a stressed ɪ: 64
     unsigned char gctx = 0;  // the line's initial-g knobs (english.cc, G-INITIAL agent14 round M): 1 a word-initial g
                              // before a vowel (LINE_GI_*)
+    unsigned char axctx = 0;  // an unstressed ə before a nasal of its word, not word-initial (english.cc, AX-NASAL agent14
+                              // round M): 1 always; 2 it is the word's first vowel after one consonant ("Commands"),
+                              // 4 after t or d ("Sutton", "Garden"), 8 after a vowel ("Lions", "Ian")
   };
   void shapeNext(const Shape& s) { nextShape_ = s; }
 

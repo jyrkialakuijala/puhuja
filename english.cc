@@ -888,6 +888,23 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
         { static const float kSwInitLen = param("EN_SCHWA_INIT_LEN", 1.0f), kSwLastLen = param("EN_SCHWA_LAST_LEN", 1.0f),
                              kSwMidLen = param("EN_SCHWA_MID_LEN", 1.0f);
           if (b == "AH" && !stressed && i + 1 < tok.size()) whole *= i == 0 ? kSwInitLen : inLastSyllable ? kSwLastLen : kSwMidLen; }
+        // (AX-NASAL agent14 round M, lab knobs; 1: as before) an unstressed ə before a nasal of its word, not word-initial,
+        // x EN_AXN_LEN (the word's first vowel after one consonant, "Commands": x EN_AXC_LEN instead; after t / d,
+        // "Sutton": x EN_AXT_LEN instead; the nasal after it: EN_AXN_NN_LEN below). Ten Kokoro voices (k1k words, DTW):
+        // the ə before n ran 118-137 ms here against 81-106 (male), 105-123 against 67-88 (female).
+        { static const float kAxnLen = param("EN_AXN_LEN", 1.0f), kAxcLen = param("EN_AXC_LEN", 1.0f),
+                             kAxtLen = param("EN_AXT_LEN", 1.0f);
+          auto axAt = [&](size_t j) {
+            if (j == 0 || j + 1 >= tok.size() || baseName(tok[j]) != "AH") return false;
+            const char* nm = kEnglishTokens[tok[j] - 0x80];
+            const std::string nb = baseName(tok[j + 1]);
+            return nm[strlen(nm) - 1] == '0' && (nb == "M" || nb == "N" || nb == "NG");
+          };
+          if (axAt(i)) {
+            const std::string pb = baseName(tok[i - 1]);
+            whole *= i == 1 && !isVowelToken(tok[0]) ? kAxcLen : pb == "T" || pb == "D" ? kAxtLen : kAxnLen;
+          }
+        }
         // The ʊ's own length (EN_UH_LEN; 2026-11-09 UH agent: in isolated words puhuja's ʊ ran 220-260 ms, Kokoro's 150-280).
         { static const float kUhLen = param("EN_UH_LEN", 1.0f); if (b == "UH") whole *= kUhLen; }
         // ... and by its coda in the word (EN_UH_VL_LEN before p t k ʧ s ʃ f θ, EN_UH_L_LEN before l; round-H ʊ agent, lab;
@@ -1133,6 +1150,14 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
         if (b == "N" && i + 1 == tok.size() && i > 0 && unstressedAt(i - 1)) whole *= kFnNLen;
         if (vowel && i + 2 == tok.size() && baseName(tok[i + 1]) == "N" && unstressedAt(i)) whole *= kFnVLen;
       }
+      // (AX-NASAL agent14 round M, lab knob; 1: as before) a nasal after an unstressed ə of its word x EN_AXN_NN_LEN
+      // (Kokoro's murmur after a reduced vowel is long: "Gavin" 130-200 ms against puhuja's 71).
+      { static const float kAxnNnLen = param("EN_AXN_NN_LEN", 1.0f);
+        if (kAxnNnLen != 1.0f && !vowel && i > 1 && baseName(tok[i - 1]) == "AH") {
+          const std::string b0 = baseName(tok[i]);
+          const char* nm = kEnglishTokens[tok[i - 1] - 0x80];
+          if ((b0 == "M" || b0 == "N" || b0 == "NG") && nm[strlen(nm) - 1] == '0') whole *= kAxnNnLen;
+        } }
       // A phrase-final v after a vowel ("Have."): 50 ms, Kokoro holds ~150-200
       // of fading voiced frication (2026-11-04, EN_FINAL_V_LEN; 1 = today's).
       if (phraseFinal && !vowel && i > static_cast<size_t>(lastVowel) && b == "V") {
@@ -3081,6 +3106,18 @@ void EnglishReader::sayPhrase(char end) {
           if (i + 1 == tokens.size() && i > 0 && baseName(tokens[i]) == "N" && unstressedAt(i - 1)) shape.nctx = 2;
           if (i + 2 == tokens.size() && baseName(tokens[i + 1]) == "N" && unstressedAt(i)) shape.nctx = 1;
         }
+        // An unstressed ə before a nasal of its word (Shape::axctx; AX-NASAL agent14 round M): 1, | 2 the word's first
+        // vowel after one consonant ("Commands", "Commit"), | 4 after t / d ("Sutton", "Weston"), | 8 after a vowel ("Lions").
+        if (i > 0 && i + 1 < tokens.size() && baseName(tokens[i]) == "AH" &&
+            kEnglishTokens[tokens[i] - 0x80][strlen(kEnglishTokens[tokens[i] - 0x80]) - 1] == '0') {
+          const std::string nb = baseName(tokens[i + 1]), pb = baseName(tokens[i - 1]);
+          if (nb == "M" || nb == "N" || nb == "NG") {
+            shape.axctx = 1;
+            if (i == 1 && !isVowelToken(tokens[0])) shape.axctx |= 2;
+            if (pb == "T" || pb == "D") shape.axctx |= 4;
+            if (isVowelToken(tokens[i - 1])) shape.axctx |= 8;
+          }
+        }
         // Plosives: Klatt's duration includes the release; this is the closure.
         if (isVoicelessPlosive(baseName(tokens[i])) || isVoicedPlosive(baseName(tokens[i])))
           shape.ms *= 0.75f;
@@ -3147,6 +3184,8 @@ void EnglishReader::sayPhrase(char end) {
               if (i == 0 && i + 1 < tokens.size()) db += kSwInitDb;
               else if (static_cast<int>(i) == lastV && i + 1 < tokens.size()) db += kSwLastDb;
             } }
+          // (AX-NASAL agent14 round M, lab knob; 0: as before) an ə before a nasal of its word (Shape::axctx) + EN_AXN_DB.
+          { static const float kAxnDb = param("EN_AXN_DB", 0.0f); if (kAxnDb != 0 && s.ph[k] == Ph::Schwa && shape.axctx) db += kAxnDb; }
           // Secondary stress is a step down from the primary, not its equal:
           // Kokoro's "robot", "habitat", "antibody" end 5-15 dB under their
           // first syllable; here the last third was the loudest (2026-11-02).
