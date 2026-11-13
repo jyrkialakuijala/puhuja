@@ -2816,8 +2816,8 @@ void EnglishReader::sayPhrase(char end) {
       // agent13 round L). EN_ER_INIT 1: the first part is the English ə (2: ʌ, 3: ɪ); its share of the token
       // EN_ER_INIT_SHARE, the token's length x EN_ER_INIT_LEN, the ə's level + EN_ER_INIT_DB, the ɹ's + EN_ER_INIT_R_DB,
       // the shape is the line's (Shape::erctx, LINE_ERI_*). 0: as before (one ɜ).
-      static const float kErInit = param("EN_ER_INIT", 0.0f), kErInitShare = param("EN_ER_INIT_SHARE", 0.5f),
-                         kErInitLen = param("EN_ER_INIT_LEN", 1.0f), kErInitDb = param("EN_ER_INIT_DB", 0.0f),
+      static const float kErInit = param("EN_ER_INIT", 2.0f), kErInitShare = param("EN_ER_INIT_SHARE", 0.5f),
+                         kErInitLen = param("EN_ER_INIT_LEN", 1.05f), kErInitDb = param("EN_ER_INIT_DB", 1.0f),
                          kErInitRDb = param("EN_ER_INIT_R_DB", 0.0f), kErInitPitch = param("EN_ER_INIT_PITCH", 1.0f);
       bool erInit = false;
       if (kErInit > 0 && i == 0 && s.n == 2 && s.ph[0] == Ph::ER && s.ph[1] == Ph::RR && tokens.size() > 1 &&

@@ -3880,9 +3880,9 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // LINE_ERI_MIX, pharynx / lip area x LINE_ERI_APH / _LIPA. Its ɹ (erctx 2): constriction area x LINE_ERI_R_AC, lip
     // area x LINE_ERI_R_LIPA.
     if (have && tok.shape.erctx) {
-      static const float kEriMix = param("LINE_ERI_MIX", 0.0f), kEriAph = param("LINE_ERI_APH", 1.0f), kEriLipA = param("LINE_ERI_LIPA", 1.0f),
+      static const float kEriMix = param("LINE_ERI_MIX", 0.6f), kEriAph = param("LINE_ERI_APH", 1.0f), kEriLipA = param("LINE_ERI_LIPA", 1.0f),
                          kEriRAc = param("LINE_ERI_R_AC", 1.0f), kEriRLipA = param("LINE_ERI_R_LIPA", 1.0f);
-      static const int kEriRow = static_cast<int>(param("LINE_ERI_ROW", 0.0f));
+      static const int kEriRow = static_cast<int>(param("LINE_ERI_ROW", 2.0f));
       if (tok.shape.erctx == 1) {
         const Ph row = kEriRow == 1 ? Ph::AA : kEriRow == 2 ? Ph::A : kEriRow == 3 ? Ph::EH : kEriRow == 4 ? Ph::IH : Ph::AH;
         TractShape o;
