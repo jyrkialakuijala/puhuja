@@ -41,6 +41,7 @@ class EnglishReader {
     std::string text;  // the word as written (lower case)
     int source = -1;   // the input word (whitespace-delimited) it came from, counted from 1
     bool syllabicN = false;  // -tion: the schwa dropped, the n is the syllable
+    bool erInitAh = false;  // a word-initial ER0 before a vowel rewritten as AH0 R (EN_ER_INIT_AH)
     bool syllabicL = false;  // -tle, -ple, -ble: the schwa dropped, the l is the syllable
     uint32_t flaps = 0;      // bit i: token i is a flap (a t or d tapped, "city")
     bool contrast = false;   // one of a pair of opposites contrasted in the phrase ("well or ill")

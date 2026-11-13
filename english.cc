@@ -2352,6 +2352,23 @@ void EnglishReader::sayPhrase(char end) {
       }
     }
   }
+  // A word-initial ER0 before a vowel ("arise" ER0 AY1 Z) as AH0 R, the way Kokoro says it (əˈɹaɪz): the ə and the ɹ
+  // then take their own durations, levels and shapes (EN_ER_INIT_AH 1; 0: as before; ER-INITIAL agent13 round L, see
+  // EN_ER_INIT below). Before the syllables and durations are counted.
+  {
+    static const float kErInitAh = param("EN_ER_INIT_AH", 0.0f);
+    if (kErInitAh > 0) {
+      static const uint8_t kER0 = tokenOf("ER0"), kAH0 = tokenOf("AH0"), kR = tokenOf("R");
+      for (auto& word : phrase_) {
+        auto& t = word.tokens;
+        if (t.size() > 1 && t[0] == kER0 && isVowelToken(t[1])) {
+          t[0] = kAH0;
+          t.insert(t.begin() + 1, kR);
+          word.erInitAh = true;
+        }
+      }
+    }
+  }
   // Syllables: one per vowel token (a diphthong is one token).
   struct Syl {
     size_t word, token;
@@ -2792,6 +2809,25 @@ void EnglishReader::sayPhrase(char end) {
         const char* en = kEnglishTokens[tokens[i] - 0x80];
         if (!(nt && isVowelToken(nt)) && !(kErKeepR > 0 && en[strlen(en) - 1] == '1')) s.n = 1;
       }
+      // A word-initial unstressed ɜ+ɹ before a vowel ("arise", "around", "arrest": CMUdict ER0 with no R) is ə + ɹ:
+      // Kokoro opens with ~60 ms of a mid-central vowel at the word's peak level (male F1 470-570, F3 2050-2250), then
+      // the ɹ (F1 300-370, F3 1450-1700, 4-6 dB down). Starting on the r-coloured ɜ, puhuja's first frame was already
+      // the ɹ (F1 330, F3 1550) at the word's peak: 73 of 88 heard as "rise", "round", "range", "rest" (ER-INITIAL
+      // agent13 round L). EN_ER_INIT 1: the first part is the English ə (2: ʌ, 3: ɪ); its share of the token
+      // EN_ER_INIT_SHARE, the token's length x EN_ER_INIT_LEN, the ə's level + EN_ER_INIT_DB, the ɹ's + EN_ER_INIT_R_DB,
+      // the shape is the line's (Shape::erctx, LINE_ERI_*). 0: as before (one ɜ).
+      static const float kErInit = param("EN_ER_INIT", 0.0f), kErInitShare = param("EN_ER_INIT_SHARE", 0.5f),
+                         kErInitLen = param("EN_ER_INIT_LEN", 1.0f), kErInitDb = param("EN_ER_INIT_DB", 0.0f),
+                         kErInitRDb = param("EN_ER_INIT_R_DB", 0.0f), kErInitPitch = param("EN_ER_INIT_PITCH", 1.0f);
+      bool erInit = false;
+      if (kErInit > 0 && i == 0 && s.n == 2 && s.ph[0] == Ph::ER && s.ph[1] == Ph::RR && tokens.size() > 1 &&
+          isVowelToken(tokens[1])) {
+        const char* en = kEnglishTokens[tokens[i] - 0x80];
+        if (en[strlen(en) - 1] == '0') {
+          erInit = true;
+          s.ph[0] = kErInit > 2.5f ? Ph::IH : kErInit > 1.5f ? Ph::AH : Ph::Schwa;
+        }
+      }
       for (int k = 0; k < s.n; ++k) {
         // The second pitch on the sound's last vowel part (a diphthong's glide).
         const int lastPart = s.n > 1 && s.ph[s.n - 1] != Ph::RR ? s.n - 1 : 0;
@@ -2803,7 +2839,10 @@ void EnglishReader::sayPhrase(char end) {
         // 2026-11-10; 1 / 0 / 1: as before).
         static const float kAyAPitch = param("EN_AY_A_PITCH", 1.0f), kAyADb = param("EN_AY_A_DB", 0.0f), kAyPress = param("EN_AY_PRESS", 1.0f);
         const bool ay = s.n == 2 && s.ph[0] == Ph::A && s.ph[1] == Ph::IH;
-        if (vowel && s.ph[k] != Ph::RR)  // ER = vowel + ɹ
+        // (EN_ER_INIT_PITCH: the initial ə of EN_ER_INIT / EN_ER_INIT_AH x this; 1: as before.)
+        if (vowel && s.ph[k] != Ph::RR && kErInitPitch != 1.0f && (erInit || (phrase_[w].erInitAh && i == 0)))
+          synth_.setPitch(pitch * kErInitPitch);
+        else if (vowel && s.ph[k] != Ph::RR)  // ER = vowel + ɹ
           synth_.setPitch(fallingGlide ? pitch + kGlideFallShare * (pitchEnd - pitch) : ay && k == 0 && kAyAPitch != 1.0f ? pitch * kAyAPitch : pitch);
         if (vowel && k == lastPart && pitchEnd != Synth::kNoPitch) synth_.setPitchEnd(pitchEnd);
         // English variant of this phoneme (tools/tune_english.py).
@@ -2875,7 +2914,7 @@ void EnglishReader::sayPhrase(char end) {
         // ɜ+ɹ: the vowel's share (EN_ER_SHARE), the whole ɜ x EN_ER_LEN, a stressed one x EN_ER_LONG_LEN as well (ER agent
         // 2026-11-11 lab knobs; 0.8 / 1 / 1 as before).
         static const float kErShare = param("EN_ER_SHARE", 0.8f), kErLen = param("EN_ER_LEN", 1.0f), kErLongLen = param("EN_ER_LONG_LEN", 1.0f);
-        const float firstShare = s.ph[0] == Ph::ER ? (erOnset ? kErOnsetShare : kErShare)
+        const float firstShare = erInit ? kErInitShare : s.ph[0] == Ph::ER ? (erOnset ? kErOnsetShare : kErShare)
                                  : s.n == 2 && s.ph[0] == Ph::A && s.ph[1] == Ph::UH ? kAwFirstShare : oy ? kOyFirstShare : ey ? (eyClosed && kEyClosedShare >= 0 ? kEyClosedShare : kEyFirstShare)
                                  : s.n == 2 && s.ph[0] == Ph::A && s.ph[1] == Ph::IH && kAyFirstShare >= 0 ? kAyFirstShare : 0.6f;
         const float share = s.n == 1 ? 1.0f : k == 0 ? firstShare : 1.0f - firstShare;
@@ -2928,6 +2967,12 @@ void EnglishReader::sayPhrase(char end) {
         if (s.ph[0] == Ph::ER && i > 0 && baseName(tokens[i - 1]) == "AW") shape.ms *= kAwErLen;
         if (s.ph[0] == Ph::ER && kErLen != 1.0f) shape.ms *= kErLen;
         if (s.ph[0] == Ph::ER && kErLongLen != 1.0f && en0Stressed(tokens[i])) shape.ms *= kErLongLen;
+        if (erInit) shape.ms *= kErInitLen;
+        // (EN_ER_INIT_AH_LEN / _AH_R_LEN: the rewritten ə / ɹ x these; 1: as before.)
+        static const float kErInitAhLen = param("EN_ER_INIT_AH_LEN", 1.0f), kErInitAhRLen = param("EN_ER_INIT_AH_R_LEN", 1.0f);
+        if (phrase_[w].erInitAh && i < 2) shape.ms *= i == 0 ? kErInitAhLen : kErInitAhRLen;
+        if (erInit) shape.erctx = static_cast<unsigned char>(k + 1);
+        else if (phrase_[w].erInitAh && i < 2) shape.erctx = static_cast<unsigned char>(i + 1);
         // Vowels as long as in the Google reading of kennedy.txt (goog.wav):
         // short vowels are lengthened most (x1.46 at 50 ms), long ones less
         // (x1.17 at 150 ms).
@@ -3012,6 +3057,9 @@ void EnglishReader::sayPhrase(char end) {
         // The ɜ's voice quality x EN_ER_PRESS (ER agent 2026-11-11 lab knob, 1: as before).
         static const float kErPress = param("EN_ER_PRESS", 1.0f);
         if (vowel && s.ph[k] == Ph::ER && kErPress != 1.0f) shape.press *= kErPress;
+        // (EN_ER_INIT_PRESS: the initial ə of EN_ER_INIT's voice quality x this; 1: as before.)
+        static const float kErInitPress = param("EN_ER_INIT_PRESS", 1.0f);
+        if (erInit && k == 0 && kErInitPress != 1.0f) shape.press *= kErInitPress;
         // The ɛ's voice quality x EN_EH_PRESS (round F EH agent 2026-11-11 lab knob, 1: as before): a closer ɛ (lower F1)
         // takes 0.5-0.7 dB off the 1-3 kHz share of the ɛ words, already 5-7 dB under Kokoro's and 11labs'.
         static const float kEhPress = param("EN_EH_PRESS", 1.0f);
@@ -3076,6 +3124,14 @@ void EnglishReader::sayPhrase(char end) {
           // The ɜ's level, dB (EN_ER_DB; a stressed one + EN_ER_LONG_DB; ER agent 2026-11-11 lab knobs, 0: as before).
           static const float kErDb = param("EN_ER_DB", 0.0f), kErLongDb = param("EN_ER_LONG_DB", 0.0f);
           if (baseName(tokens[i]) == "ER" && s.ph[k] == Ph::ER) db += kErDb + (vn[strlen(vn) - 1] == '1' ? kErLongDb : 0.0f);
+          if (erInit) db += k == 0 ? kErInitDb : kErInitRDb;
+          // (EN_ER_INIT_NEXT_DB: the vowel right after such an ə + ɹ + this, dB; 0: as before. Kokoro's stressed vowel
+          // comes back to the ə's level after the ɹ's dip, puhuja's sat 5-6 dB under its onset.)
+          static const float kErInitNextDb = param("EN_ER_INIT_NEXT_DB", 0.0f);
+          if (kErInitNextDb != 0 && ((kErInit > 0 && i == 1 && tokens.size() > 1 && baseName(tokens[0]) == "ER" &&
+                                      kEnglishTokens[tokens[0] - 0x80][2] == '0') ||
+                                     (phrase_[w].erInitAh && i == 2)))
+            db += kErInitNextDb;
           // The ʊ half of aʊ x this (EN_AW_UH_DB, dB; 2026-11-09 AW agent: Kokoro's aʊ fades 4-6 dB from the a to the ʊ end, puhuja's is flat).
           static const float kAwUhDb = param("EN_AW_UH_DB", 0.0f);
           if (s.n == 2 && s.ph[0] == Ph::A && s.ph[1] == Ph::UH && k == 1) db += kAwUhDb;

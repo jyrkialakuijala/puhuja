@@ -1091,11 +1091,32 @@ struct CavityColour {
   bool on = false;
   CavityColour() {
     static const char* kSfx[4] = {"HA", "HL", "FA", "FL"};
+    // The defaults: fit03d (Kokoro fit, two Newton steps, centred; Jyrki 2026-11-13: "ken-fit03d-m.wav seems nice").
+    struct Row { int p; float v[4]; };
+    static const Row kDef[] = {
+      {0, {0.443f, 0.690f, 0.152f, -0.063f}},  // A
+      {1, {-0.060f, 0.347f, -0.278f, 0.180f}},  // E
+      {2, {-0.734f, -0.283f, 0.625f, 1.147f}},  // I
+      {3, {-0.644f, -0.132f, -0.169f, -0.673f}},  // O
+      {4, {-0.290f, -0.138f, -0.630f, -0.746f}},  // U
+      {6, {0.682f, -0.047f, -0.248f, -0.440f}},  // AE
+      {8, {-0.734f, 0.137f, -0.116f, -0.189f}},  // Schwa
+      {9, {0.642f, -0.112f, 0.119f, 0.456f}},  // IH
+      {10, {0.613f, 0.093f, 0.484f, 0.626f}},  // EH
+      {11, {0.212f, 0.034f, -0.160f, -0.583f}},  // UH
+      {12, {-0.584f, -0.276f, -0.418f, -0.708f}},  // AO
+      {13, {-0.203f, 0.479f, 0.086f, -0.042f}},  // AH
+      {14, {-0.026f, 0.839f, -0.199f, -0.018f}},  // AA
+      {16, {-0.421f, -1.006f, -0.166f, -0.853f}},  // ER
+    };
+    float def[static_cast<int>(Ph::Count)][4] = {};
+    for (const Row& r : kDef)
+      for (int j = 0; j < 4; ++j) def[r.p][j] = r.v[j];
     for (int p = 0; p < static_cast<int>(Ph::Count); ++p)
       for (int j = 0; j < 4; ++j) {
         char name[48];
         std::snprintf(name, sizeof(name), "LINE_CAV_%d_%s", p, kSfx[j]);
-        v[p][j] = param(name, 0.0f);
+        v[p][j] = param(name, def[p][j]);
         on = on || v[p][j] != 0;
       }
   }
@@ -3853,6 +3874,26 @@ void Synth::emit(const Token& tok, const Ph* next) {
       if (kSwAc != 1.0f) sh.ac *= kSwAc;
       if (kSwShLen != 1.0f) { sh.length *= kSwShLen; sh.sc = lineVowelStrength(sh.xc, sh.wc, sh.length); }
     }
+    // (ER-INITIAL agent13 round L, lab; 0 / 1: as before) the ə of a word-initial ER0 said ə + ɹ (Shape::erctx 1,
+    // english.cc EN_ER_INIT): Kokoro's opens at male F1 470-570 / F3 2050-2250 Hz, female 480-710 / 2140-2500 (Arise,
+    // Around, Arrest, Arrange, Arrival), then the ɹ. Mixed toward LINE_ERI_ROW (0: ʌ, 1: ɑ, 2: a, 3: ɛ, 4: ɪ) by
+    // LINE_ERI_MIX, pharynx / lip area x LINE_ERI_APH / _LIPA. Its ɹ (erctx 2): constriction area x LINE_ERI_R_AC, lip
+    // area x LINE_ERI_R_LIPA.
+    if (have && tok.shape.erctx) {
+      static const float kEriMix = param("LINE_ERI_MIX", 0.0f), kEriAph = param("LINE_ERI_APH", 1.0f), kEriLipA = param("LINE_ERI_LIPA", 1.0f),
+                         kEriRAc = param("LINE_ERI_R_AC", 1.0f), kEriRLipA = param("LINE_ERI_R_LIPA", 1.0f);
+      static const int kEriRow = static_cast<int>(param("LINE_ERI_ROW", 0.0f));
+      if (tok.shape.erctx == 1) {
+        const Ph row = kEriRow == 1 ? Ph::AA : kEriRow == 2 ? Ph::A : kEriRow == 3 ? Ph::EH : kEriRow == 4 ? Ph::IH : Ph::AH;
+        TractShape o;
+        if (kEriMix > 0 && lineShapeOf(row, &o)) sh = lineShapeMix(sh, o, std::min(kEriMix, 1.0f));
+        if (kEriAph != 1.0f) sh.aPharynx *= kEriAph;
+        if (kEriLipA != 1.0f) sh.aLip *= kEriLipA;
+      } else {
+        if (kEriRAc != 1.0f) sh.ac *= kEriRAc;
+        if (kEriRLipA != 1.0f) sh.aLip *= kEriRLipA;
+      }
+    }
     // ɔ's own shape (AO agent 2026-11-11, lab knobs; 0 / 1: as before): mixed toward ɑ by LINE_AO_AA_MIX, its pharynx,
     // constriction place and area, oral cavity, lip area and length x these. Only the ɔ token (not ɔɪ's start, and before
     // an ɹ only with LINE_AO_R 1): the ɔ row also shapes aʊ's end, ɔɪ's start, the l and the p. Whisper heard the
@@ -4565,7 +4606,24 @@ void Synth::emit(const Token& tok, const Ph* next) {
             static const float kLineWVowelKey = param("LINE_W_VOWEL_KEY", -1.0f);
             const double vowelFrom = isVowel(tok.ph) && lastPh_ == Ph::W && kLineWVowelKey >= 0 ? kLineWVowelKey : 0.3;
             const double wKeyTo = (wStop || wS) && kWStopKeyTo >= 0 ? kWStopKeyTo : kLineWKeyTo;
-            addShapeDemand(preMs > 0 ? t0 - preMs * ms : t0 + (er ? kLineErFrom : tok.ph == Ph::RR && kLineRKeyFrom >= 0 ? kLineRKeyFrom : vFrom >= 0 ? vFrom : vowelFrom) * dur, t0 + (er ? kLineErTo : tok.ph == Ph::W ? wKeyTo : tok.ph == Ph::RR && kLineRKeyTo >= 0 ? kLineRKeyTo : vTo >= 0 ? vTo : 0.7) * dur, sh, tok.ph, er ? ws * kLineErW : iy || uhD || uwD || ahD || aoD || swD ? ws * vW : ws, er ? std::max(preR, kErPlaceW) : iy || uhD || uwD || ahD || aoD || swD ? std::max(preR, vPlaceW) : preR);
+            double dFrom = er ? kLineErFrom : tok.ph == Ph::RR && kLineRKeyFrom >= 0 ? kLineRKeyFrom : vFrom >= 0 ? vFrom : vowelFrom,
+                   dTo = er ? kLineErTo : tok.ph == Ph::W ? wKeyTo : tok.ph == Ph::RR && kLineRKeyTo >= 0 ? kLineRKeyTo : vTo >= 0 ? vTo : 0.7;
+            float dW = er ? ws * kLineErW : iy || uhD || uwD || ahD || aoD || swD ? ws * vW : ws;
+            // (ER-INITIAL agent13 round L, lab; -1 / 1 / 0: as before) the ə and the ɹ of a word-initial ER0 said ə + ɹ
+            // (Shape::erctx 1 / 2, english.cc EN_ER_INIT): their demand windows (shares of the sound) LINE_ERI_FROM /
+            // _TO and LINE_ERI_R_FROM / _R_TO, weights x LINE_ERI_W / _R_W, the ə's lead after a pause LINE_ERI_LEAD_MS
+            // (> 0; else the ə's LINE_SCHWA_PAUSE_LEAD_MS).
+            if (tok.shape.erctx) {
+              static const float kEriFrom = param("LINE_ERI_FROM", -1.0f), kEriTo = param("LINE_ERI_TO", -1.0f), kEriW = param("LINE_ERI_W", 1.0f),
+                                 kEriRFrom = param("LINE_ERI_R_FROM", -1.0f), kEriRTo = param("LINE_ERI_R_TO", -1.0f),
+                                 kEriRW = param("LINE_ERI_R_W", 1.0f), kEriLeadMs = param("LINE_ERI_LEAD_MS", 0.0f);
+              const bool sw = tok.shape.erctx == 1;
+              if ((sw ? kEriFrom : kEriRFrom) >= 0) dFrom = sw ? kEriFrom : kEriRFrom;
+              if ((sw ? kEriTo : kEriRTo) >= 0) dTo = sw ? kEriTo : kEriRTo;
+              dW *= sw ? kEriW : kEriRW;
+              if (sw && prevWasPause_ && kEriLeadMs > 0) preMs = kEriLeadMs;
+            }
+            addShapeDemand(preMs > 0 ? t0 - preMs * ms : t0 + dFrom * dur, t0 + dTo * dur, sh, tok.ph, dW, er ? std::max(preR, kErPlaceW) : iy || uhD || uwD || ahD || aoD || swD ? std::max(preR, vPlaceW) : preR);
             // (round-I uː agent) the rounder late key (LINE_UW_LATE_*, LINE_UW_END_*) asked for over the last share of
             // the uː from LINE_UW_LATE_AT (0.7).
             static const float kUwLateAt = param("LINE_UW_LATE_AT", 0.5f);
