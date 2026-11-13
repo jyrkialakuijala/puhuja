@@ -953,6 +953,104 @@ void epilarynx(TractShape& s, bool female) {
   }
 }
 
+// The two cavities move with the tongue (CAVITY agent 12, 2026-11-13; Jyrki: "the space between teeth and tongue, as
+// well as the opening space right after constriction that comes after vocal coords could also be modulated in depth
+// and width as part of the phonem color, a tongue that goes back should reduce the space from the widening in
+// proximity of the vocal coords and add space between tongue and teeth"). The tongue is a body of about fixed volume:
+// back, it fills the hypopharynx and frees the space behind the teeth; forward, the reverse.
+// Its backness b is read off the shape's own area function (LINE_CAV_INDEX): 0: the mean log area of the mouth
+// (velum .. the front space) minus that of the pharynx (above the hypopharynx .. velum); 1: the pharynx alone (narrow =
+// back); 2: the hump's place (xc; sc-weighted). b = (index - LINE_CAV_T0) * LINE_CAV_TSCALE, clamped to +-2, and
+// on the front side (b < 0) x LINE_CAV_ASYM, on the back side x LINE_CAV_BACK_G (a lazy side: Jyrki's asymmetric
+// formant control).
+// Then, all in log units per unit of b (0: off): the hypopharynx's area LINE_CAV_HYPO_A (x exp(-k b)) and length
+// LINE_CAV_HYPO_L; the front space's area LINE_CAV_FRONT_A (x exp(+k b)) and length LINE_CAV_FRONT_L.
+// LINE_CAV_VOL (0..1): the hypopharynx's lost volume (cm^3) reappears in the front space (and vice versa).
+// LINE_CAV_HYPO_D / _FRONT_D: fixed log-area offsets of the spaces (depth/width colour, per voice _F < -50: the male).
+// The front-space changes fade out while the tongue tip makes a constriction (place LINE_CAV_TIP_X0..X1 share of the
+// tract, opening under LINE_CAV_TIP_AC cm^2): t d n s z l θ ð ʃ still close as before.
+bool cavityColourOn();
+struct CavityKnobs {
+  int index = param("LINE_CAV_INDEX", 0);
+  float t0 = param("LINE_CAV_T0", 0.0f), tscale = param("LINE_CAV_TSCALE", 1.0f), asym = param("LINE_CAV_ASYM", 1.0f), backG = param("LINE_CAV_BACK_G", 1.0f);
+  float hypoA = param("LINE_CAV_HYPO_A", 0.0f), hypoL = param("LINE_CAV_HYPO_L", 0.0f);
+  float frontA = param("LINE_CAV_FRONT_A", 0.0f), frontL = param("LINE_CAV_FRONT_L", 0.0f);
+  float vol = param("LINE_CAV_VOL", 0.0f);
+  float hypoD = param("LINE_CAV_HYPO_D", 0.0f), frontD = param("LINE_CAV_FRONT_D", 0.0f);
+  float hypoDF = param("LINE_CAV_HYPO_D_F", -99.0f), frontDF = param("LINE_CAV_FRONT_D_F", -99.0f);
+  float gainF = param("LINE_CAV_GAIN_F", 1.0f);  // the female voice's coupling gains x this
+  float colourF = param("LINE_CAV_COLOUR_F", 1.0f);  // ... and her per-phoneme colour offsets (LINE_CAV_<n>_*)
+  float tipX0 = param("LINE_CAV_TIP_X0", 0.76f), tipX1 = param("LINE_CAV_TIP_X1", 0.945f), tipAc = param("LINE_CAV_TIP_AC", 1.5f);
+  float frontMax = param("LINE_CAV_FRONT_MAXL", 2.5f);
+  bool on = hypoA != 0 || hypoL != 0 || frontA != 0 || frontL != 0 || vol != 0 || hypoD != 0 || frontD != 0 ||
+            (hypoDF > -50 && hypoDF != 0) || (frontDF > -50 && frontDF != 0);
+};
+const CavityKnobs& cavityKnobs() { static const CavityKnobs k; return k; }
+float cavRamp(float x, float x0, float x1) {
+  const float t = std::clamp((x - x0) / std::max(x1 - x0, 1e-3f), 0.0f, 1.0f);
+  return t * t * (3.0f - 2.0f * t);
+}
+// The backness index of a shape (before the cavities are applied; reads only).
+float cavityIndex(const TractShape& s0, int index) {
+  if (index == 2) return (0.6f - s0.xc) * 5.0f * std::min(s0.sc, 1.0f);
+  TractShape s = s0;
+  s.lHypo = 0; s.aHypo = 0; s.mFront = 1; s.lFront = 0;
+  const float xv = s.xVelum * s.length, xe = s.length - s.lLip;
+  const float p0 = s.lLarynx + 2.0f, p1 = xv - 1.0f, o0 = xv + 1.0f, o1 = xe - 1.0f;
+  float ph = 0, mo = 0;
+  for (int i = 0; i < 6; ++i) {
+    ph += std::log(s.area(p0 + (p1 - p0) * (i + 0.5f) / 6.0f));
+    mo += std::log(s.area(o0 + (o1 - o0) * (i + 0.5f) / 6.0f));
+  }
+  ph /= 6; mo /= 6;
+  return index == 1 ? -ph : mo - ph;
+}
+// The volume (cm^3) of the shape between x0 and x1 (16 points).
+float cavityVolume(const TractShape& s, float x0, float x1) {
+  float v = 0;
+  const float dx = (x1 - x0) / 16.0f;
+  for (int i = 0; i < 16; ++i) v += s.area(x0 + (i + 0.5f) * dx);
+  return v * dx;
+}
+float cavityLastIndex = 0, cavityLastB = 0;  // (PUHUJA_CAVITY_TRACE)
+void cavity(TractShape& s, bool female, float tipX, float tipAc) {
+  const CavityKnobs& k = cavityKnobs();
+  if (!k.on && !cavityColourOn()) return;
+  const float g = female ? k.gainF : 1.0f, gc = female ? k.colourF : 1.0f;
+  const float idx = cavityIndex(s, k.index);
+  float b = std::clamp((idx - k.t0) * k.tscale, -2.0f, 2.0f);
+  b *= b < 0 ? k.asym : k.backG;
+  cavityLastIndex = idx; cavityLastB = b;
+  // The tongue tip free (1) or making a constriction (0).
+  const float tip = tipX >= 0 ? cavRamp(tipX, k.tipX0 - 0.02f, k.tipX0 + 0.02f) * (1.0f - cavRamp(tipX, k.tipX1 - 0.01f, k.tipX1 + 0.01f)) : 0.0f;
+  const float free = 1.0f - tip * (1.0f - cavRamp(tipAc, 0.5f * k.tipAc, k.tipAc));
+  const float hD = female && k.hypoDF > -50 ? k.hypoDF : k.hypoD, fD = female && k.frontDF > -50 ? k.frontDF : k.frontD;
+  float vh0 = 0, x0 = 0, x1 = 0;
+  if (k.vol != 0 && s.lHypo > 0) { x0 = s.lLarynx - 0.5f; x1 = s.lLarynx + 5.5f; vh0 = cavityVolume(s, x0, x1); }
+  if (s.lHypo > 0 && s.aHypo > 0) {
+    s.aHypo *= std::exp(-g * k.hypoA * b + hD + gc * s.dHypoA);
+    s.lHypo = std::clamp(s.lHypo * std::exp(-g * k.hypoL * b + gc * s.dHypoL), 0.2f, 5.0f);
+  } else if (hD > 0) {  // (no hypopharynx: an offset makes one over 1 cm)
+    s.aHypo = s.aLarynx * std::exp(hD); s.lHypo = 1.0f;
+  }
+  if (s.lFront > 0) {
+    float lnM = std::log(s.mFront) + free * (g * k.frontA * b + fD + gc * s.dFrontA);
+    float lF = s.lFront * std::exp(free * (g * k.frontL * b + gc * s.dFrontL));
+    if (k.vol != 0 && s.lHypo > 0) {
+      // The hypopharynx's change in volume, the other way in the front space (over its length, on its base area).
+      const float dv = cavityVolume(s, x0, x1) - vh0;
+      TractShape bare = s;
+      bare.mFront = 1; bare.lFront = 0;
+      const float xe = s.length - s.lLip;
+      const float af = cavityVolume(bare, xe - lF, xe);
+      const float extra = (std::exp(lnM) - 1.0f) * af - free * k.vol * dv;
+      lnM = std::log(std::max(1.0f + extra / std::max(af, 1e-3f), 0.3f));
+    }
+    s.mFront = std::exp(lnM);
+    s.lFront = std::min(lF, k.frontMax);
+  }
+}
+
 TractShape lineShapeFor(float f1, float f2, float f3) {
   const int n = sizeof(kLineVowels) / sizeof(kLineVowels[0]);
   const float l1 = std::log(std::max(f1, 100.0f)), l2 = std::log(std::max(f2, 300.0f)), l3 = std::log(std::max(f3, 1000.0f));
@@ -986,6 +1084,30 @@ TractShape lineShapeFor(float f1, float f2, float f3) {
 // w; with the lips alone it was a weak labial), j the shape of i. Others have
 // none: the vowels on both sides define the path and the constriction is laid
 // over it.
+// The per-phoneme cavity colour (CAVITY agent 12): LINE_CAV_<n>_HA / _HL / _FA / _FL for Ph index n (log offsets of
+// the hypopharynx's area and length and the front space's area and length; 0: none).
+struct CavityColour {
+  float v[static_cast<int>(Ph::Count)][4] = {};
+  bool on = false;
+  CavityColour() {
+    static const char* kSfx[4] = {"HA", "HL", "FA", "FL"};
+    for (int p = 0; p < static_cast<int>(Ph::Count); ++p)
+      for (int j = 0; j < 4; ++j) {
+        char name[48];
+        std::snprintf(name, sizeof(name), "LINE_CAV_%d_%s", p, kSfx[j]);
+        v[p][j] = param(name, 0.0f);
+        on = on || v[p][j] != 0;
+      }
+  }
+};
+const CavityColour& cavityColourTable() { static const CavityColour c; return c; }
+bool cavityColourOn() { return cavityColourTable().on; }
+void cavityColour(Ph ph, TractShape* s) {
+  const CavityColour& c = cavityColourTable();
+  if (!c.on) return;
+  const float* v = c.v[static_cast<int>(ph)];
+  s->dHypoA = v[0]; s->dHypoL = v[1]; s->dFrontA = v[2]; s->dFrontL = v[3];
+}
 bool lineShapeOf(Ph ph, TractShape* out) {
   // w: u's shape; j: i's; l: the dark English l has the tongue back raised
   // behind its tip contact (F2 ~1000 Hz), so it takes ɔ's shape under the
@@ -1015,6 +1137,7 @@ bool lineShapeOf(Ph ph, TractShape* out) {
     out->xc = 0.4006f; out->ac = 0.983f; out->wc = 2.372f; out->aLip = 2.144f; out->aPharynx = 4.456f;
     out->aOral = 8.019f; out->lLip = 3.227f; out->aLarynx = 1.925f; out->length = 17.5066f;
     out->sc = lineVowelStrength(out->xc, out->wc, out->length);
+    cavityColour(ph, out);
     return true;
   }
   for (const auto& v : kLineVowels) {
@@ -1033,6 +1156,7 @@ bool lineShapeOf(Ph ph, TractShape* out) {
       if (kWXc >= 0) out->xc = kWXc;
     }
     out->sc = lineVowelStrength(out->xc, out->wc, out->length);
+    cavityColour(ph, out);
     return true;
   }
   return false;
@@ -1056,6 +1180,7 @@ TractShape lineShapeMix(const TractShape& a, const TractShape& b, float w) {
   s.aLip = lg(a.aLip, b.aLip);
   s.aPharynx = lg(a.aPharynx, b.aPharynx); s.aOral = lg(a.aOral, b.aOral); s.lLip = lin(a.lLip, b.lLip);
   s.aLarynx = lg(a.aLarynx, b.aLarynx); s.length = lin(a.length, b.length);
+  s.dHypoA = lin(a.dHypoA, b.dHypoA); s.dHypoL = lin(a.dHypoL, b.dHypoL); s.dFrontA = lin(a.dFrontA, b.dFrontA); s.dFrontL = lin(a.dFrontL, b.dFrontL);
   return s;
 }
 // aɪ's start (see kLineAyStartMix): from a's row toward an open back row, a wider or narrower pharynx and lips, a
@@ -8223,6 +8348,8 @@ float Synth::tick() {
           b.lLip += lineExtra_; b.length += lineExtra_;
           epilarynx(a, female_);
           epilarynx(b, female_);
+          cavity(a, female_, lineX_, ac);
+          cavity(b, female_, lineX_, ac);
           const int n = line_.oral().sections();
           std::vector<float> va = a.sections(n), vb = b.sections(n);
           for (int k = 0; k < n; ++k) va[k] = std::exp(std::log(va[k]) + (std::log(vb[k]) - std::log(va[k])) * w);
@@ -8236,6 +8363,14 @@ float Synth::tick() {
       sh.length /= (voice_.formant[0] + voice_.formant[1] + voice_.formant[2]) / 3.0f;
       sh.lLip += lineExtra_; sh.length += lineExtra_;  // (as above)
       epilarynx(sh, female_);
+      cavity(sh, female_, lineX_, ac);
+      static const bool kCavTrace = std::getenv("PUHUJA_CAVITY_TRACE") != nullptr;
+      if (kCavTrace && (lineCount_ % 160) == 1) {  // every 10 ms: t, index, b, the spaces, the areas
+        std::fprintf(stderr, "cav %.3f %.3f %.3f hypo %.2f %.2f front %.2f %.2f x %.2f ac %.2f len %.2f A", t_ / fs_, cavityLastIndex, cavityLastB,
+                     sh.aHypo, sh.lHypo, sh.mFront, sh.lFront, lineX_, ac, sh.length);
+        for (float a : sh.sections(44)) std::fprintf(stderr, " %.2f", a);
+        std::fprintf(stderr, "\n");
+      }
       line_.setShape(sh, lineX_, ac, an);
     lineShapeDone:;
     }
@@ -8944,7 +9079,7 @@ void Synth::planSentence() {
 // the tolerance and the speed limit of a linear channel.
 namespace {
 
-constexpr int kCh = 10;  // = Synth::kShapeCh (checked in planShapes)
+constexpr int kCh = 14;  // = Synth::kShapeCh (checked in planShapes)
 struct ShapeChannel { bool log; float range; };
 constexpr ShapeChannel kShapeChannels[kCh] = {
     {false, 0.3f},  // xc: the tongue's place (share of the length)
@@ -8957,10 +9092,14 @@ constexpr ShapeChannel kShapeChannels[kCh] = {
     {true, 1.0f},   // aLarynx
     {false, 1.0f},  // length (cm)
     {false, 0.5f},  // sc: the tongue constriction's strength (0..1)
+    {false, 1.0f},  // dHypoA .. dFrontL: the phoneme's cavity colour (log offsets, cavity())
+    {false, 1.0f},
+    {false, 1.0f},
+    {false, 1.0f},
 };
 
 void shapeToChannels(const TractShape& s, float x[kCh]) {
-  const float v[kCh] = {s.xc, s.ac, s.wc, s.aLip, s.aPharynx, s.aOral, s.lLip, s.aLarynx, s.length, s.sc};
+  const float v[kCh] = {s.xc, s.ac, s.wc, s.aLip, s.aPharynx, s.aOral, s.lLip, s.aLarynx, s.length, s.sc, s.dHypoA, s.dHypoL, s.dFrontA, s.dFrontL};
   for (int c = 0; c < kCh; ++c) x[c] = kShapeChannels[c].log ? std::log(std::max(v[c], 0.01f)) : v[c];
 }
 
@@ -8970,6 +9109,7 @@ TractShape channelsToShape(const float x[kCh]) {
   TractShape s;
   s.xc = v[0]; s.ac = v[1]; s.wc = v[2]; s.aLip = v[3]; s.aPharynx = v[4];
   s.aOral = v[5]; s.lLip = v[6]; s.aLarynx = v[7]; s.length = v[8]; s.sc = std::clamp(v[9], 0.0f, 1.0f);
+  s.dHypoA = v[10]; s.dHypoL = v[11]; s.dFrontA = v[12]; s.dFrontL = v[13];
   return s;
 }
 
@@ -9070,6 +9210,10 @@ void Synth::planShapes(double tEnd) {
   std::vector<double> x(N), d(N), e(N), f(N), b(N);
   for (int c = 0; c < kShapeCh; ++c) {
     const ShapeChannel& ch = kShapeChannels[c];
+    if (c >= 10 && !cavityColourOn()) {  // (the cavity colour channels, all 0 unless LINE_CAV_<ph>_* is set)
+      for (int i = a; i < N; ++i) shapePlan_[(first + static_cast<size_t>(i - a)) * kShapeCh + c] = 0.0f;
+      continue;
+    }
     const double tol = kShapeTol * ch.range, vmax = kShapeVmax * ch.range * kShapeHopMs * 0.001;
     // The faint pull where nothing is demanded: the phrase's mean demand.
     double mean = 0, wsum = 0;

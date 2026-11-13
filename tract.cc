@@ -40,7 +40,7 @@ struct AreaPre {
     }
     const float xv = s.xVelum * s.length;
     velum = Ramp(xv - 1.0f, xv + 1.0f);
-    front = s.lFront > 0 && s.mFront > 1.0f;
+    front = s.lFront > 0 && s.mFront != 1.0f;  // (< 1: the tongue fills it, LINE_CAV_*)
     if (front) {
       const float xe = s.length - s.lLip;
       const float hb = std::min(0.5f, 0.5f * s.lFront);

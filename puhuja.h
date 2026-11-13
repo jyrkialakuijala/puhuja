@@ -614,7 +614,7 @@ class Synth {
   // it; a phrase at a time (at every pause) the path of all channels is
   // solved at once by iterative optimization (planShapes), and the line
   // reads the planned path. Channels: kShapeChannels in puhuja.cc.
-  static constexpr int kShapeCh = 10;
+  static constexpr int kShapeCh = 14;
   struct ShapeDemand { double tA, tB; float x[kShapeCh], w[kShapeCh]; };
   std::vector<ShapeDemand> shapeDemands_;
   std::vector<float> shapePlan_;  // kShapeCh values per frame, from t = 0

@@ -21,6 +21,9 @@ struct TractShape {
   float lLarynx = 2.0f, aLarynx = 1.0f;
   float lFront = 0.0f, mFront = 1.0f;  // a wider space right behind the teeth: over lFront cm before the lip tube the area x mFront (0 / 1: none)
   float lHypo = 0.0f, aHypo = 0.0f;  // a wider chamber above the larynx tube (the hypopharynx): length cm (0: none), area cm^2
+  // The phoneme's own colour of the two spaces (log offsets of the hypopharynx's and the front space's area and length;
+  // planned like the other channels, applied by puhuja.cc's cavity(); LINE_CAV_<ph>_HA/_HL/_FA/_FL, 0: none).
+  float dHypoA = 0.0f, dHypoL = 0.0f, dFrontA = 0.0f, dFrontL = 0.0f;
   float aPharynx = 4.0f, aOral = 4.0f;
   float xVelum = 0.55f;   // where the pharynx becomes the mouth (share of the length)
   float xc = 0.6f;        // the tongue constriction's place (share of the length)
