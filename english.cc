@@ -2275,7 +2275,10 @@ void EnglishReader::sayPhrase(char end) {
         static const float kFnIhSchwa = param("EN_FN_IH_SCHWA", 1.0f), kFnSyllabic = param("EN_FN_SYLLABIC", 0.0f);
         static const uint8_t kIH0 = tokenOf("IH0"), kT = tokenOf("T"), kD = tokenOf("D"), kS = tokenOf("S"), kZ = tokenOf("Z");
         const size_t m = t.size();
-        if (kFnIhSchwa > 0.5f && m >= 3 && t[m - 1] == kN && t[m - 2] == kIH0) t[m - 2] = kFnIhSchwa > 1.5f ? tokenOf("EH0") : kAH0;
+        // Only after another vowel (a word of 2+ syllables: Gavin, Griffin): the one-syllable function word "been"
+        // (reduced to b IH0 n) stays bɪn (make test: "They have been here.").
+        const bool earlierVowel = m >= 3 && std::any_of(t.begin(), t.end() - 2, [](uint8_t x) { return isVowelToken(x); });
+        if (kFnIhSchwa > 0.5f && earlierVowel && t[m - 1] == kN && t[m - 2] == kIH0) t[m - 2] = kFnIhSchwa > 1.5f ? tokenOf("EH0") : kAH0;
         if (kFnSyllabic > 0.5f && !word.syllabicN && m >= 4 && t[m - 1] == kN && t[m - 2] == kAH0 &&
             (t[m - 3] == kT || t[m - 3] == kD || t[m - 3] == kS || t[m - 3] == kZ)) {
           t.erase(t.end() - 2);
