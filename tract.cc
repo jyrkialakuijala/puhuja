@@ -1,4 +1,5 @@
 #include "tract.h"
+#include "fastmath.h"
 
 #include <algorithm>
 #include <cmath>
@@ -87,24 +88,6 @@ struct AreaPre {
 
 float TractShape::area(float x) const { return AreaPre(*this).area(x); }
 
-// exp(x) for the log areas (|x| < ~10): 2^n x a degree-6 polynomial on [-ln2/2, ln2/2]; relative error ~2e-7.
-// Branch-free and call-free, so the sections loop vectorizes (AVX-512: 16 points per instruction).
-inline float fastExp(float x) {
-  const float n = std::nearbyint(x * 1.44269504f);
-  const float r = x - n * 0.693145752f - n * 1.42860677e-6f;
-  float p = 1.0f / 720.0f;
-  p = p * r + 1.0f / 120.0f;
-  p = p * r + 1.0f / 24.0f;
-  p = p * r + 1.0f / 6.0f;
-  p = p * r + 0.5f;
-  p = p * r + 1.0f;
-  p = p * r + 1.0f;
-  const int32_t e = static_cast<int32_t>(n) + 127;
-  float scale;
-  const int32_t bits = e << 23;
-  std::memcpy(&scale, &bits, 4);
-  return p * scale;
-}
 // cos^2(pi/2 d) for |d| <= 1, as a polynomial in u = d^2 (the Taylor series of (1 + cos(pi d)) / 2 to u^7; error
 // < 3e-6 at |d| = 1).
 inline float cos2Half(float d) {

@@ -7,6 +7,7 @@
 #include "params.h"
 
 #include "filters.h"
+#include "fastmath.h"
 
 #include <algorithm>
 #include <cmath>
@@ -227,39 +228,52 @@ float StringFolds::step(float h, const VocalFolds::Input& in) {
   // (u >= 0), each channel with kMoving times the glottal inertance (in
   // parallel they add up to it). The heard flow goes through the rounded area.
   const float B = kInertance * kMoving / h;
-  openMask_ = 0;
-  uSum_ = uOutSum_ = 0;
-  for (int l = kFirst; l <= kLast; ++l) {
+  // All lanes at once, branch-free (2026-11-13: the lane-by-lane loop with its sqrt, divisions and branches was
+  // ~10 % of a render): no libm calls, the sums in a second loop (no -ffast-math, so a sum in the loop would keep it
+  // scalar). The two directions of the implicit step share one form: for C >= 0, 2 C / (B + sqrt(B^2 + 4 A C));
+  // for C < 0, -2 C / (B + sqrt(B^2 - 4 A C)); both are 2 |C| / (B + sqrt(B^2 + 4 A |C|)).
+  // (log1p(e^z) = z + log1p(e^-z): for z <= 0 the shifted softplus is under zero and clamps to 0, so it is only
+  // used for 0 < z < 30, with fastmath.h's call-free exp and log1p.)
+  constexpr float kLn2 = 0.69314718f;
+  const float B2 = B * B, aRound = 30.0f * kRound;
+  const float closeMix = kCloseMs > 0 ? relaxShare(h, kCloseMs) : 0.0f;
+  for (int l = 0; l < N; ++l) {  // all 16 lanes (whole vectors); the two anchors keep their zeros
+    const bool moving = l >= kFirst && l <= kLast;
     const float a = aMin[l];
-    if (a <= 0) {
-      u_[l] = 0;
-    } else {
-      openMask_ |= 1u << l;
-      const float A = kRhoOver2Cd2 / (a * a);
-      const float C = B * u_[l] + drive;
-      // (either direction: with the flow clamped at zero, air pushed into a
-      // sealed mouth by the closure's own transient could never return, the
-      // cavity sat at 1.3x the lung pressure and the folds were held 0.5 cm^2
-      // open through every b, d, g, 2026-11-03)
-      u_[l] = C >= 0 ? 2 * C / (B + std::sqrt(B * B + 4 * A * C)) : -2 * C / (B + std::sqrt(B * B - 4 * A * C));
-    }
+    const bool open = a > 0;
+    const float aa = open ? a : 1.0f;
+    const float A = kRhoOver2Cd2 / (aa * aa);
+    // (either direction: with the flow clamped at zero, air pushed into a
+    // sealed mouth by the closure's own transient could never return, the
+    // cavity sat at 1.3x the lung pressure and the folds were held 0.5 cm^2
+    // open through every b, d, g, 2026-11-03)
+    const float C = std::fabs(B * u_[l] + drive);
+    const float uNew = 2 * C / (B + std::sqrt(B2 + 4 * A * C));
+    u_[l] = open ? uNew : 0.0f;
     // (the plain softplus left kRound ln 2 = 0.0014 cm^2 per shut lane, 0.02
     // over the cord, half the open peak: a steady leak that kept the flow at
     // 50 % of its mean through the closed phase, a dark breathy source,
     // 2026-11-02; shifted by its value at zero a shut lane passes nothing)
-    constexpr float kLn2 = 0.69314718f;
-    float af = a > 30.0f * kRound ? a : std::max(kRound * (std::log1p(std::exp(a * kRoundInv)) - kLn2), 0.0f);
+    const float z = std::min(std::max(a, 0.0f), aRound) * kRoundInv;
+    const float sp = std::max(kRound * (z + fastLog1pUnit(fastExp(-z)) - kLn2), 0.0f);
+    float af = a > aRound ? a : open ? sp : 0.0f;
     // The heard channel closes no faster than kCloseMs (it opens at once):
     // the area lags, so the flow still answers the pressure instantly (a lag
     // on the flow itself ran away against the sealed tract of a b, 2026-11-01).
     if (kCloseMs > 0) {
-      if (af < aHeard_[l]) aHeard_[l] += (af - aHeard_[l]) * relaxShare(h, kCloseMs);
-      else aHeard_[l] = af;
-      af = aHeard_[l];
+      const float h0 = aHeard_[l];
+      af = af < h0 ? h0 + (af - h0) * closeMix : af;
+      aHeard_[l] = moving ? af : h0;
     }
-    const float A = kRhoOver2Cd2 / (af * af + 1e-12f);
-    const float C = B * uOut_[l] + drive;
-    uOut_[l] = C >= 0 ? 2 * C / (B + std::sqrt(B * B + 4 * A * C)) : -2 * C / (B + std::sqrt(B * B - 4 * A * C));
+    const float A2 = kRhoOver2Cd2 / (af * af + 1e-12f);
+    const float C2 = std::fabs(B * uOut_[l] + drive);
+    const float uo = 2 * C2 / (B + std::sqrt(B2 + 4 * A2 * C2));
+    uOut_[l] = moving ? uo : uOut_[l];
+  }
+  openMask_ = 0;
+  uSum_ = uOutSum_ = 0;
+  for (int l = kFirst; l <= kLast; ++l) {
+    openMask_ |= (aMin[l] > 0 ? 1u : 0u) << l;
     uSum_ += u_[l];
     uOutSum_ += uOut_[l];
   }
