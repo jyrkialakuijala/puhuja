@@ -4037,7 +4037,13 @@ void Synth::emit(const Token& tok, const Ph* next) {
       // e since (LINE_IH_MIX_E), which left room above ɛ.
       static const float kEhE = param("LINE_EH_MIX_E", 0.0f), kEhIh = param("LINE_EH_MIX_IH", 0.0f),
                          kEhAc = param("LINE_EH_AC", 1.0f), kEhNasE = param("LINE_EH_NASAL_MIX_E", 0.0f);
-      const float mixE = kEhE + (next && info(*next).cls == Cls::Nasal ? kEhNasE : 0.0f);
+      // (EH-AE agent14 round M, lab; 0: off) after a liquid or glide (l ɹ w j) before a nasal toward e by LINE_EH_LN_MIX_E
+      // more: "Len" -> plan, "Lend" -> planned, "Fleming" -> flaming, "Brent" -> brand (combo10: 30 of 72 such words wrong).
+      // Male "Len" ɛ F1/F2 560/1870 -> 520/1650-1740 (Kokoro am_adam 550-490 / 1650-1790). Lab: æ heard 31-34 -> 19-22
+      // at 0.6, with EN_EH_NASAL_LEN 0.85 at 0.3: 90 -> 53 / 48 errors (two draw pairs), æ 17-18; bright +2 σ.
+      static const float kEhLnE = param("LINE_EH_LN_MIX_E", 0.0f);
+      const bool ehLiq = lastPh_ == Ph::L || lastPh_ == Ph::RR || lastPh_ == Ph::W || lastPh_ == Ph::J;
+      const float mixE = kEhE + (next && info(*next).cls == Cls::Nasal ? kEhNasE + (ehLiq ? kEhLnE : 0.0f) : 0.0f);
       TractShape o;
       if (mixE > 0 && lineShapeOf(Ph::E, &o)) sh = lineShapeMix(sh, o, mixE);
       if (kEhIh > 0 && lineShapeOf(Ph::IH, &o)) sh = lineShapeMix(sh, o, kEhIh);
@@ -4777,9 +4783,27 @@ void Synth::emit(const Token& tok, const Ph* next) {
     static const float wOff = param("LINE_W_OFF_MS", -1.0f);
     if (lastPh_ == Ph::W && wOff >= 0 && in.cls != Cls::Fricative && in.cls != Cls::Plosive) e.acMs = wOff;
     if (tok.ph == Ph::W && kLineWOnMs >= 0) e.acMs = kLineWOnMs;
+    // (EH-AE agent14 round M, lab; < 0: the 20 ms boundary, as before) the l's lateral opening widens into the next vowel
+    // over LINE_L_OFF_MS (an l after a pause: LINE_L_INIT_OFF_MS when >= 0). The word-initial l is heard with a stop
+    // before it ("Len" -> plan, "Lack" -> black, "Late" -> plate, "Lender" -> blender): puhuja's F1 rises from the l in
+    // ~20 ms (413 -> 524 Hz), Kokoro's over ~40 ms (420 -> 573); a quick opening is a stop's release to Whisper.
+    // Lab: LINE_L_INIT_OFF_MS 50 57 / 54 / 87 errors on three draw pairs (bases 85 / 90 / 90): it did not hold.
+    static const float lOff = param("LINE_L_OFF_MS", -1.0f), lOffInit = param("LINE_L_INIT_OFF_MS", -1.0f);
+    if (lastPh_ == Ph::L && in.cls == Cls::Vowel) {
+      if (lastLInit_ && lOffInit >= 0) e.acMs = lOffInit;
+      else if (lOff >= 0) e.acMs = lOff;
+    }
+    lastLInit_ = tok.ph == Ph::L && prevWasPause_;
   }
   e.ag = aero.ag;
   if (in.cls == Cls::Vowel) e.ag *= tok.shape.press;  // voice quality by prosody
+  {  // (EH-AE agent14 round M, lab; 1: as before) an l's glottis x LINE_L_AG (after a pause x LINE_L_INIT_AG instead when
+     // >= 0): the onset l is dull (1.5-3.5 kHz 10 dB, 3.5-8 kHz ~20 dB under am_adam's re the vowel) and brightens in one
+     // step at its release (+8 dB in 2 ms at 1.5-3.5 kHz): heard as a stop before the l ("Len" -> plan, "Lack" -> black).
+     // Lab (235 l / ɛ words): x2 92 errors / 214 words vs base 76 / 230 (placebos 88-90 / 216); x0.5 silences the l.
+    static const float kLineLAg = param("LINE_L_AG", 1.0f), kLineLInitAg = param("LINE_L_INIT_AG", -1.0f);
+    if (tract_ == Tract::Line && tok.ph == Ph::L) e.ag *= prevWasPause_ && kLineLInitAg >= 0 ? kLineLInitAg : kLineLAg;
+  }
   {  // ŋ's glottis (cm^2; LINE_NG_AG, lab knob 2026-11-11, NG agent 3; < 0: the voicing rest)
     static const float kLineNgAg = param("LINE_NG_AG", -1.0f);
     if (tract_ == Tract::Line && tok.ph == Ph::NG && kLineNgAg >= 0) e.ag = kLineNgAg;

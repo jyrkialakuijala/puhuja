@@ -1052,7 +1052,10 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
           whole *= kLinkStopLen;
         }
         if (b == "L" && !clusterOnset) {
-          if (wordInitial && vowelAfter) whole *= kOnsetLLength;
+          // (EH-AE agent14 round M, lab; 0.75: as before) EN_ONSET_L_LEN: Kokoro's word-initial l is steady for ~60 ms
+          // (am_adam, 16 words), puhuja's for ~40 (0.95: 60). Lab: 0.95 cuts the stop heard before the l 308 -> 273 of 680.
+          static const float kOnsetLLen = param("EN_ONSET_L_LEN", kOnsetLLength);
+          if (wordInitial && vowelAfter) whole *= kOnsetLLen;
           else if (wordFinal && vowelBefore && !phraseFinal) whole *= kCodaLLength;
         }
         // A coda affricate of an unaccented word ("which our"): quick, a
