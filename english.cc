@@ -1275,7 +1275,7 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
       // way to voice it was heard d / t / v by Whisper; the vowel before it is the cue left. Lab (600 words, both voices, two
       // draws per seed): EN_VM_Z_PREV_VLEN 1.2 59 -> 50 (seed 24), 53 -> 46 (seed 7), 1.35 53 -> 58; EN_VM_JH_PREV_VLEN 1.2
       // 59 -> 50, 53 -> 47; EN_VM_V_LEN 0.85 59 -> 52, words +6.
-      { static const float kVmZPrevV = param("EN_VM_Z_PREV_VLEN", 1.0f), kVmZNextV = param("EN_VM_Z_NEXT_VLEN", 1.0f),
+      { static const float kVmZPrevV = param("EN_VM_Z_PREV_VLEN", 1.2f), kVmZNextV = param("EN_VM_Z_NEXT_VLEN", 1.0f),
                            kVmJhPrevV = param("EN_VM_JH_PREV_VLEN", 1.0f), kVmVLen = param("EN_VM_V_LEN", 1.0f),
                            kVmJhLen = param("EN_VM_JH_LEN", 1.0f);
         auto medAt = [&](size_t k, const char* ph) { return k > 0 && k + 1 < tok.size() && baseName(tok[k]) == ph && isVowelToken(tok[k - 1]) && isVowelToken(tok[k + 1]); };

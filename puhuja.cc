@@ -5543,7 +5543,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // into the vowel. The 20 ms opening put the 0.5-2.5 kHz band from -18 to -11 dB re the word's peak in 10 ms ("dozen"),
     // a stop's release to Whisper (z heard t); 35 ms: lab (600 words, 266 medial z, both voices, two draws) 59 -> 48
     // errors (seed 24), 53 -> 51 (seed 7); a quicker closing (ON 10) 59 -> 70.
-    static const float kVmZOn = param("LINE_VM_Z_ON_MS", 0.0f), kVmZOff = param("LINE_VM_Z_OFF_MS", 0.0f);
+    static const float kVmZOn = param("LINE_VM_Z_ON_MS", 0.0f), kVmZOff = param("LINE_VM_Z_OFF_MS", 35.0f);
     if (vmMed && tok.ph == Ph::Z && kVmZOn > 0) e.acMs = kVmZOn;
     if (vmPrevZvMed_ && lastPh_ == Ph::Z && kVmZOff > 0 && in.cls != Cls::Fricative && in.cls != Cls::Plosive) e.acMs = kVmZOff;
     // (W agent round I, lab; < 0: the 20 ms boundary, as before) the lips open from a w into the next sound over LINE_W_OFF_MS
