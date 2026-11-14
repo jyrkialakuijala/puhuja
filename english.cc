@@ -1019,6 +1019,13 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
             }
             if (i == 0) whole *= kAhInitLen;
           } }
+        // ... x EN_AH_NAS_LEN before a nasal of its word (AH agent24 round V lab knob; 1: as before): ʌ before n m ŋ is
+        // heard as æ / ɝ / oʊ ("hummer" -> hammer, "ton" -> turn, "tons" -> tones); æ and ɝ are the long ones.
+        { static const float kAhNasLen = param("EN_AH_NAS_LEN", 1.0f);
+          if (b == "AH" && stressed && kAhNasLen != 1.0f && i + 1 < tok.size() && !isVowelToken(tok[i + 1])) {
+            const std::string n = baseName(tok[i + 1]);
+            if (n == "N" || n == "M" || n == "NG") whole *= kAhNasLen;
+          } }
       } else {
         if (i > 0) prc *= 0.85f;  // not word-initial
         const bool consBefore = i > 0 && !isVowelToken(tok[i - 1]);

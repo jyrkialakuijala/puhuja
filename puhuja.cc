@@ -1233,6 +1233,14 @@ void cavityColour(Ph ph, TractShape* s) {
   if (!c.on) return;
   const float* v = c.v[static_cast<int>(ph)];
   s->dHypoA = v[0]; s->dHypoL = v[1]; s->dFrontA = v[2]; s->dFrontL = v[3];
+  // (AH agent24 round V, lab knobs; 0: as before) the ʌ's colour plus LINE_AH_CAV_DHA / _DHL / _DFA / _DFL (named
+  // knobs: the lab cannot see the runtime-built LINE_CAV_13_*). Puhuja's ʌ F3 2399 Hz against Kokoro's 2762 (male),
+  // 2620 / 3267 (female) at the middle, the largest ʌ offset; heard ɝ ("ton" -> turn, "tongue" -> tern).
+  if (ph == Ph::AH) {
+    static const float kDha = param("LINE_AH_CAV_DHA", 0.0f), kDhl = param("LINE_AH_CAV_DHL", 0.0f),
+                       kDfa = param("LINE_AH_CAV_DFA", 0.0f), kDfl = param("LINE_AH_CAV_DFL", 0.0f);
+    s->dHypoA += kDha; s->dHypoL += kDhl; s->dFrontA += kDfa; s->dFrontL += kDfl;
+  }
 }
 bool lineShapeOf(Ph ph, TractShape* out) {
   // w: u's shape; j: i's; l: the dark English l has the tongue back raised
@@ -3164,6 +3172,12 @@ void ahShape(TractShape* sh, Ph prev, const Ph* next, bool female, bool afterPau
   if (kPreLSw > 0 && next && *next == Ph::L && lineShapeOf(Ph::Schwa, &o)) *sh = lineShapeMix(*sh, o, kPreLSw);
   if (afterPause) sh->ac *= kPauseAc;
   if (female) sh->aLip *= kFLipA;
+  // (AH agent24 round V, lab knobs; 1 / 1: as before) the female voice's larynx tube area x LINE_AH_F_ALAR (her ʌ F1
+  // 656 Hz against Kokoro's 790 at the middle, 29 words1k ʌ words; a narrowing at the glottis end raises F1 most); the
+  // lips x LINE_AH_PRE_L_LIPA before a coda l (ʌ + l heard oʊ: "Pl" -> pole, "pulse"; the l's ɔ shape rounds the end).
+  static const float kFAlar = param("LINE_AH_F_ALAR", 1.0f), kPreLLipA = param("LINE_AH_PRE_L_LIPA", 1.0f);
+  if (female) sh->aLarynx *= kFAlar;
+  if (next && *next == Ph::L) sh->aLip *= kPreLLipA;
   if (female && kFLen != 0.0f) { sh->length += kFLen; sh->sc = lineVowelStrength(sh->xc, sh->wc, sh->length); }
 }
 
@@ -4912,7 +4926,12 @@ void Synth::emit(const Token& tok, const Ph* next) {
                            kAhLateAph = param("LINE_AH_LATE_APH", 1.0f), kAhLateAc = param("LINE_AH_LATE_AC", 1.0f);
         if (tok.ph == Ph::AH) {
           TractShape o2;
-          if (kAhOffSw > 0 && lineShapeOf(Ph::Schwa, &o2)) late = lineShapeMix(late, o2, kAhOffSw);
+          // (AH agent24 round V, lab; < 0: LINE_AH_OFF_SCHWA) before a nasal the late key's ə share is LINE_AH_NAS_OFF_SCHWA
+          // (the n's own pre-shape already mixes the ʌ's end 0.6 toward ə: ʌ before n m heard æ, "hunks" -> hanks).
+          static const float kAhNasOffSw = param("LINE_AH_NAS_OFF_SCHWA", -1.0f);
+          const bool nasN = next && (*next == Ph::N || *next == Ph::M || *next == Ph::NG);
+          const float offSw = nasN && kAhNasOffSw >= 0 ? kAhNasOffSw : kAhOffSw;
+          if (offSw > 0 && lineShapeOf(Ph::Schwa, &o2)) late = lineShapeMix(late, o2, offSw);
           if (kAhCorOff > 0 && next && coronalPh(*next) && *next != Ph::L && *next != Ph::RR && lineShapeOf(Ph::IH, &o2))
             late = lineShapeMix(late, o2, kAhCorOff);
           late.aPharynx *= kAhLateAph;
@@ -6742,7 +6761,11 @@ void Synth::emit(const Token& tok, const Ph* next) {
     static const float kNgPreW = param("LINE_NG_PRE_SHAPE", 1.0f), kNgPreMs = param("LINE_NG_PRE_MS", 60.0f),
                        kNgPreAc = param("LINE_NG_PRE_AC", 0.6f), kNgPreX = param("LINE_NG_PRE_X", 0.71f);
     TractShape v;
+    // (AH agent24 round V, lab; 0: off) LINE_AH_NGPRE_SHAPED 1: after a ʌ the pinch is laid over the ʌ's own shape
+    // (ahShape), not its raw row (as LINE_AH_NPRE_SHAPED for the n).
+    static const float kAhNgPreShaped = param("LINE_AH_NGPRE_SHAPED", 0.0f);
     if (tract_ == Tract::Line && tok.ph == Ph::NG && kNgPreW > 0 && prevWasVowel_ && lineShapeOf(lastPh_, &v)) {
+      if (lastPh_ == Ph::AH && kAhNgPreShaped > 0) ahShape(&v, Ph::Stop, &tok.ph, female_, false);
       v.xc = kNgPreX >= 0 ? kNgPreX : lineNgPlace(lastPh_, next);
       v.ac = kNgPreAc;
       // (NG-M-FINAL agent23 round U, lab; 2: as before) the pinch's half-width LINE_NG_PRE_WC.
@@ -6822,15 +6845,28 @@ void Synth::emit(const Token& tok, const Ph* next) {
     static const float kEhNPreMix = param("LINE_EH_NPRE_MIX", -1.0f);
     static const int kEhNPreRow = static_cast<int>(param("LINE_EH_NPRE_ROW", -1.0f));
     const bool ehnPre = isN && lastPh_ == Ph::EH && (kEhNPreMix >= 0 || kEhNPreRow >= 0) && !fnPre && !axPre;
+    // (AH agent24 round V, lab; < 0 / 0 / < 0: as above) the n after a ʌ: mix LINE_AH_NPRE_MIX, over the vowel's last
+    // LINE_AH_NPRE_MS; LINE_AH_NPRE_SHAPED 1 starts the mix from the ʌ's own shape (ahShape: its narrow pharynx, wide
+    // mouth, ɑ share) instead of the raw ʌ row, whose end (F2 up) was heard as æ / ɛ before n ("sons" -> science, "hunks").
+    // Before a nasal puhuja's male ʌ ended at F2 1396 Hz (80 %, 13 words), Kokoro's 1246; SHAPED 1 with MS 30: 1344, the
+    // female end's F1 565 -> 631 (Kokoro 667). Lab (two seeded draws, 300 / 600 context words): ʌ errors 108 -> 88 and
+    // 194 -> 163, words right +7 / +10, words1000 +14 / +16, no hybrid veto; F2 steps into the n slower (male 105 -> 101,
+    // female 102 -> 90 Hz per 10 ms).
+    static const float kAhNPreMix = param("LINE_AH_NPRE_MIX", -1.0f), kAhNPreMs = param("LINE_AH_NPRE_MS", -1.0f),
+                       kAhNPreShaped = param("LINE_AH_NPRE_SHAPED", 0.0f);
+    const bool ahnPre = isN && lastPh_ == Ph::AH && !fnPre && !axPre;
     const float preMix = fnPre ? kFnPreMix : axPre ? kAxnNPreMix : ehnPre && kEhNPreMix >= 0 ? kEhNPreMix :
-                         ndnPre && kNdnPreMix >= 0 ? kNdnPreMix : mix;
-    const float preMs = fnPre && kFnPreMs >= 0 ? kFnPreMs : kNPreMs, preW = fnPre && kFnPreW >= 0 ? kFnPreW : kNPreW;
+                         ndnPre && kNdnPreMix >= 0 ? kNdnPreMix : ahnPre && kAhNPreMix >= 0 ? kAhNPreMix : mix;
+    const float preMs = fnPre && kFnPreMs >= 0 ? kFnPreMs : ahnPre && kAhNPreMs >= 0 ? kAhNPreMs : kNPreMs,
+                preW = fnPre && kFnPreW >= 0 ? kFnPreW : kNPreW;
     static const int kAxnNPreRow = static_cast<int>(param("LINE_AXN_NPRE_ROW", -1.0f));  // ... toward this row (13: ʌ; < 0: as above)
     const int preRow = fnPre && kFnPreRow >= 0 ? kFnPreRow : axPre && kAxnNPreRow >= 0 ? kAxnNPreRow :
                        ehnPre && kEhNPreRow >= 0 ? kEhNPreRow : ndnPre && kNdnPreRow >= 0 ? kNdnPreRow : kNPreRow;
     if (tract_ == Tract::Line && isN && preMix > 0 && prevWasVowel_ && lineShapeOf(lastPh_, &v) &&
-        lineShapeOf(static_cast<Ph>(preRow), &o))
+        lineShapeOf(static_cast<Ph>(preRow), &o)) {
+      if (ahnPre && kAhNPreShaped > 0) ahShape(&v, Ph::Stop, &tok.ph, female_, false);
       addShapeDemand(std::max(e.t - preMs * ms, phonemeStart_ + 1), e.t + dur, mixN(v, o, preMix), lastPh_, preW);
+    }
     // Out of an n not after a vowel (word-initial, after a consonant; LINE_N_REL_ALL 1: every n before a vowel): the n
     // and the next vowel's first LINE_N_REL_ON_MS are asked for the vowel's shape mixed LINE_N_REL_MIX (before a back
     // vowel LINE_N_REL_BACK_MIX, < 0: the same) toward the row LINE_N_REL_ROW (< 0: LINE_N_PRE_ROW), the lips at least LINE_N_REL_LIPA cm^2 (0: as
@@ -7823,6 +7859,10 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     TractShape v, o;
     if (tract_ == Tract::Line && tok.ph == Ph::T && mix > 0 && prevWasVowel_ && !afterUnreleased && lineShapeOf(lastPh_, &v) &&
         lineShapeOf(static_cast<Ph>(kTPreRow), &o)) {
+      // (AH agent24 round V, lab; 0: off) LINE_AH_TPRE_SHAPED 1: after a ʌ the mix starts from the ʌ's own shape (ahShape)
+      // instead of its raw row (as LINE_AH_NPRE_SHAPED for the n).
+      static const float kAhTPreShaped = param("LINE_AH_TPRE_SHAPED", 0.0f);
+      if (lastPh_ == Ph::AH && kAhTPreShaped > 0) ahShape(&v, Ph::Stop, &tok.ph, female_, false);
       TractShape m = lineShapeMix(v, o, mix);
       m.aLip = v.aLip; m.lLip = v.lLip; m.aLarynx = v.aLarynx; m.length = v.length;
       m.sc = lineVowelStrength(m.xc, m.wc, m.length);
@@ -7879,6 +7919,9 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     const int preRow = finPre ? kBdgFinPreRow[bdgIdx] : bzPre ? kBzPreRow[bdgIdx] : row;
     if (preMix > 0 && (bdgOn || finPre || bzPre) && preRow >= 0 && !afterUnreleased && lineShapeOf(lastPh_, &v) &&
         lineShapeOf(static_cast<Ph>(preRow), &o)) {
+      // (AH agent24 round V, lab; 0: off) LINE_AH_BDGPRE_SHAPED 1: after a ʌ from the ʌ's own shape (as LINE_AH_NPRE_SHAPED).
+      static const float kAhBdgPreShaped = param("LINE_AH_BDGPRE_SHAPED", 0.0f);
+      if (lastPh_ == Ph::AH && kAhBdgPreShaped > 0) ahShape(&v, Ph::Stop, &tok.ph, female_, false);
       TractShape m = lineShapeMix(v, o, preMix);
       m.aLip = v.aLip; m.lLip = v.lLip; m.aLarynx = v.aLarynx; m.length = v.length;
       // (FINAL-GD agent21 round S, lab; 0: the vowel's lips) the final d's / g's lips also LINE_GD_FIN_LIPS of the way
