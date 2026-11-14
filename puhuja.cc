@@ -4013,6 +4013,14 @@ void Synth::emit(const Token& tok, const Ph* next) {
       }
       // (R-POSTVOCALIC agent14 round M, lab) the coda ɹ's own knobs: rCodaShape().
       if (isVowel(lastPh_) && !(next && isVowel(*next)) && rCodaScope(lastPh_)) rCodaShape(&sh);
+      // (AO-L agent21 round S, lab; 0: off) the ɹ after an ɔ mixed toward ɑ by LINE_R_AFTER_AO_AA (a lighter r: F1 stays
+      // up; "warm" -> "worm", "court" -> "curt": the ɹ took the ɔ's place as an ɝ).
+      static const float kRAfterAoAa = param("LINE_R_AFTER_AO_AA", 0.0f);
+      TractShape rAa;
+      if (kRAfterAoAa > 0 && lastPh_ == Ph::AO && lineShapeOf(Ph::AA, &rAa)) sh = lineShapeMix(sh, rAa, kRAfterAoAa);
+      // ... and its lip area x LINE_R_AFTER_AO_LIPA (1: off; > 1 an unrounded ɹ: "pour" -> "poor", "Por" -> "poor").
+      static const float kRAfterAoLipA = param("LINE_R_AFTER_AO_LIPA", 1.0f);
+      if (kRAfterAoLipA != 1.0f && lastPh_ == Ph::AO) sh.aLip *= kRAfterAoLipA;
       // (R-L agent19 round Q, lab; 1 / -1 / 0: as before) a coda ɹ before a z (LINE_RZ_SCOPE 1: before any consonant):
       // "Fares" -> fails, "Tears" -> tells, "Peers" -> pills (dictionary combo14 V_Z 33 of 160 heard l; the same words
       // without the z are heard with their ɹ). Its pharynx, lip area, hump area x LINE_RZ_APH / _LIPA / _AC, its place
@@ -4314,6 +4322,25 @@ void Synth::emit(const Token& tok, const Ph* next) {
         if (kAoLipL != 1.0f) sh.lLip *= kAoLipL;
         if (kAoXc != 1.0f) { sh.xc *= kAoXc; sh.sc = lineVowelStrength(sh.xc, sh.wc, sh.length); }
       }
+      // (AO-L agent21 round S, lab; 0: off) the ɔ next to a liquid mixed further toward ɑ: before an ɹ by
+      // LINE_AO_R_AA, before an l by LINE_AO_L_AA, after a w by LINE_AO_W_AA. Kokoro's "Warm", "Torn", "Laurie" keep F1
+      // at 500-570 Hz into the ɹ, puhuja's falls to 400 (an ɝ: "warm" -> "worm", "torn" -> "term"); "Paul", "call"
+      // were heard as oʊ ("pole", "cole").
+      static const float kAoRAa = param("LINE_AO_R_AA", 0.0f), kAoLAa = param("LINE_AO_L_AA", 0.0f),
+                         kAoWAa = param("LINE_AO_W_AA", 0.0f);
+      const float aoLiqAa = (next && *next == Ph::RR ? kAoRAa : next && *next == Ph::L ? kAoLAa : 0.0f) +
+                            (lastPh_ == Ph::W ? kAoWAa : 0.0f);
+      TractShape aoA;
+      if (aoLiqAa > 0 && lineShapeOf(Ph::AA, &aoA)) sh = lineShapeMix(sh, aoA, std::min(1.0f, aoLiqAa));
+      // (AO-L agent21, lab; 0 / 1: off) before an l mixed toward ʌ by LINE_AO_L_AH (Kokoro's "Paul", "call" hold F2 at
+      // 1100-1150 Hz, puhuja's at 990-1000: oʊ-like); before an ɹ its lip area x LINE_AO_R_HLIPA (Kokoro's "warm", "torn",
+      // "pour" start at F2 830-900, puhuja's at 990-1000).
+      static const float kAoLAh = param("LINE_AO_L_AH", 0.0f), kAoRHLipA = param("LINE_AO_R_HLIPA", 1.0f);
+      if (kAoLAh > 0 && next && *next == Ph::L && lineShapeOf(Ph::AH, &aoA)) sh = lineShapeMix(sh, aoA, kAoLAh);
+      if (kAoRHLipA != 1.0f && next && *next == Ph::RR) sh.aLip *= kAoRHLipA;
+      // (AO-L agent21, lab; 1: off) the tract length x LINE_AO_LIQ_SHLEN for an ɔ before l / ɹ (< 1 raises every formant).
+      static const float kAoLiqShLen = param("LINE_AO_LIQ_SHLEN", 1.0f);
+      if (kAoLiqShLen != 1.0f && next && (*next == Ph::L || *next == Ph::RR)) sh.length *= kAoLiqShLen;
     }
     // (AO agent 8, round I, lab; 0: off) an l right after an ɔ mixed toward ə by LINE_L_AFTER_AO: puhuja's coda l after
     // ɔ ran ~320 / 740 Hz, the vowel gliding down into it as an oʊ does ("call" -> "cole", "Paul" -> "pole", "mall" ->
@@ -4623,7 +4650,9 @@ void Synth::emit(const Token& tok, const Ph* next) {
           static const float kUhRMix = param("LINE_UH_R_MIX", -1.0f);
           // (round I EH agent, lab; < 0: as the front vowels) the ɛ's own r-colour share: LINE_EH_R_MIX.
           static const float kEhRMix = param("LINE_EH_R_MIX", -1.0f);
-          const float mix = tok.ph == Ph::EH && kEhRMix >= 0 ? kEhRMix : uhAlone && kUhRMix >= 0 ? kUhRMix : open && kRColourOpenMix >= 0 ? kRColourOpenMix : frontVowel(tok.ph) && kRColourFrontMix >= 0 ? kRColourFrontMix : kRColourMix;
+          // (AO-L agent21 round S, lab; < 0: as the back vowels, LINE_RCOLOR_MIX) the ɔ's own r-colour share: LINE_AO_R_MIX.
+          static const float kAoRMix = param("LINE_AO_R_MIX", -1.0f);
+          const float mix = tok.ph == Ph::AO && kAoRMix >= 0 ? kAoRMix : tok.ph == Ph::EH && kEhRMix >= 0 ? kEhRMix : uhAlone && kUhRMix >= 0 ? kUhRMix : open && kRColourOpenMix >= 0 ? kRColourOpenMix : frontVowel(tok.ph) && kRColourFrontMix >= 0 ? kRColourFrontMix : kRColourMix;
           // (R-POSTVOCALIC agent14 round M, lab; 0: off) LINE_RCOLOR_CODA 1: the colouring heads for the ɜ row with the
           // coda ɹ's knobs (rCodaShape) applied, so a fronted coda ɹ does not drag the vowel's F2 down first.
           static const float kRcCoda = param("LINE_RCOLOR_CODA", 0.0f);
@@ -4645,6 +4674,19 @@ void Synth::emit(const Token& tok, const Ph* next) {
             if (kRcAc != 1.0f) late.ac *= kRcAc;
             if (kRcAor != 1.0f) late.aOral *= kRcAor;
             if (kRcSc != 1.0f) late.sc *= kRcSc;
+          }
+          // (AO-L agent21 round S, lab; 0 / 1 / -1: off) the ɔ's r-coloured late key: mixed back toward ɑ by
+          // LINE_AO_R_LATE_AA (Kokoro's F1 rises to 500-560 Hz while its F3 falls into the ɹ; puhuja's F1 fell to 400 with
+          // F3: an ɝ, "warm" -> "worm"), its pharynx and lip area x LINE_AO_R_APH / LINE_AO_R_LIPA, its place this share of
+          // the way to the ɝ's (LINE_AO_R_KEEPX; 0 keeps the ɔ's place: F2 stays low while F3 falls).
+          static const float kAoRLateAa = param("LINE_AO_R_LATE_AA", 0.0f), kAoRAph = param("LINE_AO_R_APH", 1.0f),
+                             kAoRLipA = param("LINE_AO_R_LIPA", 1.0f), kAoRKeepX = param("LINE_AO_R_KEEPX", -1.0f);
+          if (tok.ph == Ph::AO) {
+            TractShape aa;
+            if (kAoRLateAa > 0 && lineShapeOf(Ph::AA, &aa)) late = lineShapeMix(late, aa, kAoRLateAa);
+            if (kAoRKeepX >= 0) { late.xc = sh.xc + (late.xc - sh.xc) * kAoRKeepX; late.sc = lineVowelStrength(late.xc, late.wc, late.length); }
+            if (kAoRAph != 1.0f) late.aPharynx *= kAoRAph;
+            if (kAoRLipA != 1.0f) late.aLip *= kAoRLipA;
           }
         }
         if (isVowel(tok.ph) && next && *next == Ph::L && kLColourMix > 0) {
@@ -4801,7 +4843,11 @@ void Synth::emit(const Token& tok, const Ph* next) {
                            kAoLateLipA = param("LINE_AO_LATE_LIPA", 1.0f);
         if (tok.ph == Ph::AO && !(next && (*next == Ph::IH || *next == Ph::RR))) {
           TractShape c;
-          if (kAoOffAa > 0 && lineShapeOf(Ph::AA, &c)) late = lineShapeMix(late, c, kAoOffAa);
+          // (AO-L agent21 round S, lab; < 0: LINE_AO_OFF_AA) before an l its own share: LINE_AO_L_OFF_AA ("call" F2 fell
+          // 1000 -> 800 Hz into the l, Kokoro's stays 1000-1100).
+          static const float kAoLOffAa = param("LINE_AO_L_OFF_AA", -1.0f);
+          const float offAa = next && *next == Ph::L && kAoLOffAa >= 0 ? kAoLOffAa : kAoOffAa;
+          if (offAa > 0 && lineShapeOf(Ph::AA, &c)) late = lineShapeMix(late, c, offAa);
           if (kAoFinalOff > 0 && (!next || *next == Ph::Stop) && lineShapeOf(Ph::Schwa, &c)) late = lineShapeMix(late, c, kAoFinalOff);
           if (kAoLateLipA != 1.0f) late.aLip *= kAoLateLipA;
           lateNoUw = late;  // (an ɔ has no uː changes: its late mix counts as its own end, as in the AO agent's lab)
@@ -5152,11 +5198,22 @@ void Synth::emit(const Token& tok, const Ph* next) {
             // Kokoro's ɛ before r has its F3 down by the last third (male 2313, female 2187; puhuja 2396 / 2688).
             static const float kEhRAt = param("LINE_EH_R_AT", -1.0f), kEhLateAt = param("LINE_EH_LATE_AT", -1.0f);
             const float ehAt = next && *next == Ph::RR ? kEhRAt : kEhLateAt;
-            const double at = ihsKey && kIhsLateAt >= 0 ? kIhsLateAt : tok.ph == Ph::EH && ehAt >= 0 ? ehAt : uhAlone && kUhRAt >= 0 && next && *next == Ph::RR ? kUhRAt : open && kRColourOpenAt >= 0 ? kRColourOpenAt : frontVowel(tok.ph) && kRColourFrontAt >= 0 ? kRColourFrontAt : kRColourAt;
+            // (AO-L agent21 round S, lab; < 0: LINE_RCOLOR_AT) the ɔ's r-coloured key at LINE_AO_R_AT before an ɹ: Kokoro's
+            // ɔ holds F3 at 2300-2400 Hz through 60-70 % of "warm", "torn", "court"; puhuja's fell from 40 %.
+            static const float kAoRAt = param("LINE_AO_R_AT", -1.0f);
+            // ... and its late key before an l at LINE_AO_L_AT (< 0: as above): the ɔ holds its F1 longer before the l
+            // (11labs' "all" keeps F1 540-580 Hz to 80 % of the ɔ; puhuja's fell from 60 %: "Paul" -> "pole").
+            static const float kAoLAt = param("LINE_AO_L_AT", -1.0f);
+            const double at = tok.ph == Ph::AO && next && *next == Ph::RR && kAoRAt >= 0 ? kAoRAt :
+                              tok.ph == Ph::AO && next && *next == Ph::L && kAoLAt >= 0 ? kAoLAt : ihsKey && kIhsLateAt >= 0 ? kIhsLateAt : tok.ph == Ph::EH && ehAt >= 0 ? ehAt : uhAlone && kUhRAt >= 0 && next && *next == Ph::RR ? kUhRAt : open && kRColourOpenAt >= 0 ? kRColourOpenAt : frontVowel(tok.ph) && kRColourFrontAt >= 0 ? kRColourFrontAt : kRColourAt;
             // (round-I ʌ agent, lab) LINE_AH_W weighs the ʌ's two demands here too (its late key, LINE_AH_OFF_SCHWA,
             // lands in this branch).
             static const float kAhW2 = param("LINE_AH_W", 1.0f);
-            const float wv = (tok.ph == Ph::AH && kAhW2 != 1.0f ? ws * kAhW2 : ws) * (ihsKey ? kIhsW : 1.0f);
+            // (AO-L agent21 round S, lab; 1: as before) the ɔ's held demand before an l / ɹ x LINE_AO_LIQ_W (does the planner
+            // reach the ɔ before the liquid pulls it away?).
+            static const float kAoLiqW = param("LINE_AO_LIQ_W", 1.0f);
+            const bool aoLiq = tok.ph == Ph::AO && next && (*next == Ph::L || *next == Ph::RR);
+            const float wv = (tok.ph == Ph::AH && kAhW2 != 1.0f ? ws * kAhW2 : ws) * (ihsKey ? kIhsW : 1.0f) * (aoLiq ? kAoLiqW : 1.0f);
             // (R-POSTVOCALIC agent14 round M, lab; -1 / 1 / 0: as before) a vowel before an ɹ (front vowels; all with
             // LINE_RCOLOR_K_ALL 1): from LINE_RCOLOR_PRE_AT of it a middle demand with the vowel's place and the late
             // key's pharynx, lips and hump area (the F3 falls before the tongue moves back); the late demand's weight x
@@ -5170,7 +5227,14 @@ void Synth::emit(const Token& tok, const Ph* next) {
             // from 30 % of it ("Eb", "Up" glided out of the pause's ə for their first third).
             static const float kVonOffPreMs = param("LINE_VON_OFF_PRE_MS", 40.0f);
             const bool vonOff = prevWasPause_ && tok.wordStart && kVonOffPreMs > 0;
-            addShapeDemand(vonOff ? t0 - kVonOffPreMs * ms : t0 + 0.3 * dur, t0 + std::max(0.3, rcPre ? std::min<double>(kRcPreAt, at - 0.15) : at - 0.15) * dur, sh, tok.ph, wv, preR);
+            // (AO-L agent21 round S, lab; < 0: 0.3 / as above) the ɔ next to a liquid: its held demand from LINE_AO_HOLD_FROM
+            // of its length (after a w l ɹ: "ward" -> "word", "Laurie" -> "glory": the glide's rise took the ɔ's first third),
+            // and before an ɹ its place weight LINE_AO_R_PREW (SPLAN_PRE_R_VOWEL_W 0: the ɹ's place pulls the ɔ forward).
+            static const float kAoHoldFrom = param("LINE_AO_HOLD_FROM", -1.0f), kAoRPreW = param("LINE_AO_R_PREW", -1.0f);
+            const bool aoNear = tok.ph == Ph::AO && (aoLiq || lastPh_ == Ph::W || lastPh_ == Ph::L || lastPh_ == Ph::RR);
+            const double holdFrom = aoNear && kAoHoldFrom >= 0 ? kAoHoldFrom : 0.3;
+            const float preRw = tok.ph == Ph::AO && next && *next == Ph::RR && kAoRPreW >= 0 ? kAoRPreW : preR;
+            addShapeDemand(vonOff ? t0 - kVonOffPreMs * ms : t0 + holdFrom * dur, t0 + std::max(holdFrom, rcPre ? std::min<double>(kRcPreAt, at - 0.15) : at - 0.15) * dur, sh, tok.ph, wv, preRw);
             if (rcPre) {
               TractShape pre = sh;
               pre.aPharynx = late.aPharynx; pre.aLip = late.aLip; pre.ac = late.ac; pre.lLip = late.lLip;
