@@ -1253,6 +1253,9 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
               kEnglishTokens[tok[i + 1] - 0x80][strlen(kEnglishTokens[tok[i + 1] - 0x80]) - 1] == '0') whole *= kDVvLen;
           if (nb == "Z" || nb == "S") whole *= kDzDLen;
           if ((isNasal(pb) || pb == "L") && (nb.empty() || nb == "Z" || nb == "S")) whole *= kNdDLen;
+          // (INITIAL-D agent18 round P, lab knob; 1: as before) a word-initial d before a vowel (puhuja.cc LINE_DI_*).
+          static const float kDiLen = param("EN_DI_LEN", 1.0f);
+          if (i == 0 && i + 1 < tok.size() && isVowelToken(tok[i + 1])) whole *= kDiLen;
         }
         else if (b == "G") {  // the g's own length, initial / medial / final (G agent 7 round H, lab knobs; 1: unchanged)
           static const float kGLen = param("EN_G_LEN", 1.0f), kGInitLen = param("EN_G_INIT_LEN", 1.0f), kGFinalLen = param("EN_G_FINAL_LEN", 1.0f);
