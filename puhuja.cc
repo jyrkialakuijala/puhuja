@@ -2309,7 +2309,11 @@ void Synth::setFixedResonances() {
 void Synth::setTract(Tract t) {
   tract_ = t;
   if (t == Tract::Line) {
-    line_.init(fs_);
+    // The female voice's nasal line x LINE_NASAL_SCALE_F long (NG-M-FINAL agent23 round U, lab; 1: as before, 11 cm as
+    // the male's): her final m murmur's F2 sat at ~900 Hz ("Kim"), Kokoro bella / heart's at 1430-1650, and her final m
+    // was heard ŋ / n 4x as often as the male one.
+    static const float kNasalScaleF = param("LINE_NASAL_SCALE_F", 1.0f);
+    line_.init(fs_, female_ ? kNasalScaleF : 1.0f);
     lineXFollow_ = 1.0f - std::exp(-1.0f / msToSamples(kBoundaryMs, fs_));
     larynx_->attachLine(&line_);
   } else {
@@ -3819,7 +3823,9 @@ void Synth::emit(const Token& tok, const Ph* next) {
   {
     static const float kLineNgPress = param("LINE_NG_PRESS", 1.1f);
     if (tract_ == Tract::Line && kLineNgPress != 1.0f) {
-      if (tok.ph == Ph::NG) { e.press = kLineNgPress; e.pressMs = 20; }
+      // ... the female voice's x LINE_NG_PRESS_F instead (NG-M-FINAL agent23 round U, lab; < 0: the same).
+      static const float kLineNgPressF = param("LINE_NG_PRESS_F", -1.0f);
+      if (tok.ph == Ph::NG) { e.press = female_ && kLineNgPressF >= 0 ? kLineNgPressF : kLineNgPress; e.pressMs = 20; }
       else if (lastPh_ == Ph::NG && e.press < 0) { e.press = 1.0f; e.pressMs = 20; }
     }
   }
@@ -4527,6 +4533,15 @@ void Synth::emit(const Token& tok, const Ph* next) {
       static const float kLineNgPreIMix = param("LINE_NG_PRE_I_MIX", 0.0f);
       TractShape o;
       if (kLineNgPreIMix > 0 && lineShapeOf(Ph::I, &o)) sh = lineShapeMix(sh, o, kLineNgPreIMix);
+    }
+    if (have && next && *next == Ph::NG && (tok.ph == Ph::AE || tok.ph == Ph::AH)) {
+      // (NG-M-FINAL agent23 round U, lab knobs; 0: off) æ before ŋ mixed LINE_NG_PRE_AE_MIX toward ɛ (the American raised
+      // [eəŋ] of "bang"; Kokoro "Sang" heart F2 2000 -> 2680 into the ŋ, puhuja 2020 -> 2270) and ʌ before ŋ
+      // LINE_NG_PRE_AH_MIX toward ɪ, over the vowel's whole length (ŋ after ʌ / æ heard n: Sung -> sun, Lang -> plan).
+      static const float kNgPreAeMix = param("LINE_NG_PRE_AE_MIX", 0.0f), kNgPreAhMix = param("LINE_NG_PRE_AH_MIX", 0.0f);
+      const float mx = tok.ph == Ph::AE ? kNgPreAeMix : kNgPreAhMix;
+      TractShape o;
+      if (mx > 0 && lineShapeOf(tok.ph == Ph::AE ? Ph::EH : Ph::IH, &o)) sh = lineShapeMix(sh, o, mx);
     }
     if (have && tok.ph == Ph::IH && lastPh_ == Ph::A) ayEndShape(&sh);
     if (have && tok.ph == Ph::AA && next && *next == Ph::RR) {
@@ -6610,7 +6625,12 @@ void Synth::emit(const Token& tok, const Ph* next) {
   if (ehNAp) approachMs = kEhNApMs;
   if (tract_ == Tract::Line && approachMs > 0 && prevWasVowel_ && !prevWasPlosive_) {
     Event ap{std::max(e.t - approachMs * ms, phonemeStart_ + 1)};
-    ap.ac = ehNAp ? kEhNApA : isM ? kLineMApproachA : isN ? kLineNApproachA : kLineNgApproachA;
+    // (NG-M-FINAL agent23 round U, lab; < 0: LINE_M_APPROACH_A) a word-final m's approach area LINE_M_FIN_APPROACH_A,
+    // the female voice's LINE_M_APPROACH_A_F (the female final m was heard ŋ / n 4x as often as the male one).
+    static const float kMFinApA = param("LINE_M_FIN_APPROACH_A", -1.0f), kMApAF = param("LINE_M_APPROACH_A_F", -1.0f);
+    const bool mFin = isM && (!next || *next == Ph::Stop);
+    const float mApA = mFin && kMFinApA >= 0 ? kMFinApA : female_ && kMApAF >= 0 ? kMApAF : kLineMApproachA;
+    ap.ac = ehNAp ? kEhNApA : isM ? mApA : isN ? kLineNApproachA : kLineNgApproachA;
     ap.acMs = static_cast<float>((e.t - ap.t) / ms);
     ap.lineX = tok.ph == Ph::NG ? (kNgApX >= 0 ? kNgApX : lineNgPlace(lastPh_, next)) : isN && kLineNApproachX > 0 ? kLineNApproachX : linePlaceOf(tok.ph);
     if (tok.ph == Ph::NG && kNgApHw >= 0) ap.lineHw = kNgApHw;
@@ -6632,7 +6652,9 @@ void Synth::emit(const Token& tok, const Ph* next) {
     if (tract_ == Tract::Line && tok.ph == Ph::NG && kNgPreW > 0 && prevWasVowel_ && lineShapeOf(lastPh_, &v)) {
       v.xc = kNgPreX >= 0 ? kNgPreX : lineNgPlace(lastPh_, next);
       v.ac = kNgPreAc;
-      v.wc = 2.0f;
+      // (NG-M-FINAL agent23 round U, lab; 2: as before) the pinch's half-width LINE_NG_PRE_WC.
+      static const float kNgPreWc = param("LINE_NG_PRE_WC", 2.0f);
+      v.wc = kNgPreWc;
       v.sc = 1.0f;
       // After ɔ ɑ ɒ o u ʊ the weight is LINE_NG_PRE_BACK_W instead (< 0: the same): the pinch's low F3 there was
       // heard as r + m ("Strong" -> "storm", "Wrong" -> "storm", "Hong" -> "harm", "Belong" -> "velorm").

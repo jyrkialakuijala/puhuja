@@ -187,7 +187,7 @@ struct TractShape;
 class VocalTractLine {
  public:
   static constexpr int kOralSections = 64, kNasalSections = 40;
-  void init(float fs);
+  void init(float fs, float nasalScale = 1.0f);  // nasalScale: the nasal line's length x (the female voice, LINE_NASAL_SCALE_F)
   // The vowel shape, with a constriction of area ac (cm^2; >= 1: none) at
   // x (share of the length; < 0: none) and the velum open by an (cm^2).
   void setShape(const TractShape& shape, float x, float ac, float an);

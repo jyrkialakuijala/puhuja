@@ -326,11 +326,11 @@ const float kNasalCavityArea = param("LINE_NASAL_CAVITY_A", 3.5f);  // the main 
 const float kNasalPortArea = param("LINE_NASAL_PORT_A", 1.5f);      // the nasopharynx behind it (cm^2)
 const float kNostrilArea = param("LINE_NOSTRIL_A", 1.594f) /* cost 1814 whisper-run1-phon_err */;  // both nostrils together (cm^2; 1.2 put the n level with the vowel, the readers 9-14 dB under)
 
-void VocalTractLine::init(float fs) {
+void VocalTractLine::init(float fs, float nasalScale) {
   fs_ = fs;
   dt_ = 1.0f / (TransmissionLine::kSubsteps * fs);
   oral_.init(17.5f, fs, kOralSections);
-  nasal_.init(kNasalLength, fs, kNasalSections);
+  nasal_.init(nasalScale == 1.0f ? kNasalLength : nasalScale * kNasalLength, fs, kNasalSections);
   static const float kNasalLoss = param("LINE_NASAL_LOSS", 1.0f);
   nasal_.setWallLoss(kNasalLoss);  // the nasal walls (mucosa, the sinuses) lose more than the mouth
   // The turbinates split the nose into narrow slits: everything above the
@@ -350,7 +350,7 @@ void VocalTractLine::init(float fs) {
   std::vector<float> na(nasal_.sections());
   for (int k = 0; k < nasal_.sections(); ++k) {
     const float x = (k + 0.5f) * nasal_.dx();
-    na[k] = x < 2.0f ? kNasalPortArea : x < 9.0f ? kNasalCavityArea : kNostrilArea;
+    na[k] = x < 2.0f * nasalScale ? kNasalPortArea : x < 9.0f * nasalScale ? kNasalCavityArea : kNostrilArea;
   }
   nasal_.setAreas(na, false);
   // The paranasal sinuses as Helmholtz side branches (Dang & Honda 1994: the
@@ -367,12 +367,12 @@ void VocalTractLine::init(float fs) {
     static const float split = param("LINE_SINUS1_SPLIT", 1.12f);
     nasal_.clearSinuses();
     if (v1 > 0 && split > 0) {
-      nasal_.addSinus(static_cast<int>(5.0f / nasal_.dx()), v1 * split / (1.0f + split), 0.5f * a1, l1, q);
-      nasal_.addSinus(static_cast<int>(5.0f / nasal_.dx()), v1 / (1.0f + split), 0.5f * a1, l1, q);
+      nasal_.addSinus(static_cast<int>(5.0f * nasalScale / nasal_.dx()), v1 * split / (1.0f + split), 0.5f * a1, l1, q);
+      nasal_.addSinus(static_cast<int>(5.0f * nasalScale / nasal_.dx()), v1 / (1.0f + split), 0.5f * a1, l1, q);
     } else if (v1 > 0) {
-      nasal_.addSinus(static_cast<int>(5.0f / nasal_.dx()), v1, a1, l1, q);
+      nasal_.addSinus(static_cast<int>(5.0f * nasalScale / nasal_.dx()), v1, a1, l1, q);
     }
-    if (v2 > 0) nasal_.addSinus(static_cast<int>(7.0f / nasal_.dx()), v2, a2, l2, q);
+    if (v2 > 0) nasal_.addSinus(static_cast<int>(7.0f * nasalScale / nasal_.dx()), v2, a2, l2, q);
   }
   velumK_ = static_cast<int>(0.55f * oral_.sections());
 #if defined(__SSE__)

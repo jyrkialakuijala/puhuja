@@ -856,6 +856,15 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
           // heard z 109 -> 78), 0.75 / 0.6 -22 / -22 over two; with LINE_FINAL_S_AB_MS 15 and LINE_Z_AG_LAG_MS 30 see there.
           static const float kPreFinalSVowel = param("EN_PRE_FINAL_S_VOWEL", 0.85f);
           if (kPreFinalSVowel != 1.0f && n == "S" && i + 2 == tok.size()) prc *= kPreFinalSVowel;
+          // (NG-M-FINAL agent23 round U, lab; 1: as before) the variable part of a vowel before a word-final ŋ / m x
+          // EN_PRE_FINAL_NG_VOWEL / EN_PRE_FINAL_M_VOWEL. The vowel outweighed its final nasal: puhuja's monosyllables
+          // vowel 267 ms : m 80 ms (male median, 40 words), Kokoro's "Came" ~200 : ~180, 11labs' running-speech vowel +
+          // final m ~1.3 : 1; and a final m / ŋ after a stressed vowel was heard n (m 22 / 484, ŋ 32 / 188 phoneme
+          // errors, combo18). Lab (290 hard words, NG / M / N targets, both voices, seeded draw pairs): M 0.85 98 / 124 /
+          // 110 -> 76 / 74 / 82 errors; M and NG 0.85 124 / 110 -> 83 / 84, words right 213 / 233 -> 254 / 266; 1.15
+          // made it worse (162, 150: the nasal deleted). The murmur's own level re the vowel peak is unchanged.
+          static const float kPreFinalNgVowel = param("EN_PRE_FINAL_NG_VOWEL", 1.0f), kPreFinalMVowel = param("EN_PRE_FINAL_M_VOWEL", 1.0f);
+          if (i + 2 == tok.size()) prc *= n == "NG" ? kPreFinalNgVowel : n == "M" ? kPreFinalMVowel : 1.0f;
         }
         // (T agent 10 round K, lab; 1: as before) the vowel before a word-final t (also t + s, and with an ɹ l n between:
         // "Cart", "Built", "Brent") x EN_PRE_FINAL_T_VOWEL: the final t is heard as d 238 times in the dictionary ("Gate"
