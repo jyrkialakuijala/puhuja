@@ -3952,7 +3952,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // every-ð key above lost the dictionary gate twice (-70 / -37: it also moved "the", "this"); between vowels (lab, 40 ð
     // words x 2 voices x 2 draws, two seeds) FRONT 0.5 / 0.7 took the ð's errors 23 -> 14 / 16 and 30 -> 17 / 15 (heard
     // d / v / r), 0.9 back to 22 / 20; with SHAPE 2 + EN_DH_MED_LEN 1.3 / EN_VM_DH_PREV_VLEN 0.9: 10 / 13, words1000 +1.
-    static const float kVmDhShape = param("LINE_VM_DH_SHAPE", 0.0f), kVmDhFront = param("LINE_VM_DH_FRONT", 0.0f);
+    static const float kVmDhShape = param("LINE_VM_DH_SHAPE", 2.0f), kVmDhFront = param("LINE_VM_DH_FRONT", 0.5f);
     if (!have && dhMed && kVmDhShape > 0) {
       have = lineShapeOf(*next, &sh);
       TractShape ihDh;

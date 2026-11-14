@@ -1248,7 +1248,7 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
       // EN_VM_DH_PREV_VLEN, the one after x EN_VM_DH_NEXT_VLEN. 11labs gives the ð 40-47 % of the vowel-ð-vowel ("the
       // other": ʌ 80-140 ms, ð 100-110, ɜ 50-60; "whether": ɛ 30, ð 90, ɜ 70), puhuja 13-15 % (ʌ 170, ð 46, ɜ 127): a
       // longer ð with shorter vowels keeps the word's length (the lab: a 0.8x ð doubled its errors, heard d / t).
-      { static const float kVmDhPrevV = param("EN_VM_DH_PREV_VLEN", 1.0f), kVmDhNextV = param("EN_VM_DH_NEXT_VLEN", 1.0f);
+      { static const float kVmDhPrevV = param("EN_VM_DH_PREV_VLEN", 0.9f), kVmDhNextV = param("EN_VM_DH_NEXT_VLEN", 1.0f);
         auto dhMedAt = [&](size_t k) { return k > 0 && k + 1 < tok.size() && baseName(tok[k]) == "DH" && isVowelToken(tok[k - 1]) && isVowelToken(tok[k + 1]); };
         if (kVmDhPrevV != 1.0f && isVowelToken(tok[i]) && dhMedAt(i + 1)) whole *= kVmDhPrevV;
         if (kVmDhNextV != 1.0f && isVowelToken(tok[i]) && i > 0 && dhMedAt(i - 1)) whole *= kVmDhNextV; }
@@ -1402,7 +1402,7 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
         }  // (ð separately: shortened with the θ it lost, 2026-11-09)
         // ð's length word-initially (EN_DH_INIT_LEN: the, this, that) and between vowels (EN_DH_MED_LEN: other, either); DH
         // agent7, round H (1: unchanged). Kokoro's ð in kennedy runs 50 ms (median), puhuja's 35.
-        { static const float kDhInitLen = param("EN_DH_INIT_LEN", 1.0f), kDhMedLen = param("EN_DH_MED_LEN", 1.0f);
+        { static const float kDhInitLen = param("EN_DH_INIT_LEN", 1.0f), kDhMedLen = param("EN_DH_MED_LEN", 1.3f);
           if (b == "DH" && i == 0) whole *= kDhInitLen;
           if (b == "DH" && i > 0 && isVowelToken(tok[i - 1]) && i + 1 < tok.size() && isVowelToken(tok[i + 1])) whole *= kDhMedLen; }
         // ... and h's (EN_H_LEN; Jyrki 2026-11-06: "hand of God" sounds too close to "land of God", make h here
