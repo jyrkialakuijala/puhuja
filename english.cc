@@ -1150,6 +1150,17 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
         if (b == "N" && i + 1 == tok.size() && i > 0 && unstressedAt(i - 1)) whole *= kFnNLen;
         if (vowel && i + 2 == tok.size() && baseName(tok[i + 1]) == "N" && unstressedAt(i)) whole *= kFnVLen;
       }
+      // (D-AFTER-N agent15 round N, lab; 1: as before) the vowel before a nasal + its word's final d x EN_ND_V_LEN.
+      {
+        static const float kNdVLen = param("EN_ND_V_LEN", 1.0f);
+        if (kNdVLen != 1.0f && vowel && i + 3 == tok.size() && isNasal(baseName(tok[i + 1])) && baseName(tok[i + 2]) == "D")
+          whole *= kNdVLen;
+        // ... and in the phrase's last word only (EN_ND_V_PF_LEN; the "and" / "end" inside a phrase keep their vowel).
+        static const float kNdVPfLen = param("EN_ND_V_PF_LEN", 1.0f);
+        if (kNdVPfLen != 1.0f && vowel && i + 3 == tok.size() && isNasal(baseName(tok[i + 1])) && baseName(tok[i + 2]) == "D" &&
+            w + 1 == phrase_.size())
+          whole *= kNdVPfLen;
+      }
       // (AX-NASAL agent14 round M, lab knob; 1: as before) a nasal after an unstressed ə of its word x EN_AXN_NN_LEN
       // (Kokoro's murmur after a reduced vowel is long: "Gavin" 130-200 ms against puhuja's 71).
       { static const float kAxnNnLen = param("EN_AXN_NN_LEN", 1.0f);
@@ -1274,6 +1285,11 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
           if ((isNasal(b) || b == "L") && i + 1 < tok.size() && baseName(tok[i + 1]) == "D" &&
               (i + 2 == tok.size() || (i + 3 == tok.size() && (baseName(tok[i + 2]) == "Z" || baseName(tok[i + 2]) == "S"))))
             whole *= kNdNLen;
+          // (D-AFTER-N agent15 round N, lab; 1: as before) the same for a nasal before the final d of its phrase's last
+          // word only (EN_ND_N_PF_LEN; the "and" inside a phrase keeps its n): Kokoro's n there 100-140 ms, puhuja's 60.
+          static const float kNdNPfLen = param("EN_ND_N_PF_LEN", 1.0f);
+          if (kNdNPfLen != 1.0f && isNasal(b) && i + 2 == tok.size() && baseName(tok[i + 1]) == "D" && w + 1 == phrase_.size())
+            whole *= kNdNPfLen;
           if (b == "Z" && i > 0 && baseName(tok[i - 1]) == "D") whole *= kDzZLen; }
         // Z-FINAL agent13 round L (lab; 1: as before): a nasal / l / voiced stop right before the word's final z
         // x EN_NZ_N_LEN / EN_BZ_B_LEN (the n of "pens" 63 ms = the n of "pence"; Kokoro's voiced stretch before
@@ -1333,6 +1349,12 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
         // against puhuja's 41.
         static const float hLen = param("EN_H_LEN", 2.0f);
         if (b == "HH") whole *= hLen;
+        // An h before j ("human", "huge") x EN_HJ_LEN, the j after it x EN_HJ_J_LEN (1: as before; HJ agent16 2026-11-14,
+        // "human" heard "fjuman"): 11labs' eight Kennedy "human"s breathe 20-140 ms (mostly 50-80) of palatal hiss, then
+        // 10-70 ms of j that is already the vowel's onset; puhuja's in-phrase h ran 189 ms and its j 55 ms on top.
+        static const float kHjLen = param("EN_HJ_LEN", 1.0f), kHjJLen = param("EN_HJ_J_LEN", 1.0f);
+        if (b == "HH" && i + 1 < tok.size() && baseName(tok[i + 1]) == "Y") whole *= kHjLen;
+        if (b == "Y" && i > 0 && baseName(tok[i - 1]) == "HH") whole *= kHjJLen;
         // ... and f's on top of EN_VFRIC_LEN (EN_F_LEN; Jyrki 2026-11-06: the f of "forms" "slightly artificial": Kokoro's
         // 160 ms against puhuja's 94, with the l's voice tailing into it and a flat spectrum to 8 kHz).
         // Only an f starting a stressed syllable: Kokoro's typical f is short and dark, its stressed one long and bright.
