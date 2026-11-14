@@ -1265,7 +1265,7 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
           // (EN_D_VV_LEN; "reader" -> creator, "trader" -> traitor: puhuja's closure 40 ms at -27 dB, Kokoro's tap
           // 25 ms at -17), a d before s z (EN_DZ_D_LEN), a d after a nasal or l at the word's end or before its s z
           // (EN_ND_D_LEN; "cleaned" -> clean, "finds" -> fines).
-          static const float kDVvLen = param("EN_D_VV_LEN", 0.7f), kDzDLen = param("EN_DZ_D_LEN", 1.0f), kNdDLen = param("EN_ND_D_LEN", 1.0f);
+          static const float kDVvLen = param("EN_D_VV_LEN", 0.7f), kDzDLen = param("EN_DZ_D_LEN", 1.3f), kNdDLen = param("EN_ND_D_LEN", 1.0f);
           const std::string pb = i > 0 ? baseName(tok[i - 1]) : "", nb = i + 1 < tok.size() ? baseName(tok[i + 1]) : "";
           if (i > 0 && isVowelToken(tok[i - 1]) && i + 1 < tok.size() && isVowelToken(tok[i + 1]) &&
               kEnglishTokens[tok[i + 1] - 0x80][strlen(kEnglishTokens[tok[i + 1] - 0x80]) - 1] == '0') whole *= kDVvLen;

@@ -7753,7 +7753,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
       if (tok.shape.dctx == 7 && kDLvAc > 0) { close.ac = kDLvAc; close.lineFricFade = 0.2f; }
       if (tok.shape.dctx == 1 && kDVvExpand >= 0) close.lineExpand = std::max(kDVvExpand, 1e-3f);
       if ((tok.shape.dctx == 3 || tok.shape.dctx == 4) && kDFinalExpand >= 0) close.lineExpand = std::max(kDFinalExpand, 1e-3f);
-      static const float kDzDExpand = param("LINE_DZ_D_EXPAND", -1.0f);  // ... a d before s z (2): "beads", "hands"
+      static const float kDzDExpand = param("LINE_DZ_D_EXPAND", 600.0f);  // ... a d before s z (2): "beads", "hands"
       if (tok.shape.dctx == 2 && kDzDExpand >= 0) close.lineExpand = std::max(kDzDExpand, 1e-3f);
     }
   }
