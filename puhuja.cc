@@ -7169,7 +7169,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // the final g as d 29 of 196, the d as g 16 / t 24 of 624 ("Frog" -> fraud, "Rug" -> drug, "Paid" -> peg). Lab (seed 5,
   // 788 targets): the g at 0.69 58 -> 41 errors (0.66 44, 0.62 48, 0.70 54 of 56 on seed 7); the female's g after a front
   // vowel burst at 3.8 kHz (Kokoro af_heart 3.1), at 0.69 2.6. The d at 0.87: no gain.
-  static const float kGdFinXD = param("LINE_GD_FIN_X_D", -1.0f), kGdFinXG = param("LINE_GD_FIN_X_G", -1.0f);
+  static const float kGdFinXD = param("LINE_GD_FIN_X_D", -1.0f), kGdFinXG = param("LINE_GD_FIN_X_G", 0.69f);
   const bool gdFinTok = tract_ == Tract::Line && (tok.ph == Ph::D || tok.ph == Ph::G) && prevWasVowel_ && (!next || *next == Ph::Stop);
   const float gdFinX = !gdFinTok ? -1.0f : tok.ph == Ph::D ? kGdFinXD : kGdFinXG;
   const float kPlaceTok = gdFinX >= 0 ? gdFinX : tFinalPlace ? kTFinalX : vlX >= 0 ? vlX : kvBack && kKvXBack >= 0 ? kKvXBack : kvFront && kKvXFront >= 0 ? kKvXFront : kvInit && kKvX >= 0 ? kKvX : kOnsetFront ? kKXFrontOnset : lineKPlace(tok.ph, kVowel);
@@ -7562,7 +7562,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     // 2-3 / 3-4.5 kHz -29 / -34 dB re the total); Kokoro am_adam F2 2007, centroid 2.6 kHz, 2-3 kHz -7.6 ("Frog" -> fraud).
     // At 0.6 with LINE_GD_FIN_X_G 0.69 and LINE_GD_FIN_LIPS 1: centroid 2.3 kHz (female 1.8 -> 2.7, af_heart 2.9); lab
     // (4 seeded draws, 788 targets) 58 / 56 / 53 / 53 -> 37 / 40 / 40 / 42 errors, words1000 control unchanged.
-    static const float kGdFinGBackMix = param("LINE_GD_FIN_G_BACK_MIX", -1.0f);
+    static const float kGdFinGBackMix = param("LINE_GD_FIN_G_BACK_MIX", 0.6f);
     const bool gBackV = tok.ph == Ph::G && (lastPh_ == Ph::AA || lastPh_ == Ph::AO || lastPh_ == Ph::AH || lastPh_ == Ph::OH ||
                                             lastPh_ == Ph::O || lastPh_ == Ph::U || lastPh_ == Ph::UH);
     const float gdFinMix1 = gBackV && kGdFinGBackMix >= 0 ? kGdFinGBackMix : gdFinMix;
@@ -7579,7 +7579,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
       // errors (g heard d 30 -> 17-20), words right +21..+26 of 648, words1000 control 1557 -> 1557; the g's lips alone
       // (LINE_GD_FIN_LIPS_D 0) 46, words -5.
       // LINE_GD_FIN_LIPS_D: the d's own (< 0: LINE_GD_FIN_LIPS).
-      static const float kGdFinLips = param("LINE_GD_FIN_LIPS", 0.0f), kGdFinLipsD = param("LINE_GD_FIN_LIPS_D", -1.0f);
+      static const float kGdFinLips = param("LINE_GD_FIN_LIPS", 1.0f), kGdFinLipsD = param("LINE_GD_FIN_LIPS_D", -1.0f);
       const float lips = tok.ph == Ph::D && kGdFinLipsD >= 0 ? kGdFinLipsD : kGdFinLips;
       if (finPre && tok.ph != Ph::B && lips > 0) {
         m.aLip = v.aLip + lips * (o.aLip - v.aLip);
