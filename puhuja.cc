@@ -4651,7 +4651,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
           // (round I EH agent, lab; < 0: as the front vowels) the ɛ's own r-colour share: LINE_EH_R_MIX.
           static const float kEhRMix = param("LINE_EH_R_MIX", -1.0f);
           // (AO-L agent21 round S, lab; < 0: as the back vowels, LINE_RCOLOR_MIX) the ɔ's own r-colour share: LINE_AO_R_MIX.
-          static const float kAoRMix = param("LINE_AO_R_MIX", -1.0f);
+          static const float kAoRMix = param("LINE_AO_R_MIX", 0.5f);
           const float mix = tok.ph == Ph::AO && kAoRMix >= 0 ? kAoRMix : tok.ph == Ph::EH && kEhRMix >= 0 ? kEhRMix : uhAlone && kUhRMix >= 0 ? kUhRMix : open && kRColourOpenMix >= 0 ? kRColourOpenMix : frontVowel(tok.ph) && kRColourFrontMix >= 0 ? kRColourFrontMix : kRColourMix;
           // (R-POSTVOCALIC agent14 round M, lab; 0: off) LINE_RCOLOR_CODA 1: the colouring heads for the ɜ row with the
           // coda ɹ's knobs (rCodaShape) applied, so a fronted coda ɹ does not drag the vowel's F2 down first.
@@ -5200,7 +5200,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
             const float ehAt = next && *next == Ph::RR ? kEhRAt : kEhLateAt;
             // (AO-L agent21 round S, lab; < 0: LINE_RCOLOR_AT) the ɔ's r-coloured key at LINE_AO_R_AT before an ɹ: Kokoro's
             // ɔ holds F3 at 2300-2400 Hz through 60-70 % of "warm", "torn", "court"; puhuja's fell from 40 %.
-            static const float kAoRAt = param("LINE_AO_R_AT", -1.0f);
+            static const float kAoRAt = param("LINE_AO_R_AT", 0.8f);
             // ... and its late key before an l at LINE_AO_L_AT (< 0: as above): the ɔ holds its F1 longer before the l
             // (11labs' "all" keeps F1 540-580 Hz to 80 % of the ɔ; puhuja's fell from 60 %: "Paul" -> "pole").
             static const float kAoLAt = param("LINE_AO_L_AT", -1.0f);
