@@ -1310,7 +1310,7 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
               baseName(tok[i + 1]) == "T" && (i + 2 == tok.size() || (i + 3 == tok.size() && baseName(tok[i + 2]) == "S")))
             whole *= kPreTSonLen;
         }  // the k's own length (K lab 2026-11-10; 1: unchanged)  // the p's own length (P lab 2026-11-10; 1: unchanged)  // the v's own length (lab 2026-11-09; 1: unchanged)  // the ʒ's own length (2026-11-09: 50 ms against Kokoro's ~100)
-        { static const float kThLen = param("EN_TH_LEN", 0.6f), kDhLen = param("EN_DH_LEN", 0.7f); if (b == "TH") whole *= kThLen; else if (b == "DH") whole *= kDhLen; }
+        { static const float kThLen = param("EN_TH_LEN", 0.6f), kDhLen = param("EN_DH_LEN", 0.85f); if (b == "TH") whole *= kThLen; else if (b == "DH") whole *= kDhLen; }
         // θ's length by context (TH agent7, round H; 1: unchanged): word-initial (EN_INIT_TH_LEN), between two vowels of a
         // word (EN_MED_TH_LEN: "author" -> "over", "nothing": V the commonest medial confusion, 45 % errors before an
         // unstressed vowel), before an unstressed vowel (EN_TH_UNSTR_LEN), before an s (EN_TH_S_LEN: "paths" -> "pass").
@@ -3080,6 +3080,15 @@ void EnglishReader::sayPhrase(char end) {
         // but the t keeps its full closure: the t / d contrast is then tap against stop).
         // The g's context for the line's initial-g knobs (G-INITIAL agent14 round M): 1 at the word's start before a vowel.
         if (baseName(tokens[i]) == "G" && i == 0 && i + 1 < tokens.size() && isVowelToken(tokens[i + 1])) shape.gctx = 1;
+        // (VELAR-L agent15 round N, lab; 1: as before) a word-initial k / g before l ɹ x EN_VL_LEN, the l / ɹ after it x
+        // EN_VL_LIQ_LEN.
+        {
+          static const float kVlLen = param("EN_VL_LEN", 1.0f), kVlLiqLen = param("EN_VL_LIQ_LEN", 1.0f);
+          auto velar = [&](size_t j) { const std::string b = baseName(tokens[j]); return b == "K" || b == "G"; };
+          auto liquid = [&](size_t j) { const std::string b = baseName(tokens[j]); return b == "L" || b == "R"; };
+          if (kVlLen != 1.0f && i == 0 && tokens.size() > 1 && velar(0) && liquid(1)) shape.ms *= kVlLen;
+          if (kVlLiqLen != 1.0f && i == 1 && velar(0) && liquid(1)) shape.ms *= kVlLiqLen;
+        }
         if (baseName(tokens[i]) == "D") {
           static const float kFlapD = param("EN_FLAP_D", 0.0f), kFlapDMs = param("EN_FLAP_D_MS", -1.0f);
           const bool pv = i > 0 && isVowelToken(tokens[i - 1]), nv = i + 1 < tokens.size() && isVowelToken(tokens[i + 1]);

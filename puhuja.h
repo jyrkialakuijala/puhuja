@@ -488,6 +488,7 @@ class Synth {
   bool zBeforePause_ = false;  // the last sound before these pause tokens was a z (LINE_Z_RE_SCALE)
   float zPauseFric_ = 1.0f;  // a final z's hiss gain, kept through the pause's tokens (LINE_FINAL_Z_FRIC, LINE_Z_FRIC)
   bool prevWasPlosive_ = false;
+  bool vlInitPrev_ = false;  // the last plosive was a word-initial k / g before l ɹ (LINE_VL_*, VELAR-L agent15 round N)
   bool jAfterStop_ = false;  // the last token was a j released from a plosive (LINE_U_AFTER_STOP_J)
   bool prevWasNasal_ = false;
   bool prevWasPause_ = false;  // the last emitted phoneme was a pause
@@ -521,6 +522,8 @@ class Synth {
   bool lastZhOwn_ = false;  // the last ʒ was a standalone one, not a ʤ's frication (LINE_ZH_OFF_MS)
   int jhPos_ = -1;  // the ʤ being emitted: 0 after a pause, 1 medial, 2 before a pause (-1: none; LINE_JH_INIT_* ...)
   float jhRelFric_ = -1;  // the ʤ release's hiss gain (LINE_JH_RAMP_MS, LINE_JH_DECAY)
+  int afterJh_ = -1;  // the sound after a ʤ: its jhPos_ (-1: not after a ʤ; LINE_JH_OFF_MS, LINE_JH_ADDUCT_*, LINE_JH_ONSET_DIP)
+  float lastJhFric_ = -1;  // the last ʤ release's hiss gain (LINE_JH_TAIL_MS)
   bool jhPressed_ = false;  // LINE_JH_PRESS eased the breath through a ʤ: restore it on the next sound
   float lineFricMulS_ = 1.0f;  // LINE_FRIC_GLIDE_MS: the frication gain on its way to lineFricMul_
   bool closurePressEased_ = false;  // LINE_CLOSURE_PRESS eased the breath for the current closure
