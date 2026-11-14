@@ -276,7 +276,8 @@ class Synth {
                               // ER-INITIAL agent13 round L): 1 its ə, 2 its ɹ
     unsigned char ihctx = 0;  // a standalone ɪ's context for the line's ɪ knobs (english.cc, IH-STRESSED agent14 round M):
                               // 1 stressed, 2 an l next in its word, 4 an n / m next, 8 after l ɹ w, 16 after m n,
-                              // 32 a one-vowel word; on the l / n / m after a stressed ɪ: 64
+                              // 32 a one-vowel word, 128 a voiced obstruent next (IH-EY agent25); on the l / n / m after
+                              // a stressed ɪ: 64
     bool bzFinal = false;  // a b d g right before its word's final z ("tubes", "sides", "dogs"; english.cc, BDG-Z agent20
                            // round R: the line's LINE_BZ_* knobs; not the medial ɪgz of "example")
     unsigned char gctx = 0;  // the line's initial-g knobs (english.cc, G-INITIAL agent14 round M): 1 a word-initial g
@@ -565,6 +566,7 @@ class Synth {
   Ph lastPh_ = Ph::Stop;  // the previous phoneme (micro-intonation)
   Ph prevPh2_ = Ph::Stop;  // the one before it (POST-L-STOP agent22: the vowel before a coda ɹ)
   bool vmPrevZvMed_ = false;  // the previous phoneme was a z / v between two vowels inside a word (MED-Z agent24)
+  int prevIhCtx_ = -1;  // the previous phoneme was a standalone ɪ: its Shape::ihctx, else -1 (IH-EY agent25)
   bool vmPrevDhMed_ = false;  // the previous phoneme was a ð between two vowels inside a word (VFRIC-MED agent22)
   bool glottalOnsetNext_ = false;
   bool creakNext_ = false;

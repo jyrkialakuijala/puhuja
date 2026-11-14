@@ -3148,7 +3148,14 @@ void EnglishReader::sayPhrase(char end) {
             for (size_t q = 0; q < tokens.size(); ++q) vowels += isVowelToken(tokens[q]);
             const bool st = stressedIh(i);
             shape.ihctx = (st ? 1 : 0) | (nb == "L" ? 2 : 0) | (nb == "N" || nb == "M" ? 4 : 0) |
-                          (pb == "L" || pb == "R" || pb == "W" ? 8 : 0) | (pb == "M" || pb == "N" ? 16 : 0) | (vowels == 1 ? 32 : 0);
+                          (pb == "L" || pb == "R" || pb == "W" ? 8 : 0) | (pb == "M" || pb == "N" ? 16 : 0) | (vowels == 1 ? 32 : 0) |
+                          (nb == "B" || nb == "D" || nb == "G" || nb == "V" || nb == "Z" || nb == "DH" || nb == "ZH" || nb == "JH" ? 128 : 0);
+            // (IH-EY agent25 round W, lab; 1 / 1: as before) a stressed ɪ with no l n m ɹ w beside it ("hit", "give",
+            // "did") x EN_IHO_LEN, before a voiced obstruent x EN_IHO_VD_LEN: against five Kokoro voices (words1k) its
+            // DTW-mapped span before a voiced obstruent (not after b d g) is 164 vs 122 ms (male), 154 vs 109 (female),
+            // a tense-vowel length ("give" -> gave, "biz" -> base); elsewhere within 10 %.
+            static const float kIhoLen = param("EN_IHO_LEN", 1.0f), kIhoVdLen = param("EN_IHO_VD_LEN", 1.0f);
+            if (st && !(shape.ihctx & 30)) shape.ms *= kIhoLen * (shape.ihctx & 128 ? kIhoVdLen : 1.0f);
             if (st) {
               if (nb == "L") shape.ms *= kIhsLLen;
               if (nb == "N" || nb == "M") shape.ms *= kIhsNasLen;
