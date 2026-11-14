@@ -3312,7 +3312,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
   // (2026-11-09: the ʒ candidate 0.17 took the ʤ's release hiss away, ʤ errors 172 -> 205 in the lab).
   // (JH-INITIAL agent15 round N, lab knob; < 0: LINE_AG_VFRIC, as before) a word-initial ʤ's: this event lands at the
   // release after the ʤ's own LINE_JH_AG and wins, so the ʤ's frication glottis is LINE_AG_VFRIC's 0.25 cm^2.
-  static const float kJhInitFricAg = param("LINE_JH_INIT_FRIC_AG", 0.35f);
+  static const float kJhInitFricAg = param("LINE_JH_INIT_FRIC_AG", 0.45f);
   if (inAffricate_ && tok.ph == Ph::ZH) aero.ag = jhPos_ == 0 && kJhInitFricAg >= 0 ? kJhInitFricAg : kAgVoicedFric;
   if (tract_ == Tract::Line && jhPressed_ && e.press < 0) { e.press = 1.0f; e.pressMs = 20; jhPressed_ = false; }  // (after LINE_JH_PRESS)
   // LINE_V_PRESS (lab 2026-11-09): the lung pressure eases to this share through a v (the voice bar and the hiss both
