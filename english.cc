@@ -1352,7 +1352,7 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
         // An h before j ("human", "huge") x EN_HJ_LEN, the j after it x EN_HJ_J_LEN (1: as before; HJ agent16 2026-11-14,
         // "human" heard "fjuman"): 11labs' eight Kennedy "human"s breathe 20-140 ms (mostly 50-80) of palatal hiss, then
         // 10-70 ms of j that is already the vowel's onset; puhuja's in-phrase h ran 189 ms and its j 55 ms on top.
-        static const float kHjLen = param("EN_HJ_LEN", 1.0f), kHjJLen = param("EN_HJ_J_LEN", 1.0f);
+        static const float kHjLen = param("EN_HJ_LEN", 0.6f), kHjJLen = param("EN_HJ_J_LEN", 1.0f);
         if (b == "HH" && i + 1 < tok.size() && baseName(tok[i + 1]) == "Y") whole *= kHjLen;
         if (b == "Y" && i > 0 && baseName(tok[i - 1]) == "HH") whole *= kHjJLen;
         // ... and f's on top of EN_VFRIC_LEN (EN_F_LEN; Jyrki 2026-11-06: the f of "forms" "slightly artificial": Kokoro's

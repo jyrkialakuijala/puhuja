@@ -3796,7 +3796,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
       // "human"s have no separate h at all: one breathy j (the aligner finds j 40-50 ms, then uː), i.e. [ç]. LINE_H_J
       // (0: off, as before) gives the h the j's shape, mixed LINE_H_J of the way from i's; LINE_H_J_AC
       // scales its tongue constriction (< 1: narrower, more palatal hiss).
-      static const float kLineHJ = param("LINE_H_J", 0.0f), kLineHJAc = param("LINE_H_J_AC", 1.0f),
+      static const float kLineHJ = param("LINE_H_J", 1.0f), kLineHJAc = param("LINE_H_J_AC", 1.0f),
                          kLineHJX = param("LINE_H_J_X", -1.0f);  // (the constriction's place, 0 glottis .. 1 lips; < 0: the j's)
       bool hBeforeJ = false;
       if (!have && tok.ph == Ph::H && kLineHJ > 0 && next && *next == Ph::J && lineShapeOf(Ph::J, &sh)) {
@@ -5606,12 +5606,12 @@ void Synth::emit(const Token& tok, const Ph* next) {
         addKeyframe(hp, t0 + kHVowelAt * dur);
         for (int k = 0; k < 3; ++k) p[kF1 + k] = hp[kF1 + k];
         // LINE_HJ_AC / LINE_HJ_LEVEL (HH agent 2026-11-10: h before j is 51 % wrong in the dictionary, 18 of 37 deleted).
-        static const float kLineHjAc = param("LINE_HJ_AC", kPalatalHAc), kLineHjLevel = param("LINE_HJ_LEVEL", kPalatalHLevel);
+        static const float kLineHjAc = param("LINE_HJ_AC", 0.17f) /* HJ agent16 hjC (cascade: kPalatalHAc) */, kLineHjLevel = param("LINE_HJ_LEVEL", kPalatalHLevel);
         e.ac = tract_ == Tract::Line ? kLineHjAc : kPalatalHAc;
         // (2026-11-14, Jyrki: "human sounds a bit like fjuman") the h has no place of its own (linePlaceOf: -1), so this
         // narrow ac sat wherever the previous consonant left the constriction: after "of" at the lips (x 0.95), a
         // labiodental hiss, f + j. LINE_HJ_X puts it at the palate (< 0: as before), LINE_HJ_HW its width (< 0: as before).
-        static const float kLineHjX = param("LINE_HJ_X", -1.0f), kLineHjHw = param("LINE_HJ_HW", -1.0f);
+        static const float kLineHjX = param("LINE_HJ_X", 0.74f), kLineHjHw = param("LINE_HJ_HW", -1.0f);
         if (tract_ == Tract::Line && kLineHjX >= 0) e.lineX = kLineHjX;
         if (tract_ == Tract::Line && kLineHjHw >= 0) e.lineHw = kLineHjHw;
         // Lab knobs (HJ agent16; < 0: as before): the glottis's opening (cm^2) and its time, the constriction's closing
