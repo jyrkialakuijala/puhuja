@@ -535,6 +535,10 @@ class Synth {
   float jhRelFric_ = -1;  // the ʤ release's hiss gain (LINE_JH_RAMP_MS, LINE_JH_DECAY)
   int afterJh_ = -1;  // the sound after a ʤ: its jhPos_ (-1: not after a ʤ; LINE_JH_OFF_MS, LINE_JH_ADDUCT_*, LINE_JH_ONSET_DIP)
   float lastJhFric_ = -1;  // the last ʤ release's hiss gain (LINE_JH_TAIL_MS)
+  bool chInit_ = false;  // the ʧ being emitted is word-initial (LINE_CHI_*)
+  bool afterChi_ = false;  // the sound after a word-initial ʧ (LINE_CHI_OFF_MS, _ADDUCT_*, _TAIL_MS)
+  float lastChiFric_ = -1;  // that ʧ release's hiss gain (LINE_CHI_TAIL_MS)
+  float chRelFric_ = -1;  // its release's hiss gain (LINE_CHI_BURST / _RAMP_MS / _DECAY)
   bool jhPressed_ = false;  // LINE_JH_PRESS eased the breath through a ʤ: restore it on the next sound
   float lineFricMulS_ = 1.0f;  // LINE_FRIC_GLIDE_MS: the frication gain on its way to lineFricMul_
   bool closurePressEased_ = false;  // LINE_CLOSURE_PRESS eased the breath for the current closure
