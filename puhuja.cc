@@ -6857,10 +6857,16 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   const int bdgCtx = !(bdgPh && prevWasVowel_ && tract_ == Tract::Line) ? 0
                      : (!next || *next == Ph::Stop) ? 1 : *next == Ph::Z ? 2 : isVowel(*next) ? 4 : 0;
   const bool bdgOn = (bdgCtx & kBdgCtxMask) != 0;
+  // (FINAL-BDG agent18 round P, lab knobs LINE_BDG_FIN_*; all off by default) a word-final b d g after a vowel
+  // (bdgCtx 1), whatever LINE_BDG_CTX says: the dictionary (combo13) hears 13.5 % of them wrong (Kokoro 5.9 %).
+  const bool bdgFin = bdgCtx == 1;
+  const int bdgIdx = tok.ph == Ph::B ? 0 : tok.ph == Ph::D ? 1 : 2;
   {  // (LINE_BDG_CL_AG, < 0: off) the closure glottis there (cm^2): Kokoro's and 11labs's closures keep a voice bar
      // 10-15 dB under the vowel to the release; puhuja's died 30 ms in ("Web": -12 -> -43 dB).
     static const float kBdgClAg = param("LINE_BDG_CL_AG", -1.0f);
     if (bdgOn && kBdgClAg >= 0) pi.closureAg = kBdgClAg;
+    static const float kBdgFinClAg = param("LINE_BDG_FIN_CL_AG", -1.0f);  // (agent18) ... a final one's (cm^2; < 0: off)
+    if (bdgFin && kBdgFinClAg >= 0) pi.closureAg = kBdgFinClAg;
   }
   {  // (D agent9 round J lab knob; < 0: off) the closure glottis of a d between a vowel and an unstressed vowel (cm^2)
     static const float kDVvAg = param("LINE_D_VV_AG", -1.0f);
@@ -7033,8 +7039,11 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     const double inPause = std::max(pauseEventT_ + kLinePausePressMs * ms, t_ + 1.0) + (kApproachMs + kSealMs) * ms;
     tClosed = std::max(std::min(release - vstopLeadMs * ms, timeline_), std::min(inPause, timeline_));
   }
+  // (FINAL-BDG agent18 round P, lab; < 0: off) a word-final b d g after a vowel closes over x LINE_BDG_FIN_CLOSE_X the
+  // approach + seal time: Kokoro's "Web" bends F2 down over ~60 ms into the b, puhuja's closes in 18 + 12 ms.
+  static const float kBdgFinCloseX = param("LINE_BDG_FIN_CLOSE_X", -1.0f);
   const double closeStart =
-      std::max(tClosed - (kApproachMs + kSealMs) * ms, phonemeStart_ + 1);
+      std::max(tClosed - (bdgFin && kBdgFinCloseX >= 0 ? kBdgFinCloseX : 1.0f) * (kApproachMs + kSealMs) * ms, phonemeStart_ + 1);
   const float closeMs = static_cast<float>((tClosed - closeStart) / ms);
   const float sealMs = std::min(kSealMs, closeMs);
   // A vowel before k g (LINE_KG_APPROACH_MS) or b p (LINE_BP_APPROACH_MS)
@@ -7047,7 +7056,12 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     // (G agent 7 round H, lab; < 0: the k g ones) the g's own approach: LINE_G_APPROACH_MS, its area LINE_G_APPROACH_A.
     static const float kGApproachMs = param("LINE_G_APPROACH_MS", -1.0f), kGApproachA = param("LINE_G_APPROACH_A", -1.0f);
     const bool gOwnAp = tok.ph == Ph::G && kGApproachMs >= 0;
-    const float apMs = gOwnAp ? kGApproachMs : velar ? kLineKgApproachMs : labial ? kLineBpApproachMs : alveolarT ? kLineTApproachMs : 0.0f;
+    // (FINAL-BDG agent18 round P, lab; < 0: off) a word-final b / d after a vowel narrows at its place this long before
+    // the closing (area LINE_BP_APPROACH_A / LINE_T_APPROACH_A): the lips' or tip's own transition, the place cue.
+    static const float kBdgFinApB = param("LINE_BDG_FIN_AP_MS_B", -1.0f), kBdgFinApD = param("LINE_BDG_FIN_AP_MS_D", -1.0f);
+    const bool finApD = bdgFin && tok.ph == Ph::D && kBdgFinApD >= 0;
+    const float apMs = bdgFin && labial && tok.ph == Ph::B && kBdgFinApB >= 0 ? kBdgFinApB : finApD ? kBdgFinApD
+                       : gOwnAp ? kGApproachMs : velar ? kLineKgApproachMs : labial ? kLineBpApproachMs : alveolarT ? kLineTApproachMs : 0.0f;
     // (K agent 9 round J, lab; 0: off) the k's velar approach also after ɹ l (LINE_K_APPROACH_LIQ 1): final k after ɹ
     // was 57 % wrong ("Park" -> part, "Mark" -> north, "Stark" -> start).
     static const float kKApproachLiq = param("LINE_K_APPROACH_LIQ", 0.0f);
@@ -7107,12 +7121,26 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
                                       static_cast<int>(param("LINE_BDG_PRE_ROW_G", 4.0f))};
     const int row = kBdgPreRow[tok.ph == Ph::B ? 0 : tok.ph == Ph::D ? 1 : 2];
     TractShape v, o;
-    if (kBdgPreMix > 0 && bdgOn && row >= 0 && !afterUnreleased && lineShapeOf(lastPh_, &v) &&
-        lineShapeOf(static_cast<Ph>(row), &o)) {
-      TractShape m = lineShapeMix(v, o, kBdgPreMix);
+    // (FINAL-BDG agent18 round P, lab; 0 / < 0: off) a word-final b d g after a vowel's own mix, rows and window
+    // (LINE_BDG_FIN_PRE_MS; < 0: LINE_BDG_PRE_MS). Its F2 / F3 stayed flat into the closure (7 male words each, 8 ms
+    // before it: final d 1965 / 2751 Hz, Kokoro am_adam 1668 / 2599; final g 1960, Kokoro ~2170), and the dictionary
+    // heard final d as g (Bad -> bag, Paid -> peg) and g as d (Berg -> bird, Rug -> drug). Rows d ʌ (13), g ɪ (9), mix
+    // 0.4, 30 ms: d 1655 / 2872, g 2040 at -8 ms. Lab (357 final b d g words, 966 targets): 79 -> 63 errors (heard D 34 ->
+    // 24), words1000 control 1506 -> 1507, no hybrid veto; the round O rows (d ə, g i, 60 ms) tripped bright.
+    static const float kBdgFinPreMix = param("LINE_BDG_FIN_PRE_MIX", 0.0f), kBdgFinPreMs = param("LINE_BDG_FIN_PRE_MS", -1.0f);
+    static const int kBdgFinPreRow[3] = {static_cast<int>(param("LINE_BDG_FIN_PRE_ROW_B", -1.0f)),
+                                         static_cast<int>(param("LINE_BDG_FIN_PRE_ROW_D", -1.0f)),
+                                         static_cast<int>(param("LINE_BDG_FIN_PRE_ROW_G", -1.0f))};
+    const bool finPre = bdgFin && kBdgFinPreMix > 0 && kBdgFinPreRow[bdgIdx] >= 0;
+    const float preMix = finPre ? kBdgFinPreMix : kBdgPreMix;
+    const int preRow = finPre ? kBdgFinPreRow[bdgIdx] : row;
+    if (preMix > 0 && (bdgOn || finPre) && preRow >= 0 && !afterUnreleased && lineShapeOf(lastPh_, &v) &&
+        lineShapeOf(static_cast<Ph>(preRow), &o)) {
+      TractShape m = lineShapeMix(v, o, preMix);
       m.aLip = v.aLip; m.lLip = v.lLip; m.aLarynx = v.aLarynx; m.length = v.length;
       m.sc = lineVowelStrength(m.xc, m.wc, m.length);
-      addShapeDemand(std::max(closeStart - kBdgPreMs * ms, phonemeStart_ + 1.0), release, m, lastPh_, kBdgPreW);
+      const float preMs = finPre && kBdgFinPreMs >= 0 ? kBdgFinPreMs : kBdgPreMs;
+      addShapeDemand(std::max(closeStart - preMs * ms, phonemeStart_ + 1.0), release, m, lastPh_, kBdgPreW);
     }
   }
   // d after l (LINE_LD_SEAL_FADE, 2026-11-05; 0: off): the tongue tip is on
@@ -7227,7 +7255,8 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   {
     static const float kLineFinalVstopPress = param("LINE_FINAL_VSTOP_PRESS", 0.8f);
     static const float kNdVstopPress = param("LINE_ND_VSTOP_PRESS", -1.0f);  // (D-AFTER-N agent15; < 0: as above) the nd's own
-    const float vstopPress = ndFinal && kNdVstopPress >= 0 ? kNdVstopPress : kLineFinalVstopPress;
+    static const float kBdgFinPress = param("LINE_BDG_FIN_PRESS", -1.0f);  // (FINAL-BDG agent18; < 0: as above) a final b d g's
+    const float vstopPress = ndFinal && kNdVstopPress >= 0 ? kNdVstopPress : bdgFin && kBdgFinPress >= 0 ? kBdgFinPress : kLineFinalVstopPress;
     if (tract_ == Tract::Line && nextIsPause && pi.voiced && vstopPress < 1.0f && close.press < 0) {
       close.press = vstopPress;
       close.pressMs = 30;
@@ -7283,6 +7312,14 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
      // 124 (+17), 900 136, 300 139; with LINE_BDG_Z_REL + _Z_FRIC 1 below, 400: 112 and 110 (seed 7, base 148).
     static const float kBdgExpand = param("LINE_BDG_EXPAND", 500.0f);
     if (bdgOn && kBdgExpand >= 0) close.lineExpand = std::max(kBdgExpand, 1e-3f);
+    // (FINAL-BDG agent18 round P, lab; < 0: off) a word-final one's own flow, per stop: its voice bar died 20 ms into
+    // the closure ("Web": -9 -> -44 dB re the vowel; Kokoro am_adam holds -15..-19 dB for 40-60 ms) at the b's 400
+    // (LINE_B_VBAR_FLOW) and at 300-1500 for g; 200 keeps it to the release for b and g (a servo that overshoots the
+    // falling final pressure and stalls the folds). Lab (966 final targets, base 79): b 200 88 (heard p), d 300 / 600
+    // 82 / 92, g 100 102 (heard k): Whisper wants no more bar on a final b d: kept off.
+    static const float kBdgFinExp[3] = {param("LINE_BDG_FIN_EXP_B", -1.0f), param("LINE_BDG_FIN_EXP_D", -1.0f),
+                                        param("LINE_BDG_FIN_EXP_G", -1.0f)};
+    if (bdgFin && kBdgFinExp[bdgIdx] >= 0) close.lineExpand = std::max(kBdgFinExp[bdgIdx], 1e-3f);
   }
   close.acMs = sealMs;
   close.an = nasalVel ? -1.0f : 0.0f;  // (LINE_NASAL_STOP_VEL_MS: the velum stays open, closed below)
@@ -7410,6 +7447,11 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     if (tract_ == Tract::Line && tok.ph == Ph::D && next && *next == Ph::Z && kDzZExpand2 > 1.0f) { rel.expand = kDzZExpand2; rel.expandMs = 10; }
   }
   rel.ac = nextIsPause ? kAcOpen : nextAero.ac;
+  // (FINAL-BDG agent18 round P, lab; < 0: off) a word-final b d g after a vowel opens only to this (cm^2) at its
+  // release (the pause's own opening follows): its full opening ran into 30-40 ms of a voiced "uh" (F1 470, F2 1100)
+  // at -4..-10 dB re the word peak; Kokoro's release is a burst and a breathy tail at -14..-20 dB. Lab: 0.3 79 -> 128.
+  static const float kBdgFinRelAc = param("LINE_BDG_FIN_REL_AC", -1.0f);
+  if (bdgFin && kBdgFinRelAc >= 0) rel.ac = kBdgFinRelAc;
   // On the line the release is also the next sound's own event (emit drops
   // the event of a sound after a plosive): it carries that sound's slit, place
   // and groove. Without them the f of "not forget" was made at the t's
@@ -7554,6 +7596,8 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // (as LINE_RELEASE_SCALE x LINE_VOICED_RELEASE does for all): a quicker opening, a sharper burst to carry the place.
   static const float kBdgRelScale = param("LINE_BDG_REL_SCALE", -1.0f);
   if (bdgOn && kBdgRelScale >= 0) rel.acMs = pi.releaseMs * kBdgRelScale;
+  static const float kBdgFinRelScale = param("LINE_BDG_FIN_REL_SCALE", -1.0f);  // (agent18) a final one's (< 0: off)
+  if (bdgFin && kBdgFinRelScale >= 0) rel.acMs = pi.releaseMs * kBdgFinRelScale;
   // (PL-INITIAL agent17 round O, lab; < 0: off) a word-initial p before l ɹ opens over x LINE_PL_REL_SCALE its time.
   static const float kPlRelScale = param("LINE_PL_REL_SCALE", -1.0f);
   if (plInit && kPlRelScale >= 0) rel.acMs *= kPlRelScale;
@@ -7853,14 +7897,32 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     static const float kLineFinalVstopCutMs0 = param("LINE_FINAL_VSTOP_CUT_MS", -1000.0f);
     static const float kLineGFinalCutMs = param("LINE_G_FINAL_CUT_MS", -1000.0f);  // (the g's own, G agent 5; <= -500: the shared)
     static const float kNdCutMs = param("LINE_ND_CUT_MS", -1000.0f);  // (D-AFTER-N agent15; <= -500: the shared) the nd's own
-    const float kLineFinalVstopCutMs = tok.ph == Ph::G && kLineGFinalCutMs > -500.0f ? kLineGFinalCutMs
+    // (FINAL-BDG agent18 round P, lab; <= -500: the above) a final b d g after a vowel's own cut and ramp: its release
+    // ran into 30-40 ms of voiced "uh" at -4..-10 dB re the word peak; Kokoro's tail is -14..-20 dB, breathy. Lab: at
+    // the release over 40-60 ms 79 -> 70 / 71, but only through the next word (below); with the restore 86 -> 84..92.
+    static const float kBdgFinCutMs = param("LINE_BDG_FIN_CUT_MS", -1000.0f), kBdgFinCutRampMs = param("LINE_BDG_FIN_CUT_RAMP_MS", -1.0f);
+    const float kLineFinalVstopCutMs = bdgFin && kBdgFinCutMs > -500.0f ? kBdgFinCutMs
+                                       : tok.ph == Ph::G && kLineGFinalCutMs > -500.0f ? kLineGFinalCutMs
                                        : ndFinal && kNdCutMs > -500.0f ? kNdCutMs : kLineFinalVstopCutMs0;
-    static const float kLineFinalVstopCutRampMs = param("LINE_FINAL_VSTOP_CUT_RAMP_MS", 10.0f);
+    static const float kLineFinalVstopCutRampMs0 = param("LINE_FINAL_VSTOP_CUT_RAMP_MS", 10.0f);
+    const float kLineFinalVstopCutRampMs = bdgFin && kBdgFinCutRampMs >= 0 ? kBdgFinCutRampMs : kLineFinalVstopCutRampMs0;
     if (kLineFinalVstopCutMs > -500.0f) {
       Event cut{std::max(release - kLineFinalVstopCutMs * ms, t_ + 1.0)};
-      cut.press = 0.0f;
+      static const float kBdgFinCutTo = param("LINE_BDG_FIN_CUT_TO", 0.0f);  // (agent18) ... down to this share (0: none)
+      cut.press = bdgFin && kBdgFinCutMs > -500.0f ? kBdgFinCutTo : 0.0f;
       cut.pressMs = kLineFinalVstopCutRampMs;
       addEventAt(cut);
+      // (agent18; < 0: off) ... and the breath comes back to LINE_FINAL_VPRESS_FLOOR this long after the release (over
+      // 30 ms): without it the pause stayed at the cut's pressure and the next phrase's onset came 20-40 ms late
+      // ("Web. ... Apple.": -18 -> -50 dB in its first 20 ms), a change of the next word, not of this one.
+      static const float kBdgFinCutBackMs = param("LINE_BDG_FIN_CUT_BACK_MS", -1.0f);
+      if (bdgFin && kBdgFinCutMs > -500.0f && kBdgFinCutBackMs >= 0) {
+        static const float kFloor = param("LINE_FINAL_VPRESS_FLOOR", 0.5f);
+        Event back{std::max(release + kBdgFinCutBackMs * ms, t_ + 1.0)};
+        back.press = kFloor;
+        back.pressMs = 30;
+        addEventAt(back);
+      }
     }
   }
   // A stop released into a fricative ("hardship", "outside"): the breath eases to LINE_STOP_FRIC_PRESS_FLOOR over the last
@@ -7900,10 +7962,12 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     static const float kLineFinalVPressLeadMs = param("LINE_FINAL_VPRESS_LEAD_MS", 46.0f), kLineFinalVPressFloor = param("LINE_FINAL_VPRESS_FLOOR", 0.5f);
     // (D-AFTER-N agent15; < 0: as above) the nd's own lead (0: no ease) and floor: the ease left its release no burst.
     static const float kNdVPressLeadMs = param("LINE_ND_VPRESS_LEAD_MS", -1.0f), kNdVPressFloor = param("LINE_ND_VPRESS_FLOOR", -1.0f);
-    const float vpLeadMs = ndFinal && kNdVPressLeadMs >= 0 ? kNdVPressLeadMs : kLineFinalVPressLeadMs;
+    // (FINAL-BDG agent18; < 0: as above) a final b d g after a vowel's own lead and floor
+    static const float kBdgFinVpLeadMs = param("LINE_BDG_FIN_VPLEAD_MS", -1.0f), kBdgFinVpFloor = param("LINE_BDG_FIN_VPFLOOR", -1.0f);
+    const float vpLeadMs = ndFinal && kNdVPressLeadMs >= 0 ? kNdVPressLeadMs : bdgFin && kBdgFinVpLeadMs >= 0 ? kBdgFinVpLeadMs : kLineFinalVPressLeadMs;
     if (tract_ == Tract::Line && nextIsPause && pi.voiced && !unreleased && vpLeadMs > 0) {
       Event ease{std::max(release - vpLeadMs * ms, t_ + 1.0)};
-      ease.press = ndFinal && kNdVPressFloor >= 0 ? kNdVPressFloor : kLineFinalVPressFloor;
+      ease.press = ndFinal && kNdVPressFloor >= 0 ? kNdVPressFloor : bdgFin && kBdgFinVpFloor >= 0 ? kBdgFinVpFloor : kLineFinalVPressFloor;
       ease.pressMs = vpLeadMs;
       addEventAt(ease);
     }
@@ -8008,7 +8072,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // LINE_BDG_FIN_FRIC, before a vowel LINE_BDG_VV_FRIC (LINE_G_BURST / _D_ / _B_ set both today). Kokoro's / 11labs's
   // burst carries the place: 1-3 kHz 5-14 dB under the 20 ms's total for g d, puhuja's 26-32 dB.
   static const float kBdgFinFric = param("LINE_BDG_FIN_FRIC", -1.0f), kBdgVvFric = param("LINE_BDG_VV_FRIC", -1.0f);
-  if (vstopBurst && bdgOn && bdgCtx == 1 && kBdgFinFric >= 0) rel.lineFricMul = kBdgFinFric;
+  if (vstopBurst && bdgFin && kBdgFinFric >= 0) rel.lineFricMul = kBdgFinFric;
   if (vstopBurst && bdgOn && bdgCtx == 4 && kBdgVvFric >= 0) rel.lineFricMul = kBdgVvFric;
   // ... and a b d g released into a z (LINE_BDG_Z_REL) LINE_BDG_Z_FRIC (< 0: the z's own gain carries on): at 1 "Bags"
   // gets a 1-3 kHz burst 4-6 dB under the frame total at -14 dB re the peak (Kokoro's: -4 dB at -13.5).
@@ -8019,8 +8083,9 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // LINE_BDG_FIN_ASP: its glottal noise x this for LINE_FINAL_ASP_MS): Kokoro's final b ("Web") is a breathy noise
   // release decaying over 100 ms (1-3 kHz 5-13 dB under the total), puhuja's a voiced "uh" (F1 470, F2 1100) for 30 ms.
   static const float kBdgFinAg = param("LINE_BDG_FIN_AG", -1.0f), kBdgFinAsp = param("LINE_BDG_FIN_ASP", -1.0f);
-  if (bdgOn && bdgCtx == 1 && !unreleased && kBdgFinAg >= 0) rel.ag = kBdgFinAg, rel.agMs = 5.0f;
-  if (bdgOn && bdgCtx == 1 && !unreleased && kBdgFinAsp >= 0) {
+  static const float kBdgFinAgMs = param("LINE_BDG_FIN_AG_MS", 5.0f);  // (agent18) ... over this (ms)
+  if (bdgFin && !unreleased && kBdgFinAg >= 0) rel.ag = kBdgFinAg, rel.agMs = kBdgFinAgMs;
+  if (bdgFin && !unreleased && kBdgFinAsp >= 0) {
     rel.lineAspMul = kBdgFinAsp;
     pendingAspEnd_ = Event{release + kLineFinalAspMs * ms};
     pendingAspEnd_.lineAspMul = 1.0f;
