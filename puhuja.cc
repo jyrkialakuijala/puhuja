@@ -3368,12 +3368,12 @@ void Synth::emit(const Token& tok, const Ph* next) {
   // LINE_FZ_SINK_B: x the flow for a z after b d g (its own event is not queued there; the sink rides one at the stop's
   // release and, switched on there, banged: "Beds." 300-1500 Hz -1 dB re the word's peak at the release, snap.py on 30
   // b d g words 10.5 / 7.0 -> 15.2 / 14.2 dB; 0: off there).
-  { static const float kFzSinkFlow = param("LINE_FZ_SINK_FLOW", 0.0f), kFzSinkMs = param("LINE_FZ_SINK_MS", 0.0f);
+  { static const float kFzSinkFlow = param("LINE_FZ_SINK_FLOW", 1500.0f), kFzSinkMs = param("LINE_FZ_SINK_MS", 60.0f);
     if (tract_ == Tract::Line && kFzSinkFlow > 0) {
       if (tok.ph == Ph::Z && (!next || *next == Ph::Stop)) {
         e.lineSink = kFzSinkFlow;
         // (after b d g the z's own event is not queued; the flow there x LINE_FZ_SINK_B)
-        static const float kFzSinkB = param("LINE_FZ_SINK_B", 1.0f);
+        static const float kFzSinkB = param("LINE_FZ_SINK_B", 0.0f);
         if (prevWasPlosive_) { Event s{e.t}; s.lineSink = kFzSinkFlow * kFzSinkB; addEventAt(s); }
         if (kFzSinkMs > 0)
           for (int k = 1; k <= 4; ++k) {
@@ -3546,13 +3546,13 @@ void Synth::emit(const Token& tok, const Ph* next) {
   // ... and a phrase-final z x this (LINE_FINAL_Z_FRIC, lab 2026-11-11; 1: as before): "his" hissed at -6..-9 dB re the
   // word's peak for 140 ms (its 59 ms and ~80 more into the pause while the breath decays), Kokoro's final z -17..-20.
   if (tract_ == Tract::Line && tok.ph == Ph::Z && (!next || *next == Ph::Stop) && e.lineFricMul > 0) {
-    static const float kLineFinalZFric = param("LINE_FINAL_Z_FRIC", 0.7f);
+    static const float kLineFinalZFric = param("LINE_FINAL_Z_FRIC", 0.35f);
     e.lineFricMul *= kLineFinalZFric;
   }
   // (the pause after a z keeps its gain while the slit is still narrow: reset to 1 there, LINE_FINAL_Z_FRIC 0.35 came
   // back +12 dB at the pause's start)
   {
-    static const float kLineFinalZFric = param("LINE_FINAL_Z_FRIC", 0.7f);
+    static const float kLineFinalZFric = param("LINE_FINAL_Z_FRIC", 0.35f);
     if (tok.ph == Ph::Z) zPauseFric_ = kLineZFric * kLineFinalZFric;
     else if (tok.ph != Ph::Stop) zPauseFric_ = 1.0f;
     if (tract_ == Tract::Line && tok.ph == Ph::Stop && zPauseFric_ != 1.0f) e.lineFricMul = zPauseFric_;
