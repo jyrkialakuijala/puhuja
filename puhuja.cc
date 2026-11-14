@@ -3624,6 +3624,20 @@ void Synth::emit(const Token& tok, const Ph* next) {
     static const float kZPauseFric = param("LINE_Z_PAUSE_FRIC", 1.0f);
     if (tract_ == Tract::Line && tok.ph == Ph::Stop && zPauseFric_ != 1.0f && kZPauseFric != 1.0f) e.lineFricMul *= kZPauseFric;
   }
+  // ZS-CONTRAST agent22 round T (lab; 1: as before): a phrase-final s's hiss gain x LINE_FINAL_S_FRIC, carried through
+  // the pause's tokens (x LINE_S_PAUSE_FRIC there). Its hiss ran -12 / -7 dB re the word's peak (m / f), Kokoro's final s
+  // -20..-24, 11labs Kennedy's -8..-20; the z's -22 / -15. Lab: LINE_FINAL_S_FRIC 0.6 +0, LINE_S_PAUSE_FRIC 0.5 -1 errors
+  // over two seeded draw pairs (no gain).
+  {
+    static const float kFinalSFric = param("LINE_FINAL_S_FRIC", 1.0f), kSPauseFric = param("LINE_S_PAUSE_FRIC", 1.0f);
+    if (kFinalSFric != 1.0f || kSPauseFric != 1.0f) {
+      const bool fin = tok.ph == Ph::S && (!next || *next == Ph::Stop);
+      if (fin) sPauseFric_ = kLineSFric * kFinalSFric;
+      else if (tok.ph != Ph::Stop) sPauseFric_ = -1.0f;
+      if (tract_ == Tract::Line && fin && e.lineFricMul > 0) e.lineFricMul *= kFinalSFric;
+      if (tract_ == Tract::Line && tok.ph == Ph::Stop && sPauseFric_ >= 0) e.lineFricMul = sPauseFric_ * kSPauseFric;
+    }
+  }
   // Z-FINAL agent13 round L (lab; 1: off): a final z's lung pressure x LINE_FINAL_Z_PRESS over LINE_FINAL_Z_PRESS_MS
   // (back to 1 after the pause): the breath eases off at the phrase's end, the hiss weakens, the folds keep going longer.
   {
@@ -5344,6 +5358,12 @@ void Synth::emit(const Token& tok, const Ph* next) {
   }
   e.agMs = tract_ == Tract::Line && in.cls == Cls::Fricative && aero.ag > kAgBreathy ? kLineAbductMs : kGlottalMs;
   if (tract_ == Tract::Line && tok.ph == Ph::Z && kZAbductMs >= 0 && aero.ag > kAgBreathy) e.agMs = kZAbductMs;
+  // (ZS-CONTRAST agent22 round T, lab; < 0: LINE_ABDUCT_MS) a phrase-final s's glottal opening time: the voice ran on
+  // 35 / 20 ms (m / f) under its hiss, 11labs Kennedy's phrase-final s 0-5 ms, Kokoro's 5-25 (a crisp voice offset is the
+  // s's half of the z / s contrast). Lab: 15 ms (voice under the hiss 10 / 16 ms) -11 errors over two seeded draw pairs,
+  // snap -1.0 / -2.4 sigma; with EN_PRE_FINAL_S_VOWEL 0.85 -43 over three (0.85 alone -32), + LINE_Z_AG_LAG_MS 30 -61.
+  { static const float kFinalSAbMs = param("LINE_FINAL_S_AB_MS", -1.0f);
+    if (tract_ == Tract::Line && tok.ph == Ph::S && kFinalSAbMs >= 0 && (!next || *next == Ph::Stop) && aero.ag > kAgBreathy) e.agMs = kFinalSAbMs; }
   { static const float kBzZAbMs2 = param("LINE_BZ_Z_AB_MS", -1.0f);  // (BDG-Z agent20; < 0: off) ... and its opening time
     if (bzZ && kBzZAbMs2 >= 0) e.agMs = kBzZAbMs2; }
   // (VFRIC-INITIAL agent17 round O, lab; < 0: off) a phrase-initial v / z's glottis opens over this (slower: voice on)
@@ -6116,6 +6136,18 @@ void Synth::emit(const Token& tok, const Ph* next) {
             addEventAt(op);
           }
         }
+        // ZS-CONTRAST agent22 round T (lab; 0: off): after a final s the groove eases open from the pause's start to
+        // LINE_S_FINAL_OPEN_A cm^2 over LINE_S_FINAL_OPEN_MS: the slit held ~100 ms into the pause, a hiss tail after the
+        // s's own 209 ms ("ice": 313 ms of hiss, Kokoro 143-162, 11labs 150-225). Lab: 40 ms (hiss 244 / 211) +2 errors.
+        if (!prevWasPause_ && lastPh_ == Ph::S) {
+          static const float sOpenMs = param("LINE_S_FINAL_OPEN_MS", 0.0f), sOpenA = param("LINE_S_FINAL_OPEN_A", 0.3f);
+          if (sOpenMs > 0) {
+            Event op{e.t};
+            op.ac = sOpenA;
+            op.acMs = sOpenMs;
+            addEventAt(op);
+          }
+        }
         // After a final ə (AX agent 2026-11-11, lab knobs; 0: off): the glottis eases open to LINE_SCHWA_END_AG
         // (share of the way from voicing to kAgOpen) over LINE_SCHWA_END_MS from LINE_SCHWA_END_LEAD_MS before the
         // pause, a breathy fade: Kokoro's final ə falls ~20 dB over 50-60 ms, puhuja's held its level and was cut in
@@ -6162,7 +6194,8 @@ void Synth::emit(const Token& tok, const Ph* next) {
       // decays smoothly.
       else if (tract_ == Tract::Line && !prevWasPlosive_ && !prevVoiced_ && !prevWasPause_) {
         static const float kLineFinalThMs = param("LINE_FINAL_TH_MS", -1.0f);  // ... the wait after a final θ (< 0: LINE_FINAL_FRIC_MS; lab 2026-11-09)
-        e.t += (lastPh_ == Ph::TH && kLineFinalThMs >= 0 ? kLineFinalThMs : kLineFinalFricMs) * ms;
+        static const float kLineFinalSMs = param("LINE_FINAL_S_MS", -1.0f);  // ... after a final s (< 0: LINE_FINAL_FRIC_MS; ZS-CONTRAST agent22)
+        e.t += (lastPh_ == Ph::TH && kLineFinalThMs >= 0 ? kLineFinalThMs : lastPh_ == Ph::S && kLineFinalSMs >= 0 ? kLineFinalSMs : kLineFinalFricMs) * ms;
       }
       // At a pause the lungs stop pushing (press -> 0 over kLinePausePressMs)
       // and the glottis is left where it is after a voiceless sound: closing
@@ -6714,8 +6747,13 @@ void Synth::emit(const Token& tok, const Ph* next) {
   // only to LINE_Z_AG_LAG_AG (< 0: it stays at the vowel's), so that the voice runs on under the rising hiss
   // (Kokoro's final z: the voice bar fades over its first 30-40 ms while the hiss is already at -18 dB).
   {
-    static const float zLagMs = param("LINE_Z_AG_LAG_MS", 0.0f), zLagAg = param("LINE_Z_AG_LAG_AG", -1.0f);
-    if (tract_ == Tract::Line && tok.ph == Ph::Z && zLagMs > 0 && !prevWasPlosive_ && e.ag >= 0) {
+    // (ZS-CONTRAST agent22 round T; 0: every z) LINE_Z_AG_LAG_FINAL 1: only a z before a pause. Lab (with
+    // EN_PRE_FINAL_S_VOWEL 0.85, LINE_FINAL_S_AB_MS 15): lag 30 on every z 309 -> 227 errors over four seeded draw pairs
+    // but guards chirps 63 -> 70; on the final z only 307 -> 230, chirps 66.
+    static const float zLagMs = param("LINE_Z_AG_LAG_MS", 0.0f), zLagAg = param("LINE_Z_AG_LAG_AG", -1.0f),
+                       zLagFinal = param("LINE_Z_AG_LAG_FINAL", 0.0f);
+    if (tract_ == Tract::Line && tok.ph == Ph::Z && zLagMs > 0 && !prevWasPlosive_ && e.ag >= 0 &&
+        (zLagFinal <= 0 || !next || *next == Ph::Stop)) {
       Event late{e.t + zLagMs * ms};
       late.ag = e.ag;
       late.agMs = e.agMs;

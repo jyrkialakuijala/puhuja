@@ -850,6 +850,12 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
           static const float kPreNzVowel = param("EN_PRE_NZ_VOWEL", 1.0f), kPreBzVowel = param("EN_PRE_BZ_VOWEL", 1.0f);
           if ((kPreNzVowel != 1.0f || kPreBzVowel != 1.0f) && i + 3 == tok.size() && baseName(tok[i + 2]) == "Z")
             prc *= isNasal(n) ? kPreNzVowel : isVoicedPlosive(n) ? kPreBzVowel : 1.0f;
+          // ZS-CONTRAST agent22 round T (lab; 1: as before): the variable part of a vowel before a word-final s x
+          // EN_PRE_FINAL_S_VOWEL (a voiceless plosive clips it to 0.75, an s left it at 1: "ice" aɪ 354 ms, "rise" 402).
+          // Lab (180 vowel + z and 120 vowel + s words, both voices, three seeded draw pairs): 0.85 231 -> 199 errors (the s
+          // heard z 109 -> 78), 0.75 / 0.6 -22 / -22 over two; with LINE_FINAL_S_AB_MS 15 and LINE_Z_AG_LAG_MS 30 see there.
+          static const float kPreFinalSVowel = param("EN_PRE_FINAL_S_VOWEL", 1.0f);
+          if (kPreFinalSVowel != 1.0f && n == "S" && i + 2 == tok.size()) prc *= kPreFinalSVowel;
         }
         // (T agent 10 round K, lab; 1: as before) the vowel before a word-final t (also t + s, and with an ɹ l n between:
         // "Cart", "Built", "Brent") x EN_PRE_FINAL_T_VOWEL: the final t is heard as d 238 times in the dictionary ("Gate"
@@ -871,6 +877,9 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
         // 354 / 291), puhuja's 1.10 / 1.06 (398 / 361, 361 / 340): EN_PRE_Z_VOWEL acts on the vowel's variable part only.
         // Puhuja's s words are the long ones (Kokoro's z words 333-372 ms, puhuja's 361-398). Lab (263 final-z words,
         // two draws): Z_WHOLE 1.15 74 -> 69.5 errors, +2.2 % duration (the duration cheat); 1.25 87. S_WHOLE untested.
+        // ZS-CONTRAST agent22 round T (180 vowel + z, 120 vowel + s words, four seeded draw pairs): Z_WHOLE 1.07 with
+        // EN_PRE_FINAL_S_VOWEL 0.85, LINE_FINAL_S_AB_MS 15, LINE_Z_AG_LAG_MS 30 / _FINAL 1: 307 -> 202 errors (z heard s
+        // 120 -> 95), without it 230 (107); duration +0.2 % (the s words give what the z words take).
         {
           static const float kPreFinalZWhole = param("EN_PRE_FINAL_Z_WHOLE", 1.0f), kPreFinalSWhole = param("EN_PRE_FINAL_S_WHOLE", 1.0f);
           if (kPreFinalZWhole != 1.0f || kPreFinalSWhole != 1.0f) {
@@ -1140,6 +1149,16 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
       if (phraseFinal && !vowel && i > 0 && i > static_cast<size_t>(lastVowel) && b == "F" && i + 1 == tok.size()) {
         static const float kFinalFLen = param("EN_FINAL_F_LEN", 0.8f);
         whole *= kFinalFLen;
+      }
+      // ZS-CONTRAST agent22 round T (lab; 1: as before): a phrase-final s after a vowel or sonorant x EN_FINAL_S_LEN.
+      // Puhuja's final s hissed 313 / 282 ms (m / f; "ice": a 209 ms s and ~100 ms more into the pause) at -12 / -7 dB re
+      // the word's peak, Kokoro's 143-162 at -20..-24, 11labs Kennedy's phrase-final s 150-225 at -8..-20: the s words ran
+      // 130 ms longer than the z words (Kokoro's z words are the longer ones), the listener's z / s contrast inverted.
+      // Lab: 0.7 / 0.5 +18 / +18 errors over two seeded draw pairs (both z and s words worse): Whisper wants the long s.
+      if (phraseFinal && !vowel && i > 0 && i > static_cast<size_t>(lastVowel) && b == "S" && i + 1 == tok.size() &&
+          !isVoicelessPlosive(baseName(tok[i - 1])) && !isVoicedPlosive(baseName(tok[i - 1]))) {
+        static const float kFinalSLen = param("EN_FINAL_S_LEN", 1.0f);
+        whole *= kFinalSLen;
       }
       // ... and a phrase-final θ x this (EN_FINAL_TH_LEN; lab 2026-11-09: "month" 77 ms against Kokoro's ~80 but weak).
       if (phraseFinal && !vowel && i > 0 && i > static_cast<size_t>(lastVowel) && b == "TH" && i + 1 == tok.size()) {

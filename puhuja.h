@@ -492,6 +492,7 @@ class Synth {
   int syllable_ = 0;
   bool prevWasVowel_ = false;
   bool zBeforePause_ = false;  // the last sound before these pause tokens was a z (LINE_Z_RE_SCALE)
+  float sPauseFric_ = -1.0f;  // a final s's hiss gain through the pause's tokens (LINE_FINAL_S_FRIC; < 0: none)
   float zPauseFric_ = 1.0f;  // a final z's hiss gain, kept through the pause's tokens (LINE_FINAL_Z_FRIC, LINE_Z_FRIC)
   bool prevWasPlosive_ = false;
   bool vlInitPrev_ = false;  // the last plosive was a word-initial k / g before l ɹ (LINE_VL_*, VELAR-L agent15 round N)
