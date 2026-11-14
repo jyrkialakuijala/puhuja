@@ -961,6 +961,9 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
             if (i + 1 == tok.size()) whole *= kAaFinalLen;
             if (name[strlen(name) - 1] == '0') whole *= kAaUnstrLen;
             if (i + 1 < tok.size() && isNasal(baseName(tok[i + 1]))) whole *= kAaNasLen;
+            // (AA-AO agent25 round W, lab; 1: off) EN_AA_LIQ_LEN after a liquid / glide of its word (l ɹ w j: "Rod" 410 ms).
+            static const float kAaLiqLen = param("EN_AA_LIQ_LEN", 1.0f);
+            if (i > 0) { const std::string pv = baseName(tok[i - 1]); if (pv == "L" || pv == "R" || pv == "W" || pv == "Y") whole *= kAaLiqLen; }
           } }
         // The ɔ's own length by what follows in its word (AO agent 8, round I, lab knobs; 1: as before): EN_AO_LEN not before
         // an ɹ, EN_AO_R_LEN before it, EN_AO_VL_LEN before a voiceless obstruent (p t k f θ s ʃ ʧ), EN_AO_L_LEN before an l,

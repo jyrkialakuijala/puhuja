@@ -4294,6 +4294,13 @@ void Synth::emit(const Token& tok, const Ph* next) {
       // ... and its lip area x LINE_R_AFTER_AO_LIPA (1: off; > 1 an unrounded ɹ: "pour" -> "poor", "Por" -> "poor").
       static const float kRAfterAoLipA = param("LINE_R_AFTER_AO_LIPA", 1.0f);
       if (kRAfterAoLipA != 1.0f && lastPh_ == Ph::AO) sh.aLip *= kRAfterAoLipA;
+      // (AA-AO agent25 round W, lab; 1 / 0: off) an onset ɹ before an ɑ: lip area x LINE_R_PRE_AA_LIPA, mixed toward ɑ by
+      // LINE_R_PRE_AA_MIX (the ɹ's rounding carried into the ɑ: "Rod", "Frog" -> fraud, "Ra" -> raw).
+      static const float kRPreAaLipA = param("LINE_R_PRE_AA_LIPA", 1.0f), kRPreAaMix = param("LINE_R_PRE_AA_MIX", 0.0f);
+      if (next && *next == Ph::AA && !isVowel(lastPh_)) {
+        if (kRPreAaLipA != 1.0f) sh.aLip *= kRPreAaLipA;
+        if (kRPreAaMix > 0 && lineShapeOf(Ph::AA, &rAa)) sh = lineShapeMix(sh, rAa, kRPreAaMix);
+      }
       // (R-L agent19 round Q, lab; 1 / -1 / 0: as before) a coda ɹ before a z (LINE_RZ_SCOPE 1: before any consonant):
       // "Fares" -> fails, "Tears" -> tells, "Peers" -> pills (dictionary combo14 V_Z 33 of 160 heard l; the same words
       // without the z are heard with their ɹ). Its pharynx, lip area, hump area x LINE_RZ_APH / _LIPA / _AC, its place
@@ -4437,6 +4444,9 @@ void Synth::emit(const Token& tok, const Ph* next) {
       if (female_ && kWFAc != 1.0f) sh.ac *= kWFAc;
       if (female_ && kWFAph != 1.0f) sh.aPharynx *= kWFAph;
       if (female_ && kWFLipL != 1.0f) sh.lLip *= kWFLipL;
+      // (AA-AO agent25 round W, lab; 1: off) a w before an ɑ: lip area x LINE_W_PRE_AA_LIPA ("Wan", "Juan" -> one, "Wa" -> wah).
+      static const float kWPreAaLipA = param("LINE_W_PRE_AA_LIPA", 1.0f);
+      if (next && *next == Ph::AA && kWPreAaLipA != 1.0f) sh.aLip *= kWPreAaLipA;
     }
     // ɜ's own shape (ER agent 2026-11-11, lab knobs; 1 / 0: as before): its pharynx, constriction area, lip area and
     // length x these, mixed toward ə by LINE_ER_SCHWA_MIX; the stressed (long) ɜː's pharynx x LINE_ER_LONG_APH, the
@@ -4819,6 +4829,17 @@ void Synth::emit(const Token& tok, const Ph* next) {
       const float aaCtx = (aaFinal ? kAaFinalMix : 0.0f) + (aaNas ? kAaNasMix : 0.0f) +
                           (next && *next == Ph::L ? kAaLMix : 0.0f) + (prevWasPause_ ? kAaInitMix : 0.0f);
       if (aaCtx > 0 && lineShapeOf(static_cast<Ph>(kAaCtxRow), &o)) sh = lineShapeMix(sh, o, std::min(aaCtx, 1.0f));
+      // (AA-AO agent25 round W, lab knobs; 0 / 1 / 1 / 0: off) after a liquid or glide (l ɹ w j) the ɑ mixed toward the open
+      // front a by LINE_AA_LIQ_MIX, its lips x LINE_AA_LIQ_ALIP, its pharynx x LINE_AA_LIQ_APH; the male voice's ɑ mixed
+      // toward a by LINE_AA_M_MIX everywhere. Dictionary combo20: ɑ heard ɔ 131 of 457 errors, worst after l / ɹ / w / j
+      // ("Rod", "Frog" -> fraud, "Ya" -> yaw, "Lon" -> lawn, "Las" -> loss); male mid-vowel F2 puhuja 1000-1090 Hz,
+      // Kokoro am_adam 1150-1250, 11labs (Kennedy, 77 ɑ) 1200-1260.
+      static const float kAaLiqMix = param("LINE_AA_LIQ_MIX", 0.0f), kAaLiqALip = param("LINE_AA_LIQ_ALIP", 1.0f),
+                         kAaLiqAph = param("LINE_AA_LIQ_APH", 1.0f), kAaMMix = param("LINE_AA_M_MIX", 0.0f);
+      const bool aaLiq = lastPh_ == Ph::L || lastPh_ == Ph::RR || lastPh_ == Ph::W || lastPh_ == Ph::J;
+      if (aaLiq && kAaLiqMix > 0 && lineShapeOf(Ph::A, &o)) sh = lineShapeMix(sh, o, kAaLiqMix);
+      if (!female_ && kAaMMix > 0 && lineShapeOf(Ph::A, &o)) sh = lineShapeMix(sh, o, kAaMMix);
+      if (aaLiq) sh.aLip *= kAaLiqALip, sh.aPharynx *= kAaLiqAph;
       sh.aLip *= kAaALip * (female_ ? kAaFALip : 1.0f);
       sh.lLip *= kAaLLip;
       sh.aOral *= kAaAor;
@@ -4845,6 +4866,12 @@ void Synth::emit(const Token& tok, const Ph* next) {
       sh.aLip *= coda ? kLCoALip : kLOnALip;
       sh.lLip *= coda ? kLCoLLip : kLOnLLip;
       sh.aPharynx *= coda ? kLCoAph : kLOnAph;
+      // (AA-AO agent25 round W, lab; 0: off) an onset l before an ɑ mixed toward the open front a by LINE_L_PRE_AA_MIX (its
+      // dark back tongue lowers the ɑ's F2 start: "Lon" -> lawn, "Las" -> loss); a coda l after an ɑ toward ə by
+      // LINE_L_AFTER_AA ("Col" -> call, "Collar" -> caller).
+      static const float kLPreAaMix = param("LINE_L_PRE_AA_MIX", 0.0f), kLAfterAa = param("LINE_L_AFTER_AA", 0.0f);
+      if (!coda && *next == Ph::AA && kLPreAaMix > 0 && lineShapeOf(Ph::A, &o)) sh = lineShapeMix(sh, o, kLPreAaMix);
+      if (lastPh_ == Ph::AA && kLAfterAa > 0 && lineShapeOf(Ph::Schwa, &o)) sh = lineShapeMix(sh, o, kLAfterAa);
     }
     if (have && tok.ph == Ph::E && next && *next == Ph::IH) eyStartShape(&sh, female_, tok.shape.eyctx);
     if (have && tok.ph == Ph::IH && lastPh_ == Ph::E) eyEndShape(&sh, female_, tok.shape.eyctx);
@@ -5132,7 +5159,10 @@ void Synth::emit(const Token& tok, const Ph* next) {
                            kAaLateLipA = param("LINE_AA_LATE_LIPA", 1.0f);
         static const int kAaOffRow = param("LINE_AA_OFF_ROW", static_cast<int>(Ph::AH));
         if (tok.ph == Ph::AA && !(next && *next == Ph::RR) && (kAaOffFront > 0 || kAaFinalOff > 0 || kAaLateLipA != 1.0f)) {
-          const float off = kAaOffFront + (!next || *next == Ph::Stop ? kAaFinalOff : 0.0f);
+          // (AA-AO agent25 round W, lab; 0: off) + LINE_AA_LIQ_OFF after a liquid / glide (l ɹ w j).
+          static const float kAaLiqOff = param("LINE_AA_LIQ_OFF", 0.0f);
+          const bool liqPrev = lastPh_ == Ph::L || lastPh_ == Ph::RR || lastPh_ == Ph::W || lastPh_ == Ph::J;
+          const float off = kAaOffFront + (!next || *next == Ph::Stop ? kAaFinalOff : 0.0f) + (liqPrev ? kAaLiqOff : 0.0f);
           TractShape o;
           if (off > 0 && lineShapeOf(static_cast<Ph>(kAaOffRow), &o)) late = lineShapeMix(late, o, std::min(off, 1.0f));
           late.aLip *= kAaLateLipA;
@@ -5655,9 +5685,17 @@ void Synth::emit(const Token& tok, const Ph* next) {
             // and before an ɹ its place weight LINE_AO_R_PREW (SPLAN_PRE_R_VOWEL_W 0: the ɹ's place pulls the ɔ forward).
             static const float kAoHoldFrom = param("LINE_AO_HOLD_FROM", -1.0f), kAoRPreW = param("LINE_AO_R_PREW", -1.0f);
             const bool aoNear = tok.ph == Ph::AO && (aoLiq || lastPh_ == Ph::W || lastPh_ == Ph::L || lastPh_ == Ph::RR);
-            const double holdFrom = aoNear && kAoHoldFrom >= 0 ? kAoHoldFrom : 0.3;
+            // (AA-AO agent25 round W, lab; -1: 0.3) the ɑ after a w j l ɹ: its held demand from LINE_AA_GLIDE_HOLD of its length
+            // (puhuja's ɑ after ɹ opened over ~160 ms, F1 450 -> 640 Hz; Kokoro's reached 550 in ~60 ms: a slowly opening ɑ
+            // is an ɔ, "Rod" -> fraud; lab: 0.1 worse, 148 vs 139); its held demand's weight x LINE_AA_W (all ɑ): the ɑ shape held
+            // against its neighbours' pulls. Lab (ɑ errors, two word lists, six draws): 3 -> 659 vs 695 (-5.2 %, every draw lower; ʌ
+            // and æ readings fall, ɔ unchanged), 0.5 -> +15; formants move 10-40 Hz.
+            static const float kAaGlideHold = param("LINE_AA_GLIDE_HOLD", -1.0f), kAaW = param("LINE_AA_W", 1.0f);
+            const bool aaGl = tok.ph == Ph::AA && (lastPh_ == Ph::W || lastPh_ == Ph::J || lastPh_ == Ph::L || lastPh_ == Ph::RR);
+            const double holdFrom = aoNear && kAoHoldFrom >= 0 ? kAoHoldFrom : aaGl && kAaGlideHold >= 0 ? kAaGlideHold : 0.3;
+            const float wvA = tok.ph == Ph::AA ? wv * kAaW : wv;
             const float preRw = tok.ph == Ph::AO && next && *next == Ph::RR && kAoRPreW >= 0 ? kAoRPreW : preR;
-            addShapeDemand(vonOff ? t0 - kVonOffPreMs * ms : t0 + holdFrom * dur, t0 + std::max(holdFrom, rcPre ? std::min<double>(kRcPreAt, at - 0.15) : at - 0.15) * dur, sh, tok.ph, wv, preRw);
+            addShapeDemand(vonOff ? t0 - kVonOffPreMs * ms : t0 + holdFrom * dur, t0 + std::max(holdFrom, rcPre ? std::min<double>(kRcPreAt, at - 0.15) : at - 0.15) * dur, sh, tok.ph, wvA, preRw);
             if (rcPre) {
               TractShape pre = sh;
               pre.aPharynx = late.aPharynx; pre.aLip = late.aLip; pre.ac = late.ac; pre.lLip = late.lLip;
