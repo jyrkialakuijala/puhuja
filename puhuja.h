@@ -280,6 +280,8 @@ class Synth {
     unsigned char axctx = 0;  // an unstressed ə before a nasal of its word, not word-initial (english.cc, AX-NASAL agent14
                               // round M): 1 always; 2 it is the word's first vowel after one consonant ("Commands"),
                               // 4 after t or d ("Sutton", "Garden"), 8 after a vowel ("Lions", "Ian")
+    unsigned char hnctx = 0;  // the hiatus before a nasal (english.cc, UNSTR-N agent20 round R): 1 an unstressed vowel
+                              // after a vowel, before a nasal of its word ("being", "Ian"), 2 that nasal, 4 the vowel before
   };
   void shapeNext(const Shape& s) { nextShape_ = s; }
 

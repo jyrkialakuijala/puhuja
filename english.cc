@@ -2409,7 +2409,12 @@ void EnglishReader::sayPhrase(char end) {
         // Only after another vowel (a word of 2+ syllables: Gavin, Griffin): the one-syllable function word "been"
         // (reduced to b IH0 n) stays bɪn (make test: "They have been here.").
         const bool earlierVowel = m >= 3 && std::any_of(t.begin(), t.end() - 2, [](uint8_t x) { return isVowelToken(x); });
-        if (kFnIhSchwa > 0.5f && earlierVowel && t[m - 1] == kN && t[m - 2] == kIH0) t[m - 2] = kFnIhSchwa > 1.5f ? tokenOf("EH0") : kAH0;
+        // (UNSTR-N agent20 round R, lab; 0: as before) EN_FN_IH_KEEP_LIQ 1: not after l / ɹ, where the ə made a word
+        // Whisper knows with an ə ("Colin" -> colon 4 of 4 draws, "Erin" -> aaron, "Kathryn" -> catherine).
+        static const float kFnIhKeepLiq = param("EN_FN_IH_KEEP_LIQ", 0.0f);
+        const bool liqBefore = m >= 3 && (baseName(t[m - 3]) == "L" || baseName(t[m - 3]) == "R");
+        if (kFnIhSchwa > 0.5f && earlierVowel && t[m - 1] == kN && t[m - 2] == kIH0 && !(kFnIhKeepLiq > 0.5f && liqBefore))
+          t[m - 2] = kFnIhSchwa > 1.5f ? tokenOf("EH0") : kAH0;
         if (kFnSyllabic > 0.5f && !word.syllabicN && m >= 4 && t[m - 1] == kN && t[m - 2] == kAH0 &&
             (t[m - 3] == kT || t[m - 3] == kD || t[m - 3] == kS || t[m - 3] == kZ)) {
           t.erase(t.end() - 2);
@@ -2919,6 +2924,15 @@ void EnglishReader::sayPhrase(char end) {
           synth_.setPitch(pitch * kErInitPitch);
         else if (vowel && s.ph[k] != Ph::RR)  // ER = vowel + ɹ
           synth_.setPitch(fallingGlide ? pitch + kGlideFallShare * (pitchEnd - pitch) : ay && k == 0 && kAyAPitch != 1.0f ? pitch * kAyAPitch : pitch);
+        // (UNSTR-N agent20 round R, lab; 0: as before) the hiatus vowel before a nasal (see Shape::hnctx below): its
+        // pitch + EN_HN_PITCH semitones (a step of its own marks the second syllable).
+        {
+          static const float kHnPitch = param("EN_HN_PITCH", 0.0f);
+          if (kHnPitch != 0 && vowel && s.ph[k] != Ph::RR && i > 0 && i + 1 < tokens.size() && isVowelToken(tokens[i - 1]) &&
+              kEnglishTokens[tokens[i] - 0x80][strlen(kEnglishTokens[tokens[i] - 0x80]) - 1] == '0' &&
+              isNasal(baseName(tokens[i + 1])))
+            synth_.setPitch(pitch + kHnPitch);
+        }
         if (vowel && k == lastPart && pitchEnd != Synth::kNoPitch) synth_.setPitchEnd(pitchEnd);
         // English variant of this phoneme (tools/tune_english.py).
         const auto& v = kEnglishShape[static_cast<int>(s.ph[k])];
@@ -3199,6 +3213,26 @@ void EnglishReader::sayPhrase(char end) {
             if (isVowelToken(tokens[i - 1])) shape.axctx |= 8;
           }
         }
+        // The hiatus before a nasal (Shape::hnctx; UNSTR-N agent20 round R): 1 an unstressed vowel right after a vowel
+        // and right before a nasal of its word ("being", "saying", "Ian", "Ryan", "Owen"), 2 that nasal, 4 the vowel
+        // before the hiatus (a diphthong's last part). Dictionary (combo15): V_V_N unstressed medial 31.4 % wrong (Kokoro 6.2 %), ə / ɪ deleted
+        // ("Being" -> bean, "Saying" -> sane, "Ian" -> un, "Owen" -> own). Lengths x EN_HN_LEN / EN_HN_V1_LEN /
+        // EN_HN_NAS_LEN (1: as before).
+        {
+          auto unstr = [&](size_t j) {
+            const char* nm = kEnglishTokens[tokens[j] - 0x80];
+            return isVowelToken(tokens[j]) && nm[strlen(nm) - 1] == '0';
+          };
+          auto nasalAt = [&](size_t j) { return j < tokens.size() && isNasal(baseName(tokens[j])); };
+          if (i > 0 && unstr(i) && isVowelToken(tokens[i - 1]) && nasalAt(i + 1)) shape.hnctx |= 1;
+          if (i > 1 && nasalAt(i) && unstr(i - 1) && isVowelToken(tokens[i - 2])) shape.hnctx |= 2;
+          if (vowel && k == s.n - 1 && i + 2 < tokens.size() && unstr(i + 1) && nasalAt(i + 2)) shape.hnctx |= 4;
+          static const float kHnLen = param("EN_HN_LEN", 1.0f), kHnV1Len = param("EN_HN_V1_LEN", 1.0f),
+                             kHnNasLen = param("EN_HN_NAS_LEN", 1.0f);
+          if ((shape.hnctx & 1) && kHnLen != 1.0f) shape.ms *= kHnLen;
+          if ((shape.hnctx & 2) && kHnNasLen != 1.0f) shape.ms *= kHnNasLen;
+          if ((shape.hnctx & 4) && kHnV1Len != 1.0f) shape.ms *= kHnV1Len;
+        }
         // Plosives: Klatt's duration includes the release; this is the closure.
         if (isVoicelessPlosive(baseName(tokens[i])) || isVoicedPlosive(baseName(tokens[i])))
           shape.ms *= 0.75f;
@@ -3267,6 +3301,11 @@ void EnglishReader::sayPhrase(char end) {
             } }
           // (AX-NASAL agent14 round M, lab knob; 0: as before) an ə before a nasal of its word (Shape::axctx) + EN_AXN_DB.
           { static const float kAxnDb = param("EN_AXN_DB", 0.0f); if (kAxnDb != 0 && s.ph[k] == Ph::Schwa && shape.axctx) db += kAxnDb; }
+          // (UNSTR-N agent20 round R, lab; 0: as before) the hiatus vowel before a nasal (Shape::hnctx 1) + EN_HN_DB, the
+          // vowel before it + EN_HN_V1_DB, dB. Kokoro's "being", "saying", "Ian": the second vowel 4-7 dB over its nasal.
+          { static const float kHnDb = param("EN_HN_DB", 0.0f), kHnV1Db = param("EN_HN_V1_DB", 0.0f);
+            if (kHnDb != 0 && (shape.hnctx & 1)) db += kHnDb;
+            if (kHnV1Db != 0 && (shape.hnctx & 4)) db += kHnV1Db; }
           // Secondary stress is a step down from the primary, not its equal:
           // Kokoro's "robot", "habitat", "antibody" end 5-15 dB under their
           // first syllable; here the last third was the loudest (2026-11-02).
@@ -3313,6 +3352,12 @@ void EnglishReader::sayPhrase(char end) {
           shape.level *= std::pow(10.0f, db / 20.0f);
           shape.prosody = std::pow(10.0f, db / 20.0f);
         }
+        // (UNSTR-N agent20 round R, lab; 0 / 1: as before) the nasal after a hiatus vowel (Shape::hnctx 2): its lung
+        // pressure + EN_HN_NAS_DB dB (Kokoro's murmur sits 4-7 dB under that vowel, puhuja's 0-2 dB over it: the vowel
+        // is heard swallowed, "Ian" -> un); the hiatus vowel's voice quality x EN_HN_PRESS.
+        { static const float kHnNasDb = param("EN_HN_NAS_DB", 0.0f), kHnPress = param("EN_HN_PRESS", 1.0f);
+          if (kHnNasDb != 0 && (shape.hnctx & 2) && !vowel) shape.prosody *= std::pow(10.0f, kHnNasDb / 20.0f);
+          if (kHnPress != 1.0f && vowel && (shape.hnctx & 1)) shape.press *= kHnPress; }
         synth_.shapeNext(shape);
         if (first) synth_.setWord(phrase_[w].source), lastSourceWord_ = phrase_[w].source;
         synth_.push(s.ph[k], first);
@@ -3338,11 +3383,21 @@ void EnglishReader::sayPhrase(char end) {
       // ... and after uː only (EN_UW_INNER_GLIDE, round-I uː agent, lab; 0: off): a uː before a vowel inside a word
       // ("viewer" -> year, "newer" -> gear, "sewer" -> sir, "ruin"; 26 % wrong, 38 of them deleted) gets the w link.
       static const float kUwInnerGlide = param("EN_UW_INNER_GLIDE", 0.0f);
+      // ... and before an unstressed vowel + nasal (EN_HN_GLIDE, UNSTR-N agent20 round R, lab; 0: off): "saying" seɪjɪŋ,
+      // "being" biːjɪŋ, "doing" duːwɪŋ, "Ian" iːjən; without it the -ing's ɪ merged into eɪ's / aɪ's offglide (one
+      // long ɪ: "Saying" -> sane, "Dying" -> dine). Its length / level EN_HN_GLIDE_MS / EN_HN_GLIDE_LEVEL (< 0: the link's;
+      // the level does nothing on the line). Lab: 70 -> 27 / 24 / 26 errors at 40 / 25 / 15 ms, but +2.0-2.7 % duration
+      // and the brightness term +2..+4 sigma in every draw (LINE_HN_SPLIT + LINE_HN_FROM reach the same without them).
+      static const float kHnGlide = param("EN_HN_GLIDE", 0.0f), kHnGlideMs = param("EN_HN_GLIDE_MS", -1.0f),
+                         kHnGlideLevel = param("EN_HN_GLIDE_LEVEL", -1.0f);
       const bool innerNext = vowel && i + 1 < tokens.size() &&
                              ((kInnerGlide >= 1 && baseName(tokens[i]) == "AW" &&
                                (isVowelToken(tokens[i + 1]) || baseName(tokens[i + 1]) == "R")) ||
                               (kInnerGlide >= 2 && isVowelToken(tokens[i + 1])) ||
-                              (kUwInnerGlide > 0.5f && baseName(tokens[i]) == "UW" && isVowelToken(tokens[i + 1])));
+                              (kUwInnerGlide > 0.5f && baseName(tokens[i]) == "UW" && isVowelToken(tokens[i + 1])) ||
+                              (kHnGlide > 0.5f && i + 2 < tokens.size() && isVowelToken(tokens[i + 1]) &&
+                               kEnglishTokens[tokens[i + 1] - 0x80][strlen(kEnglishTokens[tokens[i + 1] - 0x80]) - 1] == '0' &&
+                               isNasal(baseName(tokens[i + 2]))));
       if ((vowel && i + 1 == tokens.size() && w + 1 < phrase_.size() &&
            !phrase_[w + 1].tokens.empty() && isVowelToken(phrase_[w + 1].tokens[0])) || innerNext) {
         const Ph last = s.ph[s.n - 1];
@@ -3351,8 +3406,11 @@ void EnglishReader::sayPhrase(char end) {
         const bool toNoGlide = kToGlide < 0.5f && kToBeforeVowel > 0.5f && phrase_[w].text == "to";
         if (link != Ph::Stop && !toNoGlide) {
           Synth::Shape ls;
-          ls.ms = kLinkGlideMs;
-          ls.level = kLinkGlideLevel * kEnglishShape[static_cast<int>(link)].level;
+          const bool hnLink = kHnGlide > 0.5f && i + 2 < tokens.size() && isVowelToken(tokens[i + 1]) &&
+                              kEnglishTokens[tokens[i + 1] - 0x80][strlen(kEnglishTokens[tokens[i + 1] - 0x80]) - 1] == '0' &&
+                              isNasal(baseName(tokens[i + 2]));
+          ls.ms = hnLink && kHnGlideMs >= 0 ? kHnGlideMs : kLinkGlideMs;
+          ls.level = (hnLink && kHnGlideLevel >= 0 ? kHnGlideLevel : kLinkGlideLevel) * kEnglishShape[static_cast<int>(link)].level;
           const auto& lv = kEnglishShape[static_cast<int>(link)];
           ls.f1 = lv.f1;
           ls.f2 = lv.f2;

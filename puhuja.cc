@@ -2471,7 +2471,10 @@ void Synth::push(Ph ph, bool wordStart) {
     // heard as "a little funny").
     const bool sameAcross = wordStart && aspirate_ && ph == p.ph && !isVowel(ph) && p.ph != Ph::Stop && !p.isLong;
     if ((!wordStart || sameAcross) && p.ph != Ph::Stop) {
-      if (ph == p.ph && !p.isLong) {
+      // (UNSTR-N agent20 round R, lab; 0: as before) LINE_HN_SPLIT 1: a hiatus ɪ before a nasal (Shape::hnctx 1) stays
+      // its own syllable after eɪ's / aɪ's / ɔɪ's offglide ɪ ("saying", "dying", "enjoying": one long ɪ, heard sane / dine).
+      static const float kHnSplit = param("LINE_HN_SPLIT", 0.0f);
+      if (ph == p.ph && !p.isLong && !(kHnSplit > 0.5f && (shape.hnctx & 1))) {
         p.isLong = true;  // "kk", "aa": one long phoneme
         p.doubled = true;
         if (sameAcross) p.wordJoin = true;
@@ -4467,6 +4470,20 @@ void Synth::emit(const Token& tok, const Ph* next) {
         if (kLvEhLnAc != 1.0f) sh.ac *= kLvEhLnAc;
       }
     }
+    // (UNSTR-N agent20 round R, lab; 0: off) the hiatus vowel before a nasal (Shape::hnctx 1): an ɪ mixed toward
+    // LINE_HN_IH_ROW by LINE_HN_IH_MIX, an ə toward LINE_HN_AX_ROW by LINE_HN_AX_MIX (rows 0 ɛ, 1 ə, 2 e, 3 ʌ, 4 ɑ,
+    // 5 æ). Kokoro (am_adam) opens the second vowel: "being" ɪ 470-500 / 2000-2050 Hz after iː 330 / 2300 (puhuja
+    // 370-410 / 2105, then nasalised), "Ian" ə 490-550 / 1700-1850 (puhuja 306-370 / 1440-1550: the iː carried on).
+    if (have && (tok.shape.hnctx & 1)) {
+      static const float kHnIhMix = param("LINE_HN_IH_MIX", 0.0f), kHnAxMix = param("LINE_HN_AX_MIX", 0.0f);
+      static const int kHnIhRow = static_cast<int>(param("LINE_HN_IH_ROW", 0.0f)),
+                       kHnAxRow = static_cast<int>(param("LINE_HN_AX_ROW", 3.0f));
+      static const Ph kHnRows[] = {Ph::EH, Ph::Schwa, Ph::E, Ph::AH, Ph::AA, Ph::AE};
+      const bool ih = tok.ph == Ph::IH || tok.ph == Ph::I;
+      const float mix = ih ? kHnIhMix : tok.ph == Ph::Schwa ? kHnAxMix : 0.0f;
+      TractShape o;
+      if (mix > 0 && lineShapeOf(kHnRows[std::clamp(ih ? kHnIhRow : kHnAxRow, 0, 5)], &o)) sh = lineShapeMix(sh, o, std::min(mix, 1.0f));
+    }
     if (have && tok.ph == Ph::AH) ahShape(&sh, lastPh_, next, female_, prevWasPause_);
     // (round-H ʊ agent, lab) the standalone ʊ (not the end of aʊ / oʊ): its own shape (uhShape); uhRow keeps the row's
     // shape for its late key (LINE_UH_LATE_ROW below).
@@ -4825,9 +4842,20 @@ void Synth::emit(const Token& tok, const Ph* next) {
             // ... and the vowel after it demanded from LINE_UW_NEXT_FROM of its length (-1: SPLAN_GLIDE_END).
             static const float kUwNextFrom = param("LINE_UW_NEXT_FROM", -1.0f);
             const bool uwNext = chainEnd && lastPh_ == Ph::U;
-            const double a = iyStart && kIyChainFrom >= 0 ? kIyChainFrom : iyNext && kIyNextFrom >= 0 ? kIyNextFrom
+            // (UNSTR-N agent20 round R, lab; -1 / -1 / 1: as before) a hiatus before a nasal (Shape::hnctx) is two
+            // syllables, not a diphthong: the unstressed vowel demanded from LINE_HN_FROM of its length (else as above:
+            // reached only near its end, "Ian"'s ə F1 310-340 Hz for its first 80 ms, Kokoro's 490-550 within 30 ms),
+            // the vowel before it held to LINE_HN_V1_TO of its length; the unstressed vowel's weight x LINE_HN_CHAIN_W.
+            // Lab (367 hiatus / -lɪn words, ə + ɪ targets, 2 voices, base 70 errors): FROM 0.1 52, V1_TO 0.6 58, both 30;
+            // with LINE_HN_SPLIT, LINE_HN_AX_MIX 0.6 row ɛ and EN_FN_IH_KEEP_LIQ 16 / 13 on two draws (base 70 / 66).
+            static const float kHnFrom = param("LINE_HN_FROM", -1.0f), kHnV1To = param("LINE_HN_V1_TO", -1.0f),
+                               kHnChainW = param("LINE_HN_CHAIN_W", 1.0f);
+            const bool hnEnd = chainEnd && (tok.shape.hnctx & 1), hnStart = chainStart && (tok.shape.hnctx & 4);
+            const double a = hnEnd && kHnFrom >= 0 ? kHnFrom
+                             : iyStart && kIyChainFrom >= 0 ? kIyChainFrom : iyNext && kIyNextFrom >= 0 ? kIyNextFrom
                              : uwNext && kUwNextFrom >= 0 ? kUwNextFrom : a0;
-            const double b = iyStart && kIyChainTo >= 0 ? kIyChainTo : iyNext && kIyNextTo >= 0 ? kIyNextTo
+            const double b = hnStart && kHnV1To >= 0 ? kHnV1To
+                             : iyStart && kIyChainTo >= 0 ? kIyChainTo : iyNext && kIyNextTo >= 0 ? kIyNextTo
                              : uwStart && kUwChainTo >= 0 ? kUwChainTo
                              : oyStart && kLineOyHoldTo >= 0 ? kLineOyHoldTo : ayStart && kLineAyHold >= 0 ? kLineAyHold
                              : chainStart ? (eyStart && kEyHoldTo >= 0 ? kEyHoldTo : kShapeGlideStart)
@@ -4845,7 +4873,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
             static const float kVonDiphPreMs = param("LINE_VON_DIPH_PRE_MS", 40.0f);
             if (chainStart && prevWasPause_ && tok.wordStart && lead <= 0 && kVonDiphPreMs > 0) lead = kVonDiphPreMs;
             addShapeDemand(lead > 0 ? t0 - lead * ms : t0 + std::min(a, b) * dur, t0 + std::max(a, b) * dur, sh, tok.ph,
-                           ws * kShapeGlideW * oyW * (eyGlide ? kEyGlideW : 1.0f),
+                           ws * kShapeGlideW * oyW * (eyGlide ? kEyGlideW : 1.0f) * (hnEnd ? kHnChainW : 1.0f),
                            ayStart ? kLineAyPlaceFloor : eyGlide ? kEyPlaceW : eyStart ? kEyEPlaceW : iyStart ? kIyChainPlaceW : 0.0f);
             if ((ayStart || ayGlide) && kLineAyRamp > 1) {
               // A lazy aɪ (LINE_AY_RAMP points over the whole diphthong, 0: off): point demands on the straight path
@@ -5007,6 +5035,16 @@ void Synth::emit(const Token& tok, const Ph* next) {
             // (AX-NASAL agent14 round M, lab knob; 1: as before) an ə before a nasal of its word: its demand x LINE_AXN_W.
             static const float kAxnW = param("LINE_AXN_W", 1.0f);
             if (tok.ph == Ph::Schwa && tok.shape.axctx && kAxnW != 1.0f) ws *= kAxnW;
+            // (UNSTR-N agent20 round R, lab; 1 / 0: as before) the hiatus vowel before a nasal (Shape::hnctx 1): its
+            // demand x LINE_HN_W, asked for LINE_HN_LEAD_MS before its start (only a vowel off the chain path, the split
+            // -ing ɪ: lab 70 -> 70 at W 2 / LEAD 30 ms; the chain path has LINE_HN_FROM / _V1_TO / _CHAIN_W).
+            static const float kHnW = param("LINE_HN_W", 1.0f), kHnLeadMs = param("LINE_HN_LEAD_MS", 0.0f);
+            if ((tok.shape.hnctx & 1) && kHnW != 1.0f) ws *= kHnW;
+            if ((tok.shape.hnctx & 1) && kHnLeadMs > 0) preMs = kHnLeadMs;
+            // ... and the vowel before it x LINE_HN_V1_W ("Ian"'s iː F2 fell 2026 -> 1567 Hz through all of it, toward the
+            // ə; Kokoro's held 2240-2400 and moved in its last 50 ms).
+            static const float kHnV1W = param("LINE_HN_V1_W", 1.0f);
+            if ((tok.shape.hnctx & 4) && isVowel(tok.ph) && kHnV1W != 1.0f) ws *= kHnV1W;
             // (Y agent round G, lab; 0 / 1: as before) the same for a j after a plosive ("cute", "beauty").
             static const float kJStopLeadMs = param("LINE_J_STOP_LEAD_MS", 30.0f), kJStopW = param("LINE_J_STOP_W", 4.0f);
             const bool jStop = tok.ph == Ph::J && prevWasPlosive_;
@@ -5382,6 +5420,25 @@ void Synth::emit(const Token& tok, const Ph* next) {
   {
     static const float kAhAn = param("LINE_AH_ANTICIP", 1.0f);
     if (tract_ == Tract::Line && tok.ph == Ph::AH && kAhAn != 1.0f && next && info(*next).cls == Cls::Nasal) e.an *= kAhAn;
+  }
+  // (UNSTR-N agent20 round R, lab; 1 / 0 / 1: as before) the hiatus vowel before a nasal (Shape::hnctx 1): its velum port
+  // x LINE_HN_ANTICIP, shut until LINE_HN_NASAL_LATE of it (puhuja's "being" / "saying" ɪ turned nasal half way: F2
+  // 2100 -> 700-890 Hz, Kokoro's held 2000-2170 to the ŋ); the nasal after it: its port x LINE_HN_NPORT.
+  {
+    static const float kHnAn = param("LINE_HN_ANTICIP", 1.0f), kHnLate = param("LINE_HN_NASAL_LATE", 0.0f),
+                       kHnNPort = param("LINE_HN_NPORT", 1.0f);
+    if (tract_ == Tract::Line && (tok.shape.hnctx & 1) && isVowel(tok.ph) && next && info(*next).cls == Cls::Nasal) {
+      if (kHnAn != 1.0f) e.an *= kHnAn;
+      if (kHnLate > 0 && e.an > 0) {
+        Event late{e.t + kHnLate * dur};
+        late.an = e.an;
+        late.anMs = static_cast<float>((1.0f - kHnLate) * dur / ms);
+        addEventAt(late);
+        e.an = aero.an;
+        e.anMs = kBoundaryMs;
+      }
+    }
+    if (tract_ == Tract::Line && (tok.shape.hnctx & 2) && info(tok.ph).cls == Cls::Nasal && kHnNPort != 1.0f) e.an *= kHnNPort;
   }
   // (AX-NASAL agent14 round M, lab knobs; 1 / 0: as before) an ə before a nasal of its word (Shape::axctx): its velum
   // port x LINE_AXN_ANTICIP, shut until LINE_AXN_ANTICIP_LATE of it (the port over the whole vowel raised the -ɪn's F2 /
@@ -6661,6 +6718,12 @@ void Synth::emit(const Token& tok, const Ph* next) {
   { static const float kThPulse = param("LINE_TH_PULSE", 0.0f), kThPulseAt = param("LINE_TH_PULSE_AT_MS", 20.0f);
     if (tract_ == Tract::Line && tok.ph == Ph::TH && kThPulse > 0)
       addPressPulse(t0 + kThPulseAt * ms, std::max(phonemeStart_, t_) + 1, kThPulse); }
+  // (UNSTR-N agent20 round R, lab; 0: off) the hiatus vowel before a nasal (Shape::hnctx 1): a breath push of
+  // LINE_HN_PULSE (relative) peaking LINE_HN_PULSE_AT_MS into it, a syllable of its own (Kokoro's second vowel of
+  // "Ian" / "Owen" comes back to within 1-4 dB of the first, puhuja's sits 4-7 dB under it and under its nasal).
+  { static const float kHnPulse = param("LINE_HN_PULSE", 0.0f), kHnPulseAt = param("LINE_HN_PULSE_AT_MS", 30.0f);
+    if (tract_ == Tract::Line && (tok.shape.hnctx & 1) && isVowel(tok.ph) && kHnPulse > 0)
+      addPressPulse(t0 + kHnPulseAt * ms, std::max(phonemeStart_, t_) + 1, kHnPulse); }
   // The syllable's start: its first onset consonant after a vowel or a pause.
   if (in.cls != Cls::Vowel && in.cls != Cls::Stop && (prevWasVowel_ || prevWasPause_ || syllOnsetT_ < 0)) syllOnsetT_ = t0;
   if (stressExtra > 0) {
