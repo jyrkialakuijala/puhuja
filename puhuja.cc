@@ -7704,10 +7704,10 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // control 1559 -> 1571; the t's burst 3.8 kHz (female 4.6, af_heart 4.3). The k or the t alone moves the confusion to
   // the other ("Park" fixed, "Part" -> park).
   {
-    static const float kPl2Mix[3] = {param("LINE_PL2_MIX_P", 0.0f), param("LINE_PL2_MIX_T", 0.0f), param("LINE_PL2_MIX_K", 0.0f)};
+    static const float kPl2Mix[3] = {param("LINE_PL2_MIX_P", 0.0f), param("LINE_PL2_MIX_T", 0.0f), param("LINE_PL2_MIX_K", 0.6f)};
     static const int kPl2Row[3] = {static_cast<int>(param("LINE_PL2_ROW_P", 8.0f)), static_cast<int>(param("LINE_PL2_ROW_T", 9.0f)),
                                    static_cast<int>(param("LINE_PL2_ROW_K", 9.0f))};
-    static const float kPl2Ms = param("LINE_PL2_MS", 30.0f), kPl2Lips = param("LINE_PL2_LIPS", 0.0f),
+    static const float kPl2Ms = param("LINE_PL2_MS", 30.0f), kPl2Lips = param("LINE_PL2_LIPS", 1.0f),
                        kPl2TailMs = param("LINE_PL2_TAIL_MS", 0.0f), kPl2W = param("LINE_PL2_W", 1.0f);
     const int i = tok.ph == Ph::P ? 0 : tok.ph == Ph::T ? 1 : 2;
     // LINE_PL2_MIX_K_BACK (< 0: LINE_PL2_MIX_K): the k's mix after a rounded back vowel + ɹ ("Cork", "Pork", "Torque").
