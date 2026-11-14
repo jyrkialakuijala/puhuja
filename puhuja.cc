@@ -3879,7 +3879,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // lip length x LINE_VL_LIQ_LIPL, pharynx x LINE_VL_LIQ_APH (rounded lips in the cluster's release give the labial's
     // low rising F2: "Grain" -> brain).
     if (have && (tok.ph == Ph::RR || tok.ph == Ph::L) && prevWasPlosive_ && vlInitPrev_) {
-      static const float kVlLiqLipA = param("LINE_VL_LIQ_LIPA", 1.0f), kVlLiqLipL = param("LINE_VL_LIQ_LIPL", 1.0f),
+      static const float kVlLiqLipA = param("LINE_VL_LIQ_LIPA", 1.5f), kVlLiqLipL = param("LINE_VL_LIQ_LIPL", 1.0f),
                          kVlLiqAph = param("LINE_VL_LIQ_APH", 1.0f);
       if (kVlLiqLipA != 1.0f) sh.aLip *= kVlLiqLipA;
       if (kVlLiqLipL != 1.0f) sh.lLip *= kVlLiqLipL;
@@ -6620,7 +6620,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // forward only trades b for p / d. The shortlist (VELAR/agent15/AGENT.md): K_X 0.56 + VEL_MS 25 (G_VEL_MS 0) + K_JET_D
   // 0.4 + R_X 0.5 (+ LIQ_LIPA 1.5, + RE 3): 196 / 196 / 218 -> 89 / 80 / 96 (78 / 72 / 90; 70 / 70 / 68) on three seeds,
   // words right +76 (+78, +87) of 542, words1000 unchanged.
-  static const float kVlKX = param("LINE_VL_K_X", -1.0f), kVlGX = param("LINE_VL_G_X", -1.0f);
+  static const float kVlKX = param("LINE_VL_K_X", 0.56f), kVlGX = param("LINE_VL_G_X", -1.0f);
   const bool vlInit = tract_ == Tract::Line && (tok.ph == Ph::K || tok.ph == Ph::G) && tok.wordStart && next &&
                       (*next == Ph::L || *next == Ph::RR);
   const bool vlK = vlInit && tok.ph == Ph::K, vlG = vlInit && tok.ph == Ph::G;
@@ -7223,7 +7223,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // R_X 0.6 (the ɹ's hump starts on the velar side of its 0.68): -56 (B 118 -> 92), the one clear gain for the g; in the
   // combination 0.6 / 0.55 / 0.5 / 0.45 / 0.4 gave 110 / 98 / 68 / 114 / 154 errors (seed 1002; behind 0.5 the g is
   // deleted). The l moved either way (0.9, 0.75, 0.7) is worse.
-  static const float kVlLX = param("LINE_VL_L_X", -1.0f), kVlRX = param("LINE_VL_R_X", -1.0f);
+  static const float kVlLX = param("LINE_VL_L_X", -1.0f), kVlRX = param("LINE_VL_R_X", 0.5f);
   if (vlInit && *next == Ph::L && kLRelOwn > 0 && kVlLX >= 0) rel.lineX = kVlLX;
   if (vlInit && *next == Ph::RR && kRRelOwn > 0 && kVlRX >= 0) rel.lineX = kVlRX;
   // ... and for a w or j (LINE_GLIDE_REL_OWN, R agent round F, lab; 0: as before): the same dropped event, "twin" made
@@ -7720,7 +7720,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   if (kRelRe) rel.lineFricReMul = kRelReV;
   // (VELAR-L agent15 round N, lab; < 0: off) a word-initial k / g before l ɹ: its release jet's Reynolds x LINE_VL_RE for
   // LINE_G_REL_RE_MS, the g's frication gain LINE_VL_G_FRIC (< 0: LINE_VSTOP_BURST_LIQ's).
-  static const float kVlRe = param("LINE_VL_RE", -1.0f), kVlGFric = param("LINE_VL_G_FRIC", -1.0f);
+  static const float kVlRe = param("LINE_VL_RE", 3.0f), kVlGFric = param("LINE_VL_G_FRIC", -1.0f);
   const bool vlRe = vlInit && kVlRe >= 0 && !unreleased;
   if (vlRe) rel.lineFricReMul = kVlRe;
   if (vstopBurst) rel.lineFricMul = tok.ph == Ph::G && kLineGBurst >= 0 ? kLineGBurst : tok.ph == Ph::D && kLineDBurst >= 0 ? kLineDBurst : tok.ph == Ph::B && kLineBBurst >= 0 ? kLineBBurst : kLineVStopBurst;
@@ -7816,7 +7816,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // LINE_VL_G_VEL_MS, < 0: LINE_VL_VEL_MS), its area LINE_VL_VEL_A (< 0: LINE_K_LIQ_VEL_A's rule). The g's 10 ms slit
   // (LINE_VSTOP_SLIT_LIQ) sat at the liquid's place: the l's ridge (0.8) for "glad", its burst a dull 1-2 kHz tick.
   // Lab: the k's 25 ms -51 (P 56 -> 22; with LINE_VL_K_JET_D 0.4 P 9); the g's +66 (heard b 156, p 86): G_VEL_MS 0.
-  static const float kVlVelMs = param("LINE_VL_VEL_MS", 0.0f), kVlGVelMs = param("LINE_VL_G_VEL_MS", -1.0f),
+  static const float kVlVelMs = param("LINE_VL_VEL_MS", 25.0f), kVlGVelMs = param("LINE_VL_G_VEL_MS", 0.0f),
                      kVlVelA = param("LINE_VL_VEL_A", -1.0f);
   const float vlVelMs = vlG && kVlGVelMs >= 0 ? kVlGVelMs : vlInit ? kVlVelMs : 0.0f;
   const bool kLiqVel = tract_ == Tract::Line && ((tok.ph == Ph::K && kKLiqVelMs > 0 && next && (*next == Ph::L || *next == Ph::RR)) || vlVelMs > 0) &&
@@ -7903,7 +7903,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
                        !unreleased && next && (isVowel(*next) || vSlitLiq)) || kSlitLiq || kSlitFinal)) || dFinalSlit;
   // (VELAR-L agent15 round N, lab; < 0 / 0: off) a word-initial gl gɹ's slit jet LINE_VL_G_JET_D, a kl kɹ's release
   // through LINE_VL_K_JET_D's thick jet (as LINE_K_LIQ_JET_D).
-  static const float kVlGJetD = param("LINE_VL_G_JET_D", -1.0f), kVlKJetD = param("LINE_VL_K_JET_D", 0.0f);
+  static const float kVlGJetD = param("LINE_VL_G_JET_D", -1.0f), kVlKJetD = param("LINE_VL_K_JET_D", 0.4f);
   const float vJetD = tract_ != Tract::Line || unreleased || !next || nextIsPause || info(*next).cls == Cls::Fricative ? 0.0f
                       : tok.ph == Ph::G ? (vlG && kVlGJetD >= 0 ? kVlGJetD : tok.shape.gctx == 1 && kGiJetD >= 0 ? kGiJetD : kLineGJetD) : tok.ph == Ph::B ? kLineBJetD : tok.ph == Ph::D ? kLineDJetD : 0.0f;
   // t into a vowel (or l r w j: LINE_T_BURST_LIQ) in two steps too (LINE_T_BURST_MS, T agent 3; 0: off): the tongue
