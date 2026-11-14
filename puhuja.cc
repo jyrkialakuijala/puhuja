@@ -3246,6 +3246,16 @@ void rCodaShape(TractShape* sh) {
 void Synth::emit(const Token& tok, const Ph* next) {
   Info in = info(tok.ph);
   curPh_ = tok.ph;
+  // (Y-INIT agent25 round W, lab knobs; all off by default) the word-initial j: the dictionary's j before a stressed
+  // vowel after a pause was deleted in 14 of 148 and heard l in 9 ("Year" -> ear, "Yet" -> let, "Yields" -> fields).
+  // Isolated words, against Kokoro (am_adam / af_heart): its j holds F2 2200 / 2600 Hz for ~100 ms from the word start,
+  // then falls into the vowel; puhuja's voiced j runs ~50 ms at 1950 / 2200 Hz and starts falling before the vowel.
+  // jIni: a phrase-initial j (LINE_JI_SCOPE 0), also any j after a vowel, nasal, liquid or fricative (1), or only after a
+  // nasal or fricative (2: "menu", "few"); never after a plosive (LINE_J_STOP_*) or an h (LINE_HJ_*).
+  static const float kJiScope = param("LINE_JI_SCOPE", 0.0f);
+  const bool jIni = tok.ph == Ph::J && !prevWasPlosive_ && lastPh_ != Ph::H &&
+                    (prevWasPause_ || (kJiScope == 1 && !prevWasPause_) ||
+                     (kJiScope == 2 && (info(lastPh_).cls == Cls::Nasal || info(lastPh_).cls == Cls::Fricative)));
   {
     const Cls cl = in.cls;
     rangeTok_ = formantRanges_ && (cl == Cls::Nasal || cl == Cls::Liquid || cl == Cls::Trill ||
@@ -3576,6 +3586,10 @@ void Synth::emit(const Token& tok, const Ph* next) {
   // a narrower j keeps a little of the ç's hiss into the voicing, one breathy j instead of hiss, then a separate j.
   { static const float kHjJAc = param("LINE_HJ_J_AC", 1.0f);
     if (tract_ == Tract::Line && tok.ph == Ph::J && lastPh_ == Ph::H && kHjJAc != 1.0f && e.ac > 0) e.ac *= kHjJAc; }
+  // (Y-INIT agent25, lab; 1: as before) the initial j's slit x LINE_JI_SLIT (its place LINE_JI_X and glottis LINE_JI_AG
+  // below, where those are set). Lab: 0.7 heard l (j errors 56 -> 84, L 4 -> 22), 1.4 more deletions (67).
+  { static const float kJiSlit = param("LINE_JI_SLIT", 1.0f);
+    if (tract_ == Tract::Line && jIni && kJiSlit != 1.0f && e.ac > 0) e.ac *= kJiSlit; }
   // the standalone ʒ's slit x LINE_ZH_AC_MUL (ZH agent, round H; 1: off; LINE_AC_ZH also sets the ʤ's frication)
   { static const float kLineZhAcMul = param("LINE_ZH_AC_MUL", 1.0f);
     if (tract_ == Tract::Line && kLineZhAcMul != 1.0f && tok.ph == Ph::ZH && !inAffricate_ && e.ac > 0) e.ac *= kLineZhAcMul; }
@@ -3899,6 +3913,8 @@ void Synth::emit(const Token& tok, const Ph* next) {
   { static const float kNdnX = param("LINE_NDN_X", 0.0f);
     if (tok.ph == Ph::N && (tok.shape.nctx & 4) && kNdnX > 0) e.lineX = kNdnX; }
   if (tok.ph == Ph::SH && shFullVowel && kLineShVowelX > 0) e.lineX = kLineShVowelX;  // (LINE_SH_VOWEL_X)
+  { static const float kJiX = param("LINE_JI_X", -1.0f);  // (Y-INIT agent25, lab; < 0: LINE_J_X) the initial j's place
+    if (jIni && kJiX >= 0) e.lineX = kJiX; }
   if (tok.ph == Ph::SH && shFullVowel && kLineShVowelAc != 1.0f && e.ac > 0) e.ac *= kLineShVowelAc;  // (LINE_SH_VOWEL_AC)
   // Stress as a push of the diaphragm (Jyrki 2026-11-04: "a soft pulse in
   // the beginning of the syllable rather than ramping up during the
@@ -4288,6 +4304,18 @@ void Synth::emit(const Token& tok, const Ph* next) {
       if (kJStopLipA != 1.0f) sh.aLip *= kJStopLipA;
       if (kJStopAor != 1.0f) sh.aOral *= kJStopAor;
       if (kJStopAc != 1.0f) sh.ac *= kJStopAc;
+    }
+    // (Y-INIT agent25, lab; 1 / 0: as before) the initial j's shape (the iː row): its pharynx, lip area, oral area,
+    // hump area x LINE_JI_APH / _LIPA / _AOR / _AC, the hump place + LINE_JI_XC (share of the length; > 0 front). Lab
+    // (j errors, base 56): APH 1.3 65, LIPA 1.5 63, AOR 0.7 63, AC 0.7 74, XC +0.03 63: none helps.
+    if (have && jIni) {
+      static const float kJiAph = param("LINE_JI_APH", 1.0f), kJiLipA = param("LINE_JI_LIPA", 1.0f), kJiAor = param("LINE_JI_AOR", 1.0f),
+                         kJiAc = param("LINE_JI_AC", 1.0f), kJiXc = param("LINE_JI_XC", 0.0f);
+      if (kJiAph != 1.0f) sh.aPharynx *= kJiAph;
+      if (kJiLipA != 1.0f) sh.aLip *= kJiLipA;
+      if (kJiAor != 1.0f) sh.aOral *= kJiAor;
+      if (kJiAc != 1.0f) sh.ac *= kJiAc;
+      if (kJiXc != 0.0f) sh.xc += kJiXc;
     }
     // (W agent round G, lab; 1 / -1: as before) the w after a plosive ("twice", "quick": w after p t k 21 % errors, heard
     // as l ɹ: "twice" -> "place", "quite" -> "pride") or after s (LINE_W_S_*: "swim" -> "slim"): its lip area, lip tube
@@ -5373,6 +5401,20 @@ void Synth::emit(const Token& tok, const Ph* next) {
             const bool jStop = tok.ph == Ph::J && prevWasPlosive_;
             if (jStop && kJStopLeadMs > 0) preMs = kJStopLeadMs;
             if (jStop && kJStopW != 1.0f) ws *= kJStopW;
+            // (Y-INIT agent25, lab; 1 / -1 / 0: as before) the initial j's demand x LINE_JI_W, held to LINE_JI_TO of it
+            // (< 0: 0.7), asked for LINE_JI_LEAD_MS before it when not after a pause (0: at 30 %); the vowel after it asks
+            // for its own shape from LINE_JI_VKEY of the vowel (< 0: 0.3): Kokoro's j F2 plateau runs into the vowel.
+            // Lab (257 j, base 56 errors / 375 words): W 2 / 4 58 / 58 errors, 382 / 384 words (male j F2 1927 -> 2079 /
+            // 2155, Kokoro 2210); TO 1.3 60, VKEY 0.5 70: the formants alone do not help, the lengths do (EN_JI_LEN).
+            // With EN_JI_LEN / EN_J_NF_LEN 1.3 and LINE_JI_SCOPE 2: W 2 24 / 402, NF_W 3 32 / 390 (words1000 1570 -> 1579).
+            static const float kJiW = param("LINE_JI_W", 1.0f), kJiTo = param("LINE_JI_TO", -1.0f), kJiLeadMs = param("LINE_JI_LEAD_MS", 0.0f),
+                               kJiVKey = param("LINE_JI_VKEY", -1.0f);
+            if (jIni && kJiW != 1.0f) ws *= kJiW;
+            // ... and x LINE_JI_NF_W more when it follows a sound, not a pause (LINE_JI_SCOPE 1 / 2: "few", "menu"; the
+            // phrase-initial j's onset brightened into a 2-8 kHz jump with LINE_JI_W 3: "Year" m 4.9 -> 12.6 dB snap.py).
+            static const float kJiNfW = param("LINE_JI_NF_W", 1.0f);
+            if (jIni && !prevWasPause_ && kJiNfW != 1.0f) ws *= kJiNfW;
+            if (jIni && !prevWasPause_ && kJiLeadMs > 0) preMs = kJiLeadMs;
             // (W agent round G, lab; 0 / 1 / -1: as before) the same for a w after a plosive (the lips round during the
             // closure: "twice", "quick") and after s (LINE_W_S_LEAD_MS: the s rounded, "swim"); the demand's end x dur.
             static const float kWStopLeadMs = param("LINE_W_STOP_LEAD_MS", 0.0f), kWStopW = param("LINE_W_STOP_W", 1.0f),
@@ -5394,10 +5436,12 @@ void Synth::emit(const Token& tok, const Ph* next) {
             // (W agent round I, lab; < 0: 0.3, as before) a vowel after a w asks for its own shape from this share of it: the
             // w's rise into the vowel (LINE_GLIDE_VOWEL_KEY moves only the unplanned keys).
             static const float kLineWVowelKey = param("LINE_W_VOWEL_KEY", -1.0f);
-            const double vowelFrom = isVowel(tok.ph) && lastPh_ == Ph::W && kLineWVowelKey >= 0 ? kLineWVowelKey : 0.3;
+            const double vowelFrom = isVowel(tok.ph) && lastPh_ == Ph::W && kLineWVowelKey >= 0 ? kLineWVowelKey :
+                                     isVowel(tok.ph) && lastPh_ == Ph::J && jIni_ && kJiVKey >= 0 ? kJiVKey : 0.3;
             const double wKeyTo = (wStop || wS) && kWStopKeyTo >= 0 ? kWStopKeyTo : kLineWKeyTo;
             double dFrom = er ? kLineErFrom : tok.ph == Ph::RR && kLineRKeyFrom >= 0 ? kLineRKeyFrom : vFrom >= 0 ? vFrom : vowelFrom,
-                   dTo = er ? kLineErTo : tok.ph == Ph::W ? wKeyTo : tok.ph == Ph::RR && kLineRKeyTo >= 0 ? kLineRKeyTo : vTo >= 0 ? vTo : 0.7;
+                   dTo = er ? kLineErTo : tok.ph == Ph::W ? wKeyTo : tok.ph == Ph::RR && kLineRKeyTo >= 0 ? kLineRKeyTo : vTo >= 0 ? vTo :
+                         jIni && kJiTo >= 0 ? kJiTo : 0.7;
             float dW = er ? ws * kLineErW : iy || uhD || uwD || ahD || aoD || swD ? ws * vW : ws;
             // (ER-INITIAL agent13 round L, lab; -1 / 1 / 0: as before) the ə and the ɹ of a word-initial ER0 said ə + ɹ
             // (Shape::erctx 1 / 2, english.cc EN_ER_INIT): their demand windows (shares of the sound) LINE_ERI_FROM /
@@ -5573,6 +5617,8 @@ void Synth::emit(const Token& tok, const Ph* next) {
     if (tok.ph == Ph::J && lastPh_ == Ph::H && kHjJAcMs >= 0) e.acMs = kHjJAcMs;
   }
   e.ag = aero.ag;
+  { static const float kJiAg = param("LINE_JI_AG", 1.0f);  // (Y-INIT agent25, lab; 1: as before) the initial j's glottis x this
+    if (tract_ == Tract::Line && jIni && kJiAg != 1.0f) e.ag *= kJiAg; }
   if (in.cls == Cls::Vowel) e.ag *= tok.shape.press;  // voice quality by prosody
   {  // (EH-AE agent14 round M, lab; 1: as before) an l's glottis x LINE_L_AG (after a pause x LINE_L_INIT_AG instead when
      // >= 0): the onset l is dull (1.5-3.5 kHz 10 dB, 3.5-8 kHz ~20 dB under am_adam's re the vowel) and brightens in one
@@ -7194,6 +7240,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
   timeline_ += dur;
   prevWasVowel_ = in.cls == Cls::Vowel;
   jAfterStop_ = tok.ph == Ph::J && prevWasPlosive_;
+  jIni_ = jIni;
   prevWasPlosive_ = false;
   afterJh_ = -1;
   afterChi_ = false;
