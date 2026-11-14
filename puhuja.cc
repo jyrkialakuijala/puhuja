@@ -7100,7 +7100,15 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // / p: lab (base 132 t errors) 0.90 189, 0.92 282.
   static const float kTFinalX = param("LINE_T_FINAL_X", -1.0f);
   const bool tFinalPlace = tract_ == Tract::Line && tok.ph == Ph::T && kTFinalX >= 0 && (!next || *next == Ph::Stop);
-  const float kPlaceTok = tFinalPlace ? kTFinalX : vlX >= 0 ? vlX : kvBack && kKvXBack >= 0 ? kKvXBack : kvFront && kKvXFront >= 0 ? kKvXFront : kvInit && kKvX >= 0 ? kKvX : kOnsetFront ? kKXFrontOnset : lineKPlace(tok.ph, kVowel);
+  // (FINAL-GD agent21 round S, lab; < 0: as before) a word-final d / g after a vowel (before a pause): its closure place
+  // LINE_GD_FIN_X_D / LINE_GD_FIN_X_G (share of the line; LINE_D_X 0.83, LINE_G_X 0.72). The dictionary (combo16) heard
+  // the final g as d 29 of 196, the d as g 16 / t 24 of 624 ("Frog" -> fraud, "Rug" -> drug, "Paid" -> peg). Lab (seed 5,
+  // 788 targets): the g at 0.69 58 -> 41 errors (0.66 44, 0.62 48, 0.70 54 of 56 on seed 7); the female's g after a front
+  // vowel burst at 3.8 kHz (Kokoro af_heart 3.1), at 0.69 2.6. The d at 0.87: no gain.
+  static const float kGdFinXD = param("LINE_GD_FIN_X_D", -1.0f), kGdFinXG = param("LINE_GD_FIN_X_G", -1.0f);
+  const bool gdFinTok = tract_ == Tract::Line && (tok.ph == Ph::D || tok.ph == Ph::G) && prevWasVowel_ && (!next || *next == Ph::Stop);
+  const float gdFinX = !gdFinTok ? -1.0f : tok.ph == Ph::D ? kGdFinXD : kGdFinXG;
+  const float kPlaceTok = gdFinX >= 0 ? gdFinX : tFinalPlace ? kTFinalX : vlX >= 0 ? vlX : kvBack && kKvXBack >= 0 ? kKvXBack : kvFront && kKvXFront >= 0 ? kKvXFront : kvInit && kKvX >= 0 ? kKvX : kOnsetFront ? kKXFrontOnset : lineKPlace(tok.ph, kVowel);
   PlosiveInfo pi = plosiveInfo(tok.ph);
   // English b not between vowels ("I said bat", "big"): a mostly devoiced
   // closure and a clear release. Fully voiced with almost no burst it was
@@ -7482,15 +7490,44 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
                                      static_cast<int>(param("LINE_BZ_PRE_ROW_D", 9.0f)),
                                      static_cast<int>(param("LINE_BZ_PRE_ROW_G", 4.0f))};
     const bool bzPre = !finPre && bzCtx && kBzPreMix > 0 && kBzPreRow[bdgIdx] >= 0;
-    const float preMix = finPre ? kBdgFinPreMix : bzPre ? kBzPreMix : kBdgPreMix;
+    // (FINAL-GD agent21 round S, lab; < 0: LINE_BDG_FIN_PRE_MIX) the final d's and g's own mix.
+    static const float kGdFinPreMixD = param("LINE_GD_FIN_PRE_MIX_D", -1.0f), kGdFinPreMixG = param("LINE_GD_FIN_PRE_MIX_G", -1.0f);
+    const float gdFinMix = tok.ph == Ph::D ? kGdFinPreMixD : tok.ph == Ph::G ? kGdFinPreMixG : -1.0f;
+    // (FINAL-GD agent21 round S, lab; < 0: as above) the final g's mix after a back vowel ɑ ɔ ʌ o u ʊ (LINE_GD_FIN_G_BACK_MIX):
+    // there its F2 stayed at 1372 Hz into the closure and the burst had no 2-4.5 kHz part (8 male words: centroid 1.55 kHz,
+    // 2-3 / 3-4.5 kHz -29 / -34 dB re the total); Kokoro am_adam F2 2007, centroid 2.6 kHz, 2-3 kHz -7.6 ("Frog" -> fraud).
+    // At 0.6 with LINE_GD_FIN_X_G 0.69 and LINE_GD_FIN_LIPS 1: centroid 2.3 kHz (female 1.8 -> 2.7, af_heart 2.9); lab
+    // (4 seeded draws, 788 targets) 58 / 56 / 53 / 53 -> 37 / 40 / 40 / 42 errors, words1000 control unchanged.
+    static const float kGdFinGBackMix = param("LINE_GD_FIN_G_BACK_MIX", -1.0f);
+    const bool gBackV = tok.ph == Ph::G && (lastPh_ == Ph::AA || lastPh_ == Ph::AO || lastPh_ == Ph::AH || lastPh_ == Ph::OH ||
+                                            lastPh_ == Ph::O || lastPh_ == Ph::U || lastPh_ == Ph::UH);
+    const float gdFinMix1 = gBackV && kGdFinGBackMix >= 0 ? kGdFinGBackMix : gdFinMix;
+    const float preMix = finPre ? (gdFinMix1 >= 0 ? gdFinMix1 : kBdgFinPreMix) : bzPre ? kBzPreMix : kBdgPreMix;
     const int preRow = finPre ? kBdgFinPreRow[bdgIdx] : bzPre ? kBzPreRow[bdgIdx] : row;
     if (preMix > 0 && (bdgOn || finPre || bzPre) && preRow >= 0 && !afterUnreleased && lineShapeOf(lastPh_, &v) &&
         lineShapeOf(static_cast<Ph>(preRow), &o)) {
       TractShape m = lineShapeMix(v, o, preMix);
       m.aLip = v.aLip; m.lLip = v.lLip; m.aLarynx = v.aLarynx; m.length = v.length;
+      // (FINAL-GD agent21 round S, lab; 0: the vowel's lips) the final d's / g's lips also LINE_GD_FIN_LIPS of the way
+      // to the row's (ʌ / ɪ): a rounded ɔ ʊ u o kept its rounding into the closure and lowered the release (12 male words
+      // after a rounded vowel: F2 1364 Hz 12 ms before the closure, at 1 1510, Kokoro am_adam 1643). Lab (324 final g / d
+      // and gl words, 788 targets, 4 seeded draws) with LINE_GD_FIN_X_G 0.69: 58 / 56 / 53 / 53 -> 40 / 42 / 42 / 42
+      // errors (g heard d 30 -> 17-20), words right +21..+26 of 648, words1000 control 1557 -> 1557; the g's lips alone
+      // (LINE_GD_FIN_LIPS_D 0) 46, words -5.
+      // LINE_GD_FIN_LIPS_D: the d's own (< 0: LINE_GD_FIN_LIPS).
+      static const float kGdFinLips = param("LINE_GD_FIN_LIPS", 0.0f), kGdFinLipsD = param("LINE_GD_FIN_LIPS_D", -1.0f);
+      const float lips = tok.ph == Ph::D && kGdFinLipsD >= 0 ? kGdFinLipsD : kGdFinLips;
+      if (finPre && tok.ph != Ph::B && lips > 0) {
+        m.aLip = v.aLip + lips * (o.aLip - v.aLip);
+        m.lLip = v.lLip + lips * (o.lLip - v.lLip);
+      }
       m.sc = lineVowelStrength(m.xc, m.wc, m.length);
       const float preMs = finPre && kBdgFinPreMs >= 0 ? kBdgFinPreMs : bzPre && kBzPreMs >= 0 ? kBzPreMs : kBdgPreMs;
-      addShapeDemand(std::max(closeStart - preMs * ms, phonemeStart_ + 1.0), release, m, lastPh_, kBdgPreW);
+      // (FINAL-GD agent21 round S, lab; 0: off) the final d's / g's tongue body holds the pre-shape LINE_GD_FIN_TAIL_MS past
+      // the release, so the release tail into the pause carries the stop's locus (the tail drifted to the rest shape).
+      static const float kGdFinTailMs = param("LINE_GD_FIN_TAIL_MS", 0.0f);
+      const double preEnd = finPre && tok.ph != Ph::B && kGdFinTailMs > 0 ? release + kGdFinTailMs * ms : release;
+      addShapeDemand(std::max(closeStart - preMs * ms, phonemeStart_ + 1.0), preEnd, m, lastPh_, kBdgPreW);
     }
   }
   // d after l (LINE_LD_SEAL_FADE, 2026-11-05; 0: off): the tongue tip is on
@@ -8740,7 +8777,9 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // jet and place (share of the line; the release noise of the nd had no 3-8 kHz part).
   static const float kNdSlitMs = param("LINE_ND_SLIT_MS", -1.0f), kNdSlitA = param("LINE_ND_SLIT_A", -1.0f),
                      kNdJetD = param("LINE_ND_JET_D", -1.0f), kNdSlitX = param("LINE_ND_SLIT_X", -1.0f);
-  const float dFinalSlitMs = ndFinal && kNdSlitMs >= 0 ? kNdSlitMs : kDFinalSlitMs;
+  // (FINAL-GD agent21 round S, lab; 0: off) the same slit for a word-final d after a vowel only: LINE_GD_FIN_SLIT_MS_D.
+  static const float kGdFinSlitMsD = param("LINE_GD_FIN_SLIT_MS_D", 0.0f);
+  const float dFinalSlitMs = ndFinal && kNdSlitMs >= 0 ? kNdSlitMs : bdgFin && tok.ph == Ph::D && kGdFinSlitMsD > 0 ? kGdFinSlitMsD : kDFinalSlitMs;
   const bool dFinalSlit = tract_ == Tract::Line && dFinalSlitMs > 0 && tok.ph == Ph::D && !unreleased &&
                           (tok.shape.dctx == 3 || tok.shape.dctx == 4) && !(next && info(*next).cls == Cls::Fricative);
   // (K agent 9 round J, lab; 0: off) the k's velar slit also before l ɹ w j (LINE_K_SLIT_LIQ_MS, at the k's own place
@@ -8755,12 +8794,21 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   const bool kwSlit = twInit && tok.ph == Ph::K && kKwSlitMs > 0;
   const bool kSlitLiq = tract_ == Tract::Line && tok.ph == Ph::K && (kKSlitLiqMs > 0 || (vlK && kVlKSlitMs > 0) || kwSlit) && !unreleased && vNextLiq;
   const bool kSlitFinal = tract_ == Tract::Line && tok.ph == Ph::K && kKFinalSlitMs > 0 && !unreleased && nextIsPause;
-  const bool kBurst = (tract_ == Tract::Line && ((kgBurstMs > 0 && (tok.ph == Ph::K || tok.ph == Ph::G || tok.ph == Ph::B || tok.ph == Ph::D) &&
+  // (FINAL-GD agent21 round S, lab; 0: off) a word-final g after a vowel opens in two steps too, through a velar slit for
+  // LINE_GD_FIN_SLIT_MS_G (as LINE_K_FINAL_SLIT_MS for k): its release went straight from the closure to the pause.
+  static const float kGdFinSlitMsG = param("LINE_GD_FIN_SLIT_MS_G", 0.0f);
+  const bool gFinSlit = bdgFin && tok.ph == Ph::G && kGdFinSlitMsG > 0 && !unreleased;
+  const bool kBurst = gFinSlit || (tract_ == Tract::Line && ((kgBurstMs > 0 && (tok.ph == Ph::K || tok.ph == Ph::G || tok.ph == Ph::B || tok.ph == Ph::D) &&
                        !unreleased && next && (isVowel(*next) || vSlitLiq)) || kSlitLiq || kSlitFinal)) || dFinalSlit;
   // (VELAR-L agent15 round N, lab; < 0 / 0: off) a word-initial gl gɹ's slit jet LINE_VL_G_JET_D, a kl kɹ's release
   // through LINE_VL_K_JET_D's thick jet (as LINE_K_LIQ_JET_D).
   static const float kVlGJetD = param("LINE_VL_G_JET_D", -1.0f), kVlKJetD = param("LINE_VL_K_JET_D", 0.4f);
-  const float vJetD = tract_ != Tract::Line || unreleased || !next || nextIsPause || info(*next).cls == Cls::Fricative ? 0.0f
+  // (FINAL-GD agent21 round S, lab; < 0: none) a word-final d / g after a vowel releases (or opens its slit) through a
+  // thick jet LINE_GD_FIN_JET_D / _G (cm; as LINE_D_JET_D before a vowel): puhuja's final d burst had no 3-7 kHz part
+  // (14 male words, first 15 ms, 3-4.5 / 4.5-7 kHz re the total: -32 / -47 dB; Kokoro am_adam -20 / -24, af_heart -11 / -8).
+  static const float kGdFinJetD = param("LINE_GD_FIN_JET_D", -1.0f), kGdFinJetG = param("LINE_GD_FIN_JET_G", -1.0f);
+  const float gdFinJet = !(bdgFin && !unreleased) ? -1.0f : tok.ph == Ph::D ? kGdFinJetD : tok.ph == Ph::G ? kGdFinJetG : -1.0f;
+  const float vJetD = gdFinJet >= 0 ? gdFinJet : tract_ != Tract::Line || unreleased || !next || nextIsPause || info(*next).cls == Cls::Fricative ? 0.0f
                       : tok.ph == Ph::G ? (vlG && kVlGJetD >= 0 ? kVlGJetD : tok.shape.gctx == 1 && kGiJetD >= 0 ? kGiJetD : kLineGJetD) : tok.ph == Ph::B ? kLineBJetD : tok.ph == Ph::D ? (dInit && kDiJetD >= 0 ? kDiJetD : kLineDJetD) : 0.0f;
   // t into a vowel (or l r w j: LINE_T_BURST_LIQ) in two steps too (LINE_T_BURST_MS, T agent 3; 0: off): the tongue
   // tip leaves the ridge through a slit first, an alveolar affrication (Kokoro's t burst peaks at 5-6.5 kHz).
@@ -8848,7 +8896,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   static const float kDrSlitMs = param("LINE_DR_SLIT_MS", -1.0f), kDrSlitA = param("LINE_DR_SLIT_A", -1.0f),
                      kDrFric = param("LINE_DR_FRIC", -1.0f), kDrX = param("LINE_DR_X", -1.0f);
   const bool drSlit = kBurst && tok.ph == Ph::D && next && *next == Ph::RR;
-  const float slitMs = vlG && kBurst && kVlGSlitMs >= 0 ? kVlGSlitMs : gLiqSlit && kGLiqBurstMs >= 0 ? kGLiqBurstMs : kSlitLiq ? (vlK && kVlKSlitMs > 0 ? kVlKSlitMs : kwSlit ? kKwSlitMs : kKSlitLiqMs) : kSlitFinal ? kKFinalSlitMs : dFinalSlit ? dFinalSlitMs : drSlit && kDrSlitMs >= 0 ? kDrSlitMs : trInit && kTrSlitMs >= 0 ? kTrSlitMs : kgBurstMs;
+  const float slitMs = vlG && kBurst && kVlGSlitMs >= 0 ? kVlGSlitMs : gLiqSlit && kGLiqBurstMs >= 0 ? kGLiqBurstMs : kSlitLiq ? (vlK && kVlKSlitMs > 0 ? kVlKSlitMs : kwSlit ? kKwSlitMs : kKSlitLiqMs) : kSlitFinal ? kKFinalSlitMs : dFinalSlit ? dFinalSlitMs : gFinSlit ? kGdFinSlitMsG : drSlit && kDrSlitMs >= 0 ? kDrSlitMs : trInit && kTrSlitMs >= 0 ? kTrSlitMs : kgBurstMs;
   // (K agent 9 round J, lab; < 0: LINE_K_BURST_A / LINE_K_JET_D) the k's slit and jet before i ɪ e ɛ æ j (iː 69 %
   // wrong word-initially, heard p: "Key" -> p, "Keep" -> peeps).
   static const float kKBurstAFront = param("LINE_K_BURST_A_FRONT", -1.0f), kKJetDFront = param("LINE_K_JET_D_FRONT", -1.0f);
@@ -8863,6 +8911,12 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   static const float kKvSlitXFront = param("LINE_KV_SLIT_X_FRONT", 0.8f);
   const float kSlitXFrontK = kvInit && kKvSlitXFront >= 0 ? kKvSlitXFront : kKSlitXFront;
   const float slitMsK = kBurst && kFrontV && kKBurstMsFront >= 0 && !kSlitLiq && !kSlitFinal ? kKBurstMsFront : slitMs;
+  // (FINAL-GD agent21 round S, lab; < 0: as above) the final d's / g's slit (LINE_D_FINAL_SLIT_MS, LINE_GD_FIN_SLIT_MS_G):
+  // its area LINE_GD_FIN_SLIT_A (cm^2), place LINE_GD_FIN_SLIT_X_D / _G (share of the line), frication gain LINE_GD_FIN_FRIC.
+  static const float kGdFinSlitA = param("LINE_GD_FIN_SLIT_A", -1.0f), kGdFinSlitXD = param("LINE_GD_FIN_SLIT_X_D", -1.0f),
+                     kGdFinSlitXG = param("LINE_GD_FIN_SLIT_X_G", -1.0f), kGdFinFric = param("LINE_GD_FIN_FRIC", -1.0f);
+  const bool gdFinSlit = kBurst && bdgFin && (gFinSlit || (dFinalSlit && tok.ph == Ph::D));
+  const float gdSlitX = tok.ph == Ph::D ? kGdFinSlitXD : kGdFinSlitXG;
   if (kBurst) {
     Event slit{release};
     if (gLiqSlit) slit.lineX = vlG ? kPlaceTok : lineKPlace(Ph::G, *next), slit.lineXClosure = true;
@@ -8892,6 +8946,9 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     if (ndFinal && dFinalSlit && kNdJetD > 0) slit.lineJetD = kNdJetD, slit.lineJetMix = 1.0f;
     if (ndFinal && dFinalSlit && kNdSlitX >= 0) slit.lineX = kNdSlitX, slit.lineXClosure = true;
     if (dInit && kDiSlitX >= 0) slit.lineX = kDiSlitX, slit.lineXClosure = true;
+    if (gdFinSlit && kGdFinSlitA >= 0) slit.ac = kGdFinSlitA;
+    if (gdFinSlit && gdSlitX >= 0) slit.lineX = gdSlitX, slit.lineXClosure = true;
+    if (gdFinSlit && kGdFinFric >= 0) slit.lineFricMul = kGdFinFric;
     addEvent(slit);
   } else if (vJetD > 0 || kFinalJet || kLiqJet) {  // (no slit: the jet rides on the release, back to the slit's own below)
     Event jet{release};
@@ -8952,6 +9009,8 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     if (trInit && (kTrFric >= 0 || kTrDFric >= 0)) open.lineFricMul = rel.lineFricMul >= 0 ? rel.lineFricMul : 1.0f;
     if (trInit && (kTrSlitX >= 0 || kTrDSlitX >= 0)) open.lineX = rel.lineX, open.lineXClosure = rel.lineXClosure;
     if (trInit && kTrOpenMs >= 0) open.acMs = kTrOpenMs;
+    if (gdFinSlit && gdSlitX >= 0) open.lineX = rel.lineX, open.lineXClosure = rel.lineXClosure;  // (LINE_GD_FIN_SLIT_X_*)
+    if (gdFinSlit && kGdFinFric >= 0) open.lineFricMul = rel.lineFricMul >= 0 ? rel.lineFricMul : 1.0f;  // (LINE_GD_FIN_FRIC)
     addEventAt(open);
   }
   if (jBurst) {
