@@ -3354,6 +3354,35 @@ void Synth::emit(const Token& tok, const Ph* next) {
     if (tok.ph == Ph::DH) e.lineSink = kDhSinkFlow;
     else if (lastPh_ == Ph::DH) e.lineSink = 0.0f;
   }
+  // Z-FINAL agent17 round O (lab; 0: off): a sink flow through a phrase-final z, LINE_FZ_SINK_FLOW cm^3/s (the cavity
+  // walls / a lowering larynx yielding, the servo of a voiced closure's expansion), for its first LINE_FZ_SINK_MS (0: the
+  // whole z), fading out in four steps over that time's second half. The final z is heard as s (dictionary combo12:
+  // after a stressed vowel 33 %, Kokoro 6 %): its folds stopped within 10 ms of the slit (mouth pressure ~4400
+  // dyn/cm^2), so the voice under its hiss was the s's (overlap 10-16 ms, s 16-22), where Kokoro's z keeps 23-39 ms
+  // (s 6-22) and 11labs's 30-62 (s 4-7). (LINE_Z_EXPAND, the compliance multiplier, did not keep them going.)
+  // 1500 / 60 ms with LINE_FINAL_Z_FRIC 0.35 (the hiss at Kokoro's level): overlap 38 / 25 ms (m / f), voice bar over the
+  // hiss's first 20 ms -13 / -18 dB re the word's peak (base -24 / -18, Kokoro -14..-19), hiss -22 / -16 (base -16 / -10,
+  // Kokoro -20..-23), hiss after the voice 89 / 96 ms (base 129 / 119, Kokoro 75-106). Lab (110 one-syllable words,
+  // vowel + final z, both voices, two independent draw pairs): final-z errors 62 / 72 -> 53 / 48, deletions -> 0 / 8;
+  // words1000 1508 -> 1498 (one draw); guards clean.
+  // LINE_FZ_SINK_B: x the flow for a z after b d g (its own event is not queued there; the sink rides one at the stop's
+  // release and, switched on there, banged: "Beds." 300-1500 Hz -1 dB re the word's peak at the release, snap.py on 30
+  // b d g words 10.5 / 7.0 -> 15.2 / 14.2 dB; 0: off there).
+  { static const float kFzSinkFlow = param("LINE_FZ_SINK_FLOW", 0.0f), kFzSinkMs = param("LINE_FZ_SINK_MS", 0.0f);
+    if (tract_ == Tract::Line && kFzSinkFlow > 0) {
+      if (tok.ph == Ph::Z && (!next || *next == Ph::Stop)) {
+        e.lineSink = kFzSinkFlow;
+        // (after b d g the z's own event is not queued; the flow there x LINE_FZ_SINK_B)
+        static const float kFzSinkB = param("LINE_FZ_SINK_B", 1.0f);
+        if (prevWasPlosive_) { Event s{e.t}; s.lineSink = kFzSinkFlow * kFzSinkB; addEventAt(s); }
+        if (kFzSinkMs > 0)
+          for (int k = 1; k <= 4; ++k) {
+            Event s{e.t + (0.5 + 0.125 * k) * kFzSinkMs * ms};
+            s.lineSink = k == 4 ? 0.0f : kFzSinkFlow * (prevWasPlosive_ ? kFzSinkB : 1.0f) * (1.0f - 0.25f * k);
+            addEventAt(s);
+          }
+      } else if (lastPh_ == Ph::Z && e.lineSink < 0) e.lineSink = 0.0f;
+    } }
   if (tract_ == Tract::Line && kDhExpand > 1.0f) {
     if (tok.ph == Ph::DH) { e.expand = kDhExpand; e.expandMs = static_cast<float>(dur / ms); }
     else if (lastPh_ == Ph::DH && e.expand < 0) { e.expand = 1.0f; e.expandMs = 5; }
@@ -9174,8 +9203,10 @@ float Synth::tick() {
       vbarFlow = (kLineVstopVbarFlow >= 0 ? kLineVstopVbarFlow : kLineExpandFlow) * std::min(1.0f, 2.0f * (1.0f - frac));
     }
     // LINE_DH_SINK_FLOW: through a ð the walls yield too (the expansion of a voiced closure only ran below 0.05 cm^2).
-    const bool sink = !voicedClosure && !vbarClosure && lineSink_ > 0.0f;
-    line_.setExpansion(voicedClosure ? expandFlow : sink ? lineSink_ : vbarFlow, expand > 1.0f || vbarClosure || sink);  // a voiced closure (lineSoft_ marks it); the line holds the cavity at LINE_EXPAND_HOLD of the lung pressure
+    // (a sink wins over a voiced closure's flow once the closure has opened to a slit: the z after a d of "beds" sits at
+    // 0.044 cm^2, under the closure's 0.05, with the d's softness still set; LINE_FZ_SINK_FLOW)
+    const bool sink = (!voicedClosure || ac >= 0.005f) && !vbarClosure && lineSink_ > 0.0f;
+    line_.setExpansion(voicedClosure && !sink ? expandFlow : sink ? lineSink_ : vbarFlow, expand > 1.0f || vbarClosure || sink);  // a voiced closure (lineSoft_ marks it); the line holds the cavity at LINE_EXPAND_HOLD of the lung pressure
   }
   {
     LarynxControl lc;
