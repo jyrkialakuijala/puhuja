@@ -273,7 +273,9 @@ class Synth {
                              // its word's final n, 2 that final n; 4 (BDG-Z agent20 round R) an n or m right before
                              // its word's final d ("band", "fund", "claimed")
     unsigned char erctx = 0;  // a word-initial ER0 before a vowel said ə + ɹ (english.cc EN_ER_INIT / EN_ER_INIT_AH,
-                              // ER-INITIAL agent13 round L): 1 its ə, 2 its ɹ
+                              // ER-INITIAL agent13 round L): 1 its ə, 2 its ɹ; a word-medial one (EN_ER_MED, ER-UNSTR
+                              // agent25 round W): 3 its first part, 4 its ɹ
+    bool ermStop = false;  // a p t k right before a word-medial ER0 + vowel (english.cc EN_ER_MED, ER-UNSTR agent25 round W)
     unsigned char ihctx = 0;  // a standalone ɪ's context for the line's ɪ knobs (english.cc, IH-STRESSED agent14 round M):
                               // 1 stressed, 2 an l next in its word, 4 an n / m next, 8 after l ɹ w, 16 after m n,
                               // 32 a one-vowel word, 128 a voiced obstruent next (IH-EY agent25); on the l / n / m after

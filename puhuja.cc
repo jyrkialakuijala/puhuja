@@ -4554,7 +4554,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // Around, Arrest, Arrange, Arrival), then the ɹ. Mixed toward LINE_ERI_ROW (0: ʌ, 1: ɑ, 2: a, 3: ɛ, 4: ɪ) by
     // LINE_ERI_MIX, pharynx / lip area x LINE_ERI_APH / _LIPA. Its ɹ (erctx 2): constriction area x LINE_ERI_R_AC, lip
     // area x LINE_ERI_R_LIPA.
-    if (have && tok.shape.erctx) {
+    if (have && tok.shape.erctx && tok.shape.erctx <= 2) {
       static const float kEriMix = param("LINE_ERI_MIX", 0.6f), kEriAph = param("LINE_ERI_APH", 1.0f), kEriLipA = param("LINE_ERI_LIPA", 1.0f),
                          kEriRAc = param("LINE_ERI_R_AC", 1.0f), kEriRLipA = param("LINE_ERI_R_LIPA", 1.0f);
       static const int kEriRow = static_cast<int>(param("LINE_ERI_ROW", 2.0f));
@@ -4567,6 +4567,24 @@ void Synth::emit(const Token& tok, const Ph* next) {
       } else {
         if (kEriRAc != 1.0f) sh.ac *= kEriRAc;
         if (kEriRLipA != 1.0f) sh.aLip *= kEriRLipA;
+      }
+    }
+    // (ER-UNSTR agent25 round W, lab; 0 / 1: as before) a word-medial ER0 before a vowel (Shape::erctx 3 its first part,
+    // 4 its ɹ; english.cc EN_ER_MED): the first part mixed toward LINE_ERM_ROW (as LINE_ERI_ROW) by LINE_ERM_MIX, its
+    // pharynx / lip area x LINE_ERM_APH / _LIPA; the ɹ's constriction / lip area x LINE_ERM_R_AC / _R_LIPA.
+    if (have && tok.shape.erctx >= 3) {
+      static const float kErmMix = param("LINE_ERM_MIX", 0.0f), kErmAph = param("LINE_ERM_APH", 1.0f), kErmLipA = param("LINE_ERM_LIPA", 1.0f),
+                         kErmRAc = param("LINE_ERM_R_AC", 1.0f), kErmRLipA = param("LINE_ERM_R_LIPA", 1.0f);
+      static const int kErmRow = static_cast<int>(param("LINE_ERM_ROW", 0.0f));
+      if (tok.shape.erctx == 3) {
+        const Ph row = kErmRow == 1 ? Ph::AA : kErmRow == 2 ? Ph::A : kErmRow == 3 ? Ph::EH : kErmRow == 4 ? Ph::IH : Ph::AH;
+        TractShape o;
+        if (kErmMix > 0 && lineShapeOf(row, &o)) sh = lineShapeMix(sh, o, std::min(kErmMix, 1.0f));
+        if (kErmAph != 1.0f) sh.aPharynx *= kErmAph;
+        if (kErmLipA != 1.0f) sh.aLip *= kErmLipA;
+      } else {
+        if (kErmRAc != 1.0f) sh.ac *= kErmRAc;
+        if (kErmRLipA != 1.0f) sh.aLip *= kErmRLipA;
       }
     }
     // ɔ's own shape (AO agent 2026-11-11, lab knobs; 0 / 1: as before): mixed toward ɑ by LINE_AO_AA_MIX, its pharynx,
@@ -5566,7 +5584,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
               TractShape o;
               if (lineShapeOf(Ph::I, &o)) addShapeDemand(t0, t0 + kIhoStartTo * dur, lineShapeMix(sh, o, kIhoStartI), tok.ph, dW * kIhoStartW);
             }
-            if (tok.shape.erctx) {
+            if (tok.shape.erctx && tok.shape.erctx <= 2) {
               static const float kEriFrom = param("LINE_ERI_FROM", -1.0f), kEriTo = param("LINE_ERI_TO", -1.0f), kEriW = param("LINE_ERI_W", 1.0f),
                                  kEriRFrom = param("LINE_ERI_R_FROM", -1.0f), kEriRTo = param("LINE_ERI_R_TO", -1.0f),
                                  kEriRW = param("LINE_ERI_R_W", 1.0f), kEriLeadMs = param("LINE_ERI_LEAD_MS", 0.0f);
@@ -5575,6 +5593,17 @@ void Synth::emit(const Token& tok, const Ph* next) {
               if ((sw ? kEriTo : kEriRTo) >= 0) dTo = sw ? kEriTo : kEriRTo;
               dW *= sw ? kEriW : kEriRW;
               if (sw && prevWasPause_ && kEriLeadMs > 0) preMs = kEriLeadMs;
+            }
+            // (ER-UNSTR agent25 round W, lab; -1 / 1: as before) the medial ones' (erctx 3 / 4) demand windows
+            // LINE_ERM_FROM / _TO, LINE_ERM_R_FROM / _R_TO and weights x LINE_ERM_W / _R_W.
+            if (tok.shape.erctx >= 3) {
+              static const float kErmFrom = param("LINE_ERM_FROM", -1.0f), kErmTo = param("LINE_ERM_TO", -1.0f), kErmW = param("LINE_ERM_W", 1.0f),
+                                 kErmRFrom = param("LINE_ERM_R_FROM", -1.0f), kErmRTo = param("LINE_ERM_R_TO", -1.0f),
+                                 kErmRW = param("LINE_ERM_R_W", 1.0f);
+              const bool sw = tok.shape.erctx == 3;
+              if ((sw ? kErmFrom : kErmRFrom) >= 0) dFrom = sw ? kErmFrom : kErmRFrom;
+              if ((sw ? kErmTo : kErmRTo) >= 0) dTo = sw ? kErmTo : kErmRTo;
+              dW *= sw ? kErmW : kErmRW;
             }
             addShapeDemand(preMs > 0 ? t0 - preMs * ms : t0 + dFrom * dur, t0 + dTo * dur, sh, tok.ph, vonPre ? dW * kVonPreW : dW, er ? std::max(preR, kErPlaceW) : iy || uhD || uwD || ahD || aoD || swD ? std::max(preR, vPlaceW) : preR);
             // (round-I uː agent) the rounder late key (LINE_UW_LATE_*, LINE_UW_END_*) asked for over the last share of
@@ -8911,12 +8940,19 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
       // (W agent round G, lab; < 0: as before) ... and adducts only to LINE_W_STOP_AG (cm^2): a breathy w (kw tw devoiced)
       static const float kWStopAg = param("LINE_W_STOP_AG", -1.0f);
       if (wNext && kWStopAg >= 0) adductLine.ag = kWStopAg;
-      adductLine.agMs = adductMs;
+      // (ER-UNSTR agent25 round W, lab; 1 / -1: as before) a p t k right before a medial ER0 + vowel (Shape::ermStop,
+      // english.cc EN_ER_MED): its puff's hold x LINE_ERM_VOT, the adduction into voice over LINE_ERM_ADDUCT_MS. "Peru":
+      // the hold and adduction (35 + 20 ms) voiced only the last 15 ms of the 63 ms ɜ (-19..-24 dB re the word's peak);
+      // Kokoro's ə is the word's peak 10 ms after the burst.
+      static const float kErmVot = param("LINE_ERM_VOT", 1.0f), kErmAdductMs = param("LINE_ERM_ADDUCT_MS", -1.0f);
+      if (tok.shape.ermStop && kErmVot != 1.0f) adductLine.t = release + (adductLine.t - release) * kErmVot;
+      const float adductMsE = tok.shape.ermStop && kErmAdductMs >= 0 ? kErmAdductMs : adductMs;
+      adductLine.agMs = adductMsE;
       pendingKick_ = adductLine;
       // The hiss lasts while the folds close (cut at the adduction's start it
       // left a 10 ms silence before the voice).
       // (queued after the release, with the adduction, below)
-      pendingAspEnd_ = Event{adductLine.t + adductMs * ms};
+      pendingAspEnd_ = Event{adductLine.t + adductMsE * ms};
       pendingAspEnd_.lineAspMul = 1.0f;
       if (kLinePuffLpr > 0) {
         rel.linePuffLpr = tok.ph == Ph::P && kLinePPuffLpr > 0 ? kLinePPuffLpr : tok.ph == Ph::K && kLineKPuffLpr > 0 ? kLineKPuffLpr : tok.ph == Ph::T && kLineTPuffLpr > 0 ? kLineTPuffLpr : kLinePuffLpr;

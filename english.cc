@@ -2989,6 +2989,30 @@ void EnglishReader::sayPhrase(char end) {
           s.ph[0] = kErInit > 2.5f ? Ph::IH : kErInit > 1.5f ? Ph::AH : Ph::Schwa;
         }
       }
+      // A word-medial unstressed ɜ+ɹ before a vowel ("Peru", "parade", "correction", "derive", "Hungary", "every"):
+      // CMUdict's ER0 with no R, one r-coloured ɜ (50/50 or 80/20 with its ɹ). Whisper heard the syllable lost, C+ɹ
+      // ("crew", "bread", "collection", "drive", "hungry": ER -> R 181 and -> L 26 of 327 ER errors, dict15k-28);
+      // Kokoro and 11labs say ə then ɹ (ER-UNSTR agent25 round W). EN_ER_MED: which ones (1: before a stressed vowel,
+      // 2: before an unstressed one, 3: both; 0: as before); EN_ER_MED_PH: the first part (0: the ɜ kept, 1: ə, 2: ʌ,
+      // 3: ɪ); its share EN_ER_MED_SHARE (< 0: as before), the token x EN_ER_MED_LEN, the ɹ part x EN_ER_MED_R_LEN,
+      // levels + EN_ER_MED_DB / _R_DB, the first part's pitch x EN_ER_MED_PITCH and voice quality x EN_ER_MED_PRESS;
+      // the line shapes them as Shape::erctx 3 / 4 (LINE_ERM_*).
+      static const int kErMed = static_cast<int>(param("EN_ER_MED", 0.0f)), kErMedPh = static_cast<int>(param("EN_ER_MED_PH", 1.0f));
+      static const float kErMedShare = param("EN_ER_MED_SHARE", -1.0f), kErMedLen = param("EN_ER_MED_LEN", 1.0f),
+                         kErMedRLen = param("EN_ER_MED_R_LEN", 1.0f), kErMedDb = param("EN_ER_MED_DB", 0.0f),
+                         kErMedRDb = param("EN_ER_MED_R_DB", 0.0f), kErMedPitch = param("EN_ER_MED_PITCH", 1.0f),
+                         kErMedPress = param("EN_ER_MED_PRESS", 1.0f);
+      bool erMed = false;
+      if (kErMed > 0 && i > 0 && i + 1 < tokens.size() && s.n == 2 && s.ph[0] == Ph::ER && s.ph[1] == Ph::RR &&
+          isVowelToken(tokens[i + 1])) {
+        const char* en = kEnglishTokens[tokens[i] - 0x80];
+        const char* nx = kEnglishTokens[tokens[i + 1] - 0x80];
+        const bool nextStressed = nx[strlen(nx) - 1] != '0';
+        if (en[strlen(en) - 1] == '0' && (kErMed & (nextStressed ? 1 : 2))) {
+          erMed = true;
+          if (kErMedPh > 0) s.ph[0] = kErMedPh == 3 ? Ph::IH : kErMedPh == 2 ? Ph::AH : Ph::Schwa;
+        }
+      }
       for (int k = 0; k < s.n; ++k) {
         // The second pitch on the sound's last vowel part (a diphthong's glide).
         const int lastPart = s.n > 1 && s.ph[s.n - 1] != Ph::RR ? s.n - 1 : 0;
@@ -3003,6 +3027,8 @@ void EnglishReader::sayPhrase(char end) {
         // (EN_ER_INIT_PITCH: the initial ə of EN_ER_INIT / EN_ER_INIT_AH x this; 1: as before.)
         if (vowel && s.ph[k] != Ph::RR && kErInitPitch != 1.0f && (erInit || (phrase_[w].erInitAh && i == 0)))
           synth_.setPitch(pitch * kErInitPitch);
+        else if (vowel && s.ph[k] != Ph::RR && erMed && kErMedPitch != 1.0f)
+          synth_.setPitch(pitch * kErMedPitch);
         else if (vowel && s.ph[k] != Ph::RR)  // ER = vowel + ɹ
           synth_.setPitch(fallingGlide ? pitch + kGlideFallShare * (pitchEnd - pitch) : ay && k == 0 && kAyAPitch != 1.0f ? pitch * kAyAPitch : pitch);
         // (UNSTR-N agent20 round R, lab; 0: as before) the hiatus vowel before a nasal (see Shape::hnctx below): its
@@ -3084,7 +3110,7 @@ void EnglishReader::sayPhrase(char end) {
         // ɜ+ɹ: the vowel's share (EN_ER_SHARE), the whole ɜ x EN_ER_LEN, a stressed one x EN_ER_LONG_LEN as well (ER agent
         // 2026-11-11 lab knobs; 0.8 / 1 / 1 as before).
         static const float kErShare = param("EN_ER_SHARE", 0.8f), kErLen = param("EN_ER_LEN", 1.0f), kErLongLen = param("EN_ER_LONG_LEN", 1.0f);
-        const float firstShare = erInit ? kErInitShare : s.ph[0] == Ph::ER ? (erOnset ? kErOnsetShare : kErShare)
+        const float firstShare = erInit ? kErInitShare : erMed && kErMedShare >= 0 ? kErMedShare : s.ph[0] == Ph::ER ? (erOnset ? kErOnsetShare : kErShare)
                                  : s.n == 2 && s.ph[0] == Ph::A && s.ph[1] == Ph::UH ? kAwFirstShare : oy ? kOyFirstShare : ey ? (eyClosed && kEyClosedShare >= 0 ? kEyClosedShare : kEyFirstShare)
                                  : s.n == 2 && s.ph[0] == Ph::A && s.ph[1] == Ph::IH && kAyFirstShare >= 0 ? kAyFirstShare : 0.6f;
         const float share = s.n == 1 ? 1.0f : k == 0 ? firstShare : 1.0f - firstShare;
@@ -3179,11 +3205,13 @@ void EnglishReader::sayPhrase(char end) {
         if (s.ph[0] == Ph::ER && kErLen != 1.0f) shape.ms *= kErLen;
         if (s.ph[0] == Ph::ER && kErLongLen != 1.0f && en0Stressed(tokens[i])) shape.ms *= kErLongLen;
         if (erInit) shape.ms *= kErInitLen;
+        if (erMed) shape.ms *= kErMedLen * (k == 1 ? kErMedRLen : 1.0f);
         // (EN_ER_INIT_AH_LEN / _AH_R_LEN: the rewritten ə / ɹ x these; 1: as before.)
         static const float kErInitAhLen = param("EN_ER_INIT_AH_LEN", 1.0f), kErInitAhRLen = param("EN_ER_INIT_AH_R_LEN", 1.0f);
         if (phrase_[w].erInitAh && i < 2) shape.ms *= i == 0 ? kErInitAhLen : kErInitAhRLen;
         if (erInit) shape.erctx = static_cast<unsigned char>(k + 1);
         else if (phrase_[w].erInitAh && i < 2) shape.erctx = static_cast<unsigned char>(i + 1);
+        else if (erMed) shape.erctx = static_cast<unsigned char>(k + 3);
         // Vowels as long as in the Google reading of kennedy.txt (goog.wav):
         // short vowels are lengthened most (x1.46 at 50 ms), long ones less
         // (x1.17 at 150 ms).
@@ -3373,6 +3401,7 @@ void EnglishReader::sayPhrase(char end) {
         // (EN_ER_INIT_PRESS: the initial ə of EN_ER_INIT's voice quality x this; 1: as before.)
         static const float kErInitPress = param("EN_ER_INIT_PRESS", 1.0f);
         if (erInit && k == 0 && kErInitPress != 1.0f) shape.press *= kErInitPress;
+        if (erMed && k == 0 && kErMedPress != 1.0f) shape.press *= kErMedPress;
         // The ɛ's voice quality x EN_EH_PRESS (round F EH agent 2026-11-11 lab knob, 1: as before): a closer ɛ (lower F1)
         // takes 0.5-0.7 dB off the 1-3 kHz share of the ɛ words, already 5-7 dB under Kokoro's and 11labs'.
         static const float kEhPress = param("EN_EH_PRESS", 1.0f);
@@ -3445,6 +3474,14 @@ void EnglishReader::sayPhrase(char end) {
           static const float kErDb = param("EN_ER_DB", 0.0f), kErLongDb = param("EN_ER_LONG_DB", 0.0f);
           if (baseName(tokens[i]) == "ER" && s.ph[k] == Ph::ER) db += kErDb + (vn[strlen(vn) - 1] == '1' ? kErLongDb : 0.0f);
           if (erInit) db += k == 0 ? kErInitDb : kErInitRDb;
+          if (erMed) db += k == 0 ? kErMedDb : kErMedRDb;
+          // (EN_ER_MED_NEXT_DB: the vowel right after such a medial ER0 + this, dB; 0: as before. "Correction": the ɹ
+          // was the word's peak and the stressed ɛ 8 dB under it; Kokoro's ɛ is within 0-3 dB of its ə.)
+          static const float kErMedNextDb = param("EN_ER_MED_NEXT_DB", 0.0f);
+          if (kErMedNextDb != 0 && vowel && i > 1 && baseName(tokens[i - 1]) == "ER") {
+            const char* pe = kEnglishTokens[tokens[i - 1] - 0x80];
+            if (pe[strlen(pe) - 1] == '0' && (kErMed & (vn[strlen(vn) - 1] != '0' ? 1 : 2))) db += kErMedNextDb;
+          }
           // (EN_ER_INIT_NEXT_DB: the vowel right after such an ə + ɹ + this, dB; 0: as before. Kokoro's stressed vowel
           // comes back to the ə's level after the ɹ's dip, puhuja's sat 5-6 dB under its onset.)
           static const float kErInitNextDb = param("EN_ER_INIT_NEXT_DB", 0.0f);
@@ -3473,6 +3510,12 @@ void EnglishReader::sayPhrase(char end) {
         { static const float kHnNasDb = param("EN_HN_NAS_DB", 0.0f), kHnPress = param("EN_HN_PRESS", 1.0f);
           if (kHnNasDb != 0 && (shape.hnctx & 2) && !vowel) shape.prosody *= std::pow(10.0f, kHnNasDb / 20.0f);
           if (kHnPress != 1.0f && vowel && (shape.hnctx & 1)) shape.press *= kHnPress; }
+        // (ER-UNSTR agent25 round W) a p t k right before a medial ER0 that EN_ER_MED picks (Shape::ermStop, LINE_ERM_VOT).
+        if (kErMed > 0 && !vowel && i + 2 < tokens.size() && baseName(tokens[i + 1]) == "ER" && isVowelToken(tokens[i + 2])) {
+          const char* en = kEnglishTokens[tokens[i + 1] - 0x80];
+          const char* nx = kEnglishTokens[tokens[i + 2] - 0x80];
+          if (en[strlen(en) - 1] == '0' && (kErMed & (nx[strlen(nx) - 1] != '0' ? 1 : 2))) shape.ermStop = true;
+        }
         synth_.shapeNext(shape);
         if (first) synth_.setWord(phrase_[w].source), lastSourceWord_ = phrase_[w].source;
         synth_.push(s.ph[k], first);
