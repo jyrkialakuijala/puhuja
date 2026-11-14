@@ -6799,6 +6799,19 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     if (kLineEnJhDevoice > 0 && aspirate_ && tok.ph == Ph::JH && !prevWasVowel_ && !voicedBefore)
       pi.closureAg = kAgVoice + kLineEnJhDevoice * (kAgOpen - kAgVoice);
   }
+  // (BDG-PLACE agent17 round O, lab knobs; off by default) b d g after a vowel, by what follows: 1 a pause (word-final),
+  // 2 a z ("cabs", "bids", "bags"), 4 a vowel ("Abbey", "Ada"); LINE_BDG_CTX picks which of them the knobs below touch.
+  // The dictionary (combo12): b d g before a final z 36 % wrong (Kokoro 0 %), word-final after a vowel 13 %.
+  static const int kBdgCtxMask = static_cast<int>(param("LINE_BDG_CTX", 7.0f));
+  const bool bdgPh = tok.ph == Ph::B || tok.ph == Ph::D || tok.ph == Ph::G;
+  const int bdgCtx = !(bdgPh && prevWasVowel_ && tract_ == Tract::Line) ? 0
+                     : (!next || *next == Ph::Stop) ? 1 : *next == Ph::Z ? 2 : isVowel(*next) ? 4 : 0;
+  const bool bdgOn = (bdgCtx & kBdgCtxMask) != 0;
+  {  // (LINE_BDG_CL_AG, < 0: off) the closure glottis there (cm^2): Kokoro's and 11labs's closures keep a voice bar
+     // 10-15 dB under the vowel to the release; puhuja's died 30 ms in ("Web": -12 -> -43 dB).
+    static const float kBdgClAg = param("LINE_BDG_CL_AG", -1.0f);
+    if (bdgOn && kBdgClAg >= 0) pi.closureAg = kBdgClAg;
+  }
   {  // (D agent9 round J lab knob; < 0: off) the closure glottis of a d between a vowel and an unstressed vowel (cm^2)
     static const float kDVvAg = param("LINE_D_VV_AG", -1.0f);
     if (tok.ph == Ph::D && tok.shape.dctx == 1 && kDVvAg >= 0) pi.closureAg = kDVvAg;
@@ -6852,8 +6865,13 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // d + z of "beads", "codes" as t + s: 106 of 692; its 17 ms unreleased closure is a bare gap before the z).
   static const float kDzRel = param("LINE_DZ_REL", 0.0f);
   const bool dzRelD = tok.ph == Ph::D && kDzRel > 0.5f && next && *next == Ph::Z;
+  // (LINE_BDG_Z_REL, BDG-PLACE agent17; 0: off) the same for every b d g after a vowel before a z: unreleased, the stop's
+  // place had no burst to show it ("Cabs" -> cads, "Bags" -> beds); Kokoro's "Bags": a 1-3 kHz burst 13 dB under the vowel.
+  // Lab: with LINE_BDG_Z_FRIC 1 (below) 138 -> 133 errors, +14 words; with LINE_BDG_EXPAND 400 112 (two seeds).
+  static const float kBdgZRel = param("LINE_BDG_Z_REL", 0.0f);
+  const bool bdgZRel = bdgCtx == 2 && kBdgZRel > 0.5f;
   const bool unreleased = next && (info(*next).cls == Cls::Plosive ||
-                                   (tract_ == Tract::Line && pi.voiced && nextFric && tok.ph != Ph::JH && !dzRelD && (nextVoicedFric ? kVstopVfricUnrel : kVstopFricUnrel) > 0.5f));  // (not the affricate's own release into its ʒ: inAffricate_ is set after this)
+                                   (tract_ == Tract::Line && pi.voiced && nextFric && tok.ph != Ph::JH && !dzRelD && !bdgZRel && (nextVoicedFric ? kVstopVfricUnrel : kVstopFricUnrel) > 0.5f));  // (not the affricate's own release into its ʒ: inAffricate_ is set after this)
   if (unreleased) closure *= kUnreleasedClosure;
   const bool afterUnreleased = prevUnreleased_;
   prevUnreleased_ = unreleased;
@@ -7028,6 +7046,25 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
       addShapeDemand(std::max(closeStart - kTPreMs * ms, phonemeStart_ + 1.0), release, m, lastPh_, kTPreW);
     }
   }
+  // b d g's tongue body toward their locus (BDG-PLACE agent17 round O, lab; LINE_BDG_PRE_MIX 0: off), as the t's
+  // LINE_T_PRE_*: the vowel's last LINE_BDG_PRE_MS and the closure are asked for the vowel's shape mixed toward the row
+  // LINE_BDG_PRE_ROW_B / _D / _G (a Ph index; < 0: none for that stop), tongue only, weight LINE_BDG_PRE_W.
+  {
+    static const float kBdgPreMix = param("LINE_BDG_PRE_MIX", 0.0f), kBdgPreMs = param("LINE_BDG_PRE_MS", 60.0f),
+                       kBdgPreW = param("LINE_BDG_PRE_W", 1.0f);
+    static const int kBdgPreRow[3] = {static_cast<int>(param("LINE_BDG_PRE_ROW_B", -1.0f)),
+                                      static_cast<int>(param("LINE_BDG_PRE_ROW_D", 9.0f)),
+                                      static_cast<int>(param("LINE_BDG_PRE_ROW_G", 4.0f))};
+    const int row = kBdgPreRow[tok.ph == Ph::B ? 0 : tok.ph == Ph::D ? 1 : 2];
+    TractShape v, o;
+    if (kBdgPreMix > 0 && bdgOn && row >= 0 && !afterUnreleased && lineShapeOf(lastPh_, &v) &&
+        lineShapeOf(static_cast<Ph>(row), &o)) {
+      TractShape m = lineShapeMix(v, o, kBdgPreMix);
+      m.aLip = v.aLip; m.lLip = v.lLip; m.aLarynx = v.aLarynx; m.length = v.length;
+      m.sc = lineVowelStrength(m.xc, m.wc, m.length);
+      addShapeDemand(std::max(closeStart - kBdgPreMs * ms, phonemeStart_ + 1.0), release, m, lastPh_, kBdgPreW);
+    }
+  }
   // d after l (LINE_LD_SEAL_FADE, 2026-11-05; 0: off): the tongue tip is on
   // the ridge already, the closure only seals the sides, no jet. Narrowing
   // from the l's 0.35 cm^2 through the fricative range with the voice's flow
@@ -7187,6 +7224,15 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
       static const float kDzDExpand = param("LINE_DZ_D_EXPAND", -1.0f);  // ... a d before s z (2): "beads", "hands"
       if (tok.shape.dctx == 2 && kDzDExpand >= 0) close.lineExpand = std::max(kDzDExpand, 1e-3f);
     }
+  }
+  {  // (BDG-PLACE agent17 round O, lab; < 0: off) the cavity's expansion flow behind a b d g in the LINE_BDG_CTX contexts
+     // (cm^3/s): a voice bar to the release, as Kokoro's "Web" / "Bags" (-10..-16 dB re the vowel, 40-50 ms); puhuja's
+     // died 20-30 ms into the closure (-40 dB), a voiceless stop's cue (dictionary: d before z heard t 43 / 216, between
+     // vowels 52 / 620). Closure level re the vowel on the 11labs Kennedy texts, word-final d: 11labs -6.7 dB, puhuja
+     // -14.3, 400 -10.4, 600 -5.7. Lab (661 words, b d g x 2 voices, two seeds): 400 138 -> 124 errors (+20 words), 600
+     // 124 (+17), 900 136, 300 139; with LINE_BDG_Z_REL + _Z_FRIC 1 below, 400: 112 and 110 (seed 7, base 148).
+    static const float kBdgExpand = param("LINE_BDG_EXPAND", -1.0f);
+    if (bdgOn && kBdgExpand >= 0) close.lineExpand = std::max(kBdgExpand, 1e-3f);
   }
   close.acMs = sealMs;
   close.an = nasalVel ? -1.0f : 0.0f;  // (LINE_NASAL_STOP_VEL_MS: the velum stays open, closed below)
@@ -7454,6 +7500,10 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // frequencies but slower than p").
   static const float kLineDReleaseScale = param("LINE_D_RELEASE_SCALE", -1.0f);  // (lab knob 2026-11-10, D agent; < 0: LINE_RELEASE_SCALE x LINE_VOICED_RELEASE): the d's opening time re its releaseMs
   rel.acMs = pi.releaseMs * (tract_ == Tract::Line ? (tok.ph == Ph::D && kLineDReleaseScale >= 0 ? kLineDReleaseScale : (tok.ph == Ph::P && kLinePReleaseScale >= 0 ? kLinePReleaseScale : tok.ph == Ph::K && kLineKReleaseScale >= 0 ? kLineKReleaseScale : tok.ph == Ph::G && tok.shape.gctx == 1 && kGiRelScale >= 0 ? kGiRelScale : tok.ph == Ph::G && kLineGReleaseScale >= 0 ? kLineGReleaseScale : tok.ph == Ph::T && kLineTReleaseScale >= 0 ? kLineTReleaseScale : kLineReleaseScale) * (pi.voiced ? kLineVoicedReleaseScale : 1.0f)) : 1.0f);
+  // (BDG-PLACE agent17 round O, lab; < 0: off) the opening time of a b d g in the LINE_BDG_CTX contexts, x releaseMs
+  // (as LINE_RELEASE_SCALE x LINE_VOICED_RELEASE does for all): a quicker opening, a sharper burst to carry the place.
+  static const float kBdgRelScale = param("LINE_BDG_REL_SCALE", -1.0f);
+  if (bdgOn && kBdgRelScale >= 0) rel.acMs = pi.releaseMs * kBdgRelScale;
   // LINE_FINAL_D_RELEASE_SCALE (lab knob 2026-11-10, D agent; < 0: off): a d before a pause opens over releaseMs x this
   // (Kokoro's final d: a soft -21..-24 dB release where puhuja's pops at -9).
   static const float kLineFinalDReleaseScale = param("LINE_FINAL_D_RELEASE_SCALE", -1.0f);
@@ -7885,6 +7935,28 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   if (vstopBurst && vNextLiq && kVstopBurstLiq >= 0) rel.lineFricMul = kVstopBurstLiq;
   if (vstopBurst && vNextNas && kVstopBurstNas >= 0) rel.lineFricMul = kVstopBurstNas;
   if (vstopBurst && tok.ph == Ph::G && tok.shape.gctx == 1 && kGiBurst >= 0) rel.lineFricMul = kGiBurst;  // (LINE_GI_BURST)
+  // (BDG-PLACE agent17 round O, lab; < 0: off) the release frication gain of a b d g after a vowel by context: word-final
+  // LINE_BDG_FIN_FRIC, before a vowel LINE_BDG_VV_FRIC (LINE_G_BURST / _D_ / _B_ set both today). Kokoro's / 11labs's
+  // burst carries the place: 1-3 kHz 5-14 dB under the 20 ms's total for g d, puhuja's 26-32 dB.
+  static const float kBdgFinFric = param("LINE_BDG_FIN_FRIC", -1.0f), kBdgVvFric = param("LINE_BDG_VV_FRIC", -1.0f);
+  if (vstopBurst && bdgOn && bdgCtx == 1 && kBdgFinFric >= 0) rel.lineFricMul = kBdgFinFric;
+  if (vstopBurst && bdgOn && bdgCtx == 4 && kBdgVvFric >= 0) rel.lineFricMul = kBdgVvFric;
+  // ... and a b d g released into a z (LINE_BDG_Z_REL) LINE_BDG_Z_FRIC (< 0: the z's own gain carries on): at 1 "Bags"
+  // gets a 1-3 kHz burst 4-6 dB under the frame total at -14 dB re the peak (Kokoro's: -4 dB at -13.5).
+  // Lab knobs that did not help (round O, kept off): LINE_BDG_PRE_*, _FIN_FRIC, _VV_FRIC, _FIN_AG, _CL_AG, _REL_SCALE.
+  static const float kBdgZFric = param("LINE_BDG_Z_FRIC", -1.0f);
+  if (bdgZRel && kBdgZFric >= 0) rel.lineFricMul = kBdgZFric;
+  // ... and a final one's release breath (LINE_BDG_FIN_AG: the glottis opens to this at the release, cm^2, over 5 ms;
+  // LINE_BDG_FIN_ASP: its glottal noise x this for LINE_FINAL_ASP_MS): Kokoro's final b ("Web") is a breathy noise
+  // release decaying over 100 ms (1-3 kHz 5-13 dB under the total), puhuja's a voiced "uh" (F1 470, F2 1100) for 30 ms.
+  static const float kBdgFinAg = param("LINE_BDG_FIN_AG", -1.0f), kBdgFinAsp = param("LINE_BDG_FIN_ASP", -1.0f);
+  if (bdgOn && bdgCtx == 1 && !unreleased && kBdgFinAg >= 0) rel.ag = kBdgFinAg, rel.agMs = 5.0f;
+  if (bdgOn && bdgCtx == 1 && !unreleased && kBdgFinAsp >= 0) {
+    rel.lineAspMul = kBdgFinAsp;
+    pendingAspEnd_ = Event{release + kLineFinalAspMs * ms};
+    pendingAspEnd_.lineAspMul = 1.0f;
+    hasPendingAspEnd_ = true;
+  }
   if (vstopBurst && vlG && kVlGFric >= 0) rel.lineFricMul = kVlGFric;  // (LINE_VL_G_FRIC)
   if (tract_ == Tract::Line && tok.ph == Ph::T && kLineTCloseFric != 1.0f && rel.lineFricMul < 0) rel.lineFricMul = next && *next == Ph::S ? kLineSFric : 1.0f;
   // The affricate's closure ran its slit noise at LINE_JH_CLOSE_FRIC (0.3) and
