@@ -496,6 +496,8 @@ class Synth {
   bool prevWasPlosive_ = false;
   bool vlInitPrev_ = false;  // the last plosive was a word-initial k / g before l ɹ (LINE_VL_*, VELAR-L agent15 round N)
   Ph lastPlosivePh_ = Ph::Stop;  // the last plosive emitted (LINE_RB_*: an ɹ after b d g, R-L agent19 round Q)
+  bool twInitPrev_ = false;  // ... a word-initial t / k before w (LINE_TW_W_*)
+  bool trInitPrev_ = false;  // the last plosive was a word-initial t / d before ɹ (LINE_TR_*, CL-INIT agent20 round R)
   bool plInitPrev_ = false;  // the last plosive was a word-initial p before l ɹ (LINE_PL_*, PL-INITIAL agent17 round O)
   bool jAfterStop_ = false;  // the last token was a j released from a plosive (LINE_U_AFTER_STOP_J)
   bool prevWasNasal_ = false;
