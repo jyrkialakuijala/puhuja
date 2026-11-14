@@ -704,10 +704,10 @@ const float kGiBurst = param("LINE_GI_BURST", -1.0f), kGiRelRe = param("LINE_GI_
 const float kDiDevoice = param("LINE_DI_DEVOICE", -1.0f), kDiExpand = param("LINE_DI_EXPAND_FLOW", -1.0f),
             kDiLeadMs = param("LINE_DI_LEAD_MS", -1.0f), kDiSoft = param("LINE_DI_SOFT", -1.0f),
             kDiBurst = param("LINE_DI_BURST", -1.0f), kDiRelRe = param("LINE_DI_REL_RE", -1.0f),
-            kDiRelReMs = param("LINE_DI_REL_RE_MS", 20.0f), kDiBurstMs = param("LINE_DI_BURST_MS", -1.0f),
+            kDiRelReMs = param("LINE_DI_REL_RE_MS", 20.0f), kDiBurstMs = param("LINE_DI_BURST_MS", 3.0f),
             kDiBurstA = param("LINE_DI_BURST_A", -1.0f), kDiJetD = param("LINE_DI_JET_D", -1.0f),
             kDiRelScale = param("LINE_DI_REL_SCALE", -1.0f), kDiVotMs = param("LINE_DI_VOT_MS", -1.0f),
-            kDiPress = param("LINE_DI_PRESS", -1.0f), kDiSlitX = param("LINE_DI_SLIT_X", -1.0f);
+            kDiPress = param("LINE_DI_PRESS", 1.0f), kDiSlitX = param("LINE_DI_SLIT_X", -1.0f);
 const float kLinePauseStopPressRampMs = param("LINE_PAUSE_STOP_PRESS_RAMP_MS", 30.0f);
 // A short voice bar in b d g: the closure's expansion draws LINE_VBAR_FLOW
 // cm^3/s (< 0: the usual LINE_EXPAND_FLOW / LINE_B_EXPAND_FLOW) only for the
@@ -8674,7 +8674,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   }
   // (INITIAL-D agent18 round P, lab; 0: off) the same alveolar pinch after a word-initial d before a vowel: weight
   // LINE_DI_PINCH_W, length LINE_DI_PINCH_MS, hump area LINE_DI_PINCH_AC (cm^2), place LINE_DI_PINCH_X (< 0: the d's).
-  static const float kDiPinchW = param("LINE_DI_PINCH_W", 0.0f), kDiPinchMs = param("LINE_DI_PINCH_MS", 25.0f),
+  static const float kDiPinchW = param("LINE_DI_PINCH_W", 0.5f), kDiPinchMs = param("LINE_DI_PINCH_MS", 25.0f),
                      kDiPinchAc = param("LINE_DI_PINCH_AC", 0.6f), kDiPinchX = param("LINE_DI_PINCH_X", -1.0f);
   if (dInit && kDiPinchW > 0 && !unreleased && next && isVowel(*next)) {
     TractShape v;
