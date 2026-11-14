@@ -6871,6 +6871,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
   if (in.cls == Cls::Stop) pitchAnchorT_ = -1;  // the pitch line restarts after a pause
   prevVoiced_ = isSonorant(tok.ph);
   prevVoicedObstruent_ = voicedObstruent(tok.ph);
+  prevPh2_ = lastPh_;
   lastPh_ = tok.ph;
   rangeTok_ = nullptr;
   // A pause closes a phrase: plan its shapes and pitch (the line renders
@@ -7172,7 +7173,17 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   static const float kGdFinXD = param("LINE_GD_FIN_X_D", -1.0f), kGdFinXG = param("LINE_GD_FIN_X_G", 0.69f);
   const bool gdFinTok = tract_ == Tract::Line && (tok.ph == Ph::D || tok.ph == Ph::G) && prevWasVowel_ && (!next || *next == Ph::Stop);
   const float gdFinX = !gdFinTok ? -1.0f : tok.ph == Ph::D ? kGdFinXD : kGdFinXG;
-  const float kPlaceTok = gdFinX >= 0 ? gdFinX : tFinalPlace ? kTFinalX : vlX >= 0 ? vlX : kvBack && kKvXBack >= 0 ? kKvXBack : kvFront && kKvXFront >= 0 ? kKvXFront : kvInit && kKvX >= 0 ? kKvX : kOnsetFront ? kKXFrontOnset : lineKPlace(tok.ph, kVowel);
+  // (POST-L-STOP agent22 round T, lab; < 0: as before) a t / k / p after a coda ɹ (LINE_PL2_LIQ bit 1) or l (bit 2)
+  // before a pause or a consonant ("Park", "Parts", "Milk"): its closure place LINE_PL2_X_T / LINE_PL2_X_K (share of
+  // the line). The dictionary (combo17) heard ɹk as ɹt 45 / 104 ("Ark" -> art, "Park" -> part), ɹts as ɹps 43 / 116
+  // ("Hearts" -> harps), ɹt as ɹk / ɹp 37 / 152; after l only 5-11 %.
+  static const int kPl2Liq = static_cast<int>(param("LINE_PL2_LIQ", 1.0f));
+  static const float kPl2XT = param("LINE_PL2_X_T", -1.0f), kPl2XK = param("LINE_PL2_X_K", -1.0f);
+  const bool pl2Ctx = tract_ == Tract::Line && (tok.ph == Ph::T || tok.ph == Ph::K || tok.ph == Ph::P) &&
+                      (((kPl2Liq & 1) && lastPh_ == Ph::RR) || ((kPl2Liq & 2) && lastPh_ == Ph::L)) &&
+                      (!next || *next == Ph::Stop || !isVowel(*next));
+  const float pl2X = !pl2Ctx ? -1.0f : tok.ph == Ph::T ? kPl2XT : tok.ph == Ph::K ? kPl2XK : -1.0f;
+  const float kPlaceTok = pl2X >= 0 ? pl2X : gdFinX >= 0 ? gdFinX : tFinalPlace ? kTFinalX : vlX >= 0 ? vlX : kvBack && kKvXBack >= 0 ? kKvXBack : kvFront && kKvXFront >= 0 ? kKvXFront : kvInit && kKvX >= 0 ? kKvX : kOnsetFront ? kKXFrontOnset : lineKPlace(tok.ph, kVowel);
   PlosiveInfo pi = plosiveInfo(tok.ph);
   // English b not between vowels ("I said bat", "big"): a mostly devoiced
   // closure and a clear release. Fully voiced with almost no burst it was
@@ -7189,6 +7200,10 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   const bool devoiceBefore = aspirate_ && pi.voiced && next &&
                              (*next == Ph::F || *next == Ph::TH || *next == Ph::S || *next == Ph::SH);
   if (devoiceBefore) pi.closureAg = kAgVoice + kDevoiceBeforeFric * (kAgOpen - kAgVoice);
+  // (POST-L-STOP agent22 round T, lab; < 0: as before) the closure glottis of a stop after a coda liquid (pl2Ctx), cm^2:
+  // a narrow one is the glottalised [ʔt] of American "part", "heart".
+  static const float kPl2ClAg = param("LINE_PL2_CL_AG", -1.0f);
+  if (pl2Ctx && kPl2ClAg >= 0) pi.closureAg = kPl2ClAg;
   // English k: a stronger burst (the Finnish calibration cut it 13 dB;
   // "carrot" was heard as "parrot", "cow" as "power").
   // English ʧ: the release opens fast, so the hiss starts abruptly (built
@@ -7592,6 +7607,39 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
       static const float kGdFinTailMs = param("LINE_GD_FIN_TAIL_MS", 0.0f);
       const double preEnd = finPre && tok.ph != Ph::B && kGdFinTailMs > 0 ? release + kGdFinTailMs * ms : release;
       addShapeDemand(std::max(closeStart - preMs * ms, phonemeStart_ + 1.0), preEnd, m, lastPh_, kBdgPreW);
+    }
+  }
+  // (POST-L-STOP agent22 round T, lab; 0: off) the stop after a coda liquid (pl2Ctx): its tongue body toward a row over
+  // the liquid's last LINE_PL2_MS and the closure, as LINE_BDG_FIN_PRE_*: the ɹ's shape (ɜ's row) mixed LINE_PL2_MIX_T /
+  // _K / _P toward the row LINE_PL2_ROW_T / _K / _P (a Ph index; 9 ɪ, 8 ə), its lips LINE_PL2_LIPS of the way to the
+  // row's, held LINE_PL2_TAIL_MS past the release, demand weight LINE_PL2_W. The ɹ's rounding and bunched body stayed on through the closure: the
+  // t's burst after ɹ peaked at 2-3 kHz (centroid 2.7 kHz; after a vowel 3.7, Kokoro am_adam after ɹ 5.3), the k's at
+  // 1-2 kHz (1.85; Kokoro 2.9). Lab (196 such words + 80 fillers, two seeds): LINE_PL2_MIX_K 0.6 + LINE_PL2_LIPS 1 82 / 86.5
+  // -> 50 / 50.5 T/K/P errors (k after ɹ 33 -> 9-10, t after ɹ 17-25.5 -> 10.5), words right +16 / +24 of 552, words1000
+  // control 1559 -> 1571; the t's burst 3.8 kHz (female 4.6, af_heart 4.3). The k or the t alone moves the confusion to
+  // the other ("Park" fixed, "Part" -> park).
+  {
+    static const float kPl2Mix[3] = {param("LINE_PL2_MIX_P", 0.0f), param("LINE_PL2_MIX_T", 0.0f), param("LINE_PL2_MIX_K", 0.0f)};
+    static const int kPl2Row[3] = {static_cast<int>(param("LINE_PL2_ROW_P", 8.0f)), static_cast<int>(param("LINE_PL2_ROW_T", 9.0f)),
+                                   static_cast<int>(param("LINE_PL2_ROW_K", 9.0f))};
+    static const float kPl2Ms = param("LINE_PL2_MS", 30.0f), kPl2Lips = param("LINE_PL2_LIPS", 0.0f),
+                       kPl2TailMs = param("LINE_PL2_TAIL_MS", 0.0f), kPl2W = param("LINE_PL2_W", 1.0f);
+    const int i = tok.ph == Ph::P ? 0 : tok.ph == Ph::T ? 1 : 2;
+    // LINE_PL2_MIX_K_BACK (< 0: LINE_PL2_MIX_K): the k's mix after a rounded back vowel + ɹ ("Cork", "Pork", "Torque").
+    static const float kPl2MixKBack = param("LINE_PL2_MIX_K_BACK", -1.0f);
+    const bool backR = prevPh2_ == Ph::AO || prevPh2_ == Ph::OH || prevPh2_ == Ph::O || prevPh2_ == Ph::U || prevPh2_ == Ph::UH;
+    const float mixI = i == 2 && backR && kPl2MixKBack >= 0 ? kPl2MixKBack : kPl2Mix[i];
+    TractShape v, o;
+    // (LINE_PL2_LIPS > 0 alone also runs it for the t and k: their lips unround with the tongue left at the ɹ's.)
+    if (pl2Ctx && (mixI > 0 || (kPl2Lips > 0 && i > 0)) && !afterUnreleased && lineShapeOf(lastPh_, &v) && lineShapeOf(static_cast<Ph>(kPl2Row[i]), &o)) {
+      TractShape m = lineShapeMix(v, o, mixI);
+      m.aLip = v.aLip + kPl2Lips * (o.aLip - v.aLip);
+      m.lLip = v.lLip + kPl2Lips * (o.lLip - v.lLip);
+      m.aLarynx = v.aLarynx; m.length = v.length;
+      m.sc = lineVowelStrength(m.xc, m.wc, m.length);
+      // LINE_PL2_INTO_R_MS: the window may start this far before the stop (into the ɹ itself; 0: the stop's start).
+      static const float kPl2IntoRMs = param("LINE_PL2_INTO_R_MS", 0.0f);
+      addShapeDemand(std::max(closeStart - kPl2Ms * ms, phonemeStart_ + 1.0 - kPl2IntoRMs * ms), release + kPl2TailMs * ms, m, lastPh_, kPl2W);
     }
   }
   // d after l (LINE_LD_SEAL_FADE, 2026-11-05; 0: off): the tongue tip is on
@@ -8096,6 +8144,9 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   static const float kBdgFinRelScale = param("LINE_BDG_FIN_REL_SCALE", -1.0f);  // (agent18) a final one's (< 0: off)
   if (bdgFin && kBdgFinRelScale >= 0) rel.acMs = pi.releaseMs * kBdgFinRelScale;
   if (dInit && kDiRelScale >= 0) rel.acMs = pi.releaseMs * kDiRelScale;  // (LINE_DI_REL_SCALE)
+  // (POST-L-STOP agent22 round T, lab; 1: as before) the opening time of a stop after a coda liquid (pl2Ctx) x LINE_PL2_REL_X.
+  static const float kPl2RelX = param("LINE_PL2_REL_X", 1.0f);
+  if (pl2Ctx && kPl2RelX != 1.0f) rel.acMs *= kPl2RelX;
   // (PL-INITIAL agent17 round O, lab; < 0: off) a word-initial p before l ɹ opens over x LINE_PL_REL_SCALE its time.
   static const float kPlRelScale = param("LINE_PL_REL_SCALE", -1.0f);
   if (plInit && kPlRelScale >= 0) rel.acMs *= kPlRelScale;
@@ -8561,7 +8612,9 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     rel.agMs = kLineFinalAgMs;
     // ... and hisses like an aspirated release (the readers' final k: 60-130
     // ms of noise), the hiss ending with the breath.
-    const float finalAspMul = tok.ph == Ph::P && kLineFinalPAsp >= 0 ? kLineFinalPAsp : tok.ph == Ph::K && kLineFinalKAsp >= 0 ? kLineFinalKAsp : tok.ph == Ph::T && kLineFinalTAsp >= 0 ? kLineFinalTAsp : kLineFinalAspMul;
+    // (POST-L-STOP agent22 round T, lab; 1: as before) x LINE_PL2_ASP after a coda liquid (pl2Ctx).
+    static const float kPl2Asp = param("LINE_PL2_ASP", 1.0f);
+    const float finalAspMul = pl2Ctx && kPl2Asp != 1.0f ? kPl2Asp * (tok.ph == Ph::P && kLineFinalPAsp >= 0 ? kLineFinalPAsp : tok.ph == Ph::K && kLineFinalKAsp >= 0 ? kLineFinalKAsp : tok.ph == Ph::T && kLineFinalTAsp >= 0 ? kLineFinalTAsp : kLineFinalAspMul) : tok.ph == Ph::P && kLineFinalPAsp >= 0 ? kLineFinalPAsp : tok.ph == Ph::K && kLineFinalKAsp >= 0 ? kLineFinalKAsp : tok.ph == Ph::T && kLineFinalTAsp >= 0 ? kLineFinalTAsp : kLineFinalAspMul;
     const float finalAspMs = tok.ph == Ph::P && kLineFinalPAspMs >= 0 ? kLineFinalPAspMs : tok.ph == Ph::K && kLineFinalKAspMs >= 0 ? kLineFinalKAspMs : tok.ph == Ph::T && kLineFinalTAspMs >= 0 ? kLineFinalTAspMs : kLineFinalAspMs;
     if (finalAspMul != 1.0f) {
       rel.lineAspMul = finalAspMul;
@@ -8677,8 +8730,12 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // kl burst two-peaked, 0.5-1 and 3-4.5 kHz at -3 / -5 dB of the total, male; Kokoro's compact at 1-2 kHz, 3-4.5 at -17).
   static const float kVlKRelFric = param("LINE_VL_K_REL_FRIC", -1.0f);
   const float kRelFricNf = vlK && kVlKRelFric >= 0 ? kVlKRelFric : kvInit && kKvRelFric >= 0 ? kKvRelFric : tok.wordStart && kKInitRelFric >= 0 ? kKInitRelFric : kLineKRelFric;
-  const float relFric = tok.ph == Ph::K ? ((!next || nextIsPause) && kLineKFinalRelFric >= 0 ? kLineKFinalRelFric : kRelFricNf)
-                        : tok.ph == Ph::P ? (plInit && kPlRelFric >= 0 ? kPlRelFric : pvInit && kPvRelFric >= 0 ? kPvRelFric : kLinePRelFric) : tok.ph == Ph::T ? ((!next || nextIsPause) && kLineTFinalRelFric >= 0 ? kLineTFinalRelFric : kLineTRelFric) : 1.0f;
+  // (POST-L-STOP agent22 round T, lab; 1: as before) the release hiss of a t / k after a coda liquid (pl2Ctx) x
+  // LINE_PL2_REL_FRIC_T / _K (the t after ɹ: burst -15.7 dB re the word peak, Kokoro am_adam -20; the k -25, Kokoro -21).
+  static const float kPl2RelFricT = param("LINE_PL2_REL_FRIC_T", 1.0f), kPl2RelFricK = param("LINE_PL2_REL_FRIC_K", 1.0f);
+  const float pl2RelMul = !pl2Ctx ? 1.0f : tok.ph == Ph::T ? kPl2RelFricT : tok.ph == Ph::K ? kPl2RelFricK : 1.0f;
+  const float relFric = pl2RelMul * (tok.ph == Ph::K ? ((!next || nextIsPause) && kLineKFinalRelFric >= 0 ? kLineKFinalRelFric : kRelFricNf)
+                        : tok.ph == Ph::P ? (plInit && kPlRelFric >= 0 ? kPlRelFric : pvInit && kPvRelFric >= 0 ? kPvRelFric : kLinePRelFric) : tok.ph == Ph::T ? ((!next || nextIsPause) && kLineTFinalRelFric >= 0 ? kLineTFinalRelFric : kLineTRelFric) : 1.0f);
   const bool relFricOn = tract_ == Tract::Line && relFric != 1.0f && !unreleased && !(next && info(*next).cls == Cls::Fricative);
   const bool nasalBurst = nasalVel && kNasalStopBurst != 1.0f && !relFricOn && !(next && info(*next).cls == Cls::Fricative);
   if (relFricOn) rel.lineFricMul = relFric;

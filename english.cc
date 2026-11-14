@@ -3135,6 +3135,22 @@ void EnglishReader::sayPhrase(char end) {
               !(i + 2 < tokens.size() && isVowelToken(tokens[i + 2])) &&
               !(i + 2 == tokens.size() && w + 1 < phrase_.size() && !phrase_[w + 1].tokens.empty() && isVowelToken(phrase_[w + 1].tokens[0])))
             shape.ms *= kPreCodaRVLen;
+          // (POST-L-STOP agent22 round T, lab; 1: as before) a coda ɹ before a p t k x EN_PL2_R_LEN, and the p t k after a
+          // coda ɹ (before a pause or a consonant) x EN_PL2_LEN: the t's closure after ɹ ran 78 ms, the k's 87 (Kokoro
+          // am_adam 52 / 75 ms; "Part", "Park").
+          static const float kPl2RLen = param("EN_PL2_R_LEN", 1.0f), kPl2Len = param("EN_PL2_LEN", 1.0f);
+          auto vlStop = [&](size_t j) { const std::string b = baseName(tokens[j]); return b == "P" || b == "T" || b == "K"; };
+          if (codaR && kPl2RLen != 1.0f && i + 1 < tokens.size() && vlStop(i + 1)) shape.ms *= kPl2RLen;
+          if (kPl2Len != 1.0f && s.n == 1 && i > 0 && vlStop(i) && baseName(tokens[i - 1]) == "R" && !isVowelToken(tokens[i - 1]) &&
+              !(i + 1 < tokens.size() && isVowelToken(tokens[i + 1])))
+            shape.ms *= kPl2Len;
+          // ... and the vowel before that coda ɹ (the p t k before a pause or a consonant) x EN_PL2_VLEN: pre-fortis
+          // clipping. From the onset to the closure, puhuja's "Part" ran 488 ms, longer than its "Card" (472) and 1.5x its
+          // "Pat" (318); Kokoro am_adam "Part" 260 = "Pat" 260, "Card" 374 ("Cart" was heard card, "Hart" hard).
+          static const float kPl2VLen = param("EN_PL2_VLEN", 1.0f);
+          if (kPl2VLen != 1.0f && vowel && s.n == 1 && i + 2 < tokens.size() && baseName(tokens[i + 1]) == "R" && vlStop(i + 2) &&
+              !(i + 3 < tokens.size() && isVowelToken(tokens[i + 3])))
+            shape.ms *= kPl2VLen;
         }
         if (phrase_[w].syllabicN && i + 1 == tokens.size()) shape.ms *= kSyllabicNLength;
         if (phrase_[w].syllabicL && i + 1 == tokens.size()) shape.ms *= kSyllabicLLength;
