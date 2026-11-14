@@ -3102,7 +3102,7 @@ void EnglishReader::sayPhrase(char end) {
         // A coda ɹ before a consonant or a pause ("dare not", "first", "heirs") x EN_CODA_R_LEN: at 50 ms after a 148 ms
         // vowel it ran into the n, "dare" heard as "don't" (Jyrki 2026-11-06; Kokoro's coda r 10-20 ms, its vowel 50-90).
         {
-          static const float kCodaRLen = param("EN_CODA_R_LEN", 1.0f);
+          static const float kCodaRLen = param("EN_CODA_R_LEN", 1.25f);
           const bool codaR = s.ph[k] == Ph::RR && s.n == 1 && i > 0 && isVowelToken(tokens[i - 1]) &&
                              !(i + 1 < tokens.size() && isVowelToken(tokens[i + 1])) &&
                              !(i + 1 == tokens.size() && w + 1 < phrase_.size() && !phrase_[w + 1].tokens.empty() && isVowelToken(phrase_[w + 1].tokens[0]));

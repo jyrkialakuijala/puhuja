@@ -6503,7 +6503,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // rises from the ɹ's 1600 to 1900. Lab (600 coda-ɹ words, two draws; ɹ errors / words right, base 121 / 841 and
     // 124 / 844): 0 ms 104 / 850, 100 / 861 (ɹ heard l 45 -> 30, but the male z onset faster than Kokoro's); 15 ms to
     // 0.7 cm^2 110 / 846, 104 / 864 (l 32; aesthetics.fspeed on 12 ɹz words m 197 / f 251, base 179 / 248).
-    static const float kRzApMs = param("LINE_RZ_AP_MS", -1.0f), kRzApA = param("LINE_RZ_AP_A", -1.0f);
+    static const float kRzApMs = param("LINE_RZ_AP_MS", 0.0f), kRzApA = param("LINE_RZ_AP_A", -1.0f);
     const bool rzAp = tok.ph == Ph::Z && lastPh_ == Ph::RR;
     const float apMs = rzAp && kRzApMs >= 0 ? kRzApMs : tok.ph == Ph::Z && zApMs >= 0 ? zApMs : tok.ph == Ph::VV && vApMs >= 0 ? vApMs : frApMs;
     // ... not after an m with LINE_M_FRIC_AP 0 (round J, M agent; 1: as before): the approach moved the closure from the
