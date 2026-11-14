@@ -865,6 +865,21 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
               whole *= kPreFinalTVowel;
           }
         }
+        // Z-FINAL-2 agent19 round Q (lab; 1: as before): the whole vowel before a word-final z (also across an ɹ l n m:
+        // "his", "pens") x EN_PRE_FINAL_Z_WHOLE, before a word-final s x EN_PRE_FINAL_S_WHOLE. The voiced stretch is the
+        // listener's z / s cue: Kokoro's z words run 1.18-1.22x its s words (adam 372 / 316 ms, bella 333 / 274, heart
+        // 354 / 291), puhuja's 1.10 / 1.06 (398 / 361, 361 / 340): EN_PRE_Z_VOWEL acts on the vowel's variable part only.
+        // Puhuja's s words are the long ones (Kokoro's z words 333-372 ms, puhuja's 361-398). Lab (263 final-z words,
+        // two draws): Z_WHOLE 1.15 74 -> 69.5 errors, +2.2 % duration (the duration cheat); 1.25 87. S_WHOLE untested.
+        {
+          static const float kPreFinalZWhole = param("EN_PRE_FINAL_Z_WHOLE", 1.0f), kPreFinalSWhole = param("EN_PRE_FINAL_S_WHOLE", 1.0f);
+          if (kPreFinalZWhole != 1.0f || kPreFinalSWhole != 1.0f) {
+            size_t j = i + 1;
+            if (j < tok.size() && (baseName(tok[j]) == "R" || baseName(tok[j]) == "L" || baseName(tok[j]) == "N" || baseName(tok[j]) == "M")) ++j;
+            if (j + 1 == tok.size() && baseName(tok[j]) == "Z") whole *= kPreFinalZWhole;
+            if (j + 1 == tok.size() && baseName(tok[j]) == "S") whole *= kPreFinalSWhole;
+          }
+        }
         // The vowel before a ŋ in the same word x EN_PRE_NG_VOWEL_LEN (lab knob 2026-11-11, NG agent 3; 1: as before): the
         // vowel carries the velar pinch (F2 and F3 converging into the ŋ), the cue that tells ŋ from n.
         if (i + 1 < tok.size() && baseName(tok[i + 1]) == "NG") {
@@ -1178,6 +1193,9 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
       // A phrase-final z after a vowel or sonorant x this (EN_FINAL_Z_LEN, lab knob 2026-11-11; 1: as before): 59 ms here,
       // and its slit holds ~70 ms more into the pause with the breath decaying ("his": ~140 ms of voiceless hiss at -6 dB
       // re the word's peak, an s); Kokoro's final z hisses 70-100 ms at -17..-20 dB.
+      // Z-FINAL-2 agent19 round Q: since round O's sink (LINE_FZ_SINK_*) and LINE_FINAL_Z_FRIC 0.35 the hiss is at Kokoro's
+      // level with ~30-40 ms of voice under it; 1.2: the hiss 136 / 138 ms (m / f; Kokoro 119-138), and the lab (263
+      // final-z words, two independent draw pairs) 160 -> 149.5 errors, with LINE_FZ_SINK_N 2 142 (vowel + z cell 105 -> 86).
       if (phraseFinal && !vowel && i > 0 && i > static_cast<size_t>(lastVowel) && b == "Z" &&
           !isVoicelessPlosive(baseName(tok[i - 1])) && !isVoicedPlosive(baseName(tok[i - 1]))) {
         static const float kFinalZLen = param("EN_FINAL_Z_LEN", 1.0f);
@@ -3126,6 +3144,15 @@ void EnglishReader::sayPhrase(char end) {
           const bool pl = tokens.size() > 1 && baseName(tokens[0]) == "P" && liquid(1);
           if (kPlLen != 1.0f && i == 0 && pl) shape.ms *= kPlLen;
           if (kPlLiqLen != 1.0f && i == 1 && pl) shape.ms *= kPlLiqLen;
+        }
+        // (PK-INITIAL agent19 round Q, lab; 1: as before) a word-initial p / k before a vowel x EN_PV_LEN / EN_KV_LEN.
+        {
+          static const float kPvLen = param("EN_PV_LEN", 1.0f), kKvLen = param("EN_KV_LEN", 1.0f);
+          if (i == 0 && tokens.size() > 1 && isVowelToken(tokens[1])) {
+            const std::string b0 = baseName(tokens[0]);
+            if (b0 == "P" && kPvLen != 1.0f) shape.ms *= kPvLen;
+            if (b0 == "K" && kKvLen != 1.0f) shape.ms *= kKvLen;
+          }
         }
         if (baseName(tokens[i]) == "D") {
           static const float kFlapD = param("EN_FLAP_D", 0.0f), kFlapDMs = param("EN_FLAP_D_MS", -1.0f);

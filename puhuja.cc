@@ -3410,10 +3410,18 @@ void Synth::emit(const Token& tok, const Ph* next) {
         // (after b d g the z's own event is not queued; the flow there x LINE_FZ_SINK_B)
         static const float kFzSinkB = param("LINE_FZ_SINK_B", 0.0f);
         if (prevWasPlosive_) { Event s{e.t}; s.lineSink = kFzSinkFlow * kFzSinkB; addEventAt(s); }
+        // Z-FINAL-2 agent19 round Q (lab; 1: as before): x LINE_FZ_SINK_N after a nasal ("pens", "fans", "means"): the z
+        // kept 6 ms of voice under its hiss in the female voice (tools/zcmp.py on 8 n / m / ŋ + z words; Kokoro 15-21,
+        // am_adam 41), 21 ms in the male. 2: overlap 25 / 12 ms, voice bar over the hiss's first 20 ms -15 / -25 dB re
+        // the word's peak (base -20 / -29). (After b d g a delayed, ramped sink still snapped: snap.py 10.3 / 8.4 ->
+        // 13.8-15.1 / 11.6-13.4 dB at 0.2-0.5 x the flow, delays 10-25 ms; lab B cell 24.5 -> 41.5 errors.)
+        static const float kFzSinkN = param("LINE_FZ_SINK_N", 1.0f);
+        const float nMul = info(lastPh_).cls == Cls::Nasal ? kFzSinkN : 1.0f;
+        if (nMul != 1.0f) e.lineSink *= nMul;
         if (kFzSinkMs > 0)
           for (int k = 1; k <= 4; ++k) {
             Event s{e.t + (0.5 + 0.125 * k) * kFzSinkMs * ms};
-            s.lineSink = k == 4 ? 0.0f : kFzSinkFlow * (prevWasPlosive_ ? kFzSinkB : 1.0f) * (1.0f - 0.25f * k);
+            s.lineSink = k == 4 ? 0.0f : kFzSinkFlow * (prevWasPlosive_ ? kFzSinkB : nMul) * (1.0f - 0.25f * k);
             addEventAt(s);
           }
       } else if (lastPh_ == Ph::Z && e.lineSink < 0) e.lineSink = 0.0f;
@@ -6862,6 +6870,24 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // word's peak, Kokoro's (am_adam, af_heart) and 11labs' -17..-30 in every band: a dark thump with no labial spread.
   const bool plInit = tract_ == Tract::Line && tok.ph == Ph::P && tok.wordStart && next && (*next == Ph::L || *next == Ph::RR);
   plInitPrev_ = plInit;
+  // (PK-INITIAL agent19 round Q, lab; every LINE_PV_* / LINE_KV_* knob's default is off) a word-initial p / k before a
+  // vowel (pvInit / kvInit): the dictionary (combo14) heard such a k as p 81, t 21 or not at all 19 times (#_V stressed,
+  // "Cap" -> cup, "Came" -> pain), the p as k / b ("Park" -> part, "Penn" -> ben). Their bursts (first 15 ms, the
+  // 0.5-1 / 1-2 / 2-3 / 3-4.5 / 4.5-7 kHz shares in dB): puhuja's p [-2 -5 -14 -22 -24] (male; a dark LF thump), Kokoro's
+  // am_adam [-2 -9 -10 -10 -11] (flat, diffuse); puhuja's k before a front vowel peaks at 1.6-1.8 kHz (Kokoro 2.5-3.1),
+  // before a back vowel it is two-peaked (1-2 and 3-4.5 kHz at -3..-5; Kokoro compact at 1-2 kHz, 3-4.5 at -9..-21).
+  const bool pvInit = tract_ == Tract::Line && tok.ph == Ph::P && tok.wordStart && next && isVowel(*next);
+  const bool kvInit = tract_ == Tract::Line && tok.ph == Ph::K && tok.wordStart && next && isVowel(*next);
+  const bool kvBack = kvInit && (*next == Ph::O || *next == Ph::U || *next == Ph::UH || *next == Ph::AO || *next == Ph::AH ||
+                                 *next == Ph::AA || *next == Ph::OH);
+  // The k's place (share of the line; < 0: as before): before any vowel LINE_KV_X, before u ʊ o ɔ ʌ ɑ ɒ LINE_KV_X_BACK,
+  // before i ɪ e ɛ æ LINE_KV_X_FRONT (LINE_K_X_FRONT_ONSET's place for the word-initial k only: that knob and
+  // LINE_K_SLIT_X_FRONT also moved the word-medial k: gate kInit1 2026-11-13 c/k-initial +89, k inside -50).
+  // Lab (ref/opt/lab/PK/agent19, 300 p / k words, base 132 p k errors, placebo sd 5.3): LINE_KV_X_FRONT 0.72 +
+  // LINE_KV_SLIT_X_FRONT 0.8 + LINE_KV_VOT_UNSTR 1 86, + LINE_KV_ADDUCT_MS 30 78 (burst peak 1.7 -> 2.2 kHz, VOT 47 -> 57 ms:
+  // Kokoro 2.5-3.1 kHz, 51-72 ms); LINE_KV_X_BACK / LINE_KV_X / LINE_KV_REL_FRIC / the pinch / the p's knobs no gain or worse.
+  static const float kKvX = param("LINE_KV_X", -1.0f), kKvXBack = param("LINE_KV_X_BACK", -1.0f), kKvXFront = param("LINE_KV_X_FRONT", -1.0f);
+  const bool kvFront = kvInit && (*next == Ph::I || *next == Ph::IH || *next == Ph::E || *next == Ph::EH || *next == Ph::AE);
   const float vlX = vlK ? kVlKX : vlG ? kVlGX : -1.0f;
   // (FINAL-T agent18 round P, lab; < 0: as before) a word-final t's closure place LINE_T_FINAL_X (share of the line;
   // LINE_T_X 0.87): its release resonated at 3-3.5 kHz (centroid 3.7 kHz male, 4.7 female); Kokoro's at 3.5-5 kHz
@@ -6869,7 +6895,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // / p: lab (base 132 t errors) 0.90 189, 0.92 282.
   static const float kTFinalX = param("LINE_T_FINAL_X", -1.0f);
   const bool tFinalPlace = tract_ == Tract::Line && tok.ph == Ph::T && kTFinalX >= 0 && (!next || *next == Ph::Stop);
-  const float kPlaceTok = tFinalPlace ? kTFinalX : vlX >= 0 ? vlX : kOnsetFront ? kKXFrontOnset : lineKPlace(tok.ph, kVowel);
+  const float kPlaceTok = tFinalPlace ? kTFinalX : vlX >= 0 ? vlX : kvBack && kKvXBack >= 0 ? kKvXBack : kvFront && kKvXFront >= 0 ? kKvXFront : kvInit && kKvX >= 0 ? kKvX : kOnsetFront ? kKXFrontOnset : lineKPlace(tok.ph, kVowel);
   PlosiveInfo pi = plosiveInfo(tok.ph);
   // English b not between vowels ("I said bat", "big"): a mostly devoiced
   // closure and a clear release. Fully voiced with almost no burst it was
@@ -7708,6 +7734,10 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // (PL-INITIAL agent17 round O, lab; < 0: off) a word-initial p before l ɹ opens over x LINE_PL_REL_SCALE its time.
   static const float kPlRelScale = param("LINE_PL_REL_SCALE", -1.0f);
   if (plInit && kPlRelScale >= 0) rel.acMs *= kPlRelScale;
+  // (PK-INITIAL agent19, lab; < 0: off) a word-initial p / k before a vowel opens over x LINE_PV_REL_SCALE / _KV_ its time.
+  static const float kPvRelScale = param("LINE_PV_REL_SCALE", -1.0f), kKvRelScale = param("LINE_KV_REL_SCALE", -1.0f);
+  if (pvInit && kPvRelScale >= 0) rel.acMs *= kPvRelScale;
+  if (kvInit && kKvRelScale >= 0) rel.acMs *= kKvRelScale;
   // LINE_FINAL_D_RELEASE_SCALE (lab knob 2026-11-10, D agent; < 0: off): a d before a pause opens over releaseMs x this
   // (Kokoro's final d: a soft -21..-24 dB release where puhuja's pops at -9).
   static const float kLineFinalDReleaseScale = param("LINE_FINAL_D_RELEASE_SCALE", -1.0f);
@@ -7793,6 +7823,9 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
       rel.ag = tok.ph == Ph::P && kLinePAspAg >= 0 ? kLinePAspAg : tok.ph == Ph::K && kLineKAspAg >= 0 ? kLineKAspAg : tok.ph == Ph::T && kLineTAspAg >= 0 ? kLineTAspAg : kLineAspAg;
       static const float kPlAg = param("LINE_PL_AG", -1.0f);  // (PL-INITIAL agent17, lab; < 0: as before) plInit's puff glottis (cm^2)
       if (plInit && kPlAg >= 0) rel.ag = kPlAg;
+      static const float kPvAg = param("LINE_PV_AG", -1.0f), kKvAg = param("LINE_KV_AG", -1.0f);  // (PK-INITIAL agent19, lab; < 0: as before) pvInit / kvInit's puff glottis (cm^2)
+      if (pvInit && kPvAg >= 0) rel.ag = kPvAg;
+      if (kvInit && kKvAg >= 0) rel.ag = kKvAg;
       rel.agMs = 5;
       // ... and the puff hisses: the turbulence of the full lung pressure
       // through the open glottis, far stronger than an h's (LINE_ASP alone
@@ -7817,6 +7850,12 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
       // its hold x LINE_PL_VOT more.
       static const float kPlAsp = param("LINE_PL_ASP", 1.0f), kPlVot = param("LINE_PL_VOT", 1.0f);
       if (plInit && kPlAsp != 1.0f) rel.lineAspMul *= kPlAsp;
+      // (PK-INITIAL agent19, lab; 1: as before) pvInit / kvInit: the puff noise x LINE_PV_ASP / LINE_KV_ASP, its hold x
+      // LINE_PV_VOT / LINE_KV_VOT (below), the adduction into voice over LINE_PV_ADDUCT_MS / _KV_ (< 0: as before).
+      static const float kPvAsp = param("LINE_PV_ASP", 1.0f), kKvAsp = param("LINE_KV_ASP", 1.0f), kPvVot = param("LINE_PV_VOT", 1.0f),
+                         kKvVot = param("LINE_KV_VOT", 1.0f), kPvAdductMs = param("LINE_PV_ADDUCT_MS", -1.0f), kKvAdductMs = param("LINE_KV_ADDUCT_MS", -1.0f);
+      if (pvInit && kPvAsp != 1.0f) rel.lineAspMul *= kPvAsp;
+      if (kvInit && kKvAsp != 1.0f) rel.lineAspMul *= kKvAsp;
       const bool tLiq = tok.ph == Ph::T && !isVowel(*next);  // (LINE_T_LIQ_VOT / _ASP)
       if (tLiq) rel.lineAspMul *= kLineTLiqAsp;
       // (K agent 9 round J, lab; 1: as before) a k before l ɹ w j: the puff's hold x LINE_K_LIQ_VOT, its noise x
@@ -7836,7 +7875,12 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
       // (VELAR-L agent15 round N, lab; 1: as before) a word-initial kl kɹ's puff: its hold x LINE_VL_K_VOT, noise x LINE_VL_K_ASP.
       static const float kVlKVot = param("LINE_VL_K_VOT", 1.0f), kVlKAsp = param("LINE_VL_K_ASP", 1.0f);
       if (vlK && kVlKAsp != 1.0f) rel.lineAspMul *= kVlKAsp;
-      const float unstrHold = tok.ph == Ph::K && tok.wordStart && kKVotUnstrInit >= 0 ? kKVotUnstrInit : kLineVotHoldUnstressed;
+      // (PK-INITIAL agent19, lab; < 0: as above) LINE_K_VOT_UNSTR_INIT for a word-initial k before a vowel only (kl kɹ kw
+      // kj unchanged): LINE_KV_VOT_UNSTR.
+      static const float kKvVotUnstr = param("LINE_KV_VOT_UNSTR", -1.0f);
+      // LINE_PV_VOT_UNSTR the same for a word-initial p before a vowel (unstressed initial p heard b 25 %: "Parade" -> bread).
+      static const float kPvVotUnstr = param("LINE_PV_VOT_UNSTR", -1.0f);
+      const float unstrHold = pvInit && kPvVotUnstr >= 0 ? kPvVotUnstr : kvInit && kKvVotUnstr >= 0 ? kKvVotUnstr : tok.ph == Ph::K && tok.wordStart && kKVotUnstrInit >= 0 ? kKVotUnstrInit : kLineVotHoldUnstressed;
       // (Y agent round G, lab; 1: as before) a p t k before j: the puff's noise x LINE_J_ASP, its hold x LINE_J_VOT
       // (an English pj kj devoices the j: [pçʊ]).
       static const float kJAsp = param("LINE_J_ASP", 1.0f), kJVot = param("LINE_J_VOT", 1.0f);
@@ -7855,9 +7899,11 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
       // (PL-INITIAL agent17 round O, lab; < 0: as before) a word-initial p before l ɹ: its adduction into voice over
       // LINE_PL_ADDUCT_MS (a breathy onset of the liquid, as Kokoro's).
       static const float kPlAdductMs = param("LINE_PL_ADDUCT_MS", -1.0f);
-      const float adductMs = plInit && kPlAdductMs >= 0 ? kPlAdductMs : wNext && kWAdductMs >= 0 ? kWAdductMs : kInitStr && kKInitAdductMs >= 0 ? kKInitAdductMs : kLineVotAdductMs;
+      const float adductMs = pvInit && kPvAdductMs >= 0 ? kPvAdductMs : kvInit && kKvAdductMs >= 0 ? kKvAdductMs : plInit && kPlAdductMs >= 0 ? kPlAdductMs : wNext && kWAdductMs >= 0 ? kWAdductMs : kInitStr && kKInitAdductMs >= 0 ? kKInitAdductMs : kLineVotAdductMs;
       Event adductLine{release + (tok.ph == Ph::P && kLinePVotHoldMs >= 0 ? kLinePVotHoldMs : tok.ph == Ph::K && kLineKVotHoldMs >= 0 ? kLineKVotHoldMs : tok.ph == Ph::T && kLineTVotHoldMs >= 0 ? kLineTVotHoldMs : kLineVotHoldMs) * (curStress_ ? 1.0f : unstrHold) * (pLiq ? kLinePLiqVot : 1.0f) * (tLiq ? kLineTLiqVot : 1.0f) * (kLiq ? kKLiqVot : 1.0f) * (kInitStr ? kKInitVot : 1.0f) * (vlK ? kVlKVot : 1.0f) * (lastPh_ == Ph::S ? kLineSkAsp : 1.0f) * (wNext ? kWVot : 1.0f) * (plInit ? kPlVot : 1.0f) * ms};
       if (stopJ && kJVot != 1.0f) adductLine.t = release + (adductLine.t - release) * kJVot;
+      if (pvInit && kPvVot != 1.0f) adductLine.t = release + (adductLine.t - release) * kPvVot;  // (LINE_PV_VOT)
+      if (kvInit && kKvVot != 1.0f) adductLine.t = release + (adductLine.t - release) * kKvVot;  // (LINE_KV_VOT)
       adductLine.ag = nextAero.ag;
       // (W agent round G, lab; < 0: as before) ... and adducts only to LINE_W_STOP_AG (cm^2): a breathy w (kw tw devoiced)
       static const float kWStopAg = param("LINE_W_STOP_AG", -1.0f);
@@ -7873,6 +7919,9 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
         rel.linePuffLpr = tok.ph == Ph::P && kLinePPuffLpr > 0 ? kLinePPuffLpr : tok.ph == Ph::K && kLineKPuffLpr > 0 ? kLineKPuffLpr : tok.ph == Ph::T && kLineTPuffLpr > 0 ? kLineTPuffLpr : kLinePuffLpr;
         static const float kPlPuffLpr = param("LINE_PL_PUFF_LPR", -1.0f);  // (PL-INITIAL agent17, lab; <= 0: as before) plInit's puff band
         if (plInit && kPlPuffLpr > 0) rel.linePuffLpr = kPlPuffLpr;
+        static const float kPvPuffLpr = param("LINE_PV_PUFF_LPR", -1.0f), kKvPuffLpr = param("LINE_KV_PUFF_LPR", -1.0f);  // (PK-INITIAL agent19, lab; <= 0: as before)
+        if (pvInit && kPvPuffLpr > 0) rel.linePuffLpr = kPvPuffLpr;
+        if (kvInit && kKvPuffLpr > 0) rel.linePuffLpr = kKvPuffLpr;
         pendingAspEnd_.linePuffLpr = 0.0f;
       }
       hasPendingAspEnd_ = true;
@@ -8233,9 +8282,11 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   static const float kKInitRelFric = param("LINE_K_INIT_REL_FRIC", -1.0f);
   // (PL-INITIAL agent17 round O, lab; < 0: LINE_P_REL_FRIC) a word-initial p before l ɹ: its own release hiss.
   static const float kPlRelFric = param("LINE_PL_REL_FRIC", 2.0f);
-  const float kRelFricNf = tok.wordStart && kKInitRelFric >= 0 ? kKInitRelFric : kLineKRelFric;
+  // (PK-INITIAL agent19 round Q, lab; < 0: as before) a word-initial p / k before a vowel: its own release hiss.
+  static const float kPvRelFric = param("LINE_PV_REL_FRIC", -1.0f), kKvRelFric = param("LINE_KV_REL_FRIC", -1.0f);
+  const float kRelFricNf = kvInit && kKvRelFric >= 0 ? kKvRelFric : tok.wordStart && kKInitRelFric >= 0 ? kKInitRelFric : kLineKRelFric;
   const float relFric = tok.ph == Ph::K ? ((!next || nextIsPause) && kLineKFinalRelFric >= 0 ? kLineKFinalRelFric : kRelFricNf)
-                        : tok.ph == Ph::P ? (plInit && kPlRelFric >= 0 ? kPlRelFric : kLinePRelFric) : tok.ph == Ph::T ? ((!next || nextIsPause) && kLineTFinalRelFric >= 0 ? kLineTFinalRelFric : kLineTRelFric) : 1.0f;
+                        : tok.ph == Ph::P ? (plInit && kPlRelFric >= 0 ? kPlRelFric : pvInit && kPvRelFric >= 0 ? kPvRelFric : kLinePRelFric) : tok.ph == Ph::T ? ((!next || nextIsPause) && kLineTFinalRelFric >= 0 ? kLineTFinalRelFric : kLineTRelFric) : 1.0f;
   const bool relFricOn = tract_ == Tract::Line && relFric != 1.0f && !unreleased && !(next && info(*next).cls == Cls::Fricative);
   const bool nasalBurst = nasalVel && kNasalStopBurst != 1.0f && !relFricOn && !(next && info(*next).cls == Cls::Fricative);
   if (relFricOn) rel.lineFricMul = relFric;
@@ -8290,9 +8341,15 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // from the release, back to 1 over LINE_PL_PRESS_MS.
   static const float kPlJetD = param("LINE_PL_JET_D", 0.0f), kPlJetLpr = param("LINE_PL_JET_LPR", 0.0f),
                      kPlPress = param("LINE_PL_PRESS", -1.0f), kPlPressMs = param("LINE_PL_PRESS_MS", 30.0f);
-  const bool plJet = plInit && kPlJetD > 0 && !unreleased, plPress = plInit && kPlPress >= 0 && !unreleased;
-  if (plJet) rel.lineJetD = kPlJetD, rel.lineFricLpr = kPlJetLpr;
-  if (plPress) rel.press = kPlPress, rel.pressMs = 3.0f;
+  // (PK-INITIAL agent19, lab; 0 / < 0: off) the same for a word-initial p / k before a vowel: LINE_PV_JET_D / LINE_KV_JET_D
+  // (with LINE_PL_JET_LPR), LINE_PV_PRESS / LINE_KV_PRESS (back over LINE_PL_PRESS_MS).
+  static const float kPvJetD = param("LINE_PV_JET_D", 0.0f), kKvJetD = param("LINE_KV_JET_D", 0.0f), kPvPress = param("LINE_PV_PRESS", -1.0f),
+                     kKvPress = param("LINE_KV_PRESS", -1.0f);
+  const float pkJetD = plInit ? kPlJetD : pvInit ? kPvJetD : kvInit ? kKvJetD : 0.0f;
+  const float pkPress = plInit ? kPlPress : pvInit ? kPvPress : kvInit ? kKvPress : -1.0f;
+  const bool plJet = pkJetD > 0 && !unreleased, plPress = pkPress >= 0 && !unreleased;
+  if (plJet) rel.lineJetD = pkJetD, rel.lineFricLpr = kPlJetLpr;
+  if (plPress) rel.press = pkPress, rel.pressMs = 3.0f;
   if (plJet) {
     Event back{release + (rel.acMs + 10.0f) * ms};
     back.lineJetD = back.lineFricLpr = 0.0f;
@@ -8352,12 +8409,15 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // in its first 12 ms ("Porch", "Pay", "Pit"); Kokoro's (af_heart, af_bella, am_adam) carry 2-8 kHz at -10..-30:
   // a p before ɔ ɝ ɑ is heard as k (Porch -> courts, Purse -> curse, Pearl -> girl), elsewhere b or nothing.
   static const float kPBurstMs = param("LINE_P_BURST_MS", 0.0f), kPBurstA = param("LINE_P_BURST_A", 0.05f);
-  if (tract_ == Tract::Line && tok.ph == Ph::P && kPBurstMs > 0 && !unreleased && next && isVowel(*next)) {
+  // (PK-INITIAL agent19, lab; < 0: as above) a word-initial p's own LINE_PV_BURST_MS / LINE_PV_BURST_A.
+  static const float kPvBurstMs = param("LINE_PV_BURST_MS", -1.0f), kPvBurstA = param("LINE_PV_BURST_A", -1.0f);
+  const float pBurstMs = pvInit && kPvBurstMs >= 0 ? kPvBurstMs : kPBurstMs;
+  if (tract_ == Tract::Line && tok.ph == Ph::P && pBurstMs > 0 && !unreleased && next && isVowel(*next)) {
     Event slit{release};
-    slit.ac = kPBurstA;
+    slit.ac = pvInit && kPvBurstA >= 0 ? kPvBurstA : kPBurstA;
     slit.acMs = 3;
     addEvent(slit);
-    Event open{release + kPBurstMs * ms};
+    Event open{release + pBurstMs * ms};
     open.ac = rel.ac;
     open.acMs = rel.acMs;
     addEventAt(open);
@@ -8481,6 +8541,9 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // 2.7-3.1 kHz (2-4.5 kHz bands dominant), puhuja's at 1.5-1.8 kHz (1-2 kHz dominant): "Came", "Cane" -> pain.
   static const float kKSlitLiqA = param("LINE_K_SLIT_LIQ_A", -1.0f), kKSlitLiqJetD = param("LINE_K_SLIT_LIQ_JET_D", -1.0f),
                      kKSlitXFront = param("LINE_K_SLIT_X_FRONT", -1.0f), kKBurstMsFront = param("LINE_K_BURST_MS_FRONT", -1.0f);
+  // (PK-INITIAL agent19, lab; < 0: LINE_K_SLIT_X_FRONT) the same slit place for a word-initial k only.
+  static const float kKvSlitXFront = param("LINE_KV_SLIT_X_FRONT", -1.0f);
+  const float kSlitXFrontK = kvInit && kKvSlitXFront >= 0 ? kKvSlitXFront : kKSlitXFront;
   const float slitMsK = kBurst && kFrontV && kKBurstMsFront >= 0 && !kSlitLiq && !kSlitFinal ? kKBurstMsFront : slitMs;
   if (kBurst) {
     Event slit{release};
@@ -8499,7 +8562,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     if (drSlit && kDrX >= 0) slit.lineX = kDrX, slit.lineXClosure = true;
     if (kSlitLiq && kKSlitLiqA >= 0) slit.ac = kKSlitLiqA;
     if (kSlitLiq && kKSlitLiqJetD >= 0) slit.lineJetD = kKSlitLiqJetD, slit.lineJetMix = 1.0f;
-    if (kFrontV && kKSlitXFront >= 0) slit.lineX = kKSlitXFront, slit.lineXClosure = true;
+    if (kFrontV && kSlitXFrontK >= 0) slit.lineX = kSlitXFrontK, slit.lineXClosure = true;
     if (ndFinal && dFinalSlit && kNdSlitA >= 0) slit.ac = kNdSlitA;
     if (ndFinal && dFinalSlit && kNdJetD > 0) slit.lineJetD = kNdJetD, slit.lineJetMix = 1.0f;
     if (ndFinal && dFinalSlit && kNdSlitX >= 0) slit.lineX = kNdSlitX, slit.lineXClosure = true;
@@ -8551,7 +8614,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     open.ac = rel.ac;
     open.acMs = rel.acMs;
     if (gLiqSlit || kSlitLiq) open.lineX = rel.lineX, open.lineXClosure = rel.lineXClosure;
-    if (kFrontV && kKSlitXFront >= 0 && rel.lineX < 0) open.lineX = kPlaceTok, open.lineXClosure = true;  // (LINE_K_SLIT_X_FRONT: back to the k's place)
+    if (kFrontV && kSlitXFrontK >= 0 && rel.lineX < 0) open.lineX = kPlaceTok, open.lineXClosure = true;  // (LINE_K_SLIT_X_FRONT: back to the k's place)
     if ((tok.ph == Ph::K && kLineKJetD > 0) || vJetD > 0 || (ndFinal && dFinalSlit && kNdJetD > 0)) open.lineJetD = 0.0f;  // (the slit's own jet again)
     if (ndFinal && dFinalSlit && kNdSlitX >= 0) open.lineX = rel.lineX, open.lineXClosure = rel.lineXClosure;
     if (dInit && kDiSlitX >= 0) open.lineX = rel.lineX, open.lineXClosure = rel.lineXClosure;
@@ -8648,7 +8711,11 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
       if (gi && kGiPinchX >= 0) v.xc = kGiPinchX;
       if (gi && kGiPinchAc >= 0) v.ac = kGiPinchAc;
       if (gi && kGiPinchWc >= 0) v.wc = kGiPinchWc;
-      const float relMsK = gi && kGiPinchMs >= 0 ? kGiPinchMs : kFront && kKPinchFrontMs >= 0 ? kKPinchFrontMs : relMs;
+      // (PK-INITIAL agent19, lab; < 0: as above) a word-initial k's pinch before any vowel: weight LINE_KV_PINCH_W, length
+      // LINE_KV_PINCH_MS (the velar F2 / F3 convergence is the k's place cue in the vowel's onset).
+      static const float kKvPinchW = param("LINE_KV_PINCH_W", -1.0f), kKvPinchMs = param("LINE_KV_PINCH_MS", -1.0f);
+      if (kvInit && kKvPinchW >= 0) relW = kKvPinchW;
+      const float relMsK = gi && kGiPinchMs >= 0 ? kGiPinchMs : kvInit && kKvPinchMs >= 0 ? kKvPinchMs : kFront && kKPinchFrontMs >= 0 ? kKPinchFrontMs : relMs;
       // (Y agent round G, lab; < 0: as the liquids') the pinch before a j: its weight, place and hump.
       static const float kKgRelJ = param("LINE_KG_REL_J", -1.0f), kKgRelJX = param("LINE_KG_REL_J_X", -1.0f),
                          kKgRelJAc = param("LINE_KG_REL_J_AC", -1.0f);
@@ -8670,6 +8737,17 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
       v.wc = 2.0f;
       v.sc = 1.0f;
       addShapeDemand(release, release + kLineTRelMs * ms, v, Ph::J, kLineTRelShape);
+    }
+  }
+  // (PK-INITIAL agent19 round Q, lab; 0: off) a labial pinch after a word-initial p before a vowel: the vowel's first
+  // LINE_PV_LIP_MS asked for its own shape with the lips narrowed to LINE_PV_LIP_A cm^2 (weight LINE_PV_LIP_W, the w's
+  // channel weights): F2 / F3 rise from the labial locus into the vowel, the p's place cue in the vowel's onset.
+  static const float kPvLipW = param("LINE_PV_LIP_W", 0.0f), kPvLipMs = param("LINE_PV_LIP_MS", 30.0f), kPvLipA = param("LINE_PV_LIP_A", 0.5f);
+  if (pvInit && kPvLipW > 0 && !unreleased) {
+    TractShape v;
+    if (lineShapeOf(*next, &v)) {
+      v.aLip = kPvLipA;
+      addShapeDemand(release, release + kPvLipMs * ms, v, Ph::W, kPvLipW);
     }
   }
   // (INITIAL-D agent18 round P, lab; 0: off) the same alveolar pinch after a word-initial d before a vowel: weight
