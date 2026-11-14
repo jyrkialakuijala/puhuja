@@ -3307,6 +3307,15 @@ void Synth::emit(const Token& tok, const Ph* next) {
     if (zFinal && kZAgFinal >= 0) aero.ag = kZAgFinal;
     else if (next && isVowel(*next) && kZAgMed >= 0) aero.ag = kZAgMed;
   }
+  // VFRIC-INITIAL agent17 round O (lab knobs; < 0 / <= 1: off): a phrase-initial v or z before a vowel ("Zoo", "Vat":
+  // dictionary combo12 25 % wrong, Kokoro 2.9 %). Puhuja's voice starts ~20 ms before the hiss (a -24 dB blip with the
+  // mouth still closing) and dies as the glottis opens to the z's 0.2 cm^2: the z under the hiss -37..-53 dB re the
+  // word's peak (Kokoro am_adam -18..-20 throughout, bella -4..-17): heard s ("Zum" -> some), the blip as a vowel
+  // before a v ("Ventures" -> adventures); the cause and the fix: LINE_VZ_INIT_PREOPEN below. LINE_Z_AG_INIT the
+  // initial z's glottis (< 0: as a medial z; lab: 0.10 / 0.14 keep the voice but lose the hiss, heard b / ð: worse).
+  static const float kZAgInit = param("LINE_Z_AG_INIT", -1.0f);
+  const bool vzInit = tract_ == Tract::Line && prevWasPause_ && (tok.ph == Ph::Z || tok.ph == Ph::VV) && next && isVowel(*next);
+  if (vzInit && tok.ph == Ph::Z && kZAgInit >= 0) aero.ag = kZAgInit;
   if (tract_ == Tract::Line && kZExpand > 1.0f) {
     if (tok.ph == Ph::Z) { e.expand = kZExpand; e.expandMs = static_cast<float>(dur / ms); }
     else if (lastPh_ == Ph::Z && e.expand < 0) { e.expand = 1.0f; e.expandMs = 5; }
@@ -3434,6 +3443,12 @@ void Synth::emit(const Token& tok, const Ph* next) {
     if (prevWasPause_ && kVAgInit >= 0) aero.ag = kVAgInit;
     else if (vFinal && kVAgFinal >= 0) aero.ag = kVAgFinal;
   }
+  // (VFRIC-INITIAL agent17 round O, lab; 1: off) a phrase-initial z's hiss gain and slit, as LINE_V_FRIC_INIT / _AC_INIT.
+  { static const float kZFricInit = param("LINE_Z_FRIC_INIT", 1.0f), kZAcInit = param("LINE_Z_AC_INIT", 1.0f);
+    if (vzInit && tok.ph == Ph::Z) {
+      if (kZFricInit != 1.0f && e.lineFricMul > 0) e.lineFricMul *= kZFricInit;
+      if (kZAcInit != 1.0f && e.ac > 0) e.ac *= kZAcInit;
+    } }
   // The token after a θ keeps x this of the θ's hiss gain (LINE_TH_FRIC) while the slit opens (0: today's: the gain reverted to 1 at the
   // boundary while the slit was still narrow, a +10 dB burst into the vowel and a +10 dB s-like tail into the pause; lab 2026-11-09).
   { static const float kThCarry = param("LINE_TH_FRIC_CARRY", 0.0f);
@@ -5021,6 +5036,9 @@ void Synth::emit(const Token& tok, const Ph* next) {
   }
   e.agMs = tract_ == Tract::Line && in.cls == Cls::Fricative && aero.ag > kAgBreathy ? kLineAbductMs : kGlottalMs;
   if (tract_ == Tract::Line && tok.ph == Ph::Z && kZAbductMs >= 0 && aero.ag > kAgBreathy) e.agMs = kZAbductMs;
+  // (VFRIC-INITIAL agent17 round O, lab; < 0: off) a phrase-initial v / z's glottis opens over this (slower: voice on)
+  { static const float kVzInitAbMs = param("LINE_VZ_INIT_AB_MS", -1.0f);
+    if (vzInit && kVzInitAbMs >= 0 && aero.ag > kAgBreathy) e.agMs = kVzInitAbMs; }
   // θ's own abduction (LINE_TH_ABDUCT_MS, TH agent7 round H; < 0: LINE_ABDUCT_MS): in "author" the glottis reached the
   // θ's opening 30 ms into its 59 ms and began closing 15 ms before its end, the voice running through half the θ
   // ("author" -> "over": V the commonest medial-θ confusion); Kokoro's θ is voiceless from its first ms.
@@ -5281,7 +5299,24 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // An open glottis (h, s, f...) is open already before the sound starts,
     // as after breathing in: opened at the sound's start, the sudden airflow
     // was a low thump that made "He" heard as "They".
-    if (e.ag > kAgBreathy) {
+    // (VFRIC-INITIAL agent17 round O, lab; 1: as before) LINE_VZ_INIT_PREOPEN 0: not a voiced v / z before a vowel. Their
+    // glottis (LINE_AG_V 0.17, LINE_AG_Z 0.202 cm^2) is over kAgBreathy too, so it opened here 30 ms early, in 15 ms,
+    // while the breath rose: the voice sounded 20 ms with the slit still closing (a vowel-like blip) and then died
+    // under the hiss ("Zoo": 0-500 Hz -37..-53 dB re the word's peak through the z; Kokoro -18..-20).
+    // Lab (292 initial v / z words, both voices, two draws x two seeds): words right 452 -> 470 / 456 -> 473, z heard s
+    // 30 -> 14, words1000 1506 -> 1514; with LINE_V_FRIC_INIT 0.7 and LINE_Z_INIT_RAMP_MS 60 from 0.2 (vz17-1) 474 / 473.
+    // LINE_Z_INIT_PREOPEN the z's own (< 0: LINE_VZ_INIT_PREOPEN). LINE_VZ_INIT_PRE_AG (> 0, with PREOPEN 0): the
+    // glottis still opens early here, but only to this, and on to the v's / z's own at the sound.
+    static const float kVzInitPreopen = param("LINE_VZ_INIT_PREOPEN", 1.0f), kZInitPreopen = param("LINE_Z_INIT_PREOPEN", -1.0f),
+                       kVzInitPreAg = param("LINE_VZ_INIT_PRE_AG", 0.0f);
+    const bool vzNoPre = vzInit && (tok.ph == Ph::Z && kZInitPreopen >= 0 ? kZInitPreopen : kVzInitPreopen) < 1.0f;
+    if (vzNoPre && kVzInitPreAg > 0) {
+      Event open{t0 - kPreposeMs * ms};
+      open.ag = kVzInitPreAg;
+      open.agMs = kGlottalMs;
+      addEvent(open);
+    }
+    if (e.ag > kAgBreathy && !vzNoPre) {
       // ...and its noise swells in (goog.wav's initial f: over ~100 ms).
       e.speechAttackMs = kVoicelessOnsetMs;
       Event open{t0 - kPreposeMs * ms};
@@ -5938,6 +5973,11 @@ void Synth::emit(const Token& tok, const Ph* next) {
       // -16 / -13 / -14 (male) from its first 5 ms; heard s / f ("Shall" -> sell, "Share" -> fair).
       static const float kShPreMs = param("LINE_SH_PRE_MS", 0.0f), kShPreRampMs = param("LINE_SH_PRE_RAMP_MS", -1.0f),
                          kShPreAcMs = param("LINE_SH_PRE_AC_MS", 20.0f);
+      // (VFRIC-INITIAL agent17 round O, lab; < 0: off) a phrase-initial v / z's breath starts this long before it (0: at
+      // it, not in the pause as LINE_V_EARLY_BREATH / LINE_Z_EARLY_BREATH do), over LINE_VZ_PRE_RAMP_MS (< 0: as before)
+      static const float kVzPreMs = param("LINE_VZ_PRE_MS", -1.0f), kVzPreRampMs = param("LINE_VZ_PRE_RAMP_MS", -1.0f);
+      if (vzInit && kVzPreMs >= 0) prePress.t = std::max(e.t - kVzPreMs * ms, std::min(inPauseFrom, e.t));
+      if (vzInit && kVzPreRampMs >= 0) prePress.pressMs = kVzPreRampMs;
       const bool shPre = kShPreMs > 0 && tok.ph == Ph::SH && !inAffricate_ && next && isVowel(*next) && *next != Ph::Schwa;
       if (shPre) {
         prePress.t = std::max(e.t - kShPreMs * ms, std::min(inPauseFrom, e.t));
@@ -6309,6 +6349,20 @@ void Synth::emit(const Token& tok, const Ph* next) {
       addEventAt(late);
     }
   }
+  // (VFRIC-INITIAL agent17 round O, lab; 0: off) the same lag for a phrase-initial v / z: its glottis holds at
+  // LINE_VZ_INIT_LAG_AG (< 0: the voicing rest) for LINE_VZ_INIT_AG_LAG_MS, then opens: the voice from the start, the
+  // hiss rising under it (Kokoro's initial v / z).
+  {
+    static const float vzLagMs = param("LINE_VZ_INIT_AG_LAG_MS", 0.0f), vzLagAg = param("LINE_VZ_INIT_LAG_AG", -1.0f);
+    if (vzInit && vzLagMs > 0 && e.ag >= 0) {
+      Event late{e.t + vzLagMs * ms};
+      late.ag = e.ag;
+      late.agMs = e.agMs;
+      e.ag = vzLagAg;
+      e.agMs = kGlottalMs;
+      addEventAt(late);
+    }
+  }
   // LINE_TH_AB_LEAD_MS (TH agent7, round H; 0: off): the θ's glottis starts opening this long before its gesture,
   // inside the vowel before it (the same voice-into-θ as LINE_TH_ABDUCT_MS, from the other end). Lab (297 θ words, both
   // voices, two draws): 20 ms: θ errors 160 -> 124, words right 376 -> 403, words1000 1383 -> 1382; with LINE_TH_ABDUCT_MS
@@ -6346,6 +6400,18 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // ... and the v's the same way (V agent, round F; LINE_V_RAMP_MS 0: off, from LINE_V_RAMP0 x its gain): with the v's
     // hiss restored (LINE_V_RE_SCALE 2.5, LINE_V_FRIC 8) it switched on in a few ms after a vowel, snap.py 5-7 dB in
     // "give", "love", "over" (0 at the base, where the v had no hiss).
+    // (VFRIC-INITIAL agent17 round O, lab; 0: off) a phrase-initial z's hiss fades in the same way (Kokoro's initial z
+    // and v: the hiss a crescendo from -45 to -30 dB re the word's peak, the voice bar at full level from the start)
+    // With LINE_VZ_INIT_PREOPEN 0 the z's hiss came on 16-18 dB in a ms at +17 ms ("Zoo" m); 60 ms from 0.2: 13 dB.
+    static const float zInitRampMs = param("LINE_Z_INIT_RAMP_MS", 0.0f), zInitRamp0 = param("LINE_Z_INIT_RAMP0", 0.1f);
+    if (vzInit && tok.ph == Ph::Z && zInitRampMs > 0 && e.lineFricMul >= 0) {
+      const double step = std::min(static_cast<double>(zInitRampMs) * ms, 0.8 * dur) / 4;
+      for (int k = 0; k <= 4; ++k) {
+        Event r{e.t + k * step};
+        r.lineFricMul = e.lineFricMul * (zInitRamp0 + (1.0f - zInitRamp0) * k / 4.0f);
+        addEventAt(r);
+      }
+    }
     static const float vRampMs = param("LINE_V_RAMP_MS", 60.0f), vRamp0 = param("LINE_V_RAMP0", 0.1f);
     if (tract_ == Tract::Line && vRampMs > 0 && tok.ph == Ph::VV && !prevWasPlosive_ && e.lineFricMul >= 0) {
       const double step = std::min(static_cast<double>(vRampMs) * ms, 0.8 * dur) / 4;

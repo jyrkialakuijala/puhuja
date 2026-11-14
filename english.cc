@@ -1278,6 +1278,10 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
         { static const float kZLen = param("EN_Z_LEN", 1.0f), kMedZLen = param("EN_MED_Z_LEN", 1.3f);
           if (b == "Z") whole *= kZLen;
           if (b == "Z" && i > 0 && isVowelToken(tok[i - 1]) && i + 1 < tok.size() && isVowelToken(tok[i + 1])) whole *= kMedZLen; }
+        // (VFRIC-INITIAL agent17 round O, lab; 1: off) a word-initial v / z before a vowel x EN_VZ_INIT_LEN (puhuja's initial
+        // v 95-100 ms with its pre-voice, z 65-70; Kokoro am_adam v 75, z 70).
+        { static const float kVzInitLen = param("EN_VZ_INIT_LEN", 1.0f);
+          if (kVzInitLen != 1.0f && i == 0 && (b == "V" || b == "Z") && i + 1 < tok.size() && isVowelToken(tok[i + 1])) whole *= kVzInitLen; }
         // D agent9 round J lab knobs (1: as before): a nasal or l before a d at its word's end or before the word's
         // final s z x EN_ND_N_LEN (Kokoro's n of "cleaned", "band" 80-140 ms, puhuja's 60: "cleaned" -> clean),
         // a z after a d x EN_DZ_Z_LEN ("beads" -> beats).
