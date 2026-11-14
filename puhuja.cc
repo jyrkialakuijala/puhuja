@@ -6883,8 +6883,8 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // female end's F1 565 -> 631 (Kokoro 667). Lab (two seeded draws, 300 / 600 context words): ʌ errors 108 -> 88 and
     // 194 -> 163, words right +7 / +10, words1000 +14 / +16, no hybrid veto; F2 steps into the n slower (male 105 -> 101,
     // female 102 -> 90 Hz per 10 ms).
-    static const float kAhNPreMix = param("LINE_AH_NPRE_MIX", -1.0f), kAhNPreMs = param("LINE_AH_NPRE_MS", -1.0f),
-                       kAhNPreShaped = param("LINE_AH_NPRE_SHAPED", 0.0f);
+    static const float kAhNPreMix = param("LINE_AH_NPRE_MIX", -1.0f), kAhNPreMs = param("LINE_AH_NPRE_MS", 30.0f),
+                       kAhNPreShaped = param("LINE_AH_NPRE_SHAPED", 1.0f);
     const bool ahnPre = isN && lastPh_ == Ph::AH && !fnPre && !axPre;
     const float preMix = fnPre ? kFnPreMix : axPre ? kAxnNPreMix : ehnPre && kEhNPreMix >= 0 ? kEhNPreMix :
                          ndnPre && kNdnPreMix >= 0 ? kNdnPreMix : ahnPre && kAhNPreMix >= 0 ? kAhNPreMix : mix;
