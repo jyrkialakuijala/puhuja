@@ -1414,6 +1414,10 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
         { static const float kDhInitLen = param("EN_DH_INIT_LEN", 1.0f), kDhMedLen = param("EN_DH_MED_LEN", 1.3f);
           if (b == "DH" && i == 0) whole *= kDhInitLen;
           if (b == "DH" && i > 0 && isVowelToken(tok[i - 1]) && i + 1 < tok.size() && isVowelToken(tok[i + 1])) whole *= kDhMedLen; }
+        // (EH-AE-2 agent23 round U, lab; 1: as before) a nasal after a ɛ of its word x EN_EH_N_NASAL_LEN: Kokoro's n after
+        // the ɛ of "ten", "tend" murmurs 100-140 ms, puhuja's ~60. Lab 1.3: 114 errors (base 108), VETO snap: not a fix.
+        { static const float kEhNNasLen = param("EN_EH_N_NASAL_LEN", 1.0f);
+          if (kEhNNasLen != 1.0f && isNasal(b) && i > 0 && baseName(tok[i - 1]) == "EH") whole *= kEhNNasLen; }
         // ... and h's (EN_H_LEN; Jyrki 2026-11-06: "hand of God" sounds too close to "land of God", make h here
         // more clear -- consider noise shaping, making it longer, or slightly stronger). Kokoro's h runs ~60 ms
         // against puhuja's 41.
