@@ -6831,7 +6831,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // (BDG-PLACE agent17 round O, lab knobs; off by default) b d g after a vowel, by what follows: 1 a pause (word-final),
   // 2 a z ("cabs", "bids", "bags"), 4 a vowel ("Abbey", "Ada"); LINE_BDG_CTX picks which of them the knobs below touch.
   // The dictionary (combo12): b d g before a final z 36 % wrong (Kokoro 0 %), word-final after a vowel 13 %.
-  static const int kBdgCtxMask = static_cast<int>(param("LINE_BDG_CTX", 7.0f));
+  static const int kBdgCtxMask = static_cast<int>(param("LINE_BDG_CTX", 6.0f));
   const bool bdgPh = tok.ph == Ph::B || tok.ph == Ph::D || tok.ph == Ph::G;
   const int bdgCtx = !(bdgPh && prevWasVowel_ && tract_ == Tract::Line) ? 0
                      : (!next || *next == Ph::Stop) ? 1 : *next == Ph::Z ? 2 : isVowel(*next) ? 4 : 0;
@@ -6897,7 +6897,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // (LINE_BDG_Z_REL, BDG-PLACE agent17; 0: off) the same for every b d g after a vowel before a z: unreleased, the stop's
   // place had no burst to show it ("Cabs" -> cads, "Bags" -> beds); Kokoro's "Bags": a 1-3 kHz burst 13 dB under the vowel.
   // Lab: with LINE_BDG_Z_FRIC 1 (below) 138 -> 133 errors, +14 words; with LINE_BDG_EXPAND 400 112 (two seeds).
-  static const float kBdgZRel = param("LINE_BDG_Z_REL", 0.0f);
+  static const float kBdgZRel = param("LINE_BDG_Z_REL", 1.0f);
   const bool bdgZRel = bdgCtx == 2 && kBdgZRel > 0.5f;
   const bool unreleased = next && (info(*next).cls == Cls::Plosive ||
                                    (tract_ == Tract::Line && pi.voiced && nextFric && tok.ph != Ph::JH && !dzRelD && !bdgZRel && (nextVoicedFric ? kVstopVfricUnrel : kVstopFricUnrel) > 0.5f));  // (not the affricate's own release into its ʒ: inAffricate_ is set after this)
@@ -7260,7 +7260,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
      // vowels 52 / 620). Closure level re the vowel on the 11labs Kennedy texts, word-final d: 11labs -6.7 dB, puhuja
      // -14.3, 400 -10.4, 600 -5.7. Lab (661 words, b d g x 2 voices, two seeds): 400 138 -> 124 errors (+20 words), 600
      // 124 (+17), 900 136, 300 139; with LINE_BDG_Z_REL + _Z_FRIC 1 below, 400: 112 and 110 (seed 7, base 148).
-    static const float kBdgExpand = param("LINE_BDG_EXPAND", -1.0f);
+    static const float kBdgExpand = param("LINE_BDG_EXPAND", 500.0f);
     if (bdgOn && kBdgExpand >= 0) close.lineExpand = std::max(kBdgExpand, 1e-3f);
   }
   close.acMs = sealMs;
@@ -7973,7 +7973,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // ... and a b d g released into a z (LINE_BDG_Z_REL) LINE_BDG_Z_FRIC (< 0: the z's own gain carries on): at 1 "Bags"
   // gets a 1-3 kHz burst 4-6 dB under the frame total at -14 dB re the peak (Kokoro's: -4 dB at -13.5).
   // Lab knobs that did not help (round O, kept off): LINE_BDG_PRE_*, _FIN_FRIC, _VV_FRIC, _FIN_AG, _CL_AG, _REL_SCALE.
-  static const float kBdgZFric = param("LINE_BDG_Z_FRIC", -1.0f);
+  static const float kBdgZFric = param("LINE_BDG_Z_FRIC", 0.5f);
   if (bdgZRel && kBdgZFric >= 0) rel.lineFricMul = kBdgZFric;
   // ... and a final one's release breath (LINE_BDG_FIN_AG: the glottis opens to this at the release, cm^2, over 5 ms;
   // LINE_BDG_FIN_ASP: its glottal noise x this for LINE_FINAL_ASP_MS): Kokoro's final b ("Web") is a breathy noise
