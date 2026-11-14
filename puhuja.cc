@@ -3451,7 +3451,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
   // x the v's hiss gain, LINE_V_AC_INIT / _MED / _FINAL x its slit, LINE_V_AG_INIT / _FINAL its glottis (< 0: LINE_AG_V).
   vAfterFric_ = false;
   if (tract_ == Tract::Line && tok.ph == Ph::VV) {
-    static const float kVFricInit = param("LINE_V_FRIC_INIT", 1.0f), kVFricMed = param("LINE_V_FRIC_MED", 1.0f),
+    static const float kVFricInit = param("LINE_V_FRIC_INIT", 0.7f), kVFricMed = param("LINE_V_FRIC_MED", 1.0f),
                        kVFricFinal = param("LINE_V_FRIC_FINAL", 0.5f), kVAcInit = param("LINE_V_AC_INIT", 1.0f),
                        kVAcMed = param("LINE_V_AC_MED", 1.0f), kVAcFinal = param("LINE_V_AC_FINAL", 1.0f),
                        kVAgInit = param("LINE_V_AG_INIT", -1.0f), kVAgFinal = param("LINE_V_AG_FINAL", -1.0f);
@@ -5336,7 +5336,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // 30 -> 14, words1000 1506 -> 1514; with LINE_V_FRIC_INIT 0.7 and LINE_Z_INIT_RAMP_MS 60 from 0.2 (vz17-1) 474 / 473.
     // LINE_Z_INIT_PREOPEN the z's own (< 0: LINE_VZ_INIT_PREOPEN). LINE_VZ_INIT_PRE_AG (> 0, with PREOPEN 0): the
     // glottis still opens early here, but only to this, and on to the v's / z's own at the sound.
-    static const float kVzInitPreopen = param("LINE_VZ_INIT_PREOPEN", 1.0f), kZInitPreopen = param("LINE_Z_INIT_PREOPEN", -1.0f),
+    static const float kVzInitPreopen = param("LINE_VZ_INIT_PREOPEN", 0.0f), kZInitPreopen = param("LINE_Z_INIT_PREOPEN", -1.0f),
                        kVzInitPreAg = param("LINE_VZ_INIT_PRE_AG", 0.0f);
     const bool vzNoPre = vzInit && (tok.ph == Ph::Z && kZInitPreopen >= 0 ? kZInitPreopen : kVzInitPreopen) < 1.0f;
     if (vzNoPre && kVzInitPreAg > 0) {
@@ -6432,7 +6432,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // (VFRIC-INITIAL agent17 round O, lab; 0: off) a phrase-initial z's hiss fades in the same way (Kokoro's initial z
     // and v: the hiss a crescendo from -45 to -30 dB re the word's peak, the voice bar at full level from the start)
     // With LINE_VZ_INIT_PREOPEN 0 the z's hiss came on 16-18 dB in a ms at +17 ms ("Zoo" m); 60 ms from 0.2: 13 dB.
-    static const float zInitRampMs = param("LINE_Z_INIT_RAMP_MS", 0.0f), zInitRamp0 = param("LINE_Z_INIT_RAMP0", 0.1f);
+    static const float zInitRampMs = param("LINE_Z_INIT_RAMP_MS", 60.0f), zInitRamp0 = param("LINE_Z_INIT_RAMP0", 0.2f);
     if (vzInit && tok.ph == Ph::Z && zInitRampMs > 0 && e.lineFricMul >= 0) {
       const double step = std::min(static_cast<double>(zInitRampMs) * ms, 0.8 * dur) / 4;
       for (int k = 0; k <= 4; ++k) {
