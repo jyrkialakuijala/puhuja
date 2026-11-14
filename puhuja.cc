@@ -3462,6 +3462,28 @@ void Synth::emit(const Token& tok, const Ph* next) {
   if (dhMed && kVmDhAg >= 0) aero.ag = kVmDhAg;
   if (vmMed && tok.ph == Ph::VV && kVmVAg >= 0) aero.ag = kVmVAg;
   if (vmMed && tok.ph == Ph::Z && kVmZAg >= 0) aero.ag = kVmZAg;
+  // MED-Z agent24 (round V; every knob off by default): a z / v between two vowels inside a word ("busy", "dozen", "prizes",
+  // "resist"; dictionary combo19 `Z V V 0 m o 2` 7.6 % wrong, Kokoro 2.4 %: z 36, dʒ 21, v 16; z heard s / t). Puhuja's medial
+  // z goes voiceless for 30-45 ms (0-0.5 kHz -40..-49 dB re the word's peak, the folds stop once the glottis opens to
+  // LINE_AG_Z) under a hiss of -8..-16 dB; 11labs keeps the voice at -10..-18 (minimum -20..-27) under -11..-27 dB of hiss,
+  // Kokoro am_adam -16..-26 under -16..-20. LINE_VM_Z_PRESS the lung pressure share through it, LINE_VM_Z_SINK /
+  // LINE_VM_V_SINK a sink flow (cm^3/s, the walls yielding, as LINE_FZ_SINK_FLOW) fading out over the consonant.
+  const bool zMed = vmMed && tok.ph == Ph::Z, vMed = vmMed && tok.ph == Ph::VV;
+  static const float kVmZPress = param("LINE_VM_Z_PRESS", 1.0f), kVmZSink = param("LINE_VM_Z_SINK", 0.0f),
+                     kVmVSink = param("LINE_VM_V_SINK", 0.0f);
+  if (tract_ == Tract::Line && kVmZPress != 1.0f) {
+    if (zMed) { e.press = kVmZPress; e.pressMs = 20; }
+    else if (vmPrevZvMed_ && lastPh_ == Ph::Z && e.press < 0) { e.press = 1.0f; e.pressMs = 20; }
+  }
+  { const float sink = zMed ? kVmZSink : vMed ? kVmVSink : 0.0f;
+    if (tract_ == Tract::Line && sink > 0) {
+      e.lineSink = sink;
+      for (int k = 1; k <= 4; ++k) {  // fades out over the consonant's second half
+        Event s{e.t + (0.5 + 0.125 * k) * dur};
+        s.lineSink = k == 4 ? 0.0f : sink * (1.0f - 0.25f * k);
+        addEventAt(s);
+      }
+    } }
   if (tract_ == Tract::Line && kZExpand > 1.0f) {
     if (tok.ph == Ph::Z) { e.expand = kZExpand; e.expandMs = static_cast<float>(dur / ms); }
     else if (lastPh_ == Ph::Z && e.expand < 0) { e.expand = 1.0f; e.expandMs = 5; }
@@ -5517,6 +5539,13 @@ void Synth::emit(const Token& tok, const Ph* next) {
     static const float kVmDhOn = param("LINE_VM_DH_ON_MS", 0.0f), kVmDhOff = param("LINE_VM_DH_OFF_MS", 0.0f);
     if (dhMed && kVmDhOn > 0) e.acMs = kVmDhOn;
     if (vmPrevDhMed_ && lastPh_ == Ph::DH && kVmDhOff > 0 && in.cls != Cls::Fricative && in.cls != Cls::Plosive) e.acMs = kVmDhOff;
+    // ... and a medial z's (MED-Z agent24; 0: as before): LINE_VM_Z_ON_MS its slit's closing, LINE_VM_Z_OFF_MS its opening
+    // into the vowel. The 20 ms opening put the 0.5-2.5 kHz band from -18 to -11 dB re the word's peak in 10 ms ("dozen"),
+    // a stop's release to Whisper (z heard t); 35 ms: lab (600 words, 266 medial z, both voices, two draws) 59 -> 48
+    // errors (seed 24), 53 -> 51 (seed 7); a quicker closing (ON 10) 59 -> 70.
+    static const float kVmZOn = param("LINE_VM_Z_ON_MS", 0.0f), kVmZOff = param("LINE_VM_Z_OFF_MS", 0.0f);
+    if (vmMed && tok.ph == Ph::Z && kVmZOn > 0) e.acMs = kVmZOn;
+    if (vmPrevZvMed_ && lastPh_ == Ph::Z && kVmZOff > 0 && in.cls != Cls::Fricative && in.cls != Cls::Plosive) e.acMs = kVmZOff;
     // (W agent round I, lab; < 0: the 20 ms boundary, as before) the lips open from a w into the next sound over LINE_W_OFF_MS
     // and close into a w over LINE_W_ON_MS: the w's F2 and F3 switched on in one step at the vowel (spectrogram "wine",
     // "went": a dark F1-only murmur, then the vowel's formants at once, an l's release; Kokoro's w rises over ~100 ms).
@@ -5563,6 +5592,8 @@ void Synth::emit(const Token& tok, const Ph* next) {
   }
   e.agMs = tract_ == Tract::Line && in.cls == Cls::Fricative && aero.ag > kAgBreathy ? kLineAbductMs : kGlottalMs;
   if (tract_ == Tract::Line && tok.ph == Ph::Z && kZAbductMs >= 0 && aero.ag > kAgBreathy) e.agMs = kZAbductMs;
+  { static const float kVmZAbMs = param("LINE_VM_Z_AB_MS", -1.0f);  // (MED-Z agent24; < 0: off) a medial z's glottis opening time
+    if (tract_ == Tract::Line && vmMed && tok.ph == Ph::Z && kVmZAbMs >= 0 && aero.ag > kAgBreathy) e.agMs = kVmZAbMs; }
   // (ZS-CONTRAST agent22 round T, lab; < 0: LINE_ABDUCT_MS) a phrase-final s's glottal opening time: the voice ran on
   // 35 / 20 ms (m / f) under its hiss, 11labs Kennedy's phrase-final s 0-5 ms, Kokoro's 5-25 (a crisp voice offset is the
   // s's half of the z / s contrast). Lab: 15 ms (voice under the hiss 10 / 16 ms) -11 errors over two seeded draw pairs,
@@ -7002,6 +7033,21 @@ void Synth::emit(const Token& tok, const Ph* next) {
       addEventAt(late);
     }
   }
+  // (MED-Z agent24 round V, lab; 0: off) the same lag for a z / v between two vowels of a word: LINE_VM_Z_LAG_MS /
+  // LINE_VM_V_LAG_MS, the glottis held at LINE_VM_Z_LAG_AG (< 0: the vowel's) until then (the voice runs on under the hiss).
+  {
+    static const float vmZLagMs = param("LINE_VM_Z_LAG_MS", 0.0f), vmVLagMs = param("LINE_VM_V_LAG_MS", 0.0f),
+                       vmZLagAg = param("LINE_VM_Z_LAG_AG", -1.0f);
+    const float lagMs = !vmMed ? 0.0f : tok.ph == Ph::Z ? vmZLagMs : tok.ph == Ph::VV ? vmVLagMs : 0.0f;
+    if (tract_ == Tract::Line && lagMs > 0 && e.ag >= 0) {
+      Event late{e.t + lagMs * ms};
+      late.ag = e.ag;
+      late.agMs = e.agMs;
+      e.ag = vmZLagAg;
+      e.agMs = kGlottalMs;
+      addEventAt(late);
+    }
+  }
   // (VFRIC-INITIAL agent17 round O, lab; 0: off) the same lag for a phrase-initial v / z: its glottis holds at
   // LINE_VZ_INIT_LAG_AG (< 0: the voicing rest) for LINE_VZ_INIT_AG_LAG_MS, then opens: the voice from the start, the
   // hiss rising under it (Kokoro's initial v / z).
@@ -7024,6 +7070,19 @@ void Synth::emit(const Token& tok, const Ph* next) {
     static const float thAbLead = param("LINE_TH_AB_LEAD_MS", 20.0f);
     if (tract_ == Tract::Line && tok.ph == Ph::TH && thAbLead > 0 && !prevWasPlosive_ && !prevWasPause_ && e.ag >= 0) {
       Event early{std::max(e.t - thAbLead * ms, phonemeStart_ + 1.0)};
+      early.ag = e.ag;
+      early.agMs = e.agMs;
+      e.ag = -1;
+      addEventAt(early);
+    }
+  }
+  // (MED-Z agent24, lab; 0: off) a medial z's glottis starts opening LINE_VM_Z_AB_LEAD_MS before its gesture, inside the
+  // vowel (as LINE_TH_AB_LEAD_MS): the hiss is up when the slit closes (the female z's first 10-15 ms were a near-silent gap:
+  // 0.5-2.5 kHz -20..-33 dB, hiss -43..-47 re the word's peak, heard t).
+  {
+    static const float vmZAbLead = param("LINE_VM_Z_AB_LEAD_MS", 0.0f);
+    if (tract_ == Tract::Line && vmMed && tok.ph == Ph::Z && vmZAbLead > 0 && !prevWasPlosive_ && e.ag >= 0) {
+      Event early{std::max(e.t - vmZAbLead * ms, phonemeStart_ + 1.0)};
       early.ag = e.ag;
       early.agMs = e.agMs;
       e.ag = -1;
@@ -7153,6 +7212,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
   prevPh2_ = lastPh_;
   lastPh_ = tok.ph;
   vmPrevDhMed_ = dhMed;
+  vmPrevZvMed_ = vmMed && (tok.ph == Ph::Z || tok.ph == Ph::VV);
   rangeTok_ = nullptr;
   // A pause closes a phrase: plan its shapes and pitch (the line renders
   // only what is planned, see pull()).

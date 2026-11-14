@@ -1268,6 +1268,22 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
         auto dhMedAt = [&](size_t k) { return k > 0 && k + 1 < tok.size() && baseName(tok[k]) == "DH" && isVowelToken(tok[k - 1]) && isVowelToken(tok[k + 1]); };
         if (kVmDhPrevV != 1.0f && isVowelToken(tok[i]) && dhMedAt(i + 1)) whole *= kVmDhPrevV;
         if (kVmDhNextV != 1.0f && isVowelToken(tok[i]) && i > 0 && dhMedAt(i - 1)) whole *= kVmDhNextV; }
+      // MED-Z agent24 (round V; 1: unchanged): around a z / v / ʤ between two vowels of a word, the vowel before x
+      // EN_VM_Z_PREV_VLEN (z) / EN_VM_JH_PREV_VLEN (ʤ), the one after a z x EN_VM_Z_NEXT_VLEN, the medial v x EN_VM_V_LEN, the
+      // medial ʤ x EN_VM_JH_LEN (the vowel's length is the listener's voicing cue: "prizes" -> prices, "Niger" -> nature).
+      // Puhuja's medial z is voiceless in its middle (voice -46..-49 dB re the word's peak; 11labs keeps -13..-27), and every
+      // way to voice it was heard d / t / v by Whisper; the vowel before it is the cue left. Lab (600 words, both voices, two
+      // draws per seed): EN_VM_Z_PREV_VLEN 1.2 59 -> 50 (seed 24), 53 -> 46 (seed 7), 1.35 53 -> 58; EN_VM_JH_PREV_VLEN 1.2
+      // 59 -> 50, 53 -> 47; EN_VM_V_LEN 0.85 59 -> 52, words +6.
+      { static const float kVmZPrevV = param("EN_VM_Z_PREV_VLEN", 1.0f), kVmZNextV = param("EN_VM_Z_NEXT_VLEN", 1.0f),
+                           kVmJhPrevV = param("EN_VM_JH_PREV_VLEN", 1.0f), kVmVLen = param("EN_VM_V_LEN", 1.0f),
+                           kVmJhLen = param("EN_VM_JH_LEN", 1.0f);
+        auto medAt = [&](size_t k, const char* ph) { return k > 0 && k + 1 < tok.size() && baseName(tok[k]) == ph && isVowelToken(tok[k - 1]) && isVowelToken(tok[k + 1]); };
+        if (kVmZPrevV != 1.0f && isVowelToken(tok[i]) && medAt(i + 1, "Z")) whole *= kVmZPrevV;
+        if (kVmZNextV != 1.0f && isVowelToken(tok[i]) && i > 0 && medAt(i - 1, "Z")) whole *= kVmZNextV;
+        if (kVmJhPrevV != 1.0f && isVowelToken(tok[i]) && medAt(i + 1, "JH")) whole *= kVmJhPrevV;
+        if (kVmVLen != 1.0f && medAt(i, "V")) whole *= kVmVLen;
+        if (kVmJhLen != 1.0f && medAt(i, "JH")) whole *= kVmJhLen; }
       if (!vowel && b == "Z" && i > 0 && !isVowelToken(tok[i - 1])) {
         static const float kClusterZLen = param("EN_CLUSTER_Z_LEN", 1.35f);  // Jyrki 2026-11-07: "holds-Lag is best, but perhaps 15 % less of that", then "holds-Lag70.wav is better than 85": 1.5 and LINE_AG_Z 0.22 with 30 % of the step back
         whole *= kClusterZLen;
