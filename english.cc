@@ -1457,8 +1457,8 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
         // initial j ran 71 ms with the voice adducting over its first 25 (~45 ms audible; Kokoro holds a low-F1 palatal
         // ~80-100 ms), its j after f / n 45-59 ms (11labs 70-100). Lab (257 j, 2 voices, 2 draws): EN_JI_LEN 0.8 / 1.3:
         // j errors 56 -> 107 / 43; EN_J_NF_LEN 1.3: 56 -> 37 (duration +1.2 / +0.7 %).
-        static const float kJiLen = param("EN_JI_LEN", 1.0f), kJiMidLen = param("EN_JI_MID_LEN", -1.0f),
-                           kJNfLen = param("EN_J_NF_LEN", 1.0f);
+        static const float kJiLen = param("EN_JI_LEN", 1.3f), kJiMidLen = param("EN_JI_MID_LEN", -1.0f),
+                           kJNfLen = param("EN_J_NF_LEN", 1.3f);
         if (b == "Y" && i == 0) whole *= w > 0 && kJiMidLen >= 0 ? kJiMidLen : kJiLen;
         if (b == "Y" && i > 0 && (isNasal(baseName(tok[i - 1])) || baseName(tok[i - 1]) == "F" || baseName(tok[i - 1]) == "V")) whole *= kJNfLen;
         // ... and f's on top of EN_VFRIC_LEN (EN_F_LEN; Jyrki 2026-11-06: the f of "forms" "slightly artificial": Kokoro's

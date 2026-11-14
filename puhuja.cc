@@ -3311,7 +3311,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
   // then falls into the vowel; puhuja's voiced j runs ~50 ms at 1950 / 2200 Hz and starts falling before the vowel.
   // jIni: a phrase-initial j (LINE_JI_SCOPE 0), also any j after a vowel, nasal, liquid or fricative (1), or only after a
   // nasal or fricative (2: "menu", "few"); never after a plosive (LINE_J_STOP_*) or an h (LINE_HJ_*).
-  static const float kJiScope = param("LINE_JI_SCOPE", 0.0f);
+  static const float kJiScope = param("LINE_JI_SCOPE", 2.0f);
   const bool jIni = tok.ph == Ph::J && !prevWasPlosive_ && lastPh_ != Ph::H &&
                     (prevWasPause_ || (kJiScope == 1 && !prevWasPause_) ||
                      (kJiScope == 2 && (info(lastPh_).cls == Cls::Nasal || info(lastPh_).cls == Cls::Fricative)));
@@ -5505,7 +5505,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
             if (jIni && kJiW != 1.0f) ws *= kJiW;
             // ... and x LINE_JI_NF_W more when it follows a sound, not a pause (LINE_JI_SCOPE 1 / 2: "few", "menu"; the
             // phrase-initial j's onset brightened into a 2-8 kHz jump with LINE_JI_W 3: "Year" m 4.9 -> 12.6 dB snap.py).
-            static const float kJiNfW = param("LINE_JI_NF_W", 1.0f);
+            static const float kJiNfW = param("LINE_JI_NF_W", 3.0f);
             if (jIni && !prevWasPause_ && kJiNfW != 1.0f) ws *= kJiNfW;
             if (jIni && !prevWasPause_ && kJiLeadMs > 0) preMs = kJiLeadMs;
             // (W agent round G, lab; 0 / 1 / -1: as before) the same for a w after a plosive (the lips round during the
