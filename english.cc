@@ -854,7 +854,7 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
           // EN_PRE_FINAL_S_VOWEL (a voiceless plosive clips it to 0.75, an s left it at 1: "ice" aɪ 354 ms, "rise" 402).
           // Lab (180 vowel + z and 120 vowel + s words, both voices, three seeded draw pairs): 0.85 231 -> 199 errors (the s
           // heard z 109 -> 78), 0.75 / 0.6 -22 / -22 over two; with LINE_FINAL_S_AB_MS 15 and LINE_Z_AG_LAG_MS 30 see there.
-          static const float kPreFinalSVowel = param("EN_PRE_FINAL_S_VOWEL", 1.0f);
+          static const float kPreFinalSVowel = param("EN_PRE_FINAL_S_VOWEL", 0.85f);
           if (kPreFinalSVowel != 1.0f && n == "S" && i + 2 == tok.size()) prc *= kPreFinalSVowel;
         }
         // (T agent 10 round K, lab; 1: as before) the vowel before a word-final t (also t + s, and with an ɹ l n between:
@@ -881,7 +881,7 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
         // EN_PRE_FINAL_S_VOWEL 0.85, LINE_FINAL_S_AB_MS 15, LINE_Z_AG_LAG_MS 30 / _FINAL 1: 307 -> 202 errors (z heard s
         // 120 -> 95), without it 230 (107); duration +0.2 % (the s words give what the z words take).
         {
-          static const float kPreFinalZWhole = param("EN_PRE_FINAL_Z_WHOLE", 1.0f), kPreFinalSWhole = param("EN_PRE_FINAL_S_WHOLE", 1.0f);
+          static const float kPreFinalZWhole = param("EN_PRE_FINAL_Z_WHOLE", 1.07f), kPreFinalSWhole = param("EN_PRE_FINAL_S_WHOLE", 1.0f);
           if (kPreFinalZWhole != 1.0f || kPreFinalSWhole != 1.0f) {
             size_t j = i + 1;
             if (j < tok.size() && (baseName(tok[j]) == "R" || baseName(tok[j]) == "L" || baseName(tok[j]) == "N" || baseName(tok[j]) == "M")) ++j;

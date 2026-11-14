@@ -5408,7 +5408,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
   // 35 / 20 ms (m / f) under its hiss, 11labs Kennedy's phrase-final s 0-5 ms, Kokoro's 5-25 (a crisp voice offset is the
   // s's half of the z / s contrast). Lab: 15 ms (voice under the hiss 10 / 16 ms) -11 errors over two seeded draw pairs,
   // snap -1.0 / -2.4 sigma; with EN_PRE_FINAL_S_VOWEL 0.85 -43 over three (0.85 alone -32), + LINE_Z_AG_LAG_MS 30 -61.
-  { static const float kFinalSAbMs = param("LINE_FINAL_S_AB_MS", -1.0f);
+  { static const float kFinalSAbMs = param("LINE_FINAL_S_AB_MS", 15.0f);
     if (tract_ == Tract::Line && tok.ph == Ph::S && kFinalSAbMs >= 0 && (!next || *next == Ph::Stop) && aero.ag > kAgBreathy) e.agMs = kFinalSAbMs; }
   { static const float kBzZAbMs2 = param("LINE_BZ_Z_AB_MS", -1.0f);  // (BDG-Z agent20; < 0: off) ... and its opening time
     if (bzZ && kBzZAbMs2 >= 0) e.agMs = kBzZAbMs2; }
@@ -6796,8 +6796,8 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // (ZS-CONTRAST agent22 round T; 0: every z) LINE_Z_AG_LAG_FINAL 1: only a z before a pause. Lab (with
     // EN_PRE_FINAL_S_VOWEL 0.85, LINE_FINAL_S_AB_MS 15): lag 30 on every z 309 -> 227 errors over four seeded draw pairs
     // but guards chirps 63 -> 70; on the final z only 307 -> 230, chirps 66.
-    static const float zLagMs = param("LINE_Z_AG_LAG_MS", 0.0f), zLagAg = param("LINE_Z_AG_LAG_AG", -1.0f),
-                       zLagFinal = param("LINE_Z_AG_LAG_FINAL", 0.0f);
+    static const float zLagMs = param("LINE_Z_AG_LAG_MS", 30.0f), zLagAg = param("LINE_Z_AG_LAG_AG", -1.0f),
+                       zLagFinal = param("LINE_Z_AG_LAG_FINAL", 1.0f);
     if (tract_ == Tract::Line && tok.ph == Ph::Z && zLagMs > 0 && !prevWasPlosive_ && e.ag >= 0 &&
         (zLagFinal <= 0 || !next || *next == Ph::Stop)) {
       Event late{e.t + zLagMs * ms};
