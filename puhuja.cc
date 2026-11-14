@@ -4436,6 +4436,37 @@ void Synth::emit(const Token& tok, const Ph* next) {
     if (have && tok.ph == Ph::E && next && *next == Ph::IH) eyStartShape(&sh, female_, tok.shape.eyctx);
     if (have && tok.ph == Ph::IH && lastPh_ == Ph::E) eyEndShape(&sh, female_, tok.shape.eyctx);
     if (have && tok.ph == Ph::IH && lastPh_ != Ph::E && lastPh_ != Ph::A && lastPh_ != Ph::AO) ihShape(&sh, tok.shape.ihctx);
+    // (L-VOWEL agent19 round Q, lab; 0 / 0 / 0 / 0 / 1 / 0 / 1: off) a front vowel beside a liquid. Before ɹ (NEAR) the
+    // standalone ɪ mixed toward iː by LINE_LV_IHR_MIX_I: 11labs' ɪ ɹ runs at F1 / F2 305-420 / 1880-2060 Hz (male),
+    // Kokoro's "peer", "fear" start at ~320 / 2100-2300 (an iː), puhuja's ɪ sat at 420-450 / 1760-1860 with its
+    // r-coloured key lifting F1 to 500: "Peer" -> pair, "Fear" -> fair, "Spear" -> spare. At 0.8 "peer" 418/1857 ->
+    // 330/2012; lab (IH,EH cells, 379 targets x 2 voices) errors 80 -> 70 and 82 -> 78 on two draw pairs.
+    // Before ɹ (SQUARE) the ɛ mixed toward ɪ by LINE_LV_EHR_MIX_IH, then toward ə by LINE_LV_EHR_MIX_AX (the ɪ share
+    // brings F1 to 11labs' 444-450 Hz, "pair" 604 -> 482, but lifts F2 past it; the ə share brings F2 back, 1803 ->
+    // 1703, 11labs 1614-1719), toward e by LINE_LV_EHR_MIX_E, its opening x LINE_LV_EHR_AC (F1 did not move).
+    // After a liquid / glide before a nasal ("Len" -> plan, "Lend" -> land) the ɛ's opening x LINE_LV_EHLN_AC and a
+    // share of ə LINE_LV_EHLN_MIX_AX: "Len" 558/1860 -> 485/1725 (Kokoro ~470/1700) at 0.8 / 0.3, no Whisper gain.
+    if (have && (tok.ph == Ph::IH || tok.ph == Ph::EH) && next) {
+      static const float kLvIhRI = param("LINE_LV_IHR_MIX_I", 0.0f), kLvEhRE = param("LINE_LV_EHR_MIX_E", 0.0f),
+                         kLvEhLnAc = param("LINE_LV_EHLN_AC", 1.0f), kLvEhLnAx = param("LINE_LV_EHLN_MIX_AX", 0.0f),
+                         kLvEhRAc = param("LINE_LV_EHR_AC", 1.0f), kLvEhRIh = param("LINE_LV_EHR_MIX_IH", 0.0f),
+                         kLvEhRAx = param("LINE_LV_EHR_MIX_AX", 0.0f);
+      TractShape o;
+      if (*next == Ph::RR) {
+        if (tok.ph == Ph::IH && lastPh_ != Ph::E && lastPh_ != Ph::A && lastPh_ != Ph::AO && kLvIhRI > 0 &&
+            lineShapeOf(Ph::I, &o))
+          sh = lineShapeMix(sh, o, kLvIhRI);
+        if (tok.ph == Ph::EH && kLvEhRE > 0 && lineShapeOf(Ph::E, &o)) sh = lineShapeMix(sh, o, kLvEhRE);
+        if (tok.ph == Ph::EH && kLvEhRIh > 0 && lineShapeOf(Ph::IH, &o)) sh = lineShapeMix(sh, o, kLvEhRIh);
+        if (tok.ph == Ph::EH && kLvEhRAx > 0 && lineShapeOf(Ph::Schwa, &o)) sh = lineShapeMix(sh, o, kLvEhRAx);
+        if (tok.ph == Ph::EH && kLvEhRAc != 1.0f) sh.ac *= kLvEhRAc;
+      }
+      const bool liq = lastPh_ == Ph::L || lastPh_ == Ph::RR || lastPh_ == Ph::W || lastPh_ == Ph::J;
+      if (tok.ph == Ph::EH && liq && info(*next).cls == Cls::Nasal) {
+        if (kLvEhLnAx > 0 && lineShapeOf(Ph::Schwa, &o)) sh = lineShapeMix(sh, o, kLvEhLnAx);
+        if (kLvEhLnAc != 1.0f) sh.ac *= kLvEhLnAc;
+      }
+    }
     if (have && tok.ph == Ph::AH) ahShape(&sh, lastPh_, next, female_, prevWasPause_);
     // (round-H ʊ agent, lab) the standalone ʊ (not the end of aʊ / oʊ): its own shape (uhShape); uhRow keeps the row's
     // shape for its late key (LINE_UH_LATE_ROW below).
