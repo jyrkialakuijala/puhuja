@@ -4084,7 +4084,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // 11.5 -> 5 (seed 1001), 2.0 11.5 -> 4.5; the burst and F2 barely move ("Tray" m F2 at the voice onset 1189 -> 1243,
     // Kokoro 1198); R_ER 0.5 no gain.
     if (have && tok.ph == Ph::RR && prevWasPlosive_ && trInitPrev_) {
-      static const float kTrRLipA = param("LINE_TR_R_LIPA", 1.0f), kTrREr = param("LINE_TR_R_ER", 0.0f);
+      static const float kTrRLipA = param("LINE_TR_R_LIPA", 2.0f), kTrREr = param("LINE_TR_R_ER", 0.0f);
       if (kTrRLipA != 1.0f) sh.aLip *= kTrRLipA;
       TractShape er;
       if (kTrREr > 0 && lineShapeOf(Ph::ER, &er)) sh = lineShapeMix(sh, er, kTrREr);
@@ -4118,7 +4118,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
       // draws): W_AC 3 kw errors 20.5 -> 9.5 and 17 -> 7.5 (seed 1001) of 116, words right +16 / +14, no hybrid veto
       // ("Quinn" -> twin, "Quarter" -> walter); the kw burst -19.8 -> -17.7 dB (Kokoro -16.8); 5 no better. The tw's
       // deletions (16 of 20) stay.
-      static const float kTwWAc = param("LINE_TW_W_AC", 1.0f), kTwWLipA = param("LINE_TW_W_LIPA", 1.0f);
+      static const float kTwWAc = param("LINE_TW_W_AC", 3.0f), kTwWLipA = param("LINE_TW_W_LIPA", 1.0f);
       if (prevWasPlosive_ && twInitPrev_) {
         if (kTwWAc != 1.0f) sh.ac *= kTwWAc;
         if (kTwWLipA != 1.0f) sh.aLip *= kTwWLipA;
