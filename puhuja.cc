@@ -7218,10 +7218,10 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     // heard final d as g (Bad -> bag, Paid -> peg) and g as d (Berg -> bird, Rug -> drug). Rows d ʌ (13), g ɪ (9), mix
     // 0.4, 30 ms: d 1655 / 2872, g 2040 at -8 ms. Lab (357 final b d g words, 966 targets): 79 -> 63 errors (heard D 34 ->
     // 24), words1000 control 1506 -> 1507, no hybrid veto; the round O rows (d ə, g i, 60 ms) tripped bright.
-    static const float kBdgFinPreMix = param("LINE_BDG_FIN_PRE_MIX", 0.0f), kBdgFinPreMs = param("LINE_BDG_FIN_PRE_MS", -1.0f);
+    static const float kBdgFinPreMix = param("LINE_BDG_FIN_PRE_MIX", 0.4f), kBdgFinPreMs = param("LINE_BDG_FIN_PRE_MS", 30.0f);
     static const int kBdgFinPreRow[3] = {static_cast<int>(param("LINE_BDG_FIN_PRE_ROW_B", -1.0f)),
-                                         static_cast<int>(param("LINE_BDG_FIN_PRE_ROW_D", -1.0f)),
-                                         static_cast<int>(param("LINE_BDG_FIN_PRE_ROW_G", -1.0f))};
+                                         static_cast<int>(param("LINE_BDG_FIN_PRE_ROW_D", 13.0f)),
+                                         static_cast<int>(param("LINE_BDG_FIN_PRE_ROW_G", 9.0f))};
     const bool finPre = bdgFin && kBdgFinPreMix > 0 && kBdgFinPreRow[bdgIdx] >= 0;
     const float preMix = finPre ? kBdgFinPreMix : kBdgPreMix;
     const int preRow = finPre ? kBdgFinPreRow[bdgIdx] : row;
