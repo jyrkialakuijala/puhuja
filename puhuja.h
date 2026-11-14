@@ -559,6 +559,7 @@ class Synth {
   double pauseStartT_ = -1;  // time of the last pause not yet followed by a pitched vowel
   Ph lastPh_ = Ph::Stop;  // the previous phoneme (micro-intonation)
   Ph prevPh2_ = Ph::Stop;  // the one before it (POST-L-STOP agent22: the vowel before a coda ɹ)
+  bool vmPrevDhMed_ = false;  // the previous phoneme was a ð between two vowels inside a word (VFRIC-MED agent22)
   bool glottalOnsetNext_ = false;
   bool creakNext_ = false;
   bool hasPendingRelease_ = false, hasPendingCreak_ = false;

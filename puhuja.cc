@@ -3365,6 +3365,22 @@ void Synth::emit(const Token& tok, const Ph* next) {
   static const float kZAgInit = param("LINE_Z_AG_INIT", -1.0f);
   const bool vzInit = tract_ == Tract::Line && prevWasPause_ && (tok.ph == Ph::Z || tok.ph == Ph::VV) && next && isVowel(*next);
   if (vzInit && tok.ph == Ph::Z && kZAgInit >= 0) aero.ag = kZAgInit;
+  // VFRIC-MED agent22 (round T; every knob off by default): a voiced fricative between two vowels inside a word ("other",
+  // "either", "father", "visa", "Roger"; dictionary combo17 `Z V V 0 m o 2` 9.3 % wrong, Kokoro 2.4 %: ð 44 / 108 deleted
+  // or heard d / v / l). Puhuja's medial ð sat 6-10 dB louder in its 0-0.5 kHz voice (-7..-11 dB re the word's peak; Kokoro
+  // -15..-38), 4-10 dB weaker in its 2.5-8 kHz hiss (-38..-50; Kokoro -33..-44) and darker (1-3 kHz centroid 1175-1450 Hz
+  // female, Kokoro 1430-1990): a murmur Whisper takes for v / b / l or nothing. Medial ð: glottis LINE_VM_DH_AG (cm^2;
+  // < 0: LINE_AG_DH), lung pressure share LINE_VM_DH_PRESS, slit x LINE_VM_DH_AC, hiss x LINE_VM_DH_FRIC, jet Re x
+  // LINE_VM_DH_RE, the next vowel's key with LINE_VM_DH_FRONT of the ɪ's tongue (LINE_VM_DH_SHAPE: its demand weight;
+  // 0: no key), the release flash into the vowel LINE_VM_DH_REL (< 0: LINE_DH_REL_FRIC); medial v / z the same way
+  // (LINE_VM_V_AG / _V_FRIC, LINE_VM_Z_AG / _Z_FRIC).
+  const bool vmMed = tract_ == Tract::Line && !tok.wordStart && !tok.wordJoin && !nextWordStart_ && !prevWasPause_ && prevWasVowel_ && isVowel(lastPh_) && next && isVowel(*next);
+  const bool dhMed = vmMed && tok.ph == Ph::DH;
+  static const float kVmDhAg = param("LINE_VM_DH_AG", -1.0f), kVmDhPress = param("LINE_VM_DH_PRESS", 1.0f),
+                     kVmVAg = param("LINE_VM_V_AG", -1.0f), kVmZAg = param("LINE_VM_Z_AG", -1.0f);
+  if (dhMed && kVmDhAg >= 0) aero.ag = kVmDhAg;
+  if (vmMed && tok.ph == Ph::VV && kVmVAg >= 0) aero.ag = kVmVAg;
+  if (vmMed && tok.ph == Ph::Z && kVmZAg >= 0) aero.ag = kVmZAg;
   if (tract_ == Tract::Line && kZExpand > 1.0f) {
     if (tok.ph == Ph::Z) { e.expand = kZExpand; e.expandMs = static_cast<float>(dur / ms); }
     else if (lastPh_ == Ph::Z && e.expand < 0) { e.expand = 1.0f; e.expandMs = 5; }
@@ -3392,6 +3408,10 @@ void Synth::emit(const Token& tok, const Ph* next) {
   static const float kDhPauseAg = param("LINE_DH_PAUSE_AG", -1.0f), kDhPauseAc = param("LINE_DH_PAUSE_AC", 2.0f),
                      kDhPress = param("LINE_DH_PRESS", 1.0f), kDhExpand = param("LINE_DH_EXPAND", 0.0f);
   if (tract_ == Tract::Line && tok.ph == Ph::DH && prevWasPause_ && kDhPauseAg >= 0) aero.ag = kDhPauseAg;
+  if (kVmDhPress != 1.0f) {  // (LINE_VM_DH_PRESS, VFRIC-MED agent22)
+    if (dhMed) { e.press = kVmDhPress; e.pressMs = 20; }
+    else if (vmPrevDhMed_ && e.press < 0) { e.press = 1.0f; e.pressMs = 20; }
+  }
   if (tract_ == Tract::Line && kDhPress != 1.0f) {
     if (tok.ph == Ph::DH) { e.press = kDhPress; e.pressMs = 20; }
     else if (lastPh_ == Ph::DH && e.press < 0) { e.press = 1.0f; e.pressMs = 20; }
@@ -3457,6 +3477,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
   { static const float kLineZhAcMul = param("LINE_ZH_AC_MUL", 1.0f);
     if (tract_ == Tract::Line && kLineZhAcMul != 1.0f && tok.ph == Ph::ZH && !inAffricate_ && e.ac > 0) e.ac *= kLineZhAcMul; }
   if (tract_ == Tract::Line && tok.ph == Ph::DH && prevWasPause_ && kDhPauseAc != 1.0f) e.ac *= kDhPauseAc;  // (LINE_DH_PAUSE_AC)
+  { static const float kVmDhAc = param("LINE_VM_DH_AC", 1.0f); if (dhMed && kVmDhAc != 1.0f && e.ac > 0) e.ac *= kVmDhAc; }  // (VFRIC-MED agent22)
   // l's lateral opening by its place (L agent, round E; 1: LINE_L_AC alone): a coda l (no vowel next) x LINE_L_CODA_AC
   // (a wider opening raises its F1 toward Kokoro's 450), an l after a plosive x LINE_L_STOP_AC.
   if (tract_ == Tract::Line && tok.ph == Ph::L) {
@@ -3574,7 +3595,9 @@ void Synth::emit(const Token& tok, const Ph* next) {
   // through the ð at the vowels' level, no flash). But Whisper uses the flash as the ð's frication: 0 -> 111 errors of 280
   // (base 88, b 24 d 20), 0.3 -> 96; 0.7 keeps the front key's gain (75 vs 76) with the lab's snap term 4σ under the base's.
   { static const float kDhRelFric = param("LINE_DH_REL_FRIC", 0.7f);
-    if (tract_ == Tract::Line && kDhRelFric >= 0 && lastPh_ == Ph::DH && in.cls != Cls::Fricative && e.lineFricMul == 1.0f) e.lineFricMul = kDhRelFric; }
+    static const float kVmDhRel = param("LINE_VM_DH_REL", -1.0f);  // (VFRIC-MED agent22: after a medial ð; < 0: LINE_DH_REL_FRIC)
+    const float rel = vmPrevDhMed_ && kVmDhRel >= 0 ? kVmDhRel : kDhRelFric;
+    if (tract_ == Tract::Line && rel >= 0 && lastPh_ == Ph::DH && in.cls != Cls::Fricative && e.lineFricMul == 1.0f) e.lineFricMul = rel; }
   // The f before another voiceless fricative ("beliefs") x this (LINE_F_CLUSTER_FRIC; Jyrki 2026-11-08: "in 'beliefs',
   // the f and s could have roughly equal strength and duration": the f 6 dB under the s).
   if (tract_ == Tract::Line && tok.ph == Ph::F && next && (*next == Ph::S || *next == Ph::SH || *next == Ph::TH) && e.lineFricMul > 0) {
@@ -3740,6 +3763,11 @@ void Synth::emit(const Token& tok, const Ph* next) {
     if (tok.ph == Ph::DH) e.lineFricReMul = kLineDhReScale;
     else if (lastPh_ == Ph::DH && e.lineFricReMul < 0) e.lineFricReMul = 1.0f;
   }
+  { static const float kVmDhRe = param("LINE_VM_DH_RE", 1.0f);  // (VFRIC-MED agent22: the medial ð's jet Re x this)
+    if (kVmDhRe != 1.0f) {
+      if (dhMed) e.lineFricReMul = kVmDhRe;
+      else if (vmPrevDhMed_ && e.lineFricReMul < 0) e.lineFricReMul = 1.0f;
+    } }
   if (tract_ == Tract::Line && kLineDhReSmooth >= 0) {
     if (tok.ph == Ph::DH) e.lineFricReSmooth = kLineDhReSmooth;
     else if (lastPh_ == Ph::DH && e.lineFricReSmooth < 0) e.lineFricReSmooth = 0.0f;
@@ -3869,6 +3897,9 @@ void Synth::emit(const Token& tok, const Ph* next) {
       // end where Kokoro's ð keeps its 2-8 kHz 23-30 dB under; lab 2026-11-09 evening)
       static const float kLineDhFric = param("LINE_DH_FRIC", 1.0f);
       if (tok.ph == Ph::DH && kLineDhFric != 1.0f && e.lineFricMul != 0) e.lineFricMul = (e.lineFricMul < 0 ? 1.0f : e.lineFricMul) * kLineDhFric;
+      static const float kVmDhFric = param("LINE_VM_DH_FRIC", 1.0f), kVmVFric = param("LINE_VM_V_FRIC", 1.0f), kVmZFric = param("LINE_VM_Z_FRIC", 1.0f);
+      const float vmFric = dhMed ? kVmDhFric : vmMed && tok.ph == Ph::VV ? kVmVFric : vmMed && tok.ph == Ph::Z ? kVmZFric : 1.0f;  // (VFRIC-MED agent22)
+      if (vmFric != 1.0f && e.lineFricMul != 0) e.lineFricMul = (e.lineFricMul < 0 ? 1.0f : e.lineFricMul) * vmFric;
     }
     // A pause leaves the groove as it is: snapping ʃ's 2.5 cm groove to a
     // 1 cm one while the hiss still ran put a +14 dB blip at the end of
@@ -3916,6 +3947,16 @@ void Synth::emit(const Token& tok, const Ph* next) {
       have = lineShapeOf(next && isVowel(*next) ? *next : Ph::Schwa, &sh);
       TractShape ihDh;
       if (have && kLineDhFront > 0 && lineShapeOf(kLineDhFrontI > 0 ? Ph::I : Ph::IH, &ihDh)) sh = lineShapeMix(sh, ihDh, std::min(kLineDhFront, 1.0f));
+    }
+    // ... and the same key for a medial ð alone (VFRIC-MED agent22, round T; 0: off): LINE_VM_DH_SHAPE / LINE_VM_DH_FRONT. The
+    // every-ð key above lost the dictionary gate twice (-70 / -37: it also moved "the", "this"); between vowels (lab, 40 ð
+    // words x 2 voices x 2 draws, two seeds) FRONT 0.5 / 0.7 took the ð's errors 23 -> 14 / 16 and 30 -> 17 / 15 (heard
+    // d / v / r), 0.9 back to 22 / 20; with SHAPE 2 + EN_DH_MED_LEN 1.3 / EN_VM_DH_PREV_VLEN 0.9: 10 / 13, words1000 +1.
+    static const float kVmDhShape = param("LINE_VM_DH_SHAPE", 0.0f), kVmDhFront = param("LINE_VM_DH_FRONT", 0.0f);
+    if (!have && dhMed && kVmDhShape > 0) {
+      have = lineShapeOf(*next, &sh);
+      TractShape ihDh;
+      if (have && kVmDhFront > 0 && lineShapeOf(Ph::IH, &ihDh)) sh = lineShapeMix(sh, ihDh, std::min(kVmDhFront, 1.0f));
     }
     // The h takes the next vowel's shape, as the cascade's formants do (hTakesVowel_): with no keys of its own the
     // line glided from the previous sound's last key to the vowel's first in one straight move, ~200 ms for
@@ -4899,6 +4940,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
           if (tok.ph == Ph::M && kMHoldTo > 0.7f && next && !isVowel(*next) && *next != Ph::Stop)
             lineKeys_.push_back({t0 + std::min(kMHoldTo, 1.0f) * dur, sh});
           if (tok.ph == Ph::DH && kLineDhShape > 0) ws *= kLineDhShape;  // (LINE_DH_SHAPE)
+          else if (dhMed && kVmDhShape > 0) ws *= kVmDhShape;  // (LINE_VM_DH_SHAPE)
           // A vowel chain (aʊ, aɪ, oʊ, Finnish ai, uo) is one glide: the first
           // vowel is reached early and briefly, the second only near its end.
           // Held over both middles, the whole tract changed in ~100 ms between
@@ -5313,6 +5355,10 @@ void Synth::emit(const Token& tok, const Ph* next) {
     static const float dhOn = param("LINE_DH_ON_MS", 0.0f), dhOff = param("LINE_DH_OFF_MS", 0.0f);
     if (tok.ph == Ph::DH && dhOn > 0) e.acMs = dhOn;
     if (lastPh_ == Ph::DH && dhOff > 0 && in.cls != Cls::Fricative && in.cls != Cls::Plosive) e.acMs = dhOff;
+    // ... and a medial ð's own (VFRIC-MED agent22; 0: as above): LINE_VM_DH_ON_MS, LINE_VM_DH_OFF_MS.
+    static const float kVmDhOn = param("LINE_VM_DH_ON_MS", 0.0f), kVmDhOff = param("LINE_VM_DH_OFF_MS", 0.0f);
+    if (dhMed && kVmDhOn > 0) e.acMs = kVmDhOn;
+    if (vmPrevDhMed_ && lastPh_ == Ph::DH && kVmDhOff > 0 && in.cls != Cls::Fricative && in.cls != Cls::Plosive) e.acMs = kVmDhOff;
     // (W agent round I, lab; < 0: the 20 ms boundary, as before) the lips open from a w into the next sound over LINE_W_OFF_MS
     // and close into a w over LINE_W_ON_MS: the w's F2 and F3 switched on in one step at the vowel (spectrogram "wine",
     // "went": a dark F1-only murmur, then the vowel's formants at once, an l's release; Kokoro's w rises over ~100 ms).
@@ -6911,6 +6957,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
   prevVoicedObstruent_ = voicedObstruent(tok.ph);
   prevPh2_ = lastPh_;
   lastPh_ = tok.ph;
+  vmPrevDhMed_ = dhMed;
   rangeTok_ = nullptr;
   // A pause closes a phrase: plan its shapes and pitch (the line renders
   // only what is planned, see pull()).

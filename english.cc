@@ -1244,6 +1244,14 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
       }
       // A z after a consonant ("holds", "hands"): 47 ms here, Kokoro's >= 70
       // (Jyrki 2026-11-07: "the s/z in the end of 'holds' could be stronger").
+      // VFRIC-MED agent22 (round T; 1: unchanged): the vowels around a ð between two vowels, the one before x
+      // EN_VM_DH_PREV_VLEN, the one after x EN_VM_DH_NEXT_VLEN. 11labs gives the ð 40-47 % of the vowel-ð-vowel ("the
+      // other": ʌ 80-140 ms, ð 100-110, ɜ 50-60; "whether": ɛ 30, ð 90, ɜ 70), puhuja 13-15 % (ʌ 170, ð 46, ɜ 127): a
+      // longer ð with shorter vowels keeps the word's length (the lab: a 0.8x ð doubled its errors, heard d / t).
+      { static const float kVmDhPrevV = param("EN_VM_DH_PREV_VLEN", 1.0f), kVmDhNextV = param("EN_VM_DH_NEXT_VLEN", 1.0f);
+        auto dhMedAt = [&](size_t k) { return k > 0 && k + 1 < tok.size() && baseName(tok[k]) == "DH" && isVowelToken(tok[k - 1]) && isVowelToken(tok[k + 1]); };
+        if (kVmDhPrevV != 1.0f && isVowelToken(tok[i]) && dhMedAt(i + 1)) whole *= kVmDhPrevV;
+        if (kVmDhNextV != 1.0f && isVowelToken(tok[i]) && i > 0 && dhMedAt(i - 1)) whole *= kVmDhNextV; }
       if (!vowel && b == "Z" && i > 0 && !isVowelToken(tok[i - 1])) {
         static const float kClusterZLen = param("EN_CLUSTER_Z_LEN", 1.35f);  // Jyrki 2026-11-07: "holds-Lag is best, but perhaps 15 % less of that", then "holds-Lag70.wav is better than 85": 1.5 and LINE_AG_Z 0.22 with 30 % of the step back
         whole *= kClusterZLen;
