@@ -6786,7 +6786,13 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   const bool plInit = tract_ == Tract::Line && tok.ph == Ph::P && tok.wordStart && next && (*next == Ph::L || *next == Ph::RR);
   plInitPrev_ = plInit;
   const float vlX = vlK ? kVlKX : vlG ? kVlGX : -1.0f;
-  const float kPlaceTok = vlX >= 0 ? vlX : kOnsetFront ? kKXFrontOnset : lineKPlace(tok.ph, kVowel);
+  // (FINAL-T agent18 round P, lab; < 0: as before) a word-final t's closure place LINE_T_FINAL_X (share of the line;
+  // LINE_T_X 0.87): its release resonated at 3-3.5 kHz (centroid 3.7 kHz male, 4.7 female); Kokoro's at 3.5-5 kHz
+  // (am_adam) and 5-8 kHz (af_heart). 0.92 moves it to 5.2 / 6.2 kHz, but Whisper hears the bright release as s / z
+  // / p: lab (base 132 t errors) 0.90 189, 0.92 282.
+  static const float kTFinalX = param("LINE_T_FINAL_X", -1.0f);
+  const bool tFinalPlace = tract_ == Tract::Line && tok.ph == Ph::T && kTFinalX >= 0 && (!next || *next == Ph::Stop);
+  const float kPlaceTok = tFinalPlace ? kTFinalX : vlX >= 0 ? vlX : kOnsetFront ? kKXFrontOnset : lineKPlace(tok.ph, kVowel);
   PlosiveInfo pi = plosiveInfo(tok.ph);
   // English b not between vowels ("I said bat", "big"): a mostly devoiced
   // closure and a clear release. Fully voiced with almost no burst it was
@@ -7075,7 +7081,13 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     const bool tBackV = alveolarT && (lastPh_ == Ph::AA || lastPh_ == Ph::AO || lastPh_ == Ph::AH || lastPh_ == Ph::OH ||
                                       lastPh_ == Ph::O || lastPh_ == Ph::U || lastPh_ == Ph::UH);
     const bool tApLiq = alveolarT && kTApLiq > 0 && (lastPh_ == Ph::RR || lastPh_ == Ph::L);
-    const float apMsT = tBackV && kTApMsBack >= 0 ? kTApMsBack : apMs;
+    // (FINAL-T agent18 round P, lab; < 0: as above) a word-final t's own approach time LINE_T_FINAL_APPROACH_MS: at 50
+    // ms F1 fell 60 Hz and F2 150-370 Hz over the vowel's last 20 ms ("Not" F2 1203 -> 837 Hz, a p's fall), a voiced
+    // offset; Kokoro holds F1 / F2 to the cut ("Hit" F1 504 -> 484, "Not" F2 1286 -> 1513). At 25 the vowel holds to
+    // the last 10 ms. Lab (352 final-t words, base 132 t errors / 328 words right): 25 118 / 348 (heard d 68 -> 58).
+    static const float kTFinalApMs = param("LINE_T_FINAL_APPROACH_MS", -1.0f);
+    const bool tFinalAp = alveolarT && kTFinalApMs >= 0 && (!next || *next == Ph::Stop);
+    const float apMsT = tFinalAp ? kTFinalApMs : tBackV && kTApMsBack >= 0 ? kTApMsBack : apMs;
     if (tract_ == Tract::Line && apMsT > 0 && (prevWasVowel_ || kApLiq || tApLiq) && !prevWasPlosive_ && !afterUnreleased) {
       Event ap{std::max(tClosed - apMsT * ms, phonemeStart_ + 1)};
       if (ap.t < closeStart - ms) {
@@ -7386,6 +7398,19 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   }
   // Glottis during the closure: opens for voiceless plosives, vibrating
   // position for voiced ones (also needed after a pause, when it is shut).
+  // (FINAL-T agent18 round P, lab; 0: off) a word-final t after a vowel or sonorant: the folds press (to
+  // LINE_T_FINAL_PRESSED_AG x the voicing area) LINE_T_FINAL_PRESSED_MS before its closure, a glottalised vowel end
+  // ([ʔt]): Kokoro's and 11labs' vowel fades 10-20 dB over its last 60-100 ms before a final t (11labs "state,":
+  // irregular, creaky frames), puhuja's holds its level to 20 ms before the closure (a d's long full vowel).
+  // Lab (352 final-t words, base 132 / 328): 80 ms 123 / 336; with LINE_T_FINAL_APPROACH_MS 25 118 / 350, no aesthetic
+  // term worse (at _AG 0 the folds restart in the closure: a voice bar).
+  static const float kTFinalPressedMs = param("LINE_T_FINAL_PRESSED_MS", 0.0f), kTFinalPressedAg = param("LINE_T_FINAL_PRESSED_AG", 0.4f);
+  if (tract_ == Tract::Line && kTFinalPressedMs > 0 && tok.ph == Ph::T && (!next || *next == Ph::Stop) && prevVoiced_) {
+    Event pressed{std::max(timeline_ - kTFinalPressedMs * ms, 1.0)};
+    pressed.ag = kTFinalPressedAg * kAgVoice;
+    pressed.agMs = kTFinalPressedMs;
+    addEventAt(pressed);
+  }
   Event glottis{timeline_};
   glottis.ag = glottalised ? kGlottalisedAg
                : pi.closureAg >= 0 ? pi.closureAg : pi.voiced ? kAgVoice : kAgOpen;
@@ -8007,6 +8032,10 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     // the release and its aspiration, then closes (the release event closed it
     // with the pause's ag = 0 at once: a 10 ms click for "make", "take").
     rel.ag = kLineFinalAg;
+    // (FINAL-T agent18 round P, lab; < 0: LINE_FINAL_AG) a final t's glottis at its release (cm^2; lab 0.6: 144
+    // errors, base 132).
+    static const float kTFinalAg = param("LINE_T_FINAL_AG", -1.0f);
+    if (tok.ph == Ph::T && kTFinalAg >= 0) rel.ag = kTFinalAg;
     static const float kLineFinalAgMs = param("LINE_FINAL_AG_MS", 5.0f);  // how fast the glottis opens at a final stop's release (ms)
     rel.agMs = kLineFinalAgMs;
     // ... and hisses like an aspirated release (the readers' final k: 60-130
@@ -8311,12 +8340,23 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
                       tFinalSlit || tSlitS;
   const float tSlitMs = tFinalSlit ? kTFinalSlitMs : tSlitS ? kTSlitSMs : kLineTBurstMs;
   const float tSlitJetD = tFinalSlit && kTFinalJetD >= 0 ? kTFinalJetD : kLineTBurstJetD;
+  // (FINAL-T agent18 round P, lab; < 0: as before) the final slit's own opening time LINE_T_FINAL_SLIT_AC_MS (3 ms),
+  // frication gain LINE_T_FINAL_FRIC (LINE_T_BURST_FRIC), noise corner floor LINE_T_FINAL_FC_MIN (Hz) and band
+  // low-pass LINE_T_FINAL_LPR: the final t's release peaked at 3-3.5 kHz with 5-8 kHz 11-19 dB under it (centroid
+  // 3.7 kHz, 10 words male); Kokoro's at 3.5-5 kHz, 5-8 kHz -3..-10 dB (am_adam), af_heart's at 5-8 kHz. None moves
+  // the centroid more than 0.5 kHz (it is the front cavity's); lab (base 132 t errors): FC_MIN 6000 156 (heard s z),
+  // LPR 3 142, FRIC 2 136, SLIT_AC_MS 10 125: no gain.
+  static const float kTFinalSlitAcMs = param("LINE_T_FINAL_SLIT_AC_MS", -1.0f), kTFinalFric = param("LINE_T_FINAL_FRIC", -1.0f),
+                     kTFinalFcMin = param("LINE_T_FINAL_FC_MIN", -1.0f), kTFinalLpr = param("LINE_T_FINAL_LPR", -1.0f);
   if (tBurst) {
     Event slit{release};
     slit.ac = tFinalSlit && kTFinalSlitA >= 0 ? kTFinalSlitA : kLineTBurstA;
-    slit.acMs = 3;
+    slit.acMs = tFinalSlit && kTFinalSlitAcMs >= 0 ? kTFinalSlitAcMs : 3;
     if (tSlitJetD > 0) slit.lineJetD = tSlitJetD, slit.lineJetMix = 1.0f;
+    if (tFinalSlit && tSlitJetD > 0 && kTFinalFcMin >= 0) slit.lineJetFcMin = kTFinalFcMin;
+    if (tFinalSlit && kTFinalLpr >= 0) slit.lineFricLpr = kTFinalLpr;
     if (kLineTBurstFric >= 0) slit.lineFricMul = kLineTBurstFric;
+    if (tFinalSlit && kTFinalFric >= 0) slit.lineFricMul = kTFinalFric;
     if (kLineTBurstX >= 0) slit.lineX = kLineTBurstX;
     if (tFinalSlit && kTFinalSlitX >= 0) slit.lineX = kTFinalSlitX;
     addEvent(slit);
@@ -8550,10 +8590,15 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     // a 110 ms "uh" after every final p t k ("Back." -> "back-uh", heard as
     // t + a vowel, 2026-11-04). The breath can stop with the release, and the
     // glottis can stay open into the pause.
-    if (kLineFinalPressMs > 0) {
+    // (FINAL-T agent18 round P, lab; < 0: LINE_FINAL_PRESS_MS) a final t's own breath fade after the release: its hiss
+    // stopped 30-40 ms after the burst, 40 dB down in 10 ms; Kokoro's fades over 60-100 ms. Lab: 100 174 errors
+    // (base 132; heard z / s / ʧ): no.
+    static const float kTFinalPressMs = param("LINE_T_FINAL_PRESS_MS", -1.0f);
+    const float finalPressMs = tok.ph == Ph::T && kTFinalPressMs >= 0 ? kTFinalPressMs : kLineFinalPressMs;
+    if (finalPressMs > 0) {
       Event ease{release};
       ease.press = 0.0f;
-      ease.pressMs = kLineFinalPressMs;
+      ease.pressMs = finalPressMs;
       addEvent(ease);
     }
     if (kLineFinalClose > 0) {
