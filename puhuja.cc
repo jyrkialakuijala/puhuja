@@ -834,6 +834,19 @@ const float kLineRPreShapeMs = param("LINE_R_PRE_SHAPE_MS", 0.0f);
 // A phrase-initial ɜ ("earn", "early", "urban") shaped in the pause this many ms before its start, like j l w ɹ (0: off;
 // ER agent 2026-11-11: word-initial ɜ 47 % errors against 12 % overall).
 const float kLineErPreMs = param("LINE_ER_PRE_MS", 0.0f);
+// A word-initial vowel after a pause (VOWEL-ONSET agent18, round P; lab knobs, the defaults as before): Whisper heard a
+// consonant before 15 % of the dictionary's vowel-initial words (combo13: 1747 of 11508; b 428, d 253, f 149, p 148:
+// Add -> bad, Ate -> bait, Ig -> big). Puhuja's "Add." rose -40 -> -6 dB re its peak in 30 ms, low band first (10 ms
+// in: 80-400 Hz -6 dB, 1-5 kHz -23 dB re the vowel), a dark labial-like opening; Kokoro's in 10 ms with every band
+// together (adam: all bands within 5 dB at 10 ms; heart: the 2.5-5 kHz band first).
+// LINE_VON_PRE_MS: its shape asked for this long before its voice (0: none; the ə's LINE_SCHWA_PAUSE_LEAD_MS and the
+// ɛ / ʌ / ɜ knobs keep theirs), LINE_VON_HOLD > 0: the pause's last LINE_PAUSE_PLAN_HOLD_MS left unplanned for it.
+// The cause: the mouth glided out of the pause's ə-like rest shape into the vowel after the voice began ("Add.": F1
+// 438 -> 605 Hz over 65 ms, Kokoro 485-550 from its first 5 ms; a rising F1 is a stop release cue). The ə, already
+// shaped 60 ms ahead (LINE_SCHWA_PAUSE_LEAD_MS), had 4 % phantom onsets against 14-39 % for the stressed vowels.
+// Lab (300 vowel-initial words, both voices, two draws): with LINE_VON_OFF_PRE_MS / LINE_VON_DIPH_PRE_MS 40 and
+// LINE_VON_HOLD 1, words right 228 -> 337 / 600 (seed 7: 242 -> 336), words1000 1506 -> 1543; F1 594 Hz from the onset.
+const float kLineVonPreMs = param("LINE_VON_PRE_MS", 0.0f), kLineVonHold = param("LINE_VON_HOLD", 0.0f);
 const float kLineRKeyFrom = param("LINE_R_KEY_FROM", -1.0f);
 const float kLineRKeyTo = param("LINE_R_KEY_TO", -1.0f);  // a w holds its shape to this share of it (the vowels 0.7; 2026-11-09 W agent)
 const float kLinePausePlanHoldMs = param("LINE_PAUSE_PLAN_HOLD_MS", 150.0f);
@@ -4733,7 +4746,10 @@ void Synth::emit(const Token& tok, const Ph* next) {
             // ... and eɪ's e likewise (LINE_EY_PRE_MS after a pause: "eight", "able"; LINE_EY_STOP_LEAD_MS in a plosive's
             // closure: "take", "came", "paper"; EY agent10 round K lab knobs, 0: off; eɪ after a pause 24 % wrong).
             static const float kEyPreMs = param("LINE_EY_PRE_MS", 0.0f), kEyStopLeadMs = param("LINE_EY_STOP_LEAD_MS", 0.0f);
-            const float lead = ayLead > 0 ? ayLead : !eyStart ? 0.0f : prevWasPause_ ? kEyPreMs : prevWasPlosive_ ? kEyStopLeadMs : 0.0f;
+            float lead = ayLead > 0 ? ayLead : !eyStart ? 0.0f : prevWasPause_ ? kEyPreMs : prevWasPlosive_ ? kEyStopLeadMs : 0.0f;
+            // (VOWEL-ONSET agent18, lab; 0: off) any word-initial diphthong's start after a pause likewise (LINE_VON_DIPH_PRE_MS)
+            static const float kVonDiphPreMs = param("LINE_VON_DIPH_PRE_MS", 0.0f);
+            if (chainStart && prevWasPause_ && tok.wordStart && lead <= 0 && kVonDiphPreMs > 0) lead = kVonDiphPreMs;
             addShapeDemand(lead > 0 ? t0 - lead * ms : t0 + std::min(a, b) * dur, t0 + std::max(a, b) * dur, sh, tok.ph,
                            ws * kShapeGlideW * oyW * (eyGlide ? kEyGlideW : 1.0f),
                            ayStart ? kLineAyPlaceFloor : eyGlide ? kEyPlaceW : eyStart ? kEyEPlaceW : iyStart ? kIyChainPlaceW : 0.0f);
@@ -4864,6 +4880,10 @@ void Synth::emit(const Token& tok, const Ph* next) {
                                kSwPlaceW = param("LINE_SCHWA_PLACE_W", 0.0f), kSwPauseLeadMs = param("LINE_SCHWA_PAUSE_LEAD_MS", 60.0f);
             const bool swD = tok.ph == Ph::Schwa && (kSwFrom >= 0 || kSwTo >= 0 || kSwW != 1.0f || kSwPlaceW != 0.0f);
             if (tok.ph == Ph::Schwa && prevWasPause_ && kSwPauseLeadMs > 0) preMs = kSwPauseLeadMs;
+            // (LINE_VON_PRE_MS; its demand's weight x LINE_VON_PRE_W)
+            static const float kVonPreW = param("LINE_VON_PRE_W", 1.0f);
+            const bool vonPre = prevWasPause_ && kLineVonPreMs > 0 && preMs <= 0 && tok.wordStart;
+            if (vonPre) preMs = kLineVonPreMs;
             const float vFrom = iy ? kIyFrom : uwD ? kUwFrom : eh ? kEhFrom : ahD ? kAhFrom : aoD ? kAoFrom : swD ? kSwFrom : uhD ? kUhFrom : -1.0f,
                         vTo = iy ? kIyTo : uwD ? (next && *next == Ph::L && kUwPreLTo >= 0 ? kUwPreLTo : kUwTo) : eh ? kEhTo : ahD ? kAhTo : aoD ? aoTo : swD ? kSwTo : uhD ? kUhTo : -1.0f,
                         vW = iy ? kIyW : uwD ? kUwW : eh ? kEhW : ahD ? kAhW : aoD ? kAoW : swD ? kSwW : kUhW, vPlaceW = iy ? kIyPlaceW : uwD ? kUwPlaceW : eh ? kEhPlaceW : ahD ? kAhPlaceW : aoD ? kAoPlaceW : swD ? kSwPlaceW : kUhPlaceW;
@@ -4943,7 +4963,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
               dW *= sw ? kEriW : kEriRW;
               if (sw && prevWasPause_ && kEriLeadMs > 0) preMs = kEriLeadMs;
             }
-            addShapeDemand(preMs > 0 ? t0 - preMs * ms : t0 + dFrom * dur, t0 + dTo * dur, sh, tok.ph, dW, er ? std::max(preR, kErPlaceW) : iy || uhD || uwD || ahD || aoD || swD ? std::max(preR, vPlaceW) : preR);
+            addShapeDemand(preMs > 0 ? t0 - preMs * ms : t0 + dFrom * dur, t0 + dTo * dur, sh, tok.ph, vonPre ? dW * kVonPreW : dW, er ? std::max(preR, kErPlaceW) : iy || uhD || uwD || ahD || aoD || swD ? std::max(preR, vPlaceW) : preR);
             // (round-I uː agent) the rounder late key (LINE_UW_LATE_*, LINE_UW_END_*) asked for over the last share of
             // the uː from LINE_UW_LATE_AT (0.7).
             static const float kUwLateAt = param("LINE_UW_LATE_AT", 0.5f);
@@ -4969,7 +4989,12 @@ void Synth::emit(const Token& tok, const Ph* next) {
                                kRcPlaceW = param("LINE_RCOLOR_PLACE_W", 0.0f), kRcAll2 = param("LINE_RCOLOR_K_ALL", 0.0f);
             const bool rcK = next && *next == Ph::RR && (frontVowel(tok.ph) || kRcAll2 > 0);
             const bool rcPre = rcK && kRcPreAt >= 0 && kRcPreAt + 0.05 < at;
-            addShapeDemand(t0 + 0.3 * dur, t0 + std::max(0.3, rcPre ? std::min<double>(kRcPreAt, at - 0.15) : at - 0.15) * dur, sh, tok.ph, wv, preR);
+            // (VOWEL-ONSET agent18, lab; 0: off) a word-initial vowel with a late key of its own (ɛ ʌ ɪ ɑ ɔ off-glides, a
+            // vowel before ɹ) after a pause: its held demand from LINE_VON_OFF_PRE_MS before it (as LINE_VON_PRE_MS), not
+            // from 30 % of it ("Eb", "Up" glided out of the pause's ə for their first third).
+            static const float kVonOffPreMs = param("LINE_VON_OFF_PRE_MS", 0.0f);
+            const bool vonOff = prevWasPause_ && tok.wordStart && kVonOffPreMs > 0;
+            addShapeDemand(vonOff ? t0 - kVonOffPreMs * ms : t0 + 0.3 * dur, t0 + std::max(0.3, rcPre ? std::min<double>(kRcPreAt, at - 0.15) : at - 0.15) * dur, sh, tok.ph, wv, preR);
             if (rcPre) {
               TractShape pre = sh;
               pre.aPharynx = late.aPharynx; pre.aLip = late.aLip; pre.ac = late.ac; pre.lLip = late.lLip;
@@ -5437,7 +5462,11 @@ void Synth::emit(const Token& tok, const Ph* next) {
         // the last phrase's low ending, so the phrase does not start with a
         // swoop up from there.
         if (pauseStartT_ >= 0) {
-          const float onset = p[kF0Mul] * kPhraseOnsetDrop;
+          // (VOWEL-ONSET agent18, lab; < 0: as before) a phrase-initial vowel on the line starts at x LINE_VON_F0_DROP of
+          // its first target instead (a voiced stop's release lowers the next vowel's pitch: a low start rising is a b d g cue).
+          static const float kVonF0Drop = param("LINE_VON_F0_DROP", -1.0f);
+          const float drop = tract_ == Tract::Line && in.cls == Cls::Vowel && kVonF0Drop >= 0 ? kVonF0Drop : kPhraseOnsetDrop;
+          const float onset = p[kF0Mul] * drop;
           for (Keyframe& kf : k_)
             if (kf.t >= pauseStartT_) kf.p[kF0Mul] = onset;
           last_[kF0Mul] = onset;
@@ -5454,15 +5483,25 @@ void Synth::emit(const Token& tok, const Ph* next) {
       // Glottal onset (English vowel-initial accented word at a phrase
       // start): the folds are pressed together just before the vowel and
       // released into it, a soft catch that marks the word's start.
+      // (VOWEL-ONSET agent18, round P, lab; < 0: as before) on the line: LINE_VON_GONSET 0 drops it (the soft onset
+      // alone); the press LINE_VON_GPRESS_MS before the vowel (20) at LINE_VON_GPRESS_AG (kGlottalisedAg), the release
+      // LINE_VON_GREL_AT_MS into it (20) over LINE_VON_GREL_MS (20). As it was, "Add." sat pressed (0.02 cm^2) from
+      // 20 ms before the vowel to 20 ms into it (opened to the soft onset's breathy 0.125 for 5 ms between): its first
+      // 30 ms dark and creaky, 80-400 Hz up while 1-5 kHz lagged 15-20 dB, heard b / d.
+      static const float kVonGonset = param("LINE_VON_GONSET", 1.0f), kVonGpressMs = param("LINE_VON_GPRESS_MS", -1.0f),
+                         kVonGpressAg = param("LINE_VON_GPRESS_AG", -1.0f), kVonGrelAtMs = param("LINE_VON_GREL_AT_MS", -1.0f),
+                         kVonGrelMs = param("LINE_VON_GREL_MS", -1.0f);
+      const bool lineVon = tract_ == Tract::Line;
+      if (glottalOnsetNext_ && lineVon && kVonGonset <= 0) glottalOnsetNext_ = false;
       if (glottalOnsetNext_) {
         glottalOnsetNext_ = false;
-        Event press{t0 - kGlottalOnsetMs * 0.001 * fs_};
-        press.ag = kGlottalisedAg;
+        Event press{t0 - (lineVon && kVonGpressMs >= 0 ? kVonGpressMs : kGlottalOnsetMs) * 0.001 * fs_};
+        press.ag = lineVon && kVonGpressAg >= 0 ? kVonGpressAg : kGlottalisedAg;
         press.agMs = 5;
         addEvent(press);
-        Event release{t0 + kGlottalOnsetMs * 0.001 * fs_};
+        Event release{t0 + (lineVon && kVonGrelAtMs >= 0 ? kVonGrelAtMs : kGlottalOnsetMs) * 0.001 * fs_};
         release.ag = in.cls == Cls::Vowel ? kAgVoice * tok.shape.press : -1;
-        release.agMs = kGlottalOnsetMs;
+        release.agMs = lineVon && kVonGrelMs >= 0 ? kVonGrelMs : kGlottalOnsetMs;
         pendingRelease_ = release;
         hasPendingRelease_ = true;
         e.ag = -1;  // the release opens the glottis, not this phoneme's event
@@ -5996,8 +6035,12 @@ void Synth::emit(const Token& tok, const Ph* next) {
       // Kokoro's initial v is voiced from its first 10 ms (-17..-20 dB).
       static const float kVEarlyBreath = param("LINE_V_EARLY_BREATH", 1.0f);
       static const float kZEarlyBreath = param("LINE_Z_EARLY_BREATH", 1.0f);  // (the same for a phrase-initial z: "zero" silent for 20 ms, -43 dB)
+      // (VOWEL-ONSET agent18, lab; < 0: as before) a phrase-initial vowel's breath starts rising LINE_VON_PRE_PRESS_MS
+      // before it (in the pause, as the sonorants'), over LINE_VON_PRESS_RAMP_MS (< 0: LINE_PRE_PRESS_MS).
+      static const float kVonPrePressMs = param("LINE_VON_PRE_PRESS_MS", -1.0f), kVonPressRampMs = param("LINE_VON_PRESS_RAMP_MS", -1.0f);
+      const bool vonBreath = in.cls == Cls::Vowel && kVonPrePressMs >= 0;
       const bool earlyBreath = in.cls == Cls::Nasal || in.cls == Cls::Liquid || in.cls == Cls::Glide || in.cls == Cls::Trill ||
-                               (tok.ph == Ph::VV && kVEarlyBreath > 0) || (tok.ph == Ph::Z && kZEarlyBreath > 0);
+                               (tok.ph == Ph::VV && kVEarlyBreath > 0) || (tok.ph == Ph::Z && kZEarlyBreath > 0) || vonBreath;
       Event prePress{std::max(e.t - kLinePrePressMs * ms, earlyBreath ? std::min(inPauseFrom, e.t) : phonemeStart_ + 1)};
       prePress.press = 1.0f;
       prePress.pressMs = kLinePrePressMs;
@@ -6021,6 +6064,8 @@ void Synth::emit(const Token& tok, const Ph* next) {
       static const float kVzPreMs = param("LINE_VZ_PRE_MS", -1.0f), kVzPreRampMs = param("LINE_VZ_PRE_RAMP_MS", -1.0f);
       if (vzInit && kVzPreMs >= 0) prePress.t = std::max(e.t - kVzPreMs * ms, std::min(inPauseFrom, e.t));
       if (vzInit && kVzPreRampMs >= 0) prePress.pressMs = kVzPreRampMs;
+      if (vonBreath) prePress.t = std::max(e.t - kVonPrePressMs * ms, std::min(inPauseFrom, e.t));
+      if (vonBreath && kVonPressRampMs >= 0) prePress.pressMs = kVonPressRampMs;
       const bool shPre = kShPreMs > 0 && tok.ph == Ph::SH && !inAffricate_ && next && isVowel(*next) && *next != Ph::Schwa;
       if (shPre) {
         prePress.t = std::max(e.t - kShPreMs * ms, std::min(inPauseFrom, e.t));
@@ -6106,10 +6151,18 @@ void Synth::emit(const Token& tok, const Ph* next) {
         // (AO agent 8, round I, lab; < 0: LINE_ONSET_MS) an ɔ after a pause adducts over this long instead: the
         // dictionary's word-initial ɔ is 27 % wrong (oʊ 71 of 151: "author" -> "over", "all" -> "goal", "ought" -> "dope").
         static const float kAoOnsetMs = param("LINE_AO_ONSET_MS", -1.0f);
-        const float onsetMs = tok.ph == Ph::AO && kAoOnsetMs >= 0 ? kAoOnsetMs : kLineOnsetMs;
+        // (VOWEL-ONSET agent18, round P, lab; < 0: as before) a vowel's own: adduction time LINE_VON_ONSET_MS, the
+        // breathy opening's area LINE_VON_PRE_AG (kAgBreathy) and time LINE_VON_PRE_AG_MS (10), the kick's area / length
+        // LINE_VON_KICK_AG / _MS (LINE_ONSET_KICK_AG / _MS), the kick that much earlier, inside the pause
+        // (LINE_VON_KICK_LEAD_MS: a held glottal closure the breath presses against, then released into voice).
+        static const float kVonOnsetMs = param("LINE_VON_ONSET_MS", -1.0f), kVonPreAg = param("LINE_VON_PRE_AG", -1.0f),
+                           kVonPreAgMs = param("LINE_VON_PRE_AG_MS", -1.0f), kVonKickAg = param("LINE_VON_KICK_AG", -1.0f),
+                           kVonKickMs = param("LINE_VON_KICK_MS", -1.0f), kVonKickLeadMs = param("LINE_VON_KICK_LEAD_MS", 0.0f);
+        const bool von = in.cls == Cls::Vowel;
+        const float onsetMs = tok.ph == Ph::AO && kAoOnsetMs >= 0 ? kAoOnsetMs : von && kVonOnsetMs >= 0 ? kVonOnsetMs : kLineOnsetMs;
         Event pre{std::max(e.t - onsetMs * ms, phonemeStart_ + 1)};
-        pre.ag = kAgBreathy;
-        pre.agMs = 10;
+        pre.ag = von && kVonPreAg >= 0 ? kVonPreAg : kAgBreathy;
+        pre.agMs = von && kVonPreAgMs >= 0 ? kVonPreAgMs : 10;
         addEvent(pre);
         // ... but within the vowel: an unaccented "It" (67 ms) before the t's
         // open glottis never reached voicing with the 80 ms adduction, so
@@ -6125,15 +6178,16 @@ void Synth::emit(const Token& tok, const Ph* next) {
         // (round-J ə agent 9, lab; < 0: LINE_ONSET_KICK_AG) a word-initial ə's own kick: Whisper heard a consonant before
         // 200 of the 351 wrong initial ə ("aside" -> decide, "assured" -> referred, "abide" -> divide: d 71, r 56, t 26).
         static const float kSwKickAg = param("LINE_SCHWA_KICK_AG", -1.0f);
-        const float kickAg = tok.ph == Ph::Schwa && kSwKickAg >= 0 ? kSwKickAg : kLineOnsetKickAg;
-        if (kickAg > 0 && kLineOnsetKickMs > 0) {
-          Event kick{e.t};
+        const float kickAg = tok.ph == Ph::Schwa && kSwKickAg >= 0 ? kSwKickAg : von && kVonKickAg >= 0 ? kVonKickAg : kLineOnsetKickAg;
+        const float kickMs = von && kVonKickMs >= 0 ? kVonKickMs : kLineOnsetKickMs;
+        if (kickAg > 0 && kickMs > 0) {
+          Event kick{von && kVonKickLeadMs > 0 ? std::max(e.t - kVonKickLeadMs * ms, phonemeStart_ + 1) : e.t};
           kick.ag = kickAg;
-          kick.agMs = kLineOnsetKickMs;
+          kick.agMs = kickMs;
           addEventAt(kick);
-          Event adduct{e.t + kLineOnsetKickMs * ms};
+          Event adduct{e.t + kickMs * ms};
           adduct.ag = e.ag;
-          adduct.agMs = std::max(e.agMs - kLineOnsetKickMs, 5.0f);
+          adduct.agMs = std::max(e.agMs - kickMs, 5.0f);
           e.ag = -1;
           addEventAt(adduct);
         }
@@ -6541,7 +6595,8 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // (only within a pause run or before a j or l with a pre-shape: before
     // vowels and nasals the shapes in the pause changed their starts, guards
     // 10 -> 6 words of 24)
-    const bool hold = next && (*next == Ph::Stop || (*next == Ph::J && kLineJPreShapeMs > 0) || (*next == Ph::L && kLineLPreShapeMs > 0) || (*next == Ph::W && kLineWPreShapeMs > 0) || (*next == Ph::RR && kLineRPreShapeMs > 0));
+    const bool hold = next && (*next == Ph::Stop || (*next == Ph::J && kLineJPreShapeMs > 0) || (*next == Ph::L && kLineLPreShapeMs > 0) || (*next == Ph::W && kLineWPreShapeMs > 0) || (*next == Ph::RR && kLineRPreShapeMs > 0) ||
+                              (isVowel(*next) && kLineVonHold > 0));  // (LINE_VON_HOLD)
     double planEnd = timeline_ - (hold ? kLinePausePlanHoldMs * 0.001 * fs_ : 0.0);
     if (hold && kLinePauseRunPlanMs >= 0 && pauseRunFirst)  // the run's first pause: the speech's own demands (see kLinePauseRunPlanMs)
       planEnd = std::min(timeline_, std::max(planEnd, t0 + kLinePauseRunPlanMs * 0.001 * fs_));
