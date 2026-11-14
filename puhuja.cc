@@ -8982,7 +8982,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
       // english.cc EN_ER_MED): its puff's hold x LINE_ERM_VOT, the adduction into voice over LINE_ERM_ADDUCT_MS. "Peru":
       // the hold and adduction (35 + 20 ms) voiced only the last 15 ms of the 63 ms ɜ (-19..-24 dB re the word's peak);
       // Kokoro's ə is the word's peak 10 ms after the burst.
-      static const float kErmVot = param("LINE_ERM_VOT", 1.0f), kErmAdductMs = param("LINE_ERM_ADDUCT_MS", -1.0f);
+      static const float kErmVot = param("LINE_ERM_VOT", 0.5f), kErmAdductMs = param("LINE_ERM_ADDUCT_MS", -1.0f);
       if (tok.shape.ermStop && kErmVot != 1.0f) adductLine.t = release + (adductLine.t - release) * kErmVot;
       const float adductMsE = tok.shape.ermStop && kErmAdductMs >= 0 ? kErmAdductMs : adductMs;
       adductLine.agMs = adductMsE;

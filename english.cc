@@ -3000,10 +3000,10 @@ void EnglishReader::sayPhrase(char end) {
       // 3: ɪ); its share EN_ER_MED_SHARE (< 0: as before), the token x EN_ER_MED_LEN, the ɹ part x EN_ER_MED_R_LEN,
       // levels + EN_ER_MED_DB / _R_DB, the first part's pitch x EN_ER_MED_PITCH and voice quality x EN_ER_MED_PRESS;
       // the line shapes them as Shape::erctx 3 / 4 (LINE_ERM_*).
-      static const int kErMed = static_cast<int>(param("EN_ER_MED", 0.0f)), kErMedPh = static_cast<int>(param("EN_ER_MED_PH", 1.0f));
+      static const int kErMed = static_cast<int>(param("EN_ER_MED", 3.0f)), kErMedPh = static_cast<int>(param("EN_ER_MED_PH", 2.0f));
       static const float kErMedShare = param("EN_ER_MED_SHARE", -1.0f), kErMedLen = param("EN_ER_MED_LEN", 1.0f),
                          kErMedRLen = param("EN_ER_MED_R_LEN", 1.0f), kErMedDb = param("EN_ER_MED_DB", 0.0f),
-                         kErMedRDb = param("EN_ER_MED_R_DB", 0.0f), kErMedPitch = param("EN_ER_MED_PITCH", 1.0f),
+                         kErMedRDb = param("EN_ER_MED_R_DB", -5.0f), kErMedPitch = param("EN_ER_MED_PITCH", 1.0f),
                          kErMedPress = param("EN_ER_MED_PRESS", 1.0f);
       bool erMed = false;
       if (kErMed > 0 && i > 0 && i + 1 < tokens.size() && s.n == 2 && s.ph[0] == Ph::ER && s.ph[1] == Ph::RR &&
