@@ -4511,7 +4511,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
       // more: "Len" -> plan, "Lend" -> planned, "Fleming" -> flaming, "Brent" -> brand (combo10: 30 of 72 such words wrong).
       // Male "Len" ɛ F1/F2 560/1870 -> 520/1650-1740 (Kokoro am_adam 550-490 / 1650-1790). Lab: æ heard 31-34 -> 19-22
       // at 0.6, with EN_EH_NASAL_LEN 0.85 at 0.3: 90 -> 53 / 48 errors (two draw pairs), æ 17-18; bright +2 σ.
-      static const float kEhLnE = param("LINE_EH_LN_MIX_E", 0.0f);
+      static const float kEhLnE = param("LINE_EH_LN_MIX_E", 0.3f);
       const bool ehLiq = lastPh_ == Ph::L || lastPh_ == Ph::RR || lastPh_ == Ph::W || lastPh_ == Ph::J;
       const float mixE = kEhE + (next && info(*next).cls == Cls::Nasal ? kEhNasE + (ehLiq ? kEhLnE : 0.0f) : 0.0f);
       TractShape o;
@@ -4530,7 +4530,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
       // +16, +4 of 520, words1000 -2 / +4; with LINE_EH_LN_MIX_E 0.3 and EN_ONSET_L_LEN 0.95 -9, -20, -8 / +14, +16,
       // +10. ALIP 1.4 (F2 +50 Hz) 116, æ 50 -> 62: the higher F2 is what is heard æ (the tensed American æ before a
       // nasal). Every ɛ (LINE_EH_DXC 0.05): no gain.
-      static const float kEhNasAlip = param("LINE_EH_NASAL_ALIP", 1.0f), kEhNasDxc = param("LINE_EH_NASAL_DXC", 0.0f);
+      static const float kEhNasAlip = param("LINE_EH_NASAL_ALIP", 1.0f), kEhNasDxc = param("LINE_EH_NASAL_DXC", 0.06f);
       // ... and toward ə by LINE_EH_NASAL_MIX_AX (0: off; 0.15: F1 and F2 down, lab 105, VETO fspeed / bright).
       static const float kEhNasAx = param("LINE_EH_NASAL_MIX_AX", 0.0f);
       if (next && info(*next).cls == Cls::Nasal) {
