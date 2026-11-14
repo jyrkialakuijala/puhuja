@@ -610,6 +610,7 @@ class Synth {
   float lineFricFade_ = 1.0f;
   float lineFricMul_ = 1.0f;  // the slit noise gain factor (LINE_V_FRIC during a v)
   float thPauseCarry_ = -1.0f;  // the θ's hiss gain carried through the pause after it (LINE_TH_PAUSE_CARRY; < 0: none)
+  bool thPauseLpr_ = false;  // the pause after a θ is low-passed (LINE_TH_PAUSE_LPR)
   float thCarry_ = -1.0f;  // the θ's hiss gain carried into the next token / pause (LINE_TH_FRIC_CARRY; < 0: none)
   bool lineHSpec_ = false;  // an h set its own breath colour / gain / press (LINE_H_GFC, LINE_H_BREATH, LINE_H_LPR, LINE_H_PRESS): the next sound resets them
   float lineHBreath_ = 0;

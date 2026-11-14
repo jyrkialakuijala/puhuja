@@ -2062,6 +2062,9 @@ float lineSlit(Ph ph, float ac) {
   // the folds did not start for 40 ms after a pause ("The": voiceless for its first 40 ms, heard as v t d; Kokoro's ð is
   // voiced and dark from its first ms, nearly an approximant), 2026-11-09.
   { static const float kLineDhAc = param("LINE_DH_AC", 1.5f); if (ph == Ph::DH) ac *= kLineDhAc; }
+  // ... and θ's x LINE_TH_AC (TH agent23, round U; 1: as ð's base): a wider slit, a louder and lower hiss for the same flow
+  // (puhuja's θ body 5-15 dB under Kokoro's: "Path" -37 dB re the word's peak, Kokoro -28).
+  { static const float kLineThAc = param("LINE_TH_AC", 1.0f); if (ph == Ph::TH) ac *= kLineThAc; }
   if (ph == Ph::F) ac *= kLineFAc;
   // ʃ ʒ ʧ ʤ: how much the groove opens (x the table's 0.08 cm^2; Jyrki 2026-11-08: "how wide the opening is vs
   // how much the opening is -- if these matter"; its width along the tract is LINE_POST_HW, the jet follows its height)
@@ -3376,6 +3379,19 @@ void Synth::emit(const Token& tok, const Ph* next) {
   // (LINE_VM_V_AG / _V_FRIC, LINE_VM_Z_AG / _Z_FRIC).
   const bool vmMed = tract_ == Tract::Line && !tok.wordStart && !tok.wordJoin && !nextWordStart_ && !prevWasPause_ && prevWasVowel_ && isVowel(lastPh_) && next && isVowel(*next);
   const bool dhMed = vmMed && tok.ph == Ph::DH;
+  // θ's own tongue key (TH agent23, round U; LINE_TH_SHAPE 0: off, as before): without a key the θ glided between its
+  // neighbours as the ð did, and Whisper heard a labial ("Author" -> offer / over, "Katherine" -> cavern; F2-region
+  // centroid 25 ms before the θ of "Author" 964 Hz, 1255 with the key). Its demand weight LINE_TH_SHAPE, the shape
+  // LINE_TH_FRONT of the ɪ's tongue mixed into the next vowel's; LINE_TH_SHAPE_CTX: 1 only between two vowels of a word,
+  // 2 any θ with a vowel next, 3 also a θ without one (the previous vowel's shape, else ə's). Lab (297 θ words x 2 voices,
+  // 2 draws, seed 1; base 104 errors): CTX 1 102, CTX 2 with FRONT 0.4-0.7 90-92, FRONT 0 (the vowel's own shape) 118,
+  // FRONT 1 102, CTX 3 101 (final θ -> s 11 -> 22); with EN_MED_TH_LEN 1.2 (FRONT 0.6): 67, words right 451 -> 482.
+  static const float kThShape = param("LINE_TH_SHAPE", 0.0f), kThFront = param("LINE_TH_FRONT", 0.0f),
+                     kThShapeCtx = param("LINE_TH_SHAPE_CTX", 1.0f), kThShapeSon = param("LINE_TH_SHAPE_SON", 0.0f);
+  // (LINE_TH_SHAPE_SON 1, with CTX 2: also a θ before ɹ / l / w, "three", "through", in that sound's shape)
+  const bool thSonNext = kThShapeSon > 0 && next && (*next == Ph::RR || *next == Ph::L || *next == Ph::W);
+  const bool thKey = tract_ == Tract::Line && tok.ph == Ph::TH && kThShape > 0 &&
+                     (kThShapeCtx >= 3 || (next && (isVowel(*next) || (thSonNext && kThShapeCtx >= 2)) && (kThShapeCtx >= 2 || vmMed)));
   static const float kVmDhAg = param("LINE_VM_DH_AG", -1.0f), kVmDhPress = param("LINE_VM_DH_PRESS", 1.0f),
                      kVmVAg = param("LINE_VM_V_AG", -1.0f), kVmZAg = param("LINE_VM_Z_AG", -1.0f);
   if (dhMed && kVmDhAg >= 0) aero.ag = kVmDhAg;
@@ -3868,6 +3884,14 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // the slit was still hissing, a +10 dB spike at the end of every -tion.
     static const bool jetKeep = param("LINE_JET_KEEP", 1.0f) > 0;
     if (jetKeep && in.cls != Cls::Fricative) e.lineJetD = e.lineFricLpr = -1.0f;
+    // The pause after a θ low-passed at LINE_TH_PAUSE_LPR x the jet's corner (TH agent23, round U; 0: off): the slit opening
+    // into the pause hissed +10..+13 dB over the θ with a 7.5 kHz centroid, an s ("Path" -> pass, "Seth" -> sex); Kokoro's
+    // final θ fades. The band comes back to the default at the first sound after the pause.
+    { static const float kThPauseLpr = param("LINE_TH_PAUSE_LPR", 0.0f);
+      if (tract_ == Tract::Line && kThPauseLpr > 0) {
+        if (lastPh_ == Ph::TH && tok.ph == Ph::Stop) { e.lineFricLpr = kThPauseLpr; thPauseLpr_ = true; }
+        else if (thPauseLpr_ && tok.ph != Ph::Stop) { if (in.cls != Cls::Fricative) e.lineFricLpr = 0.0f; thPauseLpr_ = false; }
+      } }
     // f's jet around it (LINE_F_EDGE): the sound before an f takes f's jet
     // already and the one after keeps it. The lip closed under the vowel's
     // jet (the slit's height, a 12 kHz corner) and opened under the r's: a
@@ -3885,6 +3909,9 @@ void Synth::emit(const Token& tok, const Ph* next) {
     {
       static const float dentalJetD = param("LINE_DENTAL_JET_D", 0.0f);
       if (tok.ph == Ph::TH || tok.ph == Ph::DH) e.lineJetD = dentalJetD;
+      // θ's own jet thickness (cm; LINE_TH_JET_D < 0: LINE_DENTAL_JET_D; TH agent23 round U): the noise band's corner.
+      static const float kLineThJetD = param("LINE_TH_JET_D", -1.0f);
+      if (tok.ph == Ph::TH && kLineThJetD >= 0) e.lineJetD = kLineThJetD;
       // ð's own jet thickness (cm; < 0: LINE_DENTAL_JET_D) and noise band low-pass (0: the shared one); DH agent7, round H:
       // the ð's hiss centroid sat at 717 Hz (male, kennedy) against Kokoro's 372, its 2-8 kHz 8 dB over Kokoro's.
       static const float kLineDhJetD = param("LINE_DH_JET_D", -1.0f), kLineDhLpr = param("LINE_DH_LPR", 0.0f);
@@ -3957,6 +3984,11 @@ void Synth::emit(const Token& tok, const Ph* next) {
       have = lineShapeOf(*next, &sh);
       TractShape ihDh;
       if (have && kVmDhFront > 0 && lineShapeOf(Ph::IH, &ihDh)) sh = lineShapeMix(sh, ihDh, std::min(kVmDhFront, 1.0f));
+    }
+    if (!have && thKey) {  // (LINE_TH_SHAPE, above)
+      have = lineShapeOf(next && (isVowel(*next) || thSonNext) ? *next : isVowel(lastPh_) ? lastPh_ : Ph::Schwa, &sh);
+      TractShape ihTh;
+      if (have && kThFront > 0 && lineShapeOf(Ph::IH, &ihTh)) sh = lineShapeMix(sh, ihTh, std::min(kThFront, 1.0f));
     }
     // The h takes the next vowel's shape, as the cascade's formants do (hTakesVowel_): with no keys of its own the
     // line glided from the previous sound's last key to the vowel's first in one straight move, ~200 ms for
@@ -4941,6 +4973,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
             lineKeys_.push_back({t0 + std::min(kMHoldTo, 1.0f) * dur, sh});
           if (tok.ph == Ph::DH && kLineDhShape > 0) ws *= kLineDhShape;  // (LINE_DH_SHAPE)
           else if (dhMed && kVmDhShape > 0) ws *= kVmDhShape;  // (LINE_VM_DH_SHAPE)
+          else if (thKey) ws *= kThShape;  // (LINE_TH_SHAPE)
           // A vowel chain (aʊ, aɪ, oʊ, Finnish ai, uo) is one glide: the first
           // vowel is reached early and briefly, the second only near its end.
           // Held over both middles, the whole tract changed in ~100 ms between
