@@ -3390,8 +3390,8 @@ void Synth::emit(const Token& tok, const Ph* next) {
   // 2 any θ with a vowel next, 3 also a θ without one (the previous vowel's shape, else ə's). Lab (297 θ words x 2 voices,
   // 2 draws, seed 1; base 104 errors): CTX 1 102, CTX 2 with FRONT 0.4-0.7 90-92, FRONT 0 (the vowel's own shape) 118,
   // FRONT 1 102, CTX 3 101 (final θ -> s 11 -> 22); with EN_MED_TH_LEN 1.2 (FRONT 0.6): 67, words right 451 -> 482.
-  static const float kThShape = param("LINE_TH_SHAPE", 0.0f), kThFront = param("LINE_TH_FRONT", 0.0f),
-                     kThShapeCtx = param("LINE_TH_SHAPE_CTX", 1.0f), kThShapeSon = param("LINE_TH_SHAPE_SON", 0.0f);
+  static const float kThShape = param("LINE_TH_SHAPE", 2.0f), kThFront = param("LINE_TH_FRONT", 0.6f),
+                     kThShapeCtx = param("LINE_TH_SHAPE_CTX", 2.0f), kThShapeSon = param("LINE_TH_SHAPE_SON", 0.0f);
   // (LINE_TH_SHAPE_SON 1, with CTX 2: also a θ before ɹ / l / w, "three", "through", in that sound's shape)
   const bool thSonNext = kThShapeSon > 0 && next && (*next == Ph::RR || *next == Ph::L || *next == Ph::W);
   const bool thKey = tract_ == Tract::Line && tok.ph == Ph::TH && kThShape > 0 &&

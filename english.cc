@@ -1401,7 +1401,7 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
         // word (EN_MED_TH_LEN: "author" -> "over", "nothing": V the commonest medial confusion, 45 % errors before an
         // unstressed vowel), before an unstressed vowel (EN_TH_UNSTR_LEN), before an s (EN_TH_S_LEN: "paths" -> "pass").
         if (b == "TH") {
-          static const float kInitThLen = param("EN_INIT_TH_LEN", 1.0f), kMedThLen = param("EN_MED_TH_LEN", 1.0f),
+          static const float kInitThLen = param("EN_INIT_TH_LEN", 1.0f), kMedThLen = param("EN_MED_TH_LEN", 1.2f),
                              kThUnstrLen = param("EN_TH_UNSTR_LEN", 1.0f), kThSLen = param("EN_TH_S_LEN", 1.0f);
           if (i == 0) whole *= kInitThLen;
           if (i > 0 && isVowelToken(tok[i - 1]) && i + 1 < tok.size() && isVowelToken(tok[i + 1])) whole *= kMedThLen;
