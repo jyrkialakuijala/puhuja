@@ -7477,7 +7477,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     // 1640-1710). Lab (88 b d g + z and 74 final-nd words, 402 targets, 4 seeded draws): 0.4 226 -> 193.5 errors, words
     // right +21.5 of 1296, words1000 1542 = base; 0.6 and a b row (ə) worse; rows d ʌ / g ɪ no better. With
     // LINE_BZ_FIN_FRIC 1.4 (5 draws) 284 -> 220.5, words +42.5; with LINE_BZ_PRESS_FLOOR 0.7 284 -> 217, +33.5.
-    static const float kBzPreMix = param("LINE_BZ_PRE_MIX", 0.0f), kBzPreMs = param("LINE_BZ_PRE_MS", -1.0f);
+    static const float kBzPreMix = param("LINE_BZ_PRE_MIX", 0.4f), kBzPreMs = param("LINE_BZ_PRE_MS", -1.0f);
     static const int kBzPreRow[3] = {static_cast<int>(param("LINE_BZ_PRE_ROW_B", -1.0f)),
                                      static_cast<int>(param("LINE_BZ_PRE_ROW_D", 9.0f)),
                                      static_cast<int>(param("LINE_BZ_PRE_ROW_G", 4.0f))};
@@ -7954,7 +7954,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
       // (BDG-Z agent20 round R, lab; < 0: LINE_BZ_FRIC) ... and after a b d g before its word's final z (bzCtx) x
       // LINE_BZ_FIN_FRIC: 11labs's z after d ("deeds", "odds") is a ~60 ms hiss at -8..-13 dB re the word's peak,
       // puhuja's -19..-24 (male) for ~100 ms.
-      static const float kBzFinFric = param("LINE_BZ_FIN_FRIC", -1.0f);
+      static const float kBzFinFric = param("LINE_BZ_FIN_FRIC", 1.4f);
       const float bzFric = bzCtx && kBzFinFric >= 0 ? kBzFinFric : kBzFric;
       if (tract_ == Tract::Line && bzFric != 1.0f && *next == Ph::Z && pi.voiced) {
         if (rel.lineFricMul >= 0) rel.lineFricMul *= bzFric;
