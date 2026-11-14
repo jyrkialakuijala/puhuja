@@ -3170,15 +3170,15 @@ void ihShape(TractShape* sh, unsigned char ctx, bool female = false) {
 // Lab (294 words, 354 stressed ɪ x 2 voices, seed 7, two draws; base 189 errors): SHAPED 1 173, with ROW 8 (ə) 156
 // ("hit" F2 at 80 % 1944 -> 1851 Hz); with LINE_IHO_START_I 0.8 below 122 (seed 11: 195 -> 126, words1000 +8).
 void ihoPreShape(int prevIhCtx, bool female, int* row, float* mix, TractShape* v) {
-  static const float kIhoPreShaped = param("LINE_IHO_PRE_SHAPED", 0.0f), kIhoPreMix = param("LINE_IHO_PRE_MIX", -1.0f);
-  static const int kIhoPreRow = static_cast<int>(param("LINE_IHO_PRE_ROW", -1.0f));
+  static const float kIhoPreShaped = param("LINE_IHO_PRE_SHAPED", 1.0f), kIhoPreMix = param("LINE_IHO_PRE_MIX", -1.0f);
+  static const int kIhoPreRow = static_cast<int>(param("LINE_IHO_PRE_ROW", 8.0f));
   if (!ihoCtx(prevIhCtx)) return;
   if (kIhoPreMix >= 0) *mix = kIhoPreMix;
   if (kIhoPreRow >= 0) *row = kIhoPreRow;
   if (kIhoPreShaped > 0) ihShape(v, static_cast<unsigned char>(prevIhCtx), female);
 }
 bool ihoPreRowShaped(int prevIhCtx, int row) {
-  static const float kIhoPreShaped = param("LINE_IHO_PRE_SHAPED", 0.0f);
+  static const float kIhoPreShaped = param("LINE_IHO_PRE_SHAPED", 1.0f);
   return kIhoPreShaped > 0 && ihoCtx(prevIhCtx) && row == static_cast<int>(Ph::IH);
 }
 
@@ -5558,7 +5558,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
             // LINE_IHO_PRE_SHAPED 1 / _PRE_ROW 8; after any consonant (LINE_IHO_START_ANY 1) 143 but the lab's level /
             // bright / ftrace terms veto it; LINE_IHO_START_ANY 2: after any plosive (p t k too). Not with a late key
             // of its own (LINE_IHO_OFF_* / _LATE_AC: the ɪ then takes the r-coloured branch below).
-            static const float kIhoStartI = param("LINE_IHO_START_I", 0.0f), kIhoStartTo = param("LINE_IHO_START_TO", 0.3f),
+            static const float kIhoStartI = param("LINE_IHO_START_I", 0.8f), kIhoStartTo = param("LINE_IHO_START_TO", 0.4f),
                                kIhoStartAny = param("LINE_IHO_START_ANY", 0.0f), kIhoStartW = param("LINE_IHO_START_W", 1.0f);
             // (a plosive does not pass through lastPh_: prevWasPlosive_ and lastPlosivePh_ say which)
             const bool afterBdg = prevWasPlosive_ && (lastPlosivePh_ == Ph::B || lastPlosivePh_ == Ph::D || lastPlosivePh_ == Ph::G);
