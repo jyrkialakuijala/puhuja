@@ -7201,7 +7201,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // forward only trades b for p / d. The shortlist (VELAR/agent15/AGENT.md): K_X 0.56 + VEL_MS 25 (G_VEL_MS 0) + K_JET_D
   // 0.4 + R_X 0.5 (+ LIQ_LIPA 1.5, + RE 3): 196 / 196 / 218 -> 89 / 80 / 96 (78 / 72 / 90; 70 / 70 / 68) on three seeds,
   // words right +76 (+78, +87) of 542, words1000 unchanged.
-  static const float kVlKX = param("LINE_VL_K_X", 0.56f), kVlGX = param("LINE_VL_G_X", -1.0f);
+  static const float kVlKX = param("LINE_VL_K_X", 0.64f), kVlGX = param("LINE_VL_G_X", -1.0f);
   const bool vlInit = tract_ == Tract::Line && (tok.ph == Ph::K || tok.ph == Ph::G) && tok.wordStart && next &&
                       (*next == Ph::L || *next == Ph::RR);
   const bool vlK = vlInit && tok.ph == Ph::K, vlG = vlInit && tok.ph == Ph::G;
@@ -8559,7 +8559,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     // over the last LINE_VSTOP_PRESS_LEAD_MS of the closure (> 1: a stronger burst) and back to 1 over 15 ms.
     static const float kVstopPress0 = param("LINE_VSTOP_PRESS", 0.7f), kVstopPressLeadMs = param("LINE_VSTOP_PRESS_LEAD_MS", 30.0f);
     static const float kGPress = param("LINE_G_PRESS", -1.0f);  // (the g's own; < 0: LINE_VSTOP_PRESS; G agent 5)
-    static const float kVlGPress = param("LINE_VL_G_PRESS", -1.0f);  // (VELAR-L agent15 round N, lab; < 0: off) an initial gl gɹ's
+    static const float kVlGPress = param("LINE_VL_G_PRESS", 0.35f);  // (VELAR-L agent15 round N, lab; < 0: off) an initial gl gɹ's
     // (CL-INIT agent20 round R, lab; < 0: as before) a word-initial dɹ's breath LINE_TR_D_PRESS (as LINE_DI_PRESS: at 0.7
     // the pause-initial closure built no jet, the slit hissed nothing; female "Drain" burst 0.6 -> 3.5 kHz with the d's
     // slit fronted). Lab: 1 alone dɹ errors 16 -> 11 and 15.5 -> 8 (seed 1001); dɹ clip snap m 8.1 -> 10.9, f 12.6 -> 17.0.
@@ -8757,7 +8757,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // f -9.5) and its 2-4.5 kHz share rises toward Kokoro's. Round T pick (with LINE_VL_K_X 0.64, _K_JET_D 0.7,
   // _K_REL_FRIC 0.15): dictionary conditions (368 kl kɹ gl gɹ words + 350 fillers, 4 draws, two word orders) gɹ + gl
   // errors 93 -> 50, kɹ + kl 137 -> 63, targets right +45 / +31.
-  static const float kVlGRe = param("LINE_VL_G_RE", -1.0f);
+  static const float kVlGRe = param("LINE_VL_G_RE", 5.0f);
   if (vlRe) rel.lineFricReMul = vlG && kVlGRe >= 0 ? kVlGRe : kVlRe;
   // (PL-INITIAL agent17 round O, lab; < 0: off) a word-initial p before l ɹ: its release jet's Reynolds x LINE_PL_RE for
   // LINE_G_REL_RE_MS (the lips' burst hisses across the band, as Kokoro's).
@@ -8830,7 +8830,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   static const float kPvRelFric = param("LINE_PV_REL_FRIC", -1.0f), kKvRelFric = param("LINE_KV_REL_FRIC", -1.0f);
   // (CL-INIT agent20 round R, lab; < 0: as before) a word-initial kl kɹ (vlK): its own release hiss LINE_VL_K_REL_FRIC (the
   // kl burst two-peaked, 0.5-1 and 3-4.5 kHz at -3 / -5 dB of the total, male; Kokoro's compact at 1-2 kHz, 3-4.5 at -17).
-  static const float kVlKRelFric = param("LINE_VL_K_REL_FRIC", -1.0f);
+  static const float kVlKRelFric = param("LINE_VL_K_REL_FRIC", 0.15f);
   const float kRelFricNf = vlK && kVlKRelFric >= 0 ? kVlKRelFric : kvInit && kKvRelFric >= 0 ? kKvRelFric : tok.wordStart && kKInitRelFric >= 0 ? kKInitRelFric : kLineKRelFric;
   // (POST-L-STOP agent22 round T, lab; 1: as before) the release hiss of a t / k after a coda liquid (pl2Ctx) x
   // LINE_PL2_REL_FRIC_T / _K (the t after ɹ: burst -15.7 dB re the word peak, Kokoro am_adam -20; the k -25, Kokoro -21).
@@ -9025,7 +9025,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
                        !unreleased && next && (isVowel(*next) || vSlitLiq)) || kSlitLiq || kSlitFinal)) || dFinalSlit;
   // (VELAR-L agent15 round N, lab; < 0 / 0: off) a word-initial gl gɹ's slit jet LINE_VL_G_JET_D, a kl kɹ's release
   // through LINE_VL_K_JET_D's thick jet (as LINE_K_LIQ_JET_D).
-  static const float kVlGJetD = param("LINE_VL_G_JET_D", -1.0f), kVlKJetD = param("LINE_VL_K_JET_D", 0.4f);
+  static const float kVlGJetD = param("LINE_VL_G_JET_D", -1.0f), kVlKJetD = param("LINE_VL_K_JET_D", 0.7f);
   // (FINAL-GD agent21 round S, lab; < 0: none) a word-final d / g after a vowel releases (or opens its slit) through a
   // thick jet LINE_GD_FIN_JET_D / _G (cm; as LINE_D_JET_D before a vowel): puhuja's final d burst had no 3-7 kHz part
   // (14 male words, first 15 ms, 3-4.5 / 4.5-7 kHz re the total: -32 / -47 dB; Kokoro am_adam -20 / -24, af_heart -11 / -8).
