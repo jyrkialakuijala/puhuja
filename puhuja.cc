@@ -620,7 +620,7 @@ const float kLineLCloseMs = param("LINE_L_CLOSE_MS", 40.0f);  // the l's closing
 // usual closure seals them (0: off). 50 ms: F2 falls 1300 -> 1000 Hz into
 // the m like Kokoro's; Whisper heard final m as m 4 -> 16 of 24, medial 11 -> 14 of 18.
 const float kLineMApproachMs = param("LINE_M_APPROACH_MS", 50.0f);
-const float kLineMApproachA = param("LINE_M_APPROACH_A", 0.4f);
+const float kLineMApproachA = param("LINE_M_APPROACH_A", 0.7f);
 // The same approach for ŋ after a vowel (2026-11-04): the tongue's back
 // narrows at the velum (ŋ's place) before the seal, so the vowel's F2 and F3
 // converge into it (the "velar pinch"); without it ŋ was heard as n. 0: off.
@@ -3759,7 +3759,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
   // ŋ's breath x LINE_NG_PRESS over 20 ms, back to 1 at the next sound (lab knob 2026-11-11, NG agent 3; 1: as
   // before): in isolated words puhuja's ŋ murmur was 3 dB under the word's peak, Kokoro's 13 (male) and 9 (female).
   {
-    static const float kLineNgPress = param("LINE_NG_PRESS", 1.0f);
+    static const float kLineNgPress = param("LINE_NG_PRESS", 1.1f);
     if (tract_ == Tract::Line && kLineNgPress != 1.0f) {
       if (tok.ph == Ph::NG) { e.press = kLineNgPress; e.pressMs = 20; }
       else if (lastPh_ == Ph::NG && e.press < 0) { e.press = 1.0f; e.pressMs = 20; }
