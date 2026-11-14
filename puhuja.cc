@@ -4447,10 +4447,10 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // After a liquid / glide before a nasal ("Len" -> plan, "Lend" -> land) the ɛ's opening x LINE_LV_EHLN_AC and a
     // share of ə LINE_LV_EHLN_MIX_AX: "Len" 558/1860 -> 485/1725 (Kokoro ~470/1700) at 0.8 / 0.3, no Whisper gain.
     if (have && (tok.ph == Ph::IH || tok.ph == Ph::EH) && next) {
-      static const float kLvIhRI = param("LINE_LV_IHR_MIX_I", 0.0f), kLvEhRE = param("LINE_LV_EHR_MIX_E", 0.0f),
+      static const float kLvIhRI = param("LINE_LV_IHR_MIX_I", 0.8f), kLvEhRE = param("LINE_LV_EHR_MIX_E", 0.0f),
                          kLvEhLnAc = param("LINE_LV_EHLN_AC", 1.0f), kLvEhLnAx = param("LINE_LV_EHLN_MIX_AX", 0.0f),
-                         kLvEhRAc = param("LINE_LV_EHR_AC", 1.0f), kLvEhRIh = param("LINE_LV_EHR_MIX_IH", 0.0f),
-                         kLvEhRAx = param("LINE_LV_EHR_MIX_AX", 0.0f);
+                         kLvEhRAc = param("LINE_LV_EHR_AC", 1.0f), kLvEhRIh = param("LINE_LV_EHR_MIX_IH", 0.5f),
+                         kLvEhRAx = param("LINE_LV_EHR_MIX_AX", 0.2f);
       TractShape o;
       if (*next == Ph::RR) {
         if (tok.ph == Ph::IH && lastPh_ != Ph::E && lastPh_ != Ph::A && lastPh_ != Ph::AO && kLvIhRI > 0 &&
