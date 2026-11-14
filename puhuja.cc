@@ -2473,7 +2473,7 @@ void Synth::push(Ph ph, bool wordStart) {
     if ((!wordStart || sameAcross) && p.ph != Ph::Stop) {
       // (UNSTR-N agent20 round R, lab; 0: as before) LINE_HN_SPLIT 1: a hiatus ɪ before a nasal (Shape::hnctx 1) stays
       // its own syllable after eɪ's / aɪ's / ɔɪ's offglide ɪ ("saying", "dying", "enjoying": one long ɪ, heard sane / dine).
-      static const float kHnSplit = param("LINE_HN_SPLIT", 0.0f);
+      static const float kHnSplit = param("LINE_HN_SPLIT", 1.0f);
       if (ph == p.ph && !p.isLong && !(kHnSplit > 0.5f && (shape.hnctx & 1))) {
         p.isLong = true;  // "kk", "aa": one long phoneme
         p.doubled = true;
@@ -4475,9 +4475,9 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // 5 æ). Kokoro (am_adam) opens the second vowel: "being" ɪ 470-500 / 2000-2050 Hz after iː 330 / 2300 (puhuja
     // 370-410 / 2105, then nasalised), "Ian" ə 490-550 / 1700-1850 (puhuja 306-370 / 1440-1550: the iː carried on).
     if (have && (tok.shape.hnctx & 1)) {
-      static const float kHnIhMix = param("LINE_HN_IH_MIX", 0.0f), kHnAxMix = param("LINE_HN_AX_MIX", 0.0f);
+      static const float kHnIhMix = param("LINE_HN_IH_MIX", 0.0f), kHnAxMix = param("LINE_HN_AX_MIX", 0.6f);
       static const int kHnIhRow = static_cast<int>(param("LINE_HN_IH_ROW", 0.0f)),
-                       kHnAxRow = static_cast<int>(param("LINE_HN_AX_ROW", 3.0f));
+                       kHnAxRow = static_cast<int>(param("LINE_HN_AX_ROW", 0.0f));
       static const Ph kHnRows[] = {Ph::EH, Ph::Schwa, Ph::E, Ph::AH, Ph::AA, Ph::AE};
       const bool ih = tok.ph == Ph::IH || tok.ph == Ph::I;
       const float mix = ih ? kHnIhMix : tok.ph == Ph::Schwa ? kHnAxMix : 0.0f;
@@ -4848,7 +4848,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
             // the vowel before it held to LINE_HN_V1_TO of its length; the unstressed vowel's weight x LINE_HN_CHAIN_W.
             // Lab (367 hiatus / -lɪn words, ə + ɪ targets, 2 voices, base 70 errors): FROM 0.1 52, V1_TO 0.6 58, both 30;
             // with LINE_HN_SPLIT, LINE_HN_AX_MIX 0.6 row ɛ and EN_FN_IH_KEEP_LIQ 16 / 13 on two draws (base 70 / 66).
-            static const float kHnFrom = param("LINE_HN_FROM", -1.0f), kHnV1To = param("LINE_HN_V1_TO", -1.0f),
+            static const float kHnFrom = param("LINE_HN_FROM", 0.1f), kHnV1To = param("LINE_HN_V1_TO", 0.6f),
                                kHnChainW = param("LINE_HN_CHAIN_W", 1.0f);
             const bool hnEnd = chainEnd && (tok.shape.hnctx & 1), hnStart = chainStart && (tok.shape.hnctx & 4);
             const double a = hnEnd && kHnFrom >= 0 ? kHnFrom
