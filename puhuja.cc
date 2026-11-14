@@ -868,7 +868,7 @@ const float kLineErPreMs = param("LINE_ER_PRE_MS", 0.0f);
 // shaped 60 ms ahead (LINE_SCHWA_PAUSE_LEAD_MS), had 4 % phantom onsets against 14-39 % for the stressed vowels.
 // Lab (300 vowel-initial words, both voices, two draws): with LINE_VON_OFF_PRE_MS / LINE_VON_DIPH_PRE_MS 40 and
 // LINE_VON_HOLD 1, words right 228 -> 337 / 600 (seed 7: 242 -> 336), words1000 1506 -> 1543; F1 594 Hz from the onset.
-const float kLineVonPreMs = param("LINE_VON_PRE_MS", 0.0f), kLineVonHold = param("LINE_VON_HOLD", 0.0f);
+const float kLineVonPreMs = param("LINE_VON_PRE_MS", 40.0f), kLineVonHold = param("LINE_VON_HOLD", 1.0f);
 const float kLineRKeyFrom = param("LINE_R_KEY_FROM", -1.0f);
 const float kLineRKeyTo = param("LINE_R_KEY_TO", -1.0f);  // a w holds its shape to this share of it (the vowels 0.7; 2026-11-09 W agent)
 const float kLinePausePlanHoldMs = param("LINE_PAUSE_PLAN_HOLD_MS", 150.0f);
@@ -4770,7 +4770,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
             static const float kEyPreMs = param("LINE_EY_PRE_MS", 0.0f), kEyStopLeadMs = param("LINE_EY_STOP_LEAD_MS", 0.0f);
             float lead = ayLead > 0 ? ayLead : !eyStart ? 0.0f : prevWasPause_ ? kEyPreMs : prevWasPlosive_ ? kEyStopLeadMs : 0.0f;
             // (VOWEL-ONSET agent18, lab; 0: off) any word-initial diphthong's start after a pause likewise (LINE_VON_DIPH_PRE_MS)
-            static const float kVonDiphPreMs = param("LINE_VON_DIPH_PRE_MS", 0.0f);
+            static const float kVonDiphPreMs = param("LINE_VON_DIPH_PRE_MS", 40.0f);
             if (chainStart && prevWasPause_ && tok.wordStart && lead <= 0 && kVonDiphPreMs > 0) lead = kVonDiphPreMs;
             addShapeDemand(lead > 0 ? t0 - lead * ms : t0 + std::min(a, b) * dur, t0 + std::max(a, b) * dur, sh, tok.ph,
                            ws * kShapeGlideW * oyW * (eyGlide ? kEyGlideW : 1.0f),
@@ -5014,7 +5014,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
             // (VOWEL-ONSET agent18, lab; 0: off) a word-initial vowel with a late key of its own (ɛ ʌ ɪ ɑ ɔ off-glides, a
             // vowel before ɹ) after a pause: its held demand from LINE_VON_OFF_PRE_MS before it (as LINE_VON_PRE_MS), not
             // from 30 % of it ("Eb", "Up" glided out of the pause's ə for their first third).
-            static const float kVonOffPreMs = param("LINE_VON_OFF_PRE_MS", 0.0f);
+            static const float kVonOffPreMs = param("LINE_VON_OFF_PRE_MS", 40.0f);
             const bool vonOff = prevWasPause_ && tok.wordStart && kVonOffPreMs > 0;
             addShapeDemand(vonOff ? t0 - kVonOffPreMs * ms : t0 + 0.3 * dur, t0 + std::max(0.3, rcPre ? std::min<double>(kRcPreAt, at - 0.15) : at - 0.15) * dur, sh, tok.ph, wv, preR);
             if (rcPre) {
