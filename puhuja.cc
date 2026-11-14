@@ -2685,6 +2685,7 @@ static uint64_t eventFields(const Event& e) {
   bit(e.lineExpand >= 0); bit(e.lineHw >= 0); bit(e.lineLip >= 0); bit(e.lineAspHp >= 0); bit(e.lineFricLpr >= 0);
   bit(e.lineJetD >= 0); bit(e.lineX >= 0); bit(e.aspBurst); bit(e.creak >= 0); bit(e.expand >= 0);
   bit(e.inhaleMs > 0); bit(e.speech >= 0); bit(e.lineFricReSmooth >= 0); bit(e.lineHumpNorm > -1.5f);
+  bit(e.lineExpandLp > -1.5f);
   return m;
 }
 
@@ -3345,6 +3346,11 @@ void Synth::emit(const Token& tok, const Ph* next) {
   // the hiss with F2 ~1400. Lab (600 coda-ɹ words): 0.28 / 0.35 ɹ errors 121 -> 116 / 113, words +5 / +3 (noise).
   static const float kRzZAg = param("LINE_RZ_Z_AG", -1.0f);
   if (tract_ == Tract::Line && tok.ph == Ph::Z && lastPh_ == Ph::RR && kRzZAg >= 0) aero.ag = kRzZAg;
+  // (BDG-Z agent20 round R, lab; < 0: off) a z after a b d g that followed a vowel (bdgZ_): LINE_BZ_Z_AG, as at the
+  // stop's release (the release carries the z's glottis; this event lands at the z's start and would undo it).
+  const bool bzZ = tract_ == Tract::Line && tok.ph == Ph::Z && bdgZ_ && (lastPh_ == Ph::B || lastPh_ == Ph::D || lastPh_ == Ph::G);
+  { static const float kBzZAg2 = param("LINE_BZ_Z_AG", -1.0f);
+    if (bzZ && kBzZAg2 >= 0 && !(lastPh_ == Ph::D && kDzZAg >= 0)) aero.ag = kBzZAg2; }
   if (tract_ == Tract::Line && tok.ph == Ph::Z) {
     const bool zFinal = !next || *next == Ph::Stop;
     if (zFinal && kZAgFinal >= 0) aero.ag = kZAgFinal;
@@ -3728,6 +3734,12 @@ void Synth::emit(const Token& tok, const Ph* next) {
   // its murmur's F2 sat at 1500-1700 Hz (male), Kokoro's at 1250-1400 ("Hansen", "Ryan", "Gavin").
   { static const float kFnX = param("LINE_FN_X", 0.0f);
     if (tok.ph == Ph::N && (tok.shape.nctx & 2) && kFnX > 0) e.lineX = kFnX; }
+  // (BDG-Z agent20 round R, lab; 0: off) the n of a word-final nd (Shape::nctx 4) closes at LINE_NDN_X: the dictionary
+  // hears the final nd as ŋk / ŋ ("Tend" -> tank, "Spend" -> spank, "Send" -> sing; combo15: d 75 of 300 wrong).
+  // Lab (74 final-nd words): 0.85 / 0.75 noise; LINE_NDN_PRE_ROW 9, LINE_NDN_PRE_MIX 0, LINE_NDN_PORT 1.3 / 0.7 below: noise or
+  // worse (ftrace +3.5..+8 sigma).
+  { static const float kNdnX = param("LINE_NDN_X", 0.0f);
+    if (tok.ph == Ph::N && (tok.shape.nctx & 4) && kNdnX > 0) e.lineX = kNdnX; }
   if (tok.ph == Ph::SH && shFullVowel && kLineShVowelX > 0) e.lineX = kLineShVowelX;  // (LINE_SH_VOWEL_X)
   if (tok.ph == Ph::SH && shFullVowel && kLineShVowelAc != 1.0f && e.ac > 0) e.ac *= kLineShVowelAc;  // (LINE_SH_VOWEL_AC)
   // Stress as a push of the diaphragm (Jyrki 2026-11-04: "a soft pulse in
@@ -5236,6 +5248,8 @@ void Synth::emit(const Token& tok, const Ph* next) {
   }
   e.agMs = tract_ == Tract::Line && in.cls == Cls::Fricative && aero.ag > kAgBreathy ? kLineAbductMs : kGlottalMs;
   if (tract_ == Tract::Line && tok.ph == Ph::Z && kZAbductMs >= 0 && aero.ag > kAgBreathy) e.agMs = kZAbductMs;
+  { static const float kBzZAbMs2 = param("LINE_BZ_Z_AB_MS", -1.0f);  // (BDG-Z agent20; < 0: off) ... and its opening time
+    if (bzZ && kBzZAbMs2 >= 0) e.agMs = kBzZAbMs2; }
   // (VFRIC-INITIAL agent17 round O, lab; < 0: off) a phrase-initial v / z's glottis opens over this (slower: voice on)
   { static const float kVzInitAbMs = param("LINE_VZ_INIT_AB_MS", -1.0f);
     if (vzInit && kVzInitAbMs >= 0 && aero.ag > kAgBreathy) e.agMs = kVzInitAbMs; }
@@ -5339,6 +5353,9 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // ... a word-final n after an unstressed vowel x LINE_FN_PORT as well (Shape::nctx 2; N agent13 round L; 1: as before).
     static const float kFnPort = param("LINE_FN_PORT", 0.6f);
     if (tract_ == Tract::Line && tok.ph == Ph::N && (tok.shape.nctx & 2) && kFnPort != 1.0f) e.an *= kFnPort;
+    // ... and the n of a word-final nd (Shape::nctx 4; BDG-Z agent20 round R, lab; 1: as before) x LINE_NDN_PORT.
+    static const float kNdnPort = param("LINE_NDN_PORT", 1.0f);
+    if (tract_ == Tract::Line && tok.ph == Ph::N && (tok.shape.nctx & 4) && kNdnPort != 1.0f) e.an *= kNdnPort;
   }
   // English nasalizes a vowel before a nasal through most of it: the velum
   // opens part way during the vowel ("man", "and", "on"); on the line the
@@ -6468,10 +6485,16 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // row, so the n asked the ə's last 60 ms back to its raw close shape (F1 330-370 Hz), undoing LINE_SCHWA_IN_MIX.
     static const float kAxnNPreMix = param("LINE_AXN_NPRE_MIX", -1.0f);
     const bool axPre = isN && lastPh_ == Ph::Schwa && kAxnNPreMix >= 0 && !fnPre;
-    const float preMix = fnPre ? kFnPreMix : axPre ? kAxnNPreMix : mix;
+    // (BDG-Z agent20 round R, lab; < 0: as above) the n of a word-final nd (Shape::nctx 4): mix LINE_NDN_PRE_MIX toward
+    // the row LINE_NDN_PRE_ROW (< 0: LINE_N_PRE_ROW). Puhuja's "Tend" n murmur: F2 ~1600 Hz, 0.5-3 kHz 30-44 dB under the
+    // word's peak; Kokoro am_adam's: F2 2400-2550, 21-25 dB under.
+    static const float kNdnPreMix = param("LINE_NDN_PRE_MIX", -1.0f);
+    static const int kNdnPreRow = static_cast<int>(param("LINE_NDN_PRE_ROW", -1.0f));
+    const bool ndnPre = isN && tok.ph == Ph::N && (tok.shape.nctx & 4) && (kNdnPreMix >= 0 || kNdnPreRow >= 0) && !fnPre && !axPre;
+    const float preMix = fnPre ? kFnPreMix : axPre ? kAxnNPreMix : ndnPre && kNdnPreMix >= 0 ? kNdnPreMix : mix;
     const float preMs = fnPre && kFnPreMs >= 0 ? kFnPreMs : kNPreMs, preW = fnPre && kFnPreW >= 0 ? kFnPreW : kNPreW;
     static const int kAxnNPreRow = static_cast<int>(param("LINE_AXN_NPRE_ROW", -1.0f));  // ... toward this row (13: ʌ; < 0: as above)
-    const int preRow = fnPre && kFnPreRow >= 0 ? kFnPreRow : axPre && kAxnNPreRow >= 0 ? kAxnNPreRow : kNPreRow;
+    const int preRow = fnPre && kFnPreRow >= 0 ? kFnPreRow : axPre && kAxnNPreRow >= 0 ? kAxnNPreRow : ndnPre && kNdnPreRow >= 0 ? kNdnPreRow : kNPreRow;
     if (tract_ == Tract::Line && isN && preMix > 0 && prevWasVowel_ && lineShapeOf(lastPh_, &v) &&
         lineShapeOf(static_cast<Ph>(preRow), &o))
       addShapeDemand(std::max(e.t - preMs * ms, phonemeStart_ + 1), e.t + dur, mixN(v, o, preMix), lastPh_, preW);
@@ -7104,6 +7127,10 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   const int bdgCtx = !(bdgPh && prevWasVowel_ && tract_ == Tract::Line) ? 0
                      : (!next || *next == Ph::Stop) ? 1 : *next == Ph::Z ? 2 : isVowel(*next) ? 4 : 0;
   const bool bdgOn = (bdgCtx & kBdgCtxMask) != 0;
+  // (BDG-Z agent20 round R) the LINE_BZ_* knobs act on bzCtx: a b d g after a primary-stressed vowel right before its
+  // word's final z (Shape::bzFinal: "tubes", "dogs", "besides"; not "episodes", nor the medial ɪgz of "example").
+  const bool bzCtx = bdgCtx == 2 && tok.shape.bzFinal;
+  bdgZ_ = bzCtx;  // (the z after it reads this, LINE_BZ_Z_*)
   // (FINAL-BDG agent18 round P, lab knobs LINE_BDG_FIN_*; all off by default) a word-final b d g after a vowel
   // (bdgCtx 1), whatever LINE_BDG_CTX says: the dictionary (combo13) hears 13.5 % of them wrong (Kokoro 5.9 %).
   const bool bdgFin = bdgCtx == 1;
@@ -7114,6 +7141,8 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     if (bdgOn && kBdgClAg >= 0) pi.closureAg = kBdgClAg;
     static const float kBdgFinClAg = param("LINE_BDG_FIN_CL_AG", -1.0f);  // (agent18) ... a final one's (cm^2; < 0: off)
     if (bdgFin && kBdgFinClAg >= 0) pi.closureAg = kBdgFinClAg;
+    static const float kBzClAg = param("LINE_BZ_CL_AG", -1.0f);  // (BDG-Z agent20; < 0: off) ... one before a z's (cm^2; lab 0.03: noise)
+    if (bzCtx && kBzClAg >= 0) pi.closureAg = kBzClAg;
   }
   {  // (D agent9 round J lab knob; < 0: off) the closure glottis of a d between a vowel and an unstressed vowel (cm^2)
     static const float kDVvAg = param("LINE_D_VV_AG", -1.0f);
@@ -7246,6 +7275,13 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
      // release): the z of "beads" ran voiceless (LF -43 dB re the word peak, Kokoro's -15..-20): d + s = "beats".
     static const float kDzZAg2 = param("LINE_DZ_Z_AG", -1.0f);
     if (tract_ == Tract::Line && tok.ph == Ph::D && next && *next == Ph::Z && kDzZAg2 >= 0) nextAero.ag = kDzZAg2;
+    // (BDG-Z agent20 round R, lab; < 0: off) a b d g after a vowel released into a z ("tubes", "sides", "dogs"): the z's
+    // glottis (cm^2; the round J d-only knob above wins for d). The release opened the glottis to the z's 0.2 cm^2 over
+    // 15 ms: the z ran voiceless (Tubes: 0.5-1 kHz 25-30 dB under the hiss; Kokoro am_adam's z keeps its voice bar 0-9 dB
+    // under the frame for 40 ms): heard ts / ps / ks ("Tubes" -> toots, "Cubs" -> cuts, "Dogs" -> docks). Lab: 0.1 48 -> 58
+    // errors; LINE_BZ_Z_AB_MS 40 56: the folds have stopped in the closure already, the z's glottis does not restart them.
+    static const float kBzZAg = param("LINE_BZ_Z_AG", -1.0f);
+    if (tract_ == Tract::Line && bzCtx && kBzZAg >= 0 && !(tok.ph == Ph::D && kDzZAg2 >= 0)) nextAero.ag = kBzZAg;
   }
 
   // Closure start: formants bend toward the consonant from the sound before.
@@ -7385,14 +7421,26 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
                                          static_cast<int>(param("LINE_BDG_FIN_PRE_ROW_D", 13.0f)),
                                          static_cast<int>(param("LINE_BDG_FIN_PRE_ROW_G", 9.0f))};
     const bool finPre = bdgFin && kBdgFinPreMix > 0 && kBdgFinPreRow[bdgIdx] >= 0;
-    const float preMix = finPre ? kBdgFinPreMix : kBdgPreMix;
-    const int preRow = finPre ? kBdgFinPreRow[bdgIdx] : row;
-    if (preMix > 0 && (bdgOn || finPre) && preRow >= 0 && !afterUnreleased && lineShapeOf(lastPh_, &v) &&
+    // (BDG-Z agent20 round R, lab; 0: off) the same for a b d g after a vowel before a z (bdgCtx 2), whatever
+    // LINE_BDG_CTX says: LINE_BZ_PRE_MIX toward the rows LINE_BZ_PRE_ROW_B / _D / _G over LINE_BZ_PRE_MS (< 0: LINE_BDG_PRE_MS).
+    // The dictionary (combo15) hears 26 % of these one-syllable words wrong (Kokoro 0 %: Tubes -> toots, Dogs -> docks,
+    // Mugs -> mods); their vowel's F2 sat flat into the closure (Bugs 1250-1460 Hz, Mugs ~1380; mix 0.4: 1590-1770 /
+    // 1640-1710). Lab (88 b d g + z and 74 final-nd words, 402 targets, 4 seeded draws): 0.4 226 -> 193.5 errors, words
+    // right +21.5 of 1296, words1000 1542 = base; 0.6 and a b row (ə) worse; rows d ʌ / g ɪ no better. With
+    // LINE_BZ_FIN_FRIC 1.4 (5 draws) 284 -> 220.5, words +42.5; with LINE_BZ_PRESS_FLOOR 0.7 284 -> 217, +33.5.
+    static const float kBzPreMix = param("LINE_BZ_PRE_MIX", 0.0f), kBzPreMs = param("LINE_BZ_PRE_MS", -1.0f);
+    static const int kBzPreRow[3] = {static_cast<int>(param("LINE_BZ_PRE_ROW_B", -1.0f)),
+                                     static_cast<int>(param("LINE_BZ_PRE_ROW_D", 9.0f)),
+                                     static_cast<int>(param("LINE_BZ_PRE_ROW_G", 4.0f))};
+    const bool bzPre = !finPre && bzCtx && kBzPreMix > 0 && kBzPreRow[bdgIdx] >= 0;
+    const float preMix = finPre ? kBdgFinPreMix : bzPre ? kBzPreMix : kBdgPreMix;
+    const int preRow = finPre ? kBdgFinPreRow[bdgIdx] : bzPre ? kBzPreRow[bdgIdx] : row;
+    if (preMix > 0 && (bdgOn || finPre || bzPre) && preRow >= 0 && !afterUnreleased && lineShapeOf(lastPh_, &v) &&
         lineShapeOf(static_cast<Ph>(preRow), &o)) {
       TractShape m = lineShapeMix(v, o, preMix);
       m.aLip = v.aLip; m.lLip = v.lLip; m.aLarynx = v.aLarynx; m.length = v.length;
       m.sc = lineVowelStrength(m.xc, m.wc, m.length);
-      const float preMs = finPre && kBdgFinPreMs >= 0 ? kBdgFinPreMs : kBdgPreMs;
+      const float preMs = finPre && kBdgFinPreMs >= 0 ? kBdgFinPreMs : bzPre && kBzPreMs >= 0 ? kBzPreMs : kBdgPreMs;
       addShapeDemand(std::max(closeStart - preMs * ms, phonemeStart_ + 1.0), release, m, lastPh_, kBdgPreW);
     }
   }
@@ -7567,6 +7615,18 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
      // 124 (+17), 900 136, 300 139; with LINE_BDG_Z_REL + _Z_FRIC 1 below, 400: 112 and 110 (seed 7, base 148).
     static const float kBdgExpand = param("LINE_BDG_EXPAND", 500.0f);
     if (bdgOn && kBdgExpand >= 0) close.lineExpand = std::max(kBdgExpand, 1e-3f);
+    // (BDG-Z agent20 round R, lab; < 0: off) a b d g before a z's own flow (bdgCtx 2, whatever LINE_BDG_CTX says): at 500
+    // the "Tubes" bar died 15 ms into the closure (-11 -> -28..-30 dB re the peak for 30 ms; at 300 it held -11..-15 for
+    // 50 ms, Kokoro am_adam -11..-14 for 50 ms); the response is chaotic per word (the servo on the slow cavity pressure).
+    // Lab (402 targets, base 48): 200 / 300 / 400 64 / 48 / 68 errors.
+    static const float kBzExpand = param("LINE_BZ_EXPAND", -1.0f);
+    if (bzCtx && kBzExpand >= 0) close.lineExpand = std::max(kBzExpand, 1e-3f);
+    // ... and its sink's control (LINE_BZ_EXPAND_LP, Hz; < 0: off): the low-pass of the cavity pressure it follows
+    // (LINE_EXPAND_LP 50 for all); back to LINE_EXPAND_LP at the release. LINE_EXPAND_LP 0 for all kept the "Tubes" bar
+    // at -9..-17 dB to the release (the 50 Hz servo let it die after 15 ms). Lab: 0 56 errors (base 48), with flow 300 76:
+    // every aesthetic term better (level, ftrace -2..-5 sigma), but Whisper hears t / p more: kept off.
+    static const float kBzExpandLp = param("LINE_BZ_EXPAND_LP", -1.0f);
+    if (bzCtx && kBzExpandLp >= 0) close.lineExpandLp = kBzExpandLp;
     // (FINAL-BDG agent18 round P, lab; < 0: off) a word-final one's own flow, per stop: its voice bar died 20 ms into
     // the closure ("Web": -9 -> -44 dB re the vowel; Kokoro am_adam holds -15..-19 dB for 40-60 ms) at the b's 400
     // (LINE_B_VBAR_FLOW) and at 300-1500 for g; 200 keeps it to the release for b and g (a servo that overshoots the
@@ -7710,6 +7770,8 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   bool aspiratedRelease = false;  // (for the diaphragm's push, LINE_PULSE)
   rel.expand = 1;
   rel.expandMs = kVoicedExpansionReleaseMs;
+  { static const float kBzExpandLp2 = param("LINE_BZ_EXPAND_LP", -1.0f);  // (BDG-Z agent20) back to LINE_EXPAND_LP
+    if (bzCtx && kBzExpandLp2 >= 0) rel.lineExpandLp = -1.0f; }
   {  // (D agent9 round J lab knob; <= 1: off) the cavity walls' expansion sink through a z after a d, from the d's release
     static const float kDzZExpand2 = param("LINE_DZ_Z_EXPAND", 0.0f);
     if (tract_ == Tract::Line && tok.ph == Ph::D && next && *next == Ph::Z && kDzZExpand2 > 1.0f) { rel.expand = kDzZExpand2; rel.expandMs = 10; }
@@ -7830,9 +7892,14 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
       // LINE_BZ_FRIC. It rides on the stop's release and never got LINE_FINAL_Z_FRIC: its hiss -15 / -10 dB re the
       // word's peak (m / f), Kokoro's -21..-24.
       static const float kBzFric = param("LINE_BZ_FRIC", 1.0f);
-      if (tract_ == Tract::Line && kBzFric != 1.0f && *next == Ph::Z && pi.voiced) {
-        if (rel.lineFricMul >= 0) rel.lineFricMul *= kBzFric;
-        dzBackFric *= kBzFric;
+      // (BDG-Z agent20 round R, lab; < 0: LINE_BZ_FRIC) ... and after a b d g before its word's final z (bzCtx) x
+      // LINE_BZ_FIN_FRIC: 11labs's z after d ("deeds", "odds") is a ~60 ms hiss at -8..-13 dB re the word's peak,
+      // puhuja's -19..-24 (male) for ~100 ms.
+      static const float kBzFinFric = param("LINE_BZ_FIN_FRIC", -1.0f);
+      const float bzFric = bzCtx && kBzFinFric >= 0 ? kBzFinFric : kBzFric;
+      if (tract_ == Tract::Line && bzFric != 1.0f && *next == Ph::Z && pi.voiced) {
+        if (rel.lineFricMul >= 0) rel.lineFricMul *= bzFric;
+        dzBackFric *= bzFric;
       }
       // ... and its jet's Reynolds number x LINE_BZ_RE (1: off; back to 1 at the next phrase's first sound): the hiss
       // starts while the folds still run on from the stop's closure.
@@ -7864,6 +7931,8 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // (as LINE_RELEASE_SCALE x LINE_VOICED_RELEASE does for all): a quicker opening, a sharper burst to carry the place.
   static const float kBdgRelScale = param("LINE_BDG_REL_SCALE", -1.0f);
   if (bdgOn && kBdgRelScale >= 0) rel.acMs = pi.releaseMs * kBdgRelScale;
+  static const float kBzRelScale = param("LINE_BZ_REL_SCALE", -1.0f);  // (BDG-Z agent20; < 0: off) ... one before a z's (lab 2.2 worse, 4.5 noise)
+  if (bzCtx && kBzRelScale >= 0) rel.acMs = pi.releaseMs * kBzRelScale;
   static const float kBdgFinRelScale = param("LINE_BDG_FIN_REL_SCALE", -1.0f);  // (agent18) a final one's (< 0: off)
   if (bdgFin && kBdgFinRelScale >= 0) rel.acMs = pi.releaseMs * kBdgFinRelScale;
   if (dInit && kDiRelScale >= 0) rel.acMs = pi.releaseMs * kDiRelScale;  // (LINE_DI_REL_SCALE)
@@ -8086,6 +8155,10 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     static const float kLineGVotMs = param("LINE_G_VOT_MS", -1.0f);
     static const float kLineDVotMs = param("LINE_D_VOT_MS", -1.0f);  // (the same for the d; D agent 2026-11-10)
     rel.agMs = pi.voiced ? (tok.ph == Ph::G && kLineGVotMs >= 0 ? kLineGVotMs : tok.ph == Ph::D && kLineDVotMs >= 0 ? kLineDVotMs : kGlottalMs) : pi.adductMs;
+    // (BDG-Z agent20 round R, lab; < 0: off) ... and the glottis of a b d g released into a z (bdgCtx 2) opens to the
+    // z's over this (ms; kGlottalMs today): the folds run on into the z's hiss, as Kokoro's.
+    static const float kBzZAbMs = param("LINE_BZ_Z_AB_MS", -1.0f);
+    if (tract_ == Tract::Line && bzCtx && kBzZAbMs >= 0) rel.agMs = kBzZAbMs;
     if (pi.voiced && tok.ph == Ph::G && tok.shape.gctx == 1 && kGiVotMs >= 0) rel.agMs = kGiVotMs;  // (LINE_GI_VOT_MS)
     if (pi.voiced && dInit && kDiVotMs >= 0) rel.agMs = kDiVotMs;  // (LINE_DI_VOT_MS)
     static const float kVlGVotMs = param("LINE_VL_G_VOT_MS", -1.0f);  // (VELAR-L agent15 round N, lab; < 0: off) an initial gl gɹ's
@@ -8237,9 +8310,14 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
       rel.press = 1.0f;
       rel.pressMs = kStopFricBackMs;
     }
+    // (BDG-Z agent20 round R, lab; < 0: as above) a b d g after a vowel before a z's own floor (1: no ease): the
+    // ease was for the snaps of voiceless stops into s / ʃ; behind a voiced closure it cuts the voice bar's drive.
+    // Lab (with LINE_BZ_PRE_MIX 0.4; 402 targets, base 284 on five draws): 0.7 -67 errors, words +33.5; 0.8 -55.5 on four;
+    // 0.9 worse (on some draws the b / g turn into p: P 18).
+    static const float kBzPressFloor = param("LINE_BZ_PRESS_FLOOR", -1.0f);
     if (tract_ == Tract::Line && kStopFricLeadMs > 0 && !nextIsPause && nextFric && tok.ph != Ph::JH && tok.ph != Ph::CH) {
       Event ease{std::max(release - kStopFricLeadMs * ms, t_ + 1.0)};
-      ease.press = kStopFricFloor;
+      ease.press = bzCtx && kBzPressFloor >= 0 ? kBzPressFloor : kStopFricFloor;
       ease.pressMs = kStopFricLeadMs;
       addEventAt(ease);
       rel.press = 1.0f;
@@ -9224,6 +9302,7 @@ float Synth::tick() {
     }
     if (e.linePuffLpr >= 0) line_.setPuffLpRatio(e.linePuffLpr);
     if (e.lineHumpNorm > -1.5f) line_.setHumpNorm(e.lineHumpNorm);
+    if (e.lineExpandLp > -1.5f) line_.setExpandLp(e.lineExpandLp);
     if (e.lineGlotFc >= 0) line_.setGlotFcScale(e.lineGlotFc);
     if (e.lineHBreath >= 0) lineHBreath_ = e.lineHBreath;
     if (e.lineLip >= 0) lineLip_ = lineLipTarget_ = e.lineLip;

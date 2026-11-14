@@ -3148,6 +3148,14 @@ void EnglishReader::sayPhrase(char end) {
         // but the t keeps its full closure: the t / d contrast is then tap against stop).
         // The g's context for the line's initial-g knobs (G-INITIAL agent14 round M): 1 at the word's start before a vowel.
         if (baseName(tokens[i]) == "G" && i == 0 && i + 1 < tokens.size() && isVowelToken(tokens[i + 1])) shape.gctx = 1;
+        // A b d g after a primary-stressed vowel right before the word's final z (Shape::bzFinal; BDG-Z agent20 round R,
+        // the line's LINE_BZ_* knobs): "tubes", "besides"; not "episodes", "methods" (the lab: their -ədz / -ɪdz lost
+        // with the knobs, 14-23 more errors over ~40 such words on one draw).
+        if ((baseName(tokens[i]) == "B" || baseName(tokens[i]) == "D" || baseName(tokens[i]) == "G") && i + 2 == tokens.size() &&
+            i > 0 && baseName(tokens[i + 1]) == "Z" && isVowelToken(tokens[i - 1])) {
+          const char* vn = kEnglishTokens[tokens[i - 1] - 0x80];
+          if (vn[strlen(vn) - 1] == '1') shape.bzFinal = true;
+        }
         // (VELAR-L agent15 round N, lab; 1: as before) a word-initial k / g before l ɹ x EN_VL_LEN, the l / ɹ after it x
         // EN_VL_LIQ_LEN.
         {
@@ -3200,6 +3208,9 @@ void EnglishReader::sayPhrase(char end) {
           };
           if (i + 1 == tokens.size() && i > 0 && baseName(tokens[i]) == "N" && unstressedAt(i - 1)) shape.nctx = 2;
           if (i + 2 == tokens.size() && baseName(tokens[i + 1]) == "N" && unstressedAt(i)) shape.nctx = 1;
+          if (i + 2 == tokens.size() && (baseName(tokens[i]) == "N" || baseName(tokens[i]) == "M") &&
+              baseName(tokens[i + 1]) == "D")
+            shape.nctx |= 4;  // (BDG-Z agent20 round R: the final nd's n, LINE_NDN_*)
         }
         // An unstressed ə before a nasal of its word (Shape::axctx; AX-NASAL agent14 round M): 1, | 2 the word's first
         // vowel after one consonant ("Commands", "Commit"), | 4 after t / d ("Sutton", "Weston"), | 8 after a vowel ("Lions").

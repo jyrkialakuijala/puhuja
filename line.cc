@@ -746,7 +746,8 @@ float VocalTractLine::substep(float u0) {
     }
   }
   oral_.traceExtra_ = nasal_.lipFlow();  // the nostril flow, for the trace
-  if (kExpandLp > 0 && !(expandFlow_ > 0 && expandSlow_)) expandPc_ = oral_.pressureAt(std::max(velumK_ - 4, 1));  // (tracks while idle)
+  const float expandLp = expandLpHz_ >= 0 ? expandLpHz_ : kExpandLp;  // (setExpandLp: a closure's own, BDG-Z agent20)
+  if (expandLp > 0 && !(expandFlow_ > 0 && expandSlow_)) expandPc_ = oral_.pressureAt(std::max(velumK_ - 4, 1));  // (tracks while idle)
   const float p1 = oral_.substep(u0);
   oral_.sink(velumK_, uNasal_);
   if (expandFlow_ > 0) {
@@ -754,14 +755,14 @@ float VocalTractLine::substep(float u0) {
     // a leak that holds the cavity near kExpandHold of the lung pressure, so
     // less pressure gathers for b than for p (Jyrki 2026-11-03).
     float pc = oral_.pressureAt(std::max(velumK_ - 4, 1));
-    if (kExpandLp > 0 && expandSlow_) {
+    if (expandLp > 0 && expandSlow_) {
       // LINE_EXPAND_LP (Hz): the share follows the cavity's slow pressure
       // only. Driven by the instantaneous pressure the sink was a resistive
       // shunt of ~0.1 cm^5/(dyn s) at mid-tract (in its linear range, b's
       // closure at share ~0.9): the folds lost their load, p0's AC was 55
       // dyn/cm^2 (d's 510), voicing died within 5 ms and the closure was
       // silent; d's bar kept only the 1.2 kHz closed-tube mode (2026-11-05).
-      expandPc_ += (1.0f - std::exp(kM2PiL * kExpandLp * dt_)) * (pc - expandPc_);
+      expandPc_ += (1.0f - std::exp(kM2PiL * expandLp * dt_)) * (pc - expandPc_);
       pc = expandPc_;
     }
     const float hold = kExpandHold * lungPressure_;

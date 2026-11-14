@@ -127,6 +127,7 @@ struct Event {
   float lineAspMul = -1;  // the glottal noise gain factor on the line (a stop's puff; < 0: unchanged)
   float lineGlotFc = -1;  // the glottal noise band's corner x this on the line (an h's breath colour, LINE_H_GFC; < 0: unchanged)
   float lineHBreath = -1;  // an h's unthresholded breath gain on the line (x LINE_ASP; LINE_H_BREATH; < 0: unchanged)
+  float lineExpandLp = -2;  // the voiced closure's expansion low-pass (Hz; -1: LINE_EXPAND_LP again; < -1: unchanged; BDG-Z agent20)
   float lineHumpNorm = -2;  // the hump's sampling norm power on the line (-1: LINE_HUMP_NORM again; < -1: unchanged; P agent 10)
   float linePuffLpr = -1;  // the glottal noise low-pass ratio on the line during a stop's puff (0: off; < 0: unchanged)
   float lineFricFade = -1;  // the frication source's fade-out areas x this (voiced fricatives; < 0: unchanged)
@@ -269,12 +270,15 @@ class Synth {
     unsigned char eyctx = 0;  // eɪ's context bits for the line's eɪ knobs (english.cc, EY agent10 round K): 1 closed
                               // syllable (a consonant follows in the word), 2 that consonant a nasal, 4 word-initial
     unsigned char nctx = 0;  // the line's final-n knobs (english.cc, N agent13 round L): 1 an unstressed vowel right before
-                             // its word's final n, 2 that final n
+                             // its word's final n, 2 that final n; 4 (BDG-Z agent20 round R) an n or m right before
+                             // its word's final d ("band", "fund", "claimed")
     unsigned char erctx = 0;  // a word-initial ER0 before a vowel said ə + ɹ (english.cc EN_ER_INIT / EN_ER_INIT_AH,
                               // ER-INITIAL agent13 round L): 1 its ə, 2 its ɹ
     unsigned char ihctx = 0;  // a standalone ɪ's context for the line's ɪ knobs (english.cc, IH-STRESSED agent14 round M):
                               // 1 stressed, 2 an l next in its word, 4 an n / m next, 8 after l ɹ w, 16 after m n,
                               // 32 a one-vowel word; on the l / n / m after a stressed ɪ: 64
+    bool bzFinal = false;  // a b d g right before its word's final z ("tubes", "sides", "dogs"; english.cc, BDG-Z agent20
+                           // round R: the line's LINE_BZ_* knobs; not the medial ɪgz of "example")
     unsigned char gctx = 0;  // the line's initial-g knobs (english.cc, G-INITIAL agent14 round M): 1 a word-initial g
                              // before a vowel (LINE_GI_*)
     unsigned char axctx = 0;  // an unstressed ə before a nasal of its word, not word-initial (english.cc, AX-NASAL agent14
@@ -680,6 +684,7 @@ class Synth {
   Event pendingNoise_{0};  // a voiced fricative's noise, after the glottis closed
   bool hasPendingNoise_ = false;
   bool prevUnreleased_ = false;
+  bool bdgZ_ = false;  // the last plosive was a b d g after a vowel before a z (BDG-Z agent20 round R: its z's knobs)
   // F1 through l r d: their keyframes waiting for the next vowel, and the
   // last vowel's F1 and time.
   std::vector<std::pair<double, float>> f1Pending_;  // time, least share of the next vowel's F1
