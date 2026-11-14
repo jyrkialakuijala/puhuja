@@ -1198,7 +1198,7 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
       // final-z words, two independent draw pairs) 160 -> 149.5 errors, with LINE_FZ_SINK_N 2 142 (vowel + z cell 105 -> 86).
       if (phraseFinal && !vowel && i > 0 && i > static_cast<size_t>(lastVowel) && b == "Z" &&
           !isVoicelessPlosive(baseName(tok[i - 1])) && !isVoicedPlosive(baseName(tok[i - 1]))) {
-        static const float kFinalZLen = param("EN_FINAL_Z_LEN", 1.0f);
+        static const float kFinalZLen = param("EN_FINAL_Z_LEN", 1.2f);
         whole *= kFinalZLen;
       }
       // The voiceless fricatives' and stops' lengths x these (Jyrki 2026-11-05,

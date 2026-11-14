@@ -3420,7 +3420,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
         // am_adam 41), 21 ms in the male. 2: overlap 25 / 12 ms, voice bar over the hiss's first 20 ms -15 / -25 dB re
         // the word's peak (base -20 / -29). (After b d g a delayed, ramped sink still snapped: snap.py 10.3 / 8.4 ->
         // 13.8-15.1 / 11.6-13.4 dB at 0.2-0.5 x the flow, delays 10-25 ms; lab B cell 24.5 -> 41.5 errors.)
-        static const float kFzSinkN = param("LINE_FZ_SINK_N", 1.0f);
+        static const float kFzSinkN = param("LINE_FZ_SINK_N", 2.0f);
         const float nMul = info(lastPh_).cls == Cls::Nasal ? kFzSinkN : 1.0f;
         if (nMul != 1.0f) e.lineSink *= nMul;
         if (kFzSinkMs > 0)
