@@ -6465,7 +6465,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
       static const float kZEarlyBreath = param("LINE_Z_EARLY_BREATH", 1.0f);  // (the same for a phrase-initial z: "zero" silent for 20 ms, -43 dB)
       // (VOWEL-ONSET agent18, lab; < 0: as before) a phrase-initial vowel's breath starts rising LINE_VON_PRE_PRESS_MS
       // before it (in the pause, as the sonorants'), over LINE_VON_PRESS_RAMP_MS (< 0: LINE_PRE_PRESS_MS).
-      static const float kVonPrePressMs = param("LINE_VON_PRE_PRESS_MS", -1.0f), kVonPressRampMs = param("LINE_VON_PRESS_RAMP_MS", -1.0f);
+      static const float kVonPrePressMs = param("LINE_VON_PRE_PRESS_MS", 0.0f), kVonPressRampMs = param("LINE_VON_PRESS_RAMP_MS", 20.0f);
       const bool vonBreath = in.cls == Cls::Vowel && kVonPrePressMs >= 0;
       const bool earlyBreath = in.cls == Cls::Nasal || in.cls == Cls::Liquid || in.cls == Cls::Glide || in.cls == Cls::Trill ||
                                (tok.ph == Ph::VV && kVEarlyBreath > 0) || (tok.ph == Ph::Z && kZEarlyBreath > 0) || vonBreath;
