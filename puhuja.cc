@@ -8052,7 +8052,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // every k took 16 of 138 k errors, rejected then for its snaps).
   static const float kKInitRelFric = param("LINE_K_INIT_REL_FRIC", -1.0f);
   // (PL-INITIAL agent17 round O, lab; < 0: LINE_P_REL_FRIC) a word-initial p before l ɹ: its own release hiss.
-  static const float kPlRelFric = param("LINE_PL_REL_FRIC", -1.0f);
+  static const float kPlRelFric = param("LINE_PL_REL_FRIC", 2.0f);
   const float kRelFricNf = tok.wordStart && kKInitRelFric >= 0 ? kKInitRelFric : kLineKRelFric;
   const float relFric = tok.ph == Ph::K ? ((!next || nextIsPause) && kLineKFinalRelFric >= 0 ? kLineKFinalRelFric : kRelFricNf)
                         : tok.ph == Ph::P ? (plInit && kPlRelFric >= 0 ? kPlRelFric : kLinePRelFric) : tok.ph == Ph::T ? ((!next || nextIsPause) && kLineTFinalRelFric >= 0 ? kLineTFinalRelFric : kLineTRelFric) : 1.0f;
