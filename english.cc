@@ -1070,6 +1070,15 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
           static const float kStopRLen = param("EN_STOP_R_LEN", 1.7f);  // Jyrki: "proud-r15-cut.wav perhaps 17 would be ideal"
           whole *= kStopRLen;
         }
+        // (KL-KR agent22 round T, lab; 1: unchanged) the l / ɹ after a word-initial k ("Claire", "Cried"): x EN_VL_K_LIQ_LEN,
+        // to trade the voiced liquid's time for the k's longer puff (LINE_VL_K_VOT) at the same word length: Kokoro's kl kɹ
+        // voice starts 58-90 ms after the burst (puhuja 44-48), the liquid mostly voiceless under the puff.
+        // Lab: 0.8 alone kɹ 30 -> 22.5 (seed 1); 0.65 with LINE_VL_K_VOT 1.7 (VOT 71-73 ms, words 0.5-4 % shorter) worse on
+        // seed 2 (59 -> 76 k / g errors, k deleted 8, heard b): the short liquid loses the cluster. Off.
+        if ((b == "L" || b == "R") && i == 1 && baseName(tok[0]) == "K") {
+          static const float kVlKLiqLen = param("EN_VL_K_LIQ_LEN", 1.0f);
+          whole *= kVlKLiqLen;
+        }
         // j after a plosive in the same word ("cute", "beauty"; Y agent round G, lab): x EN_STOP_J_LEN (1: unchanged).
         if (b == "Y" && i > 0 && (isVoicelessPlosive(baseName(tok[i - 1])) || isVoicedPlosive(baseName(tok[i - 1])))) {
           static const float kStopJLen = param("EN_STOP_J_LEN", 1.0f);

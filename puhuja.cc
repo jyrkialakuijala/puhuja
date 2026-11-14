@@ -8242,6 +8242,10 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
       static const float kPvAg = param("LINE_PV_AG", -1.0f), kKvAg = param("LINE_KV_AG", -1.0f);  // (PK-INITIAL agent19, lab; < 0: as before) pvInit / kvInit's puff glottis (cm^2)
       if (pvInit && kPvAg >= 0) rel.ag = kPvAg;
       if (kvInit && kKvAg >= 0) rel.ag = kKvAg;
+      // (KL-KR agent22 round T, lab; < 0: as before) a word-initial kl kɹ's (vlK) puff glottis (cm^2): LINE_VL_K_AG.
+      // Lab (191 k / g targets x 2 voices, seed 1, base 78 errors): 0.4 -> 75, 0.9 -> 76: no gain.
+      static const float kVlKAg = param("LINE_VL_K_AG", -1.0f);
+      if (vlK && kVlKAg >= 0) rel.ag = kVlKAg;
       rel.agMs = 5;
       // ... and the puff hisses: the turbulence of the full lung pressure
       // through the open glottis, far stronger than an h's (LINE_ASP alone
@@ -8321,7 +8325,10 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
       // (PL-INITIAL agent17 round O, lab; < 0: as before) a word-initial p before l ɹ: its adduction into voice over
       // LINE_PL_ADDUCT_MS (a breathy onset of the liquid, as Kokoro's).
       static const float kPlAdductMs = param("LINE_PL_ADDUCT_MS", -1.0f);
-      const float adductMs = pvInit && kPvAdductMs >= 0 ? kPvAdductMs : kvInit && kKvAdductMs >= 0 ? kKvAdductMs : plInit && kPlAdductMs >= 0 ? kPlAdductMs : wNext && kWAdductMs >= 0 ? kWAdductMs : kInitStr && kKInitAdductMs >= 0 ? kKInitAdductMs : kLineVotAdductMs;
+      // (KL-KR agent22 round T, lab; < 0: as before) vlK's adduction into voice over LINE_VL_K_ADDUCT_MS (a breathy liquid onset).
+      // Lab: 40 ms kɹ initial errors 30 -> 18.5 of the lab's kɹ words (seed 1) but level veto; not tried further.
+      static const float kVlKAdductMs = param("LINE_VL_K_ADDUCT_MS", -1.0f);
+      const float adductMs = vlK && kVlKAdductMs >= 0 ? kVlKAdductMs : pvInit && kPvAdductMs >= 0 ? kPvAdductMs : kvInit && kKvAdductMs >= 0 ? kKvAdductMs : plInit && kPlAdductMs >= 0 ? kPlAdductMs : wNext && kWAdductMs >= 0 ? kWAdductMs : kInitStr && kKInitAdductMs >= 0 ? kKInitAdductMs : kLineVotAdductMs;
       Event adductLine{release + (tok.ph == Ph::P && kLinePVotHoldMs >= 0 ? kLinePVotHoldMs : tok.ph == Ph::K && kLineKVotHoldMs >= 0 ? kLineKVotHoldMs : tok.ph == Ph::T && kLineTVotHoldMs >= 0 ? kLineTVotHoldMs : kLineVotHoldMs) * (curStress_ ? 1.0f : unstrHold) * (pLiq ? kLinePLiqVot : 1.0f) * (tLiq ? kLineTLiqVot : 1.0f) * (kLiq ? kKLiqVot : 1.0f) * (kInitStr ? kKInitVot : 1.0f) * (vlK ? kVlKVot : 1.0f) * (lastPh_ == Ph::S ? kLineSkAsp : 1.0f) * (wNext ? kWVot : 1.0f) * (plInit ? kPlVot : 1.0f) * ms};
       if (stopJ && kJVot != 1.0f) adductLine.t = release + (adductLine.t - release) * kJVot;
       if (pvInit && kPvVot != 1.0f) adductLine.t = release + (adductLine.t - release) * kPvVot;  // (LINE_PV_VOT)
@@ -8349,6 +8356,8 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
         static const float kTrPuffLpr = param("LINE_TR_PUFF_LPR", -1.0f), kTwPuffLpr = param("LINE_TW_PUFF_LPR", -1.0f);  // (CL-INIT agent20, lab; <= 0: as before)
         if (trInit && kTrPuffLpr > 0) rel.linePuffLpr = kTrPuffLpr;
         if (twInit && kTwPuffLpr > 0) rel.linePuffLpr = kTwPuffLpr;
+        static const float kVlKPuffLpr = param("LINE_VL_K_PUFF_LPR", -1.0f);  // (KL-KR agent22, lab; <= 0: as before) vlK's puff band (5 / 20: no gain)
+        if (vlK && kVlKPuffLpr > 0) rel.linePuffLpr = kVlKPuffLpr;
         pendingAspEnd_.linePuffLpr = 0.0f;
       }
       hasPendingAspEnd_ = true;
@@ -8656,7 +8665,15 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // LINE_G_REL_RE_MS, the g's frication gain LINE_VL_G_FRIC (< 0: LINE_VSTOP_BURST_LIQ's).
   static const float kVlRe = param("LINE_VL_RE", 3.0f), kVlGFric = param("LINE_VL_G_FRIC", -1.0f);
   const bool vlRe = vlInit && kVlRe >= 0 && !unreleased;
-  if (vlRe) rel.lineFricReMul = kVlRe;
+  // (KL-KR agent22 round T, lab; < 0: LINE_VL_RE) the g's own (gl gɹ): LINE_VL_G_RE (LINE_VL_RE 2 took the lab's gl errors
+  // 8.5 -> 19: the g's release jet is its velar cue against b). Lab: 5 gl / gɹ initial errors 8.5 / 19.5 -> 3.5 / 11 (seed 1),
+  // 8.5 / 15.5 -> 6 / 10 (seed 2), but the g burst 4-7 dB louder (gl m -7.2 -> -3.3 dB re the word's peak, f -7.4 -> -0.8;
+  // Kokoro -10.3 / -10.5); with LINE_VL_G_PRESS 0.35 the mean burst level is the base's (gl m -6.1, f -11.4; gɹ m -7.8,
+  // f -9.5) and its 2-4.5 kHz share rises toward Kokoro's. Round T pick (with LINE_VL_K_X 0.64, _K_JET_D 0.7,
+  // _K_REL_FRIC 0.15): dictionary conditions (368 kl kɹ gl gɹ words + 350 fillers, 4 draws, two word orders) gɹ + gl
+  // errors 93 -> 50, kɹ + kl 137 -> 63, targets right +45 / +31.
+  static const float kVlGRe = param("LINE_VL_G_RE", -1.0f);
+  if (vlRe) rel.lineFricReMul = vlG && kVlGRe >= 0 ? kVlGRe : kVlRe;
   // (PL-INITIAL agent17 round O, lab; < 0: off) a word-initial p before l ɹ: its release jet's Reynolds x LINE_PL_RE for
   // LINE_G_REL_RE_MS (the lips' burst hisses across the band, as Kokoro's).
   static const float kPlRe = param("LINE_PL_RE", -1.0f);
