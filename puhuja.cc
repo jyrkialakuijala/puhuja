@@ -3337,6 +3337,11 @@ void Synth::emit(const Token& tok, const Ph* next) {
     if (kDzZAg >= 0) aero.ag = kDzZAg;
     if (kDzZExpand > 1.0f) { e.expand = kDzZExpand; e.expandMs = static_cast<float>(dur / ms); }
   } else if (tract_ == Tract::Line && kDzZExpand > 1.0f && lastPh_ == Ph::Z && e.expand < 0) { e.expand = 1.0f; e.expandMs = 5; }
+  // (R-L agent19 round Q, lab; < 0: as before) a z after an ɹ ("fares"): its glottis LINE_RZ_Z_AG (LINE_AG_Z 0.202).
+  // Puhuja's z after ɹ opens on 20-30 ms of voice at -6 dB with F2 ~900 and no hiss (an l); Kokoro's voice fades under
+  // the hiss with F2 ~1400. Lab (600 coda-ɹ words): 0.28 / 0.35 ɹ errors 121 -> 116 / 113, words +5 / +3 (noise).
+  static const float kRzZAg = param("LINE_RZ_Z_AG", -1.0f);
+  if (tract_ == Tract::Line && tok.ph == Ph::Z && lastPh_ == Ph::RR && kRzZAg >= 0) aero.ag = kRzZAg;
   if (tract_ == Tract::Line && tok.ph == Ph::Z) {
     const bool zFinal = !next || *next == Ph::Stop;
     if (zFinal && kZAgFinal >= 0) aero.ag = kZAgFinal;
@@ -3987,6 +3992,34 @@ void Synth::emit(const Token& tok, const Ph* next) {
       }
       // (R-POSTVOCALIC agent14 round M, lab) the coda ɹ's own knobs: rCodaShape().
       if (isVowel(lastPh_) && !(next && isVowel(*next)) && rCodaScope(lastPh_)) rCodaShape(&sh);
+      // (R-L agent19 round Q, lab; 1 / -1 / 0: as before) a coda ɹ before a z (LINE_RZ_SCOPE 1: before any consonant):
+      // "Fares" -> fails, "Tears" -> tells, "Peers" -> pills (dictionary combo14 V_Z 33 of 160 heard l; the same words
+      // without the z are heard with their ɹ). Its pharynx, lip area, hump area x LINE_RZ_APH / _LIPA / _AC, its place
+      // LINE_RZ_X (-1: as the coda's), a mix toward the ɜ row by LINE_RZ_ER. Lab: a narrower pharynx (0.5) or the ɜ
+      // row doubled the l (F2 down: low F2 is the l cue here, not high F3); 1.4 before any consonant -8 / -10 errors.
+      static const float kRzAph = param("LINE_RZ_APH", 1.0f), kRzLipA = param("LINE_RZ_LIPA", 1.0f),
+                         kRzAc = param("LINE_RZ_AC", 1.0f), kRzX = param("LINE_RZ_X", -1.0f), kRzEr = param("LINE_RZ_ER", 0.0f),
+                         kRzScope = param("LINE_RZ_SCOPE", 0.0f);
+      if (isVowel(lastPh_) && next && !isVowel(*next) && *next != Ph::Stop && (*next == Ph::Z || kRzScope > 0)) {
+        TractShape er;
+        if (kRzEr > 0 && lineShapeOf(Ph::ER, &er)) sh = lineShapeMix(sh, er, kRzEr);
+        if (kRzAph != 1.0f) sh.aPharynx *= kRzAph;
+        if (kRzLipA != 1.0f) sh.aLip *= kRzLipA;
+        if (kRzAc != 1.0f) sh.ac *= kRzAc;
+        if (kRzX > 0) { sh.xc = kRzX; sh.sc = lineVowelStrength(sh.xc, sh.wc, sh.length); }
+      }
+      // (R-L agent19 round Q, lab; 1 / 0: as before) the ɹ after a b d g before a vowel ("bring" -> bling, "Grew" ->
+      // blue: B_V 35 of 1088 heard l): its pharynx, lip area, oral area x LINE_RB_APH / _LIPA / _AOR, a mix toward the
+      // ɜ row by LINE_RB_ER. Lab (160 hardest words, 32 ɹ errors): no setting gained; RB_ER 0.3 heard l 107 times.
+      static const float kRbAph = param("LINE_RB_APH", 1.0f), kRbLipA = param("LINE_RB_LIPA", 1.0f),
+                         kRbAor = param("LINE_RB_AOR", 1.0f), kRbEr = param("LINE_RB_ER", 0.0f);
+      if (prevWasPlosive_ && (lastPlosivePh_ == Ph::B || lastPlosivePh_ == Ph::D || lastPlosivePh_ == Ph::G) && next && isVowel(*next)) {
+        TractShape er;
+        if (kRbEr > 0 && lineShapeOf(Ph::ER, &er)) sh = lineShapeMix(sh, er, kRbEr);
+        if (kRbAph != 1.0f) sh.aPharynx *= kRbAph;
+        if (kRbLipA != 1.0f) sh.aLip *= kRbLipA;
+        if (kRbAor != 1.0f) sh.aOral *= kRbAor;
+      }
     }
     // (VELAR-L agent15 round N, lab; 1: as before) the l / ɹ after a word-initial k or g: its lip area x LINE_VL_LIQ_LIPA,
     // lip length x LINE_VL_LIQ_LIPL, pharynx x LINE_VL_LIQ_APH (rounded lips in the cluster's release give the labial's
@@ -6433,14 +6466,22 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // the v's own (V agent, round F; < 0: LINE_FRIC_APPROACH_MS / _A): a b closes the lips in ~10 ms, a v's lip comes
     // up to the teeth more slowly; Whisper hears 419 of the v's 830 dictionary substitutions as b.
     static const float vApMs = param("LINE_V_APPROACH_MS", -1.0f), vApA = param("LINE_V_APPROACH_A", -1.0f);
-    const float apMs = tok.ph == Ph::Z && zApMs >= 0 ? zApMs : tok.ph == Ph::VV && vApMs >= 0 ? vApMs : frApMs;
+    // (R-L agent19 round Q, lab; < 0: as above) a z after an ɹ: its approach time LINE_RZ_AP_MS and area LINE_RZ_AP_A.
+    // The approach puts the tip at the ridge (0.4 cm^2) in the ɹ's last 25 ms with the voice on: F2 ~900, F3 ~3000 at
+    // -6 dB re the vowel, a lateral ("Fares" -> fails); Kokoro's z after ɹ keeps F2 ~1400 under a fading voice, 11labs'
+    // rises from the ɹ's 1600 to 1900. Lab (600 coda-ɹ words, two draws; ɹ errors / words right, base 121 / 841 and
+    // 124 / 844): 0 ms 104 / 850, 100 / 861 (ɹ heard l 45 -> 30, but the male z onset faster than Kokoro's); 15 ms to
+    // 0.7 cm^2 110 / 846, 104 / 864 (l 32; aesthetics.fspeed on 12 ɹz words m 197 / f 251, base 179 / 248).
+    static const float kRzApMs = param("LINE_RZ_AP_MS", -1.0f), kRzApA = param("LINE_RZ_AP_A", -1.0f);
+    const bool rzAp = tok.ph == Ph::Z && lastPh_ == Ph::RR;
+    const float apMs = rzAp && kRzApMs >= 0 ? kRzApMs : tok.ph == Ph::Z && zApMs >= 0 ? zApMs : tok.ph == Ph::VV && vApMs >= 0 ? vApMs : frApMs;
     // ... not after an m with LINE_M_FRIC_AP 0 (round J, M agent; 1: as before): the approach moved the closure from the
     // lips to the z's place over the m's last 25 ms while the port was open, an n's murmur ("seems" -> scenes, "cams"
     // -> cans; m before z 28 % wrong, heard as n 87 of 120). Lab: worse (m errors +30 alone, +43 with LINE_M_SHAPE).
     static const float kMFricAp = param("LINE_M_FRIC_AP", 1.0f);
     if (tract_ == Tract::Line && apMs > 0 && fric && sonBefore && !prevWasPlosive_ && !(lastPh_ == Ph::M && kMFricAp <= 0)) {
       Event ap{std::max(e.t - apMs * ms, phonemeStart_ + 1)};
-      ap.ac = tok.ph == Ph::VV && vApA >= 0 ? vApA : frApA;
+      ap.ac = rzAp && kRzApA >= 0 ? kRzApA : tok.ph == Ph::VV && vApA >= 0 ? vApA : frApA;
       ap.acMs = static_cast<float>((e.t - ap.t) / ms);
       ap.lineX = linePlaceOf(tok.ph);
       addEventAt(ap);
@@ -6864,6 +6905,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
                       (*next == Ph::L || *next == Ph::RR);
   const bool vlK = vlInit && tok.ph == Ph::K, vlG = vlInit && tok.ph == Ph::G;
   vlInitPrev_ = vlInit;
+  lastPlosivePh_ = tok.ph;
   // (PL-INITIAL agent17 round O, lab; every LINE_PL_* knob's default is off) a word-initial p before l ɹ (plInit): the
   // dictionary (combo12) heard pl as kl / tl 59 of 280, pɹ as kɹ / ɹ 191 of 1356 ("Plaque" -> clack, "Proc" -> croc,
   // "Prepare" -> repair). Its burst: puhuja's first 5 ms 0.3-1 / 1-2 / 2-4 / 4-8 kHz at -36 / -50 / -59 / -65 dB re the

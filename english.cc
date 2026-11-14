@@ -3107,6 +3107,13 @@ void EnglishReader::sayPhrase(char end) {
                              !(i + 1 < tokens.size() && isVowelToken(tokens[i + 1])) &&
                              !(i + 1 == tokens.size() && w + 1 < phrase_.size() && !phrase_[w + 1].tokens.empty() && isVowelToken(phrase_[w + 1].tokens[0]));
           if (codaR) shape.ms *= kCodaRLen;
+          // (R-L agent19 round Q, lab; 1: as before) a coda ɹ before a z ("fares", "tears": heard l 33 of 160, the dark
+          // ɹ running into a voiced alveolar) x EN_RZ_LEN, the vowel before that ɹ x EN_RZ_VLEN.
+          static const float kRzLen = param("EN_RZ_LEN", 1.0f), kRzVLen = param("EN_RZ_VLEN", 1.0f);
+          if (codaR && kRzLen != 1.0f && i + 1 < tokens.size() && baseName(tokens[i + 1]) == "Z") shape.ms *= kRzLen;
+          if (kRzVLen != 1.0f && vowel && s.n == 1 && i + 2 < tokens.size() && baseName(tokens[i + 1]) == "R" &&
+              baseName(tokens[i + 2]) == "Z")
+            shape.ms *= kRzVLen;
           // (R-POSTVOCALIC agent14 round M, lab; 1: as before) the vowel before a coda ɹ x EN_PRE_CODA_R_VLEN (with
           // EN_CODA_R_LEN: the r-coloured tail longer at the same word length; 11labs "dare", "share": ɹ 30-100 ms).
           static const float kPreCodaRVLen = param("EN_PRE_CODA_R_VLEN", 1.0f);

@@ -489,6 +489,7 @@ class Synth {
   float zPauseFric_ = 1.0f;  // a final z's hiss gain, kept through the pause's tokens (LINE_FINAL_Z_FRIC, LINE_Z_FRIC)
   bool prevWasPlosive_ = false;
   bool vlInitPrev_ = false;  // the last plosive was a word-initial k / g before l ɹ (LINE_VL_*, VELAR-L agent15 round N)
+  Ph lastPlosivePh_ = Ph::Stop;  // the last plosive emitted (LINE_RB_*: an ɹ after b d g, R-L agent19 round Q)
   bool plInitPrev_ = false;  // the last plosive was a word-initial p before l ɹ (LINE_PL_*, PL-INITIAL agent17 round O)
   bool jAfterStop_ = false;  // the last token was a j released from a plosive (LINE_U_AFTER_STOP_J)
   bool prevWasNasal_ = false;
