@@ -3115,6 +3115,15 @@ void EnglishReader::sayPhrase(char end) {
           if (kVlLen != 1.0f && i == 0 && tokens.size() > 1 && velar(0) && liquid(1)) shape.ms *= kVlLen;
           if (kVlLiqLen != 1.0f && i == 1 && velar(0) && liquid(1)) shape.ms *= kVlLiqLen;
         }
+        // (PL-INITIAL agent17 round O, lab; 1: as before) a word-initial p before l ɹ x EN_PL_LEN, the l / ɹ after it x
+        // EN_PL_LIQ_LEN.
+        {
+          static const float kPlLen = param("EN_PL_LEN", 1.0f), kPlLiqLen = param("EN_PL_LIQ_LEN", 1.0f);
+          auto liquid = [&](size_t j) { const std::string b = baseName(tokens[j]); return b == "L" || b == "R"; };
+          const bool pl = tokens.size() > 1 && baseName(tokens[0]) == "P" && liquid(1);
+          if (kPlLen != 1.0f && i == 0 && pl) shape.ms *= kPlLen;
+          if (kPlLiqLen != 1.0f && i == 1 && pl) shape.ms *= kPlLiqLen;
+        }
         if (baseName(tokens[i]) == "D") {
           static const float kFlapD = param("EN_FLAP_D", 0.0f), kFlapDMs = param("EN_FLAP_D_MS", -1.0f);
           const bool pv = i > 0 && isVowelToken(tokens[i - 1]), nv = i + 1 < tokens.size() && isVowelToken(tokens[i + 1]);
