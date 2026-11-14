@@ -6959,7 +6959,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // Lab (ref/opt/lab/PK/agent19, 300 p / k words, base 132 p k errors, placebo sd 5.3): LINE_KV_X_FRONT 0.72 +
   // LINE_KV_SLIT_X_FRONT 0.8 + LINE_KV_VOT_UNSTR 1 86, + LINE_KV_ADDUCT_MS 30 78 (burst peak 1.7 -> 2.2 kHz, VOT 47 -> 57 ms:
   // Kokoro 2.5-3.1 kHz, 51-72 ms); LINE_KV_X_BACK / LINE_KV_X / LINE_KV_REL_FRIC / the pinch / the p's knobs no gain or worse.
-  static const float kKvX = param("LINE_KV_X", -1.0f), kKvXBack = param("LINE_KV_X_BACK", -1.0f), kKvXFront = param("LINE_KV_X_FRONT", -1.0f);
+  static const float kKvX = param("LINE_KV_X", -1.0f), kKvXBack = param("LINE_KV_X_BACK", -1.0f), kKvXFront = param("LINE_KV_X_FRONT", 0.72f);
   const bool kvFront = kvInit && (*next == Ph::I || *next == Ph::IH || *next == Ph::E || *next == Ph::EH || *next == Ph::AE);
   const float vlX = vlK ? kVlKX : vlG ? kVlGX : -1.0f;
   // (FINAL-T agent18 round P, lab; < 0: as before) a word-final t's closure place LINE_T_FINAL_X (share of the line;
@@ -7926,7 +7926,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
       // (PK-INITIAL agent19, lab; 1: as before) pvInit / kvInit: the puff noise x LINE_PV_ASP / LINE_KV_ASP, its hold x
       // LINE_PV_VOT / LINE_KV_VOT (below), the adduction into voice over LINE_PV_ADDUCT_MS / _KV_ (< 0: as before).
       static const float kPvAsp = param("LINE_PV_ASP", 1.0f), kKvAsp = param("LINE_KV_ASP", 1.0f), kPvVot = param("LINE_PV_VOT", 1.0f),
-                         kKvVot = param("LINE_KV_VOT", 1.0f), kPvAdductMs = param("LINE_PV_ADDUCT_MS", -1.0f), kKvAdductMs = param("LINE_KV_ADDUCT_MS", -1.0f);
+                         kKvVot = param("LINE_KV_VOT", 1.0f), kPvAdductMs = param("LINE_PV_ADDUCT_MS", -1.0f), kKvAdductMs = param("LINE_KV_ADDUCT_MS", 30.0f);
       if (pvInit && kPvAsp != 1.0f) rel.lineAspMul *= kPvAsp;
       if (kvInit && kKvAsp != 1.0f) rel.lineAspMul *= kKvAsp;
       const bool tLiq = tok.ph == Ph::T && !isVowel(*next);  // (LINE_T_LIQ_VOT / _ASP)
@@ -7950,9 +7950,9 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
       if (vlK && kVlKAsp != 1.0f) rel.lineAspMul *= kVlKAsp;
       // (PK-INITIAL agent19, lab; < 0: as above) LINE_K_VOT_UNSTR_INIT for a word-initial k before a vowel only (kl kɹ kw
       // kj unchanged): LINE_KV_VOT_UNSTR.
-      static const float kKvVotUnstr = param("LINE_KV_VOT_UNSTR", -1.0f);
+      static const float kKvVotUnstr = param("LINE_KV_VOT_UNSTR", 1.0f);
       // LINE_PV_VOT_UNSTR the same for a word-initial p before a vowel (unstressed initial p heard b 25 %: "Parade" -> bread).
-      static const float kPvVotUnstr = param("LINE_PV_VOT_UNSTR", -1.0f);
+      static const float kPvVotUnstr = param("LINE_PV_VOT_UNSTR", 1.0f);
       const float unstrHold = pvInit && kPvVotUnstr >= 0 ? kPvVotUnstr : kvInit && kKvVotUnstr >= 0 ? kKvVotUnstr : tok.ph == Ph::K && tok.wordStart && kKVotUnstrInit >= 0 ? kKVotUnstrInit : kLineVotHoldUnstressed;
       // (Y agent round G, lab; 1: as before) a p t k before j: the puff's noise x LINE_J_ASP, its hold x LINE_J_VOT
       // (an English pj kj devoices the j: [pçʊ]).
@@ -8615,7 +8615,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   static const float kKSlitLiqA = param("LINE_K_SLIT_LIQ_A", -1.0f), kKSlitLiqJetD = param("LINE_K_SLIT_LIQ_JET_D", -1.0f),
                      kKSlitXFront = param("LINE_K_SLIT_X_FRONT", -1.0f), kKBurstMsFront = param("LINE_K_BURST_MS_FRONT", -1.0f);
   // (PK-INITIAL agent19, lab; < 0: LINE_K_SLIT_X_FRONT) the same slit place for a word-initial k only.
-  static const float kKvSlitXFront = param("LINE_KV_SLIT_X_FRONT", -1.0f);
+  static const float kKvSlitXFront = param("LINE_KV_SLIT_X_FRONT", 0.8f);
   const float kSlitXFrontK = kvInit && kKvSlitXFront >= 0 ? kKvSlitXFront : kKSlitXFront;
   const float slitMsK = kBurst && kFrontV && kKBurstMsFront >= 0 && !kSlitLiq && !kSlitFinal ? kKBurstMsFront : slitMs;
   if (kBurst) {
