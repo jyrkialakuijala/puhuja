@@ -461,6 +461,12 @@ const float kLineEyGlideFrom = param("LINE_EY_GLIDE_FROM", 0.85f);
 // (from 10 %: earlier glide, 410/1640 and 420/1045, Whisper the same within
 // noise, aɪ heard more as eɪ/iː); Whisper aɪ 1 -> 11 of 26, aʊ 4 -> 6 of 26 (2026-11-04).
 const float kLineAyGlideFrom = param("LINE_AY_GLIDE_FROM", 0.85f);
+// (VOWEL agent31 round AC, lab) the current token is in connected speech (from a phrase's 2nd word on; Synth::emit), and
+// csv(v, vCs): a diphthong knob's connected-speech value <knob>_CS when set (> -50; default -99: off).
+bool vqCsNow = false;
+bool vqFemale = false;  // the voice of this process (Synth::setVoice)
+inline bool vqFemaleOff() { static const float f = param("LINE_VQ_F", 0.0f); return f == 0; }
+inline float csv(float v, float vCs) { return vqCsNow && vCs > -50 && !(vqFemale && vqFemaleOff()) ? vCs : v; }  // (female: only with LINE_VQ_F != 0)
 const float kLineAwGlideFrom = param("LINE_AW_GLIDE_FROM", 0.35f) /* 0.3 until 2026-11-05: Jyrki chose the glide from the start (vdn-U) for "now"; 0 until 2026-11-08: with the ɔ end (LINE_AW_END_AO) the end is reached late, now-ao100g50 */;
 // The ʊ end of aʊ takes o's shape (row 3); this mixes u's shape (row 4) into
 // it (0 = o, 1 = u). With o, "Now", "How" ended at F2 ~1100-1160 Hz, Kokoro
@@ -1252,6 +1258,51 @@ void cavityColour(Ph ph, TractShape* s) {
     s->dHypoA += kDha; s->dHypoL += kDhl; s->dFrontA += kDfa; s->dFrontL += kDfl;
   }
 }
+// (VOWEL agent31 round AC, lab; all 0: off) per-vowel shape offsets toward the 11labs Kennedy readings, by the phoneme
+// itself (not the consonants that borrow a vowel's row): LINE_VQ_<n>_XC (place, added), _AC / _ALIP / _AOR / _APH (log
+// multipliers of the constriction, lip, mouth and pharynx areas), _HA / _HL / _FA / _FL (added to the cavity colour).
+// LINE_VQ_F scales them for the female voice (0: male only; there is no female 11labs reference).
+float vqCsScale = 1.0f;  // LINE_VQ_CS 1: 0 outside connected speech (Synth::emit sets it per token)
+void vowelQuality(Ph ph, TractShape* s, bool colour) {
+  struct T {
+    float v[static_cast<int>(Ph::Count)][9] = {};
+    bool on = false;
+    T() {
+      // (explicit param() calls, so tools/apply_params.py can write the values; order XC AC ALIP AOR APH HA HL FA FL)
+      struct Row { int p; float v[9]; };
+      const Row kRows[] = {
+        {0, {param("LINE_VQ_0_XC", 0.0f), param("LINE_VQ_0_AC", 0.0f), param("LINE_VQ_0_ALIP", 0.0f), param("LINE_VQ_0_AOR", 0.0f), param("LINE_VQ_0_APH", 0.0f), param("LINE_VQ_0_HA", 0.0f), param("LINE_VQ_0_HL", 0.0f), param("LINE_VQ_0_FA", 0.0f), param("LINE_VQ_0_FL", 0.0f)}},  // a
+        {1, {param("LINE_VQ_1_XC", 0.0f), param("LINE_VQ_1_AC", 0.0f), param("LINE_VQ_1_ALIP", 0.0f), param("LINE_VQ_1_AOR", 0.0f), param("LINE_VQ_1_APH", 0.0f), param("LINE_VQ_1_HA", 0.0f), param("LINE_VQ_1_HL", 0.0f), param("LINE_VQ_1_FA", 0.0f), param("LINE_VQ_1_FL", 0.0f)}},  // e
+        {2, {param("LINE_VQ_2_XC", 0.0f), param("LINE_VQ_2_AC", 0.0f), param("LINE_VQ_2_ALIP", 0.0f), param("LINE_VQ_2_AOR", 0.0f), param("LINE_VQ_2_APH", 0.0f), param("LINE_VQ_2_HA", 0.0f), param("LINE_VQ_2_HL", 0.0f), param("LINE_VQ_2_FA", 0.0f), param("LINE_VQ_2_FL", 0.0f)}},  // i
+        {3, {param("LINE_VQ_3_XC", 0.0f), param("LINE_VQ_3_AC", 0.0f), param("LINE_VQ_3_ALIP", 0.0f), param("LINE_VQ_3_AOR", 0.0f), param("LINE_VQ_3_APH", 0.0f), param("LINE_VQ_3_HA", 0.0f), param("LINE_VQ_3_HL", 0.0f), param("LINE_VQ_3_FA", 0.0f), param("LINE_VQ_3_FL", 0.0f)}},  // o
+        {4, {param("LINE_VQ_4_XC", 0.0f), param("LINE_VQ_4_AC", 0.0f), param("LINE_VQ_4_ALIP", 0.0f), param("LINE_VQ_4_AOR", 0.0f), param("LINE_VQ_4_APH", 0.0f), param("LINE_VQ_4_HA", 0.0f), param("LINE_VQ_4_HL", 0.0f), param("LINE_VQ_4_FA", 0.0f), param("LINE_VQ_4_FL", 0.0f)}},  // u
+        {6, {param("LINE_VQ_6_XC", 0.0f), param("LINE_VQ_6_AC", 0.0f), param("LINE_VQ_6_ALIP", 0.0f), param("LINE_VQ_6_AOR", 0.0f), param("LINE_VQ_6_APH", 0.0f), param("LINE_VQ_6_HA", 0.0f), param("LINE_VQ_6_HL", 0.0f), param("LINE_VQ_6_FA", 0.0f), param("LINE_VQ_6_FL", 0.0f)}},  // æ
+        {8, {param("LINE_VQ_8_XC", 0.0f), param("LINE_VQ_8_AC", 0.0f), param("LINE_VQ_8_ALIP", 0.0f), param("LINE_VQ_8_AOR", 0.0f), param("LINE_VQ_8_APH", 0.0f), param("LINE_VQ_8_HA", 0.0f), param("LINE_VQ_8_HL", 0.0f), param("LINE_VQ_8_FA", 0.0f), param("LINE_VQ_8_FL", 0.0f)}},  // ə
+        {9, {param("LINE_VQ_9_XC", 0.0f), param("LINE_VQ_9_AC", 0.0f), param("LINE_VQ_9_ALIP", 0.0f), param("LINE_VQ_9_AOR", 0.0f), param("LINE_VQ_9_APH", 0.0f), param("LINE_VQ_9_HA", 0.0f), param("LINE_VQ_9_HL", 0.0f), param("LINE_VQ_9_FA", 0.0f), param("LINE_VQ_9_FL", 0.0f)}},  // ɪ
+        {10, {param("LINE_VQ_10_XC", 0.0f), param("LINE_VQ_10_AC", 0.0f), param("LINE_VQ_10_ALIP", 0.0f), param("LINE_VQ_10_AOR", 0.0f), param("LINE_VQ_10_APH", 0.0f), param("LINE_VQ_10_HA", 0.0f), param("LINE_VQ_10_HL", 0.0f), param("LINE_VQ_10_FA", 0.0f), param("LINE_VQ_10_FL", 0.0f)}},  // ɛ
+        {11, {param("LINE_VQ_11_XC", 0.0f), param("LINE_VQ_11_AC", 0.0f), param("LINE_VQ_11_ALIP", 0.0f), param("LINE_VQ_11_AOR", 0.0f), param("LINE_VQ_11_APH", 0.0f), param("LINE_VQ_11_HA", 0.0f), param("LINE_VQ_11_HL", 0.0f), param("LINE_VQ_11_FA", 0.0f), param("LINE_VQ_11_FL", 0.0f)}},  // ʊ
+        {12, {param("LINE_VQ_12_XC", 0.0f), param("LINE_VQ_12_AC", 0.0f), param("LINE_VQ_12_ALIP", 0.0f), param("LINE_VQ_12_AOR", 0.0f), param("LINE_VQ_12_APH", 0.0f), param("LINE_VQ_12_HA", 0.0f), param("LINE_VQ_12_HL", 0.0f), param("LINE_VQ_12_FA", 0.0f), param("LINE_VQ_12_FL", 0.0f)}},  // ɔ
+        {13, {param("LINE_VQ_13_XC", 0.0f), param("LINE_VQ_13_AC", 0.0f), param("LINE_VQ_13_ALIP", 0.0f), param("LINE_VQ_13_AOR", 0.0f), param("LINE_VQ_13_APH", 0.0f), param("LINE_VQ_13_HA", 0.0f), param("LINE_VQ_13_HL", 0.0f), param("LINE_VQ_13_FA", 0.0f), param("LINE_VQ_13_FL", 0.0f)}},  // ʌ
+        {14, {param("LINE_VQ_14_XC", 0.0f), param("LINE_VQ_14_AC", 0.0f), param("LINE_VQ_14_ALIP", 0.0f), param("LINE_VQ_14_AOR", 0.0f), param("LINE_VQ_14_APH", 0.0f), param("LINE_VQ_14_HA", 0.0f), param("LINE_VQ_14_HL", 0.0f), param("LINE_VQ_14_FA", 0.0f), param("LINE_VQ_14_FL", 0.0f)}},  // ɑ
+        {16, {param("LINE_VQ_16_XC", 0.0f), param("LINE_VQ_16_AC", 0.0f), param("LINE_VQ_16_ALIP", 0.0f), param("LINE_VQ_16_AOR", 0.0f), param("LINE_VQ_16_APH", 0.0f), param("LINE_VQ_16_HA", 0.0f), param("LINE_VQ_16_HL", 0.0f), param("LINE_VQ_16_FA", 0.0f), param("LINE_VQ_16_FL", 0.0f)}},  // ɜ
+      };
+      for (const Row& r : kRows)
+        for (int j = 0; j < 9; ++j) {
+          v[r.p][j] = r.v[j];
+          on = on || r.v[j] != 0;
+        }
+    }
+  };
+  static const T t;
+  static const float kF = param("LINE_VQ_F", 0.0f);
+  if (!t.on || static_cast<int>(ph) > static_cast<int>(Ph::ER)) return;
+  const float g = (vqFemale ? kF : 1.0f) * vqCsScale;
+  if (g == 0) return;
+  const float* v = t.v[static_cast<int>(ph)];
+  if (colour) { s->dHypoA += g * v[5]; s->dHypoL += g * v[6]; s->dFrontA += g * v[7]; s->dFrontL += g * v[8]; return; }
+  s->xc = std::clamp(s->xc + g * v[0], 0.05f, 0.98f);
+  s->ac *= std::exp(g * v[1]); s->aLip *= std::exp(g * v[2]); s->aOral *= std::exp(g * v[3]); s->aPharynx *= std::exp(g * v[4]);
+}
 bool lineShapeOf(Ph ph, TractShape* out) {
   // w: u's shape; j: i's; l: the dark English l has the tongue back raised
   // behind its tip contact (F2 ~1000 Hz), so it takes ɔ's shape under the
@@ -1299,8 +1350,10 @@ bool lineShapeOf(Ph ph, TractShape* out) {
       out->ac *= kWShapeAc;
       if (kWXc >= 0) out->xc = kWXc;
     }
+    vowelQuality(ph, out, false);
     out->sc = lineVowelStrength(out->xc, out->wc, out->length);
     cavityColour(ph, out);
+    vowelQuality(ph, out, true);
     return true;
   }
   return false;
@@ -1340,7 +1393,10 @@ void ayStartShape(TractShape* sh) {
 void ayEndShape(TractShape* sh) {
   sh->aLip *= kLineAyEndALip;
   TractShape o;
-  if (kLineAyEndMix > 0 && lineShapeOf(static_cast<Ph>(kLineAyEndRow), &o)) *sh = lineShapeMix(*sh, o, kLineAyEndMix);
+  static const float kMixCs = param("LINE_AY_END_MIX_CS", -99.0f), kRowCs = param("LINE_AY_END_ROW_CS", -99.0f);
+  const float mix = csv(kLineAyEndMix, kMixCs);
+  const int row = static_cast<int>(csv(static_cast<float>(kLineAyEndRow), kRowCs));
+  if (mix > 0 && lineShapeOf(static_cast<Ph>(row), &o)) *sh = lineShapeMix(*sh, o, mix);
 }
 
 // Where a consonant constricts the line (share of the tract's length).
@@ -2405,6 +2461,7 @@ void Synth::setCarrier(Carrier c) {
 void Synth::setVoice(VoicePreset preset) {
   voice_ = preset == VoicePreset::Female ? kFemaleVoice : kMaleVoice;
   female_ = preset == VoicePreset::Female;
+  vqFemale = female_;
   {  // (GAP agent29 round AA, lab; < 0: the preset's) a posterior glottal chink kept open while voicing (cm^2), per voice
     static const float kChinkM = param("GAP_CHINK_M", -1.0f), kChinkF = param("GAP_CHINK_F", -1.0f);
     const float ch = female_ ? kChinkF : kChinkM;
@@ -3014,8 +3071,10 @@ const float kLineOwStartAh = param("LINE_OW_START_AH", 0.5f);
 void owStartShape(TractShape* sh) {
   static const float kAo = param("LINE_OW_START_AO", 0.0f), kLip = param("LINE_OW_START_LIP", 1.0f),
                      kLipL = param("LINE_OW_START_LIPL", 1.0f);
+  static const float kAoCs = param("LINE_OW_START_AO_CS", -99.0f);
+  const float ao = csv(kAo, kAoCs);
   TractShape o;
-  if (kAo > 0 && lineShapeOf(Ph::AO, &o)) *sh = lineShapeMix(*sh, o, kAo);
+  if (ao > 0 && lineShapeOf(Ph::AO, &o)) *sh = lineShapeMix(*sh, o, ao);
   if (kLip != 1.0f) sh->aLip *= kLip;
   if (kLipL != 1.0f) sh->lLip *= kLipL;
 }
@@ -3026,10 +3085,12 @@ void owEndShape(TractShape* sh) {
   static const float kAo = param("LINE_OW_END_AO", 0.5f), kUh = param("LINE_OW_END_UH", 0.0f),
                      kLip = param("LINE_OW_END_LIP", 0.5f), kLipL = param("LINE_OW_END_LIPL", 0.5f),
                      kXc = param("LINE_OW_END_XC", -1.0f), kAc = param("LINE_OW_END_AC", 1.0f);
+  static const float kAoCs = param("LINE_OW_END_AO_CS", -99.0f), kLipCs = param("LINE_OW_END_LIP_CS", -99.0f);
+  const float ao = csv(kAo, kAoCs), lip = csv(kLip, kLipCs);
   TractShape o;
   if (kUh > 0 && lineShapeOf(Ph::UH, &o)) *sh = lineShapeMix(*sh, o, kUh);
-  if (kAo > 0 && lineShapeOf(Ph::AO, &o)) *sh = lineShapeMix(*sh, o, kAo);
-  if (kLip != 1.0f) sh->aLip *= kLip;
+  if (ao > 0 && lineShapeOf(Ph::AO, &o)) *sh = lineShapeMix(*sh, o, ao);
+  if (lip != 1.0f) sh->aLip *= lip;
   if (kLipL != 1.0f) sh->lLip *= kLipL;
   if (kAc != 1.0f) sh->ac *= kAc;
   if (kXc >= 0) { sh->xc = kXc; sh->sc = lineVowelStrength(sh->xc, sh->wc, sh->length); }
@@ -3048,9 +3109,13 @@ void eyStartShape(TractShape* sh, bool female, unsigned ctx) {
   if (kEyStartEh > 0 && lineShapeOf(Ph::EH, &o)) *sh = lineShapeMix(*sh, o, kEyStartEh);
   if (kEyStartAe > 0 && lineShapeOf(Ph::AE, &o)) *sh = lineShapeMix(*sh, o, kEyStartAe);
   if (kEyStartAc != 1.0f) sh->ac *= kEyStartAc;
-  if (kEyStartAph != 1.0f) sh->aPharynx *= kEyStartAph;
+  static const float kEyStartAphCs = param("LINE_EY_START_APH_CS", -99.0f);
+  const float eyAph = csv(kEyStartAph, kEyStartAphCs);
+  if (eyAph != 1.0f) sh->aPharynx *= eyAph;
   if (kEyStartLip != 1.0f) sh->aLip *= kEyStartLip;
-  if (kEyStartDx != 0) { sh->xc += kEyStartDx; sh->sc = lineVowelStrength(sh->xc, sh->wc, sh->length); }
+  static const float kEyStartDxCs = param("LINE_EY_START_DX_CS", -99.0f);
+  const float eyDx = csv(kEyStartDx, kEyStartDxCs);
+  if (eyDx != 0) { sh->xc += eyDx; sh->sc = lineVowelStrength(sh->xc, sh->wc, sh->length); }
   // Round K (EY agent10, lab knobs; 0 / 1: as before): eɪ heard as ɪ 280 times in 6980 (combo9), female 14 % vs male
   // 8 %. Against ten Kokoro voices (30 words of words1k) the e's middle sits at male 440/1650 Hz (Kokoro 520/1680) and
   // female 580/1790 (Kokoro 700/2100): F1 2-3 st low in both, the female's F2 too 2-3 st low. The female e mixed
@@ -3060,7 +3125,8 @@ void eyStartShape(TractShape* sh, bool female, unsigned ctx) {
   static const float kEyFStartEh = param("LINE_EY_F_START_EH", 0.0f), kEyFStartAe = param("LINE_EY_F_START_AE", 0.0f),
                      kEyFStartAph = param("LINE_EY_F_START_APH", 1.0f), kEyFStartDx = param("LINE_EY_F_START_DX", 0.0f),
                      kEyClStartEh = param("LINE_EY_CL_START_EH", 0.4f), kEyNasStartEh = param("LINE_EY_NAS_START_EH", 0.0f);
-  const float ehMix = (female ? kEyFStartEh : 0.0f) + ((ctx & 1) ? kEyClStartEh : 0.0f) + ((ctx & 2) ? kEyNasStartEh : 0.0f);
+  static const float kEyClStartEhCs = param("LINE_EY_CL_START_EH_CS", -99.0f);
+  const float ehMix = (female ? kEyFStartEh : 0.0f) + ((ctx & 1) ? csv(kEyClStartEh, kEyClStartEhCs) : 0.0f) + ((ctx & 2) ? kEyNasStartEh : 0.0f);
   if (ehMix > 0 && lineShapeOf(Ph::EH, &o)) *sh = lineShapeMix(*sh, o, std::min(ehMix, 1.0f));
   if (female && kEyFStartAe > 0 && lineShapeOf(Ph::AE, &o)) *sh = lineShapeMix(*sh, o, kEyFStartAe);
   if (female && kEyFStartAph != 1.0f) sh->aPharynx *= kEyFStartAph;
@@ -3352,6 +3418,11 @@ void Synth::emit(const Token& tok, const Ph* next) {
   static const float kCsFemale = param("TRANS_CS_FEMALE", 1.0f);
   const bool csSpeech = (tok.ph == Ph::Stop ? wordsBefore : wordsSincePause_) >= 2 && (!female_ || kCsFemale > 0);
   auto csOk = [&](int bit) { return !(kCsMask & bit) || csSpeech; };
+  {  // (VOWEL agent31 round AC, lab; 0: everywhere) LINE_VQ_CS 1: the LINE_VQ_* vowel offsets only in connected speech
+    static const float kVqCs = param("LINE_VQ_CS", 0.0f);
+    vqCsScale = kVqCs > 0 && !csSpeech ? 0.0f : 1.0f;
+    vqCsNow = csSpeech;
+  }
   // (Y-INIT agent25 round W, lab knobs; all off by default) the word-initial j: the dictionary's j before a stressed
   // vowel after a pause was deleted in 14 of 148 and heard l in 9 ("Year" -> ear, "Yet" -> let, "Yields" -> fields).
   // Isolated words, against Kokoro (am_adam / af_heart): its j holds F2 2200 / 2600 Hz for ~100 ms from the word start,
@@ -4813,7 +4884,8 @@ void Synth::emit(const Token& tok, const Ph* next) {
       static const float kOwlStartAh = param("LINE_OWL_START_AH", -1.0f), kOwFStartAh = param("LINE_OW_F_START_AH", -1.0f),
                          kOwlStartLip = param("LINE_OWL_START_LIP", 1.0f);
       const bool owl = tok.shape.owctx & 4;
-      const float ahMix = owl && kOwlStartAh >= 0 ? kOwlStartAh : female_ && kOwFStartAh >= 0 ? kOwFStartAh : kLineOwStartAh;
+      static const float kOwStartAhCs = param("LINE_OW_START_AH_CS", -99.0f);
+      const float ahMix = owl && kOwlStartAh >= 0 ? kOwlStartAh : female_ && kOwFStartAh >= 0 ? kOwFStartAh : csv(kLineOwStartAh, kOwStartAhCs);
       TractShape mid;
       if (lineShapeOf(Ph::AH, &mid)) sh = lineShapeMix(sh, mid, ahMix);
       owStartShape(&sh);
@@ -4864,13 +4936,15 @@ void Synth::emit(const Token& tok, const Ph* next) {
       TractShape ao;
       if (kOwlAo > 0 && lineShapeOf(Ph::AO, &ao)) sh = lineShapeMix(sh, ao, kOwlAo);
     }
-    if (have && tok.ph == Ph::UH && lastPh_ == Ph::A && shapePh == Ph::O && kLineAwOffU > 0) {
+    static const float kAwOffUCs = param("LINE_AW_OFF_U_CS", -99.0f), kAwEndAoCs = param("LINE_AW_END_AO_CS", -99.0f);
+    const float awOffU = csv(kLineAwOffU, kAwOffUCs), awEndAo = csv(kLineAwEndAo, kAwEndAoCs);
+    if (have && tok.ph == Ph::UH && lastPh_ == Ph::A && shapePh == Ph::O && awOffU > 0) {
       TractShape u;  // aʊ's end: toward u (see kLineAwOffU)
-      if (lineShapeOf(Ph::U, &u)) sh = lineShapeMix(sh, u, kLineAwOffU);
+      if (lineShapeOf(Ph::U, &u)) sh = lineShapeMix(sh, u, awOffU);
     }
-    if (have && tok.ph == Ph::UH && lastPh_ == Ph::A && shapePh == Ph::O && kLineAwEndAo > 0) {
+    if (have && tok.ph == Ph::UH && lastPh_ == Ph::A && shapePh == Ph::O && awEndAo > 0) {
       TractShape ao;  // aʊ's end toward ɔ: open and back (see kLineAwEndAo)
-      if (lineShapeOf(Ph::AO, &ao)) sh = lineShapeMix(sh, ao, kLineAwEndAo);
+      if (lineShapeOf(Ph::AO, &ao)) sh = lineShapeMix(sh, ao, awEndAo);
     }
     if (have && tok.ph == Ph::UH && lastPh_ == Ph::A && shapePh == Ph::O && kLineAwEndA > 0) {
       TractShape a;  // ... or stops short of it, part way back to the a (LINE_AW_END_A)
@@ -5661,7 +5735,8 @@ void Synth::emit(const Token& tok, const Ph* next) {
                   const double x = static_cast<double>(q) / n;  // the diphthong's time
                   const double u = ayStart ? x / kLineAyRampSplit : (x - kLineAyRampSplit) / (1.0 - kLineAyRampSplit);  // this part's
                   if (u < 0 || u > 1) continue;
-                  const float frac = static_cast<float>(std::pow(x, static_cast<double>(kLineAyRampPow)));
+                  static const float kAyRampPowCs = param("LINE_AY_RAMP_POW_CS", -99.0f);
+                  const float frac = static_cast<float>(std::pow(x, static_cast<double>(csv(kLineAyRampPow, kAyRampPowCs))));
                   const double t = t0 + u * dur;
                   addShapeDemand(t, t, lineShapeMix(s0, s1, frac), tok.ph, ws * kShapeGlideW * kLineAyRampW);
                 }
@@ -5704,7 +5779,8 @@ void Synth::emit(const Token& tok, const Ph* next) {
             if ((owStart || owGlide) && kOwRamp > 1) {
               TractShape s0, s1, mid;
               if (lineShapeOf(Ph::O, &s0) && lineShapeOf(Ph::U, &s1)) {
-                if (lineShapeOf(Ph::AH, &mid)) s0 = lineShapeMix(s0, mid, kLineOwStartAh);
+                static const float kOwRampAhCs = param("LINE_OW_START_AH_CS", -99.0f);
+                if (lineShapeOf(Ph::AH, &mid)) s0 = lineShapeMix(s0, mid, csv(kLineOwStartAh, kOwRampAhCs));
                 owStartShape(&s0);
                 owEndShape(&s1);
                 const int n = static_cast<int>(kOwRamp);
@@ -6047,6 +6123,23 @@ void Synth::emit(const Token& tok, const Ph* next) {
                   if (mix > 0)
                   addShapeDemand(t0 + kAntFrom * dur, t0 + dur, lineShapeMix(sh, o, mix), tok.ph, dW * kAntW);
                 }
+              }
+            }
+            // (VOWEL agent31 round AC, lab; 0: off) the vowel-inherent F1 fall of the 11labs readings (F1 20 % -> 80 %: ɪ -2.7,
+            // ɛ -2.3, æ -4.4, ə -2.6, ʌ -3.7, ɑ -4.7 st; puhuja ~0): in connected speech a more open demand early
+            // (LINE_VQ_DECL_A0..A1 of the vowel: pharynx x exp(-LINE_VQ_DECL_PH), mouth x exp(LINE_VQ_DECL_OR)) and a closer
+            // one late (B0..B1: the reverse), weight LINE_VQ_DECL_W of the vowel's.
+            {
+              static const float kDeclPh = param("LINE_VQ_DECL_PH", 0.0f), kDeclOr = param("LINE_VQ_DECL_OR", 0.0f),
+                                 kDeclW = param("LINE_VQ_DECL_W", 1.0f), kDeclA0 = param("LINE_VQ_DECL_A0", 0.1f),
+                                 kDeclA1 = param("LINE_VQ_DECL_A1", 0.3f), kDeclB0 = param("LINE_VQ_DECL_B0", 0.7f),
+                                 kDeclB1 = param("LINE_VQ_DECL_B1", 0.95f);
+              if ((kDeclPh != 0 || kDeclOr != 0) && vqCsNow && !(vqFemale && vqFemaleOff()) && isVowel(tok.ph) && !er) {
+                TractShape a = sh, b = sh;
+                a.aPharynx *= std::exp(-kDeclPh); a.aOral *= std::exp(kDeclOr);
+                b.aPharynx *= std::exp(kDeclPh); b.aOral *= std::exp(-kDeclOr);
+                addShapeDemand(t0 + kDeclA0 * dur, t0 + kDeclA1 * dur, a, tok.ph, dW * kDeclW);
+                addShapeDemand(t0 + kDeclB0 * dur, t0 + kDeclB1 * dur, b, tok.ph, dW * kDeclW);
               }
             }
             // (round-I uː agent) the rounder late key (LINE_UW_LATE_*, LINE_UW_END_*) asked for over the last share of
