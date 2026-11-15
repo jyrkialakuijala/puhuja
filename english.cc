@@ -3767,6 +3767,7 @@ void EnglishReader::sayPhrase(char end) {
           } }
         synth_.shapeNext(shape);
         if (first) synth_.setWord(phrase_[w].source), lastSourceWord_ = phrase_[w].source;
+        if (first) synth_.setPhraseLeft(static_cast<int>(phrase_.size() - w));  // (CSW agent32: CSW_FIRST's lookahead)
         synth_.push(s.ph[k], first);
         first = false;
         // A stressed ɑ before another syllable of the same word is the short

@@ -245,6 +245,9 @@ class Synth {
   void push(Ph ph, bool wordStart = false);
   // The input word number the next pushed phonemes belong to (labels carry it).
   void setWord(int w) { curWord_ = w; }
+  // (CSW agent32) the words left in the reader's phrase from the next pushed word on (itself included; 0: unknown):
+  // a lookahead for CSW_FIRST (the first word of a phrase of 2+ words counts as connected speech).
+  void setPhraseLeft(int n) { phraseLeft_ = n; }
 
   // Finnish spelling merges in push(): "ng" -> long ŋ, "nk" -> ŋk, "np" ->
   // mp, "tʃ"/"dʒ" -> affricates. On by default; the English reader turns
@@ -431,6 +434,7 @@ class Synth {
     float pitchEnd = kNoPitch;  // a vowel's second pitch, reached at 3/4 of it (setPitchEnd)
     bool wordJoin = false;  // a word boundary falls inside this long consonant ("this century")
     int word = -1;          // the input word (setWord)
+    int phraseLeft = 0;     // (CSW agent32) the reader phrase's words left from this word on (setPhraseLeft; 0: unknown)
   };
 
   void pushCodepoint(uint32_t cp);
@@ -524,6 +528,7 @@ class Synth {
   bool prevWasNasal_ = false;
   bool prevWasPause_ = false;  // the last emitted phoneme was a pause
   int wordsSincePause_ = 0;  // (TRANS3 agent30) words begun since the last pause token: >= 2 is connected speech
+  int phraseLeft_ = 0, curPhraseLeft_ = 0;  // (CSW agent32) setPhraseLeft's value; the current word's (emit)
   bool csSpeech_ = false;  // (STOP agent31) the sound being emitted is in connected speech (word 2+ of a phrase)
   bool lastFi_ = false, afterFi_ = false;  // the last emitted phoneme was a word-initial f before a vowel (LINE_FI_OFF_MS, F-INIT agent26); afterFi_: this phoneme follows one
   bool lastShV_ = false;  // the last emitted phoneme was a ʃ before a full vowel (LINE_SH_V_OFF_MS)

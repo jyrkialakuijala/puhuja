@@ -2657,6 +2657,7 @@ void Synth::push(Ph ph, bool wordStart) {
         pending_ = Token{ph, false, wordStart, stress, false, kNoPitch, Shape()};
   pending_.word = curWord_;
         pending_.word = curWord_;
+        pending_.phraseLeft = phraseLeft_;
         pending_.pitch = pitch;
         pending_.pitchEnd = pitchEnd;
         pending_.shape = shape;
@@ -2682,6 +2683,7 @@ void Synth::push(Ph ph, bool wordStart) {
   }
   pending_ = Token{ph, false, wordStart, stress, false, kNoPitch, Shape()};
   pending_.word = curWord_;
+  pending_.phraseLeft = phraseLeft_;
   pending_.pitch = pitch;
   pending_.pitchEnd = pitchEnd;
   pending_.shape = shape;
@@ -3428,22 +3430,40 @@ void Synth::emit(const Token& tok, const Ph* next) {
   Info in = info(tok.ph);
   curPh_ = tok.ph;
   const int wordsBefore = wordsSincePause_;  // (a pause token still belongs to the phrase it ends)
-  if (tok.ph == Ph::Stop) wordsSincePause_ = 0;
-  else if (tok.wordStart) ++wordsSincePause_;
+  const int leftBefore = curPhraseLeft_;
+  if (tok.ph == Ph::Stop) wordsSincePause_ = 0, curPhraseLeft_ = 0;
+  else if (tok.wordStart) ++wordsSincePause_, curPhraseLeft_ = tok.phraseLeft;
   // (TRANS3 agent30 round AB, lab; 0: everywhere) TRANS_CS_MASK: these knobs only in connected speech (from the second
   // word of a phrase on; single words render as before): 1 TRANS_VE_D_* / TRANS_VO_D_*, 2 TRANS_ANT_*, 4 TRANS_NAS_AP_*,
   // 8 TRANS_VEL2_* / TRANS_VEL_LAG_CS_X, 16 TRANS_PAUSE_*, 32 TRANS_ANTICIP_N_LATE_CS.
   static const int kCsMask = static_cast<int>(param("TRANS_CS_MASK", 63.0f));
   // (TRANS_CS_FEMALE 0: never connected speech in the female voice, i.e. the masked knobs are male-only)
   static const float kCsFemale = param("TRANS_CS_FEMALE", 1.0f);
-  const bool csSpeech = (tok.ph == Ph::Stop ? wordsBefore : wordsSincePause_) >= 2 && (!female_ || kCsFemale > 0);
+  const bool csLater = (tok.ph == Ph::Stop ? wordsBefore : wordsSincePause_) >= 2 && (!female_ || kCsFemale > 0);
+  // (CSW agent32 round AD, lab; 0: off) CSW_FIRST: the first word of a phrase of 2+ words (the English reader's
+  // phrase: setPhraseLeft) counts as connected speech too, per feature group: 1 TRANS (TRANS_CS_MASK, TRANS_*_CS),
+  // 2 LIQ (LIQ_CS), 4 VOWEL (LINE_VQ_CS, LINE_*_CS vowel knobs), 8 STOP (LINE_*_CS stop knobs). Single words keep
+  // the old sound (a phrase of one word has nothing left after it). CSW_FIRST_F: the female's mask (-1: = CSW_FIRST).
+  static const int kCswFirst = static_cast<int>(param("CSW_FIRST", 0.0f));
+  static const int kCswFirstF = static_cast<int>(param("CSW_FIRST_F", -1.0f));
+  const int cswMask = female_ && kCswFirstF >= 0 ? kCswFirstF : kCswFirst;
+  // CSW_FIRST_MIN: only when the phrase has at least this many words (2: any multi-word phrase); CSW_FIRST_ONSET 0:
+  // not the word's first sound (a phrase-initial consonant starts from rest); CSW_FIRST_VQ_X: the first word's LINE_VQ_*
+  // offsets x this (bit 4).
+  static const int kCswFirstMin = static_cast<int>(param("CSW_FIRST_MIN", 2.0f));
+  static const float kCswFirstOnset = param("CSW_FIRST_ONSET", 1.0f), kCswFirstVqX = param("CSW_FIRST_VQ_X", 1.0f);
+  const bool csFirst = cswMask != 0 && (tok.ph == Ph::Stop ? wordsBefore : wordsSincePause_) == 1 &&
+                       (tok.ph == Ph::Stop ? leftBefore : curPhraseLeft_) >= std::max(2, kCswFirstMin) &&
+                       (kCswFirstOnset > 0 || !tok.wordStart) && (!female_ || kCsFemale > 0);
+  auto csFor = [&](int bit) { return csLater || (csFirst && (cswMask & bit)); };
+  const bool csSpeech = csFor(1);
   auto csOk = [&](int bit) { return !(kCsMask & bit) || csSpeech; };
   {  // (VOWEL agent31 round AC, lab; 0: everywhere) LINE_VQ_CS 1: the LINE_VQ_* vowel offsets only in connected speech
     static const float kVqCs = param("LINE_VQ_CS", 1.0f);
-    vqCsScale = kVqCs > 0 && !csSpeech ? 0.0f : 1.0f;
-    vqCsNow = csSpeech;
+    vqCsScale = kVqCs > 0 && !csFor(4) ? 0.0f : !csLater && kVqCs > 0 ? kCswFirstVqX : 1.0f;
+    vqCsNow = csFor(4);
   }
-  csSpeech_ = csSpeech;
+  csSpeech_ = csFor(8);
   // (Y-INIT agent25 round W, lab knobs; all off by default) the word-initial j: the dictionary's j before a stressed
   // vowel after a pause was deleted in 14 of 148 and heard l in 9 ("Year" -> ear, "Yet" -> let, "Yields" -> fields).
   // Isolated words, against Kokoro (am_adam / af_heart): its j holds F2 2200 / 2600 Hz for ~100 ms from the word start,
@@ -3486,7 +3506,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
   static const float kLiqCs = param("LIQ_CS", 1.0f);
   static const int kLiqFemale = static_cast<int>(param("LIQ_FEMALE", 1.0f));
   const int liqBit = tok.ph == Ph::RR ? 1 : tok.ph == Ph::L ? 2 : tok.ph == Ph::W ? 4 : tok.ph == Ph::J ? 8 : 0;
-  const bool liqOn = (kLiqCs == 0.0f || csSpeech) && (!female_ || (kLiqFemale & liqBit));
+  const bool liqOn = (kLiqCs == 0.0f || csFor(2)) && (!female_ || (kLiqFemale & liqBit));
   const bool liqCoda = !(next && isVowel(*next));
   float liqP = 1.0f;
   {
