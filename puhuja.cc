@@ -3346,7 +3346,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
   // (TRANS3 agent30 round AB, lab; 0: everywhere) TRANS_CS_MASK: these knobs only in connected speech (from the second
   // word of a phrase on; single words render as before): 1 TRANS_VE_D_* / TRANS_VO_D_*, 2 TRANS_ANT_*, 4 TRANS_NAS_AP_*,
   // 8 TRANS_VEL2_* / TRANS_VEL_LAG_CS_X, 16 TRANS_PAUSE_*, 32 TRANS_ANTICIP_N_LATE_CS.
-  static const int kCsMask = static_cast<int>(param("TRANS_CS_MASK", 0.0f));
+  static const int kCsMask = static_cast<int>(param("TRANS_CS_MASK", 63.0f));
   // (TRANS_CS_FEMALE 0: never connected speech in the female voice, i.e. the masked knobs are male-only)
   static const float kCsFemale = param("TRANS_CS_FEMALE", 1.0f);
   const bool csSpeech = (tok.ph == Ph::Stop ? wordsBefore : wordsSincePause_) >= 2 && (!female_ || kCsFemale > 0);
@@ -5963,7 +5963,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
             // Human vowels move toward the next consonant (11labs: last fifth 25-31 cents off the middle before a fricative,
             // puhuja 15).
             {
-              static const float kAntMix = param("TRANS_ANT_MIX", 0.0f), kAntFrom = param("TRANS_ANT_FROM", 0.8f),
+              static const float kAntMix = param("TRANS_ANT_MIX", 0.5f), kAntFrom = param("TRANS_ANT_FROM", 0.7f),
                                  kAntW = param("TRANS_ANT_W", 1.0f), kAntFricX = param("TRANS_ANT_FRIC_X", 1.0f);
               if (kAntMix > 0 && csOk(2) && isVowel(tok.ph) && !er && next && !isVowel(*next) && *next != Ph::Stop) {
                 const Ph n = *next;
@@ -5976,7 +5976,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
                 static const float kAntGl = param("TRANS_ANT_GL", 0.0f), kAntVel = param("TRANS_ANT_VELAR", 0.0f);
                 // TRANS_ANT_L: the l's locus (0: ɪ's shape, as before; 1: ʊ's, 2: o's, 3: none): the English coda l is dark (F2
                 // falls into it: 11labs' vowel ends 34 cents off its middle before an l; toward ɪ puhuja's fell 21 -> 8).
-                static const int kAntL = static_cast<int>(param("TRANS_ANT_L", 0.0f));
+                static const int kAntL = static_cast<int>(param("TRANS_ANT_L", 1.0f));
                 const Ph locL = n != Ph::L || kAntL == 0 ? loc : kAntL == 1 ? Ph::UH : kAntL == 2 ? Ph::O : Ph::Count;
                 const Ph loc2 = n == Ph::L ? locL : loc != Ph::Count ? loc : kAntGl > 0 && n == Ph::W ? Ph::O : kAntGl > 0 && n == Ph::J ? Ph::I
                                 : kAntVel > 0 && (n == Ph::K || n == Ph::G || n == Ph::NG) ? Ph::U : Ph::Count;
@@ -6454,7 +6454,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // (Krakow 1993: the port opens late). Defaults 1 / 0: as before.
     static const float kAnN = param("LINE_ANTICIP_N_SCALE", 1.0f), kAnNLate = param("LINE_ANTICIP_N_LATE", 0.0f);
     // (TRANS3 agent30, lab; < 0: LINE_ANTICIP_N_LATE) TRANS_ANTICIP_N_LATE_CS: the late share in connected speech (CS bit 32)
-    static const float kAnNLateCs = param("TRANS_ANTICIP_N_LATE_CS", -1.0f);
+    static const float kAnNLateCs = param("TRANS_ANTICIP_N_LATE_CS", 0.5f);
     const float anNLate = kAnNLateCs >= 0 && csSpeech && csOk(32) ? kAnNLateCs : kAnNLate;
     // The ɛ before any nasal (round F EH agent 2026-11-11 lab knobs; -1 / 0: as above): its port x LINE_EH_ANTICIP_SCALE
     // (< 0: as every vowel), shut until LINE_EH_NASAL_LATE of the vowel and opened over the rest. A ɛ nasalized
@@ -6469,7 +6469,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // ... and before an m (round J, M agent; 1 / 0: as before): LINE_ANTICIP_M_SCALE, LINE_ANTICIP_M_LATE as the n's.
     static const float kAnM = param("LINE_ANTICIP_M_SCALE", 1.0f), kAnMLate = param("LINE_ANTICIP_M_LATE", 0.0f);
     // (TRANS3 agent30, lab; < 0: LINE_ANTICIP_M_LATE) TRANS_ANTICIP_M_LATE_CS: its late share in connected speech (CS bit 32)
-    static const float kAnMLateCs = param("TRANS_ANTICIP_M_LATE_CS", -1.0f);
+    static const float kAnMLateCs = param("TRANS_ANTICIP_M_LATE_CS", 0.5f);
     const float anMLate = kAnMLateCs >= 0 && csSpeech && csOk(32) ? kAnMLateCs : kAnMLate;
     const bool mAnt = !ehLate && *next == Ph::M && (kAnM != 1.0f || anMLate > 0);
     // ... and the unstressed vowel before its word's final n (Shape::nctx 1; N agent13 round L lab knobs, < 0 / 0: as
@@ -6601,8 +6601,8 @@ void Synth::emit(const Token& tok, const Ph* next) {
       // TRANS_VEL2_A x the open nasal port (0.25 cm^2) over TRANS_VEL2_T of LINE_*_VEL_MS, then shuts over the rest x
       // TRANS_VEL2_TAIL_X. The coupling of a raised-cosine closure ends late and at once: the LPC F2 sat on the nasal
       // pole (~800 Hz) for 60 ms of the vowel, then jumped 1.3 octaves (the vowel-start F2 jumps after m / n).
-      static const float kVel2A = param("TRANS_VEL2_A", -1.0f), kVel2T = param("TRANS_VEL2_T", 0.5f),
-                         kVel2TailX = param("TRANS_VEL2_TAIL_X", 1.0f);
+      static const float kVel2A = param("TRANS_VEL2_A", 0.15f), kVel2T = param("TRANS_VEL2_T", 0.3f),
+                         kVel2TailX = param("TRANS_VEL2_TAIL_X", 1.5f);
       if (kVel2A >= 0 && csOk(8) && velLag.an < kAnNasal * kVel2A) {
         vel2 = Event{velLag.t + kVel2T * velMs * ms};
         vel2.an = velLag.an;
