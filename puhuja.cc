@@ -5825,7 +5825,49 @@ void Synth::emit(const Token& tok, const Ph* next) {
               if ((sw ? kErmTo : kErmRTo) >= 0) dTo = sw ? kErmTo : kErmRTo;
               dW *= sw ? kErmW : kErmRW;
             }
+            // (TRANS agent28 round Z, lab; 0 / 1 / 0 / 1: as before) every vowel's demand window (not ER, not a lead window):
+            // shifted by TRANS_V_SHIFT of the vowel, scaled by TRANS_V_SCALE around its middle, started TRANS_V_LEAD_MS
+            // before the vowel (anticipation through the consonant before it), weight x TRANS_V_W.
+            static const float kTVShift = param("TRANS_V_SHIFT", 0.0f), kTVScale = param("TRANS_V_SCALE", 1.0f),
+                               kTVLeadMs = param("TRANS_V_LEAD_MS", 0.0f), kTVW = param("TRANS_V_W", 1.0f);
+            if (isVowel(tok.ph) && !er && preMs <= 0 && (kTVShift != 0.0f || kTVScale != 1.0f || kTVW != 1.0f || kTVLeadMs > 0)) {
+              const double mid = 0.5 * (dFrom + dTo), half = 0.5 * (dTo - dFrom) * kTVScale;
+              dFrom = mid - half + kTVShift; dTo = mid + half + kTVShift;
+              dW *= kTVW;
+              if (kTVLeadMs > 0 && !prevWasPause_) preMs = kTVLeadMs;
+            }
+            // (TRANS agent28, lab; 1 / 0 / 1: as before) the same for the glides w j l ɹ (a glide is a passing target, not a
+            // hold: puhuja's w held F2 at 430 Hz for 50 ms, then rose 1.5 octaves in 40 ms; 11labs' rose through all of it):
+            // TRANS_G_SCALE, TRANS_G_SHIFT, weight x TRANS_G_W.
+            static const float kTGScale = param("TRANS_G_SCALE", 1.0f), kTGShift = param("TRANS_G_SHIFT", 0.0f), kTGW = param("TRANS_G_W", 1.0f);
+            const bool glideT = tok.ph == Ph::W || tok.ph == Ph::J || tok.ph == Ph::L || tok.ph == Ph::RR;
+            if (glideT && !er && preMs <= 0 && (kTGScale != 1.0f || kTGShift != 0.0f || kTGW != 1.0f)) {
+              const double mid = 0.5 * (dFrom + dTo), half = 0.5 * (dTo - dFrom) * kTGScale;
+              dFrom = mid - half + kTGShift; dTo = mid + half + kTGShift;
+              dW *= kTGW;
+            }
             addShapeDemand(preMs > 0 ? t0 - preMs * ms : t0 + dFrom * dur, t0 + dTo * dur, sh, tok.ph, vonPre ? dW * kVonPreW : dW, er ? std::max(preR, kErPlaceW) : iy || uhD || uwD || ahD || aoD || swD ? std::max(preR, vPlaceW) : preR);
+            // (TRANS agent28 round Z, lab; 0: as before) anticipation: over the vowel's last share from TRANS_ANT_FROM (0.8)
+            // to its end, a demand toward the next consonant's locus (alveolar t d s z n l θ ð: ɪ's shape, palatal ʃ ʒ ʧ ʤ:
+            // i's, labial p b m f v: o's; mixed TRANS_ANT_MIX into the vowel's shape, weight TRANS_ANT_W of the vowel's).
+            // Human vowels move toward the next consonant (11labs: last fifth 25-31 cents off the middle before a fricative,
+            // puhuja 15).
+            {
+              static const float kAntMix = param("TRANS_ANT_MIX", 0.0f), kAntFrom = param("TRANS_ANT_FROM", 0.8f),
+                                 kAntW = param("TRANS_ANT_W", 1.0f), kAntFricX = param("TRANS_ANT_FRIC_X", 1.0f);
+              if (kAntMix > 0 && isVowel(tok.ph) && !er && next && !isVowel(*next) && *next != Ph::Stop) {
+                const Ph n = *next;
+                const bool fric = n == Ph::S || n == Ph::Z || n == Ph::SH || n == Ph::ZH || n == Ph::F || n == Ph::VV || n == Ph::TH || n == Ph::DH;
+                const Ph loc = n == Ph::T || n == Ph::D || n == Ph::S || n == Ph::Z || n == Ph::N || n == Ph::L || n == Ph::TH || n == Ph::DH ? Ph::IH
+                               : n == Ph::SH || n == Ph::ZH || n == Ph::CH || n == Ph::JH ? Ph::I
+                               : n == Ph::P || n == Ph::B || n == Ph::M || n == Ph::F || n == Ph::VV ? Ph::O : Ph::Count;
+                TractShape o;
+                if (loc != Ph::Count && lineShapeOf(loc, &o)) {
+                  const float mix = std::min(1.0f, kAntMix * (fric ? kAntFricX : 1.0f));
+                  addShapeDemand(t0 + kAntFrom * dur, t0 + dur, lineShapeMix(sh, o, mix), tok.ph, dW * kAntW);
+                }
+              }
+            }
             // (round-I uː agent) the rounder late key (LINE_UW_LATE_*, LINE_UW_END_*) asked for over the last share of
             // the uː from LINE_UW_LATE_AT (0.7).
             static const float kUwLateAt = param("LINE_UW_LATE_AT", 0.5f);
@@ -6115,6 +6157,13 @@ void Synth::emit(const Token& tok, const Ph* next) {
   }
   e.an = aero.an;
   e.anMs = kBoundaryMs;
+  // (TRANS agent28 round Z, lab; 0: as before) a nasal's own velum opening over TRANS_NAS_ON_MS (the velum is slow:
+  // puhuja's vowels jumped in F2 at nasal boundaries 4-13x as often as 11labs').
+  {
+    // (TRANS_NAS_ON_V 1: only a nasal before a vowel; before a stop, "and spiritual", the slow port made a click)
+    static const float kTNasOnMs = param("TRANS_NAS_ON_MS", 0.0f), kTNasOnV = param("TRANS_NAS_ON_V", 0.0f);
+    if (kTNasOnMs > 0 && tract_ == Tract::Line && in.cls == Cls::Nasal && (kTNasOnV < 0.5f || (next && isVowel(*next)))) e.anMs = kTNasOnMs;
+  }
   // A phrase-final ŋ's breath eases to LINE_NG_FINAL_PRESS over the ŋ (lab knob 2026-11-11, NG agent 3; 1: as
   // before): Kokoro's final ŋ fades ~10 dB through its murmur, puhuja's held its level to the end.
   {
@@ -8395,6 +8444,10 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // perhaps 30 ms longer, but release it softly").
   if (tract_ == Tract::Line && tok.ph == Ph::B && !unreleased) closure += kLineBExtraMs * 0.001 * fs_;
   double release = timeline_ + closure;
+  {
+    static const float kSmRelMsP = param("TRANS_SM_REL_MS", 0.0f);
+    if (kSmRelMsP > 0) transRel_.push_back(release);
+  }
   const float ms = 0.001f * fs_;
   // The line's shape through the closure: a labial stop is cut into o's
   // shape (the tract behind the lips is o's; only the lips differ), so the
@@ -12004,6 +12057,57 @@ bool Synth::shapePlanAt(double t, TractShape* s) const {
   float x[kShapeCh];
   for (int c = 0; c < kShapeCh; ++c)
     x[c] = shapePlan_[i * kShapeCh + c] + (shapePlan_[(i + 1) * kShapeCh + c] - shapePlan_[i * kShapeCh + c]) * u;
+  // (TRANS agent28 round Z, lab; 0 / 0 / 1: as before) the articulators' inertia after the plan: the shape read is the
+  // plan smoothed by a two-sided exponential kernel, TRANS_SM_BACK_MS over the past (a lag: carry-over) and
+  // TRANS_SM_FWD_MS over the future (anticipation); x TRANS_SM_BODY_X for the body channels (jaw / F1: the heaviest),
+  // x TRANS_SM_LIP_X for the lips.
+  static const float kSmBack = param("TRANS_SM_BACK_MS", 0.0f), kSmFwd = param("TRANS_SM_FWD_MS", 0.0f),
+                     kSmBodyX = param("TRANS_SM_BODY_X", 1.0f), kSmLipX = param("TRANS_SM_LIP_X", 1.0f);
+  // (TRANS_SM_REL_MS, lab; 0: off) no kernel from this long before a plosive's release to this long after it (10 ms
+  // ramps): the closure keeps its own shape and the release its transition (the kernel blurred initial consonants:
+  // Be -> we, Day -> they).
+  static const float kSmRelMs = param("TRANS_SM_REL_MS", 0.0f);
+  double g = 1.0;
+  if ((kSmBack > 0 || kSmFwd > 0) && kSmRelMs > 0 && !transRel_.empty()) {
+    const double ms1 = 0.001 * fs_;
+    auto it = std::lower_bound(transRel_.begin(), transRel_.end(), t);
+    double dmin = 1e30;
+    if (it != transRel_.end()) dmin = std::min(dmin, *it - t);
+    if (it != transRel_.begin()) dmin = std::min(dmin, t - *(it - 1));
+    const double dms = dmin / ms1;
+    g = std::clamp((dms - kSmRelMs) / 10.0, 0.0, 1.0);
+  }
+  if ((kSmBack > 0 || kSmFwd > 0) && g > 0) {
+    for (int c = 0; c < kShapeCh; ++c) {
+      const float gx = c == 3 || c == 6 ? kSmLipX : (c >= 4 && c <= 8) ? kSmBodyX : 1.0f;
+      const double tb = kSmBack * gx / kShapeHopMs, tf = kSmFwd * gx / kShapeHopMs;  // in frames
+      const int kb = static_cast<int>(std::ceil(3 * std::max(0.2, tb))) + 1, kf = static_cast<int>(std::ceil(3 * std::max(0.2, tf))) + 1;
+      double sw = 0, sx = 0;
+      for (int k = -kb; k <= kf; ++k) {
+        const double dt = static_cast<double>(k) - u;  // frame i + k relative to t
+        // (a side without smoothing still gets a 0.2-frame tau: skipping the frames there made the read jump each frame)
+        const double tau = std::max(0.2, dt < 0 ? tb : tf);
+        const double w = std::exp(-std::fabs(dt) / tau);
+        const long j = std::clamp<long>(static_cast<long>(i) + k, 0, static_cast<long>(frames) - 1);
+        sw += w; sx += w * shapePlan_[static_cast<size_t>(j) * kShapeCh + c];
+      }
+      if (sw > 0) x[c] = static_cast<float>(g * (sx / sw) + (1.0 - g) * x[c]);
+    }
+  }
+  // (TRANS agent28 round Z, lab; 0: as before) a slow articulatory drift: human formants never hold still (11labs F2
+  // moves < 0.01 octave / 10 ms in 24 % of the sonorant frames, puhuja in 33 %; its median speed is 2/3 of 11labs'):
+  // the tongue place / opening, the oral and pharynx areas wander by TRANS_DRIFT_A (log units; the place x its range)
+  // as sums of three incommensurate sines around TRANS_DRIFT_HZ.
+  static const float kDriftA = param("TRANS_DRIFT_A", 0.0f), kDriftHz = param("TRANS_DRIFT_HZ", 4.0f);
+  if (kDriftA > 0) {
+    const double ts = t / fs_ * 2.0 * 3.14159265358979 * kDriftHz;
+    const int chs[4] = {0, 1, 4, 5};
+    for (int q = 0; q < 4; ++q) {
+      const int c = chs[q];
+      const double v = (std::sin(ts * 1.0 + 1.3 * q) + std::sin(ts * 1.618 + 2.1 * q + 0.7) + std::sin(ts * 0.613 + 0.9 * q + 2.3)) / 3.0;
+      x[c] += static_cast<float>(kDriftA * kShapeChannels[c].range * v);
+    }
+  }
   *s = channelsToShape(x);
   return true;
 }
@@ -12028,15 +12132,27 @@ void Synth::planShapes(double tEnd) {
     const int i0 = std::max(a, frameOf(d.tA)), i1 = std::min(N - 1, frameOf(d.tB));
     for (int i = i0; i <= i1; ++i) entries.push_back({i, q});
   }
-  const double vel = kShapeVel, acc = kShapeAcc, mu = kShapeMu;
+  // (TRANS agent28 round Z, lab; 1: as before) the effort and speed limit per articulator group: x TRANS_VEL_* (first
+  // difference), x TRANS_ACC_* (second difference), x TRANS_VMAX_* (speed limit) for the tongue (xc ac wc sc), the lips
+  // (aLip lLip) and the body (pharynx, oral / jaw, larynx, length).
+  static const float kTVel[3] = {param("TRANS_VEL_TONGUE", 1.0f), param("TRANS_VEL_LIP", 1.0f), param("TRANS_VEL_BODY", 1.0f)};
+  static const float kTAcc[3] = {param("TRANS_ACC_TONGUE", 1.0f), param("TRANS_ACC_LIP", 1.0f), param("TRANS_ACC_BODY", 1.0f)};
+  static const float kTVmax[3] = {param("TRANS_VMAX_TONGUE", 1.0f), param("TRANS_VMAX_LIP", 1.0f), param("TRANS_VMAX_BODY", 1.0f)};
+  // (TRANS agent28, lab; 0: as before) a jerk term x TRANS_JERK (third difference: smooth starts and stops of a motion).
+  static const float kTJerk = param("TRANS_JERK", 0.0f);
   std::vector<double> x(N), d(N), e(N), f(N), b(N);
   for (int c = 0; c < kShapeCh; ++c) {
     const ShapeChannel& ch = kShapeChannels[c];
+    const int grp = c == 0 || c == 1 || c == 2 || c == 9 ? 0 : c == 3 || c == 6 ? 1 : c < 10 ? 2 : -1;
+    const double vel = grp >= 0 && kTVel[grp] != 1.0f ? kShapeVel * kTVel[grp] : kShapeVel;
+    const double acc = grp >= 0 && kTAcc[grp] != 1.0f ? kShapeAcc * kTAcc[grp] : kShapeAcc;
+    const double mu = kShapeMu;
     if (c >= 10 && !cavityColourOn()) {  // (the cavity colour channels, all 0 unless LINE_CAV_<ph>_* is set)
       for (int i = a; i < N; ++i) shapePlan_[(first + static_cast<size_t>(i - a)) * kShapeCh + c] = 0.0f;
       continue;
     }
-    const double tol = kShapeTol * ch.range, vmax = kShapeVmax * ch.range * kShapeHopMs * 0.001;
+    const double tol = kShapeTol * ch.range,
+                 vmax = (grp >= 0 && kTVmax[grp] != 1.0f ? kShapeVmax * kTVmax[grp] : kShapeVmax) * ch.range * kShapeHopMs * 0.001;
     // The faint pull where nothing is demanded: the phrase's mean demand.
     double mean = 0, wsum = 0;
     for (const Entry& en : entries) { mean += shapeDemands_[en.d].w[c] * shapeDemands_[en.d].x[c]; wsum += shapeDemands_[en.d].w[c]; }
@@ -12083,7 +12199,32 @@ void Synth::planShapes(double tEnd) {
         e[i - 1] -= 2 * acc; e[i] -= 2 * acc;
         f[i - 1] += acc;
       }
-      solvePenta(d, e, f, b);
+      if (kTJerk > 0) {
+        // the third difference (x[i+2] - 3x[i+1] + 3x[i] - x[i-1]) squared: a 7-band system, solved by
+        // Gauss-Seidel sweeps around the pentadiagonal solution (the band beyond it as a correction).
+        std::vector<double> d0 = d, e0 = e, f0 = f, b0 = b;
+        solvePenta(d, e, f, b);
+        std::vector<double> y = b;
+        const double J = kTJerk;
+        const double cf[4] = {-1, 3, -3, 1};
+        for (int it = 0; it < 30; ++it) {
+          std::vector<double> rhs = b0;
+          // add the jerk term's gradient at y: J * D3^T D3 y, moved to the right side as -J D3^T D3 y + (diag part kept)
+          std::vector<double> r(N, 0.0);
+          for (int i = 0; i + 3 < N; ++i) {
+            const double v = cf[0] * y[i] + cf[1] * y[i + 1] + cf[2] * y[i + 2] + cf[3] * y[i + 3];
+            for (int k = 0; k < 4; ++k) r[i + k] += J * cf[k] * v;
+          }
+          for (int i = 0; i < N; ++i) rhs[i] -= r[i];
+          // Solve (A) z = rhs - J D3'D3 y + ... : a damped fixed point y <- y + 0.5 (A^-1 (b0 - J D3'D3 y) - y)
+          std::vector<double> dd = d0, ee = e0, ff = f0;
+          solvePenta(dd, ee, ff, rhs);
+          for (int i = 0; i < N; ++i) y[i] += 0.5 * (rhs[i] - y[i]);
+        }
+        b = y;
+      } else {
+        solvePenta(d, e, f, b);
+      }
       x = b;
     }
     // Append the new frames.

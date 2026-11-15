@@ -666,6 +666,7 @@ class Synth {
   std::vector<ShapeDemand> shapeDemands_;
   std::vector<float> shapePlan_;  // kShapeCh values per frame, from t = 0
   double shapePlanEnd_ = 0;       // the planned horizon (samples)
+  std::vector<double> transRel_;  // (TRANS_SM_REL_MS) plosive release times (samples), in order
   void addShapeDemand(double tA, double tB, const TractShape& s, Ph ph, float wScale, float placeFloor = 0.0f);
   void planShapes(double tEnd);
   bool shapePlanAt(double t, TractShape* s) const;
