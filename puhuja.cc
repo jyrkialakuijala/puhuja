@@ -4405,6 +4405,60 @@ void Synth::emit(const Token& tok, const Ph* next) {
       const float vmFric = dhMed ? kVmDhFric : vmMed && tok.ph == Ph::VV ? kVmVFric : vmMed && tok.ph == Ph::Z ? kVmZFric : 1.0f;  // (VFRIC-MED agent22)
       if (vmFric != 1.0f && e.lineFricMul != 0) e.lineFricMul = (e.lineFricMul < 0 ? 1.0f : e.lineFricMul) * vmFric;
     }
+    // (FRIC agent32 round AD, lab; all off) the non-sibilant / voiced fricatives in connected speech (word 2+ of a phrase:
+    // csSpeech_), against the 11labs Kennedy readings: FRIC_CS_<X>_FRIC x the hiss gain, _AC x the slit, _AG the glottis
+    // (< 0: as before), _PRESS the lung pressure share (< 0: as before), for X = F V TH DH Z; FRIC_CS_THE_* the same for the
+    // ð of "the" (word-initial ð before ə ɪ i; < 0 / 1: the DH ones); FRIC_CS_F_JET_D / _LPR the f's own jet / noise
+    // low-pass (< 0: as before); FRIC_CS_FEMALE 0: male only.
+    {
+      static const float kCsF = param("FRIC_CS_FEMALE", 1.0f);
+      static const float kFr[5] = {param("FRIC_CS_F_FRIC", 1.0f), param("FRIC_CS_V_FRIC", 1.0f), param("FRIC_CS_TH_FRIC", 1.0f),
+                                   param("FRIC_CS_DH_FRIC", 1.0f), param("FRIC_CS_Z_FRIC", 1.0f)};
+      static const float kAc[5] = {param("FRIC_CS_F_AC", 1.0f), param("FRIC_CS_V_AC", 1.0f), param("FRIC_CS_TH_AC", 1.0f),
+                                   param("FRIC_CS_DH_AC", 1.0f), param("FRIC_CS_Z_AC", 1.0f)};
+      static const float kAg[5] = {param("FRIC_CS_F_AG", -1.0f), param("FRIC_CS_V_AG", -1.0f), param("FRIC_CS_TH_AG", -1.0f),
+                                   param("FRIC_CS_DH_AG", -1.0f), param("FRIC_CS_Z_AG", -1.0f)};
+      static const float kPr[5] = {param("FRIC_CS_F_PRESS", -1.0f), param("FRIC_CS_V_PRESS", -1.0f), param("FRIC_CS_TH_PRESS", -1.0f),
+                                   param("FRIC_CS_DH_PRESS", -1.0f), param("FRIC_CS_Z_PRESS", -1.0f)};
+      static const float kTheFr = param("FRIC_CS_THE_FRIC", -1.0f), kTheAc = param("FRIC_CS_THE_AC", -1.0f),
+                         kTheAg = param("FRIC_CS_THE_AG", -1.0f), kThePr = param("FRIC_CS_THE_PRESS", -1.0f);
+      static const float kFJetD = param("FRIC_CS_F_JET_D", -1.0f), kFLpr = param("FRIC_CS_F_LPR", -1.0f);
+      // FRIC_CS_<X>_RE (0: off) the jet's Reynolds number x this through X (the hiss threshold: a hiss under a voiced, wider
+      // slit), X = DH Z V; FRIC_CS_THE_RE the ð of "the" (< 0: the DH one)
+      static const float kRe[5] = {0.0f, param("FRIC_CS_V_RE", 0.0f), 0.0f, param("FRIC_CS_DH_RE", 0.0f), param("FRIC_CS_Z_RE", 0.0f)};
+      static const float kTheRe = param("FRIC_CS_THE_RE", -1.0f);
+      // FRIC_CS_THE_C_AC / _C_RE / _C_FRIC (< 0: the THE ones): the ð of "the" after an obstruent or a pause (11labs: a
+      // weak, stop-like ð, its minimum -33 dB re the vowels where puhuja's is -22)
+      static const float kTheCAc = param("FRIC_CS_THE_C_AC", -1.0f), kTheCRe = param("FRIC_CS_THE_C_RE", -1.0f),
+                         kTheCFr = param("FRIC_CS_THE_C_FRIC", -1.0f);
+      // FRIC_CS_<X>_VV_RE / _VV_FRIC / _VV_AG (< 0: the X ones): X = DH Z between vowels / sonorants (and not "the")
+      static const float kVvRe[5] = {-1.0f, -1.0f, -1.0f, param("FRIC_CS_DH_VV_RE", -1.0f), param("FRIC_CS_Z_VV_RE", -1.0f)};
+      static const float kVvFr[5] = {-1.0f, -1.0f, -1.0f, param("FRIC_CS_DH_VV_FRIC", -1.0f), param("FRIC_CS_Z_VV_FRIC", -1.0f)};
+      static const float kVvAg[5] = {-1.0f, -1.0f, -1.0f, param("FRIC_CS_DH_VV_AG", -1.0f), param("FRIC_CS_Z_VV_AG", -1.0f)};
+      const int xi = tok.ph == Ph::F ? 0 : tok.ph == Ph::VV ? 1 : tok.ph == Ph::TH ? 2 : tok.ph == Ph::DH ? 3 : tok.ph == Ph::Z ? 4 : -1;
+      const bool on = tract_ == Tract::Line && csSpeech_ && (!female_ || kCsF > 0.5f);
+      if (fricCsPress_ && e.press < 0) { e.press = 1.0f; e.pressMs = 20; }
+      fricCsPress_ = false;
+      if (fricCsRe_ && e.lineFricReMul < 0) e.lineFricReMul = 1.0f;
+      fricCsRe_ = false;
+      if (on && xi >= 0) {
+        const bool the = xi == 3 && tok.wordStart && next && (*next == Ph::Schwa || *next == Ph::AH || *next == Ph::IH || *next == Ph::I);
+        const bool vv = !the && (isVowel(lastPh_) || isSonorant(lastPh_)) && next && (isVowel(*next) || isSonorant(*next));
+        const float fr = the && kTheFr >= 0 ? kTheFr : vv && kVvFr[xi] >= 0 ? kVvFr[xi] : kFr[xi], ac = the && kTheAc >= 0 ? kTheAc : kAc[xi];
+        const float ag = the && kTheAg >= 0 ? kTheAg : vv && kVvAg[xi] >= 0 ? kVvAg[xi] : kAg[xi], pr = the && kThePr >= 0 ? kThePr : kPr[xi];
+        if (fr != 1.0f && e.lineFricMul != 0) e.lineFricMul = (e.lineFricMul < 0 ? 1.0f : e.lineFricMul) * fr;
+        if (ac != 1.0f && e.ac > 0) e.ac *= ac;
+        if (ag >= 0) aero.ag = ag;
+        if (pr >= 0) { e.press = pr; e.pressMs = 20; fricCsPress_ = true; }
+        const bool theC = the && !isVowel(lastPh_) && !isSonorant(lastPh_);
+        const float re = theC && kTheCRe >= 0 ? kTheCRe : the && kTheRe >= 0 ? kTheRe : vv && kVvRe[xi] >= 0 ? kVvRe[xi] : kRe[xi];
+        if (theC && kTheCAc >= 0 && e.ac > 0) e.ac *= kTheCAc / std::max(ac, 1e-3f);
+        if (theC && kTheCFr >= 0 && e.lineFricMul > 0) e.lineFricMul *= kTheCFr / std::max(fr, 1e-3f);
+        if (re > 0) { e.lineFricReMul = re; fricCsRe_ = true; }
+        if (xi == 0 && kFJetD >= 0) e.lineJetD = kFJetD;
+        if (xi == 0 && kFLpr >= 0) e.lineFricLpr = kFLpr;
+      }
+    }
     // A pause leaves the groove as it is: snapping ʃ's 2.5 cm groove to a
     // 1 cm one while the hiss still ran put a +14 dB blip at the end of
     // "abolish" (2026-11-03).
@@ -7338,6 +7392,13 @@ void Synth::emit(const Token& tok, const Ph* next) {
       }
       const bool voicedCtx = prevVoiced_ || (tract_ == Tract::Line && (kLineHVoicedCtx >= 2 || (kLineHVoicedCtx >= 1 && !prevWasPause_)));  // (LINE_H_VOICED_CTX)
       bool voicedH = voicedCtx && next && isSonorant(*next) && !beforeJ;
+      // (FRIC agent32 round AD, lab; 0: off) FRIC_CS_H_VL_CTX 1: in connected speech an h after an obstruent ("of human",
+      // "is his") is the voiceless, breathy one (LINE_H_AG / LINE_H_ASP), as 11labs1's (2-8 kHz +3 dB re the vowels; puhuja's
+      // voiced h there -5); 2: also after a nasal / liquid.
+      { static const float kHVlCtx = param("FRIC_CS_H_VL_CTX", 0.0f), kHVlCtxF = param("FRIC_CS_FEMALE", 1.0f);
+        if (voicedH && kHVlCtx > 0 && tract_ == Tract::Line && csSpeech_ && !prevWasPause_ && (!female_ || kHVlCtxF > 0.5f) &&
+            !isVowel(lastPh_) && (kHVlCtx >= 2 || !isSonorant(lastPh_)))
+          voicedH = false; }
       // After a voiceless consonant ("torch has", "this house") the h keeps the breath going with the glottis this open
       // (LINE_H_AFTER_VLESS_AG cm^2; < 0: the voiced h as everywhere). Jyrki 2026-11-11: "\"torch has\" has a strange
       // sound between the words, but \"torch\" and \"has\" are separately ok": the ʧ's hiss (peak 0.106) dropped into a
@@ -7390,6 +7451,28 @@ void Synth::emit(const Token& tok, const Ph* next) {
         if (kLineHLpr > 0) e.linePuffLpr = kLineHLpr;
         if (kLineHPress != 1.0f) { e.press = kLineHPress; e.pressMs = 20; }
         lineHSpec_ = true;
+      }
+      // (FRIC agent32 round AD, lab; all off) the h in connected speech (csSpeech_): FRIC_CS_H_ASP x its noise gain (the
+      // voiced h's LINE_VH_ASP, the voiceless one's LINE_H_ASP), FRIC_CS_H_AG the voiced h's glottis (< 0: as before),
+      // FRIC_CS_H_GFC its glottal noise corner (< 0: as before), FRIC_CS_H_VL_ASP x the voiceless h's noise more.
+      {
+        static const float kHAsp = param("FRIC_CS_H_ASP", 1.0f), kHAg = param("FRIC_CS_H_AG", -1.0f),
+                           kHGfcCs = param("FRIC_CS_H_GFC", -1.0f), kHVlAsp = param("FRIC_CS_H_VL_ASP", 1.0f),
+                           kHCsF = param("FRIC_CS_FEMALE", 1.0f), kHAspF = param("FRIC_CS_H_ASP_F", -1.0f),
+                           kHGfcF = param("FRIC_CS_H_GFC_F", -1.0f), kHAgF = param("FRIC_CS_H_AG_F", -1.0f);
+        // FRIC_CS_H_ASP_F / _GFC_F / _AG_F (< 0: off): the female's own, also with FRIC_CS_FEMALE 0
+        const bool hf = female_ && (kHAspF >= 0 || kHGfcF >= 0 || kHAgF >= 0);
+        if (tract_ == Tract::Line && csSpeech_ && !beforeJ && hf) {
+          const float m = kHAspF >= 0 ? kHAspF : 1.0f;
+          if (m != 1.0f) { e.lineAspMul = (lineHAsp_ ? e.lineAspMul : 1.0f) * m; lineHAsp_ = true; }
+          if (kHGfcF >= 0) { e.lineGlotFc = kHGfcF; lineHSpec_ = true; }
+          if (voicedH && !afterVless && kHAgF >= 0 && e.ag >= 0) e.ag = kHAgF;
+        } else if (tract_ == Tract::Line && csSpeech_ && !beforeJ && (!female_ || kHCsF > 0.5f)) {
+          const float m = kHAsp * (voicedH ? 1.0f : kHVlAsp);
+          if (m != 1.0f) { e.lineAspMul = (lineHAsp_ ? e.lineAspMul : 1.0f) * m; lineHAsp_ = true; }
+          if (voicedH && !afterVless && kHAg >= 0 && e.ag >= 0) e.ag = kHAg;
+          if (kHGfcCs >= 0) { e.lineGlotFc = kHGfcCs; lineHSpec_ = true; }
+        }
       }
       break;
     }

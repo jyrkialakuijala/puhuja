@@ -602,6 +602,8 @@ class Synth {
   Ph prevPh2_ = Ph::Stop;  // the one before it (POST-L-STOP agent22: the vowel before a coda ɹ)
   bool vmPrevZvMed_ = false;  // the previous phoneme was a z / v between two vowels inside a word (MED-Z agent24)
   int prevIhCtx_ = -1;  // the previous phoneme was a standalone ɪ: its Shape::ihctx, else -1 (IH-EY agent25)
+  bool fricCsRe_ = false;  // (FRIC agent32) a FRIC_CS_*_RE is in force
+  bool fricCsPress_ = false;  // (FRIC agent32) a FRIC_CS_*_PRESS is in force: the next sound restores the pressure
   bool vmPrevDhMed_ = false;  // the previous phoneme was a ð between two vowels inside a word (VFRIC-MED agent22)
   bool glottalOnsetNext_ = false;
   bool creakNext_ = false;
