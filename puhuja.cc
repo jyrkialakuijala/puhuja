@@ -7964,6 +7964,15 @@ void Synth::coarticulate(Params& p, Ph ph, const Ph* next) const {
   if (ph == Ph::RR) p[kF2] = std::min(p[kF2], p[kF3] - 250.0f);
 }
 
+// (G-FINAL-2 agent27 round Y) the vowels a word-final g counts as "back" after (LINE_GD_FIN_G_BACK_MIX, LINE_GF_*):
+// ɑ ɔ ʌ o u ʊ, and ɜ when LINE_GF_ER is 1 (0: as before). The dictionary (combo22) heard "Berg" as bird and "Hamburg" as
+// hammered: after ɜ the g closed with F3 at 1.9 kHz and a 1.7 kHz burst centroid (Kokoro am_adam 3.4 / 3.7 kHz).
+static bool gFinBackVowel(Ph v) {
+  static const float kGfEr = param("LINE_GF_ER", 0.0f);
+  return v == Ph::AA || v == Ph::AO || v == Ph::AH || v == Ph::OH || v == Ph::O || v == Ph::U || v == Ph::UH ||
+         (kGfEr > 0 && v == Ph::ER);
+}
+
 void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // (LINE_K_X_FRONT / _BACK: the vowel that sets the k's place)
   const Ph kVowel = next && isVowel(*next) ? *next : prevWasVowel_ ? lastPh_ : next ? *next : Ph::Stop;
@@ -8047,7 +8056,18 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // vowel burst at 3.8 kHz (Kokoro af_heart 3.1), at 0.69 2.6. The d at 0.87: no gain.
   static const float kGdFinXD = param("LINE_GD_FIN_X_D", -1.0f), kGdFinXG = param("LINE_GD_FIN_X_G", 0.69f);
   const bool gdFinTok = tract_ == Tract::Line && (tok.ph == Ph::D || tok.ph == Ph::G) && prevWasVowel_ && (!next || *next == Ph::Stop);
-  const float gdFinX = !gdFinTok ? -1.0f : tok.ph == Ph::D ? kGdFinXD : kGdFinXG;
+  // (G-FINAL-2 agent27 round Y, lab; < 0: LINE_GD_FIN_X_G) the final g's place after a back vowel (LINE_GF_X; LINE_GF_X_F
+  // the female's, < 0: LINE_GF_X). The dictionary (combo22) heard it as d ("Blog" -> blood, "Frog" -> fraud, "Og" -> odd);
+  // lab (119 final g / d words, 266 targets, seed 5): 0.66 44 -> 34 errors, 0.63 40, 0.72 72 (more d). With LINE_GF_RE
+  // (below) 0.64 beats 0.66 and 0.62.
+  static const float kGfX = param("LINE_GF_X", -1.0f), kGfXF = param("LINE_GF_X_F", -1.0f);
+  // LINE_GF_AH 0: not after ʌ (1: as after ɑ ɔ). Per word (seed 5) the place 0.64 turned "Rug" "Mug" "Hug" "Jug" into rig
+  // / meg / head / jig (the ʌ heard fronted); Kokoro's ʌ + g keeps F2 low into the closure (Bug 1573, Mug 1499 Hz; after
+  // ɑ ɔ 2430-2630).
+  static const float kGfAh = param("LINE_GF_AH", 1.0f);
+  const bool gfBack = gdFinTok && tok.ph == Ph::G && gFinBackVowel(lastPh_) && (lastPh_ != Ph::AH || kGfAh > 0);
+  const float gfX = female_ && kGfXF >= 0 ? kGfXF : kGfX;
+  const float gdFinX = !gdFinTok ? -1.0f : tok.ph == Ph::D ? kGdFinXD : gfBack && gfX >= 0 ? gfX : kGdFinXG;
   // (POST-L-STOP agent22 round T, lab; < 0: as before) a t / k / p after a coda ɹ (LINE_PL2_LIQ bit 1) or l (bit 2)
   // before a pause or a consonant ("Park", "Parts", "Milk"): its closure place LINE_PL2_X_T / LINE_PL2_X_K (share of
   // the line). The dictionary (combo17) heard ɹk as ɹt 45 / 104 ("Ark" -> art, "Park" -> part), ɹts as ɹps 43 / 116
@@ -8336,8 +8356,10 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // (FINAL-BDG agent18 round P, lab; < 0: off) a word-final b d g after a vowel closes over x LINE_BDG_FIN_CLOSE_X the
   // approach + seal time: Kokoro's "Web" bends F2 down over ~60 ms into the b, puhuja's closes in 18 + 12 ms.
   static const float kBdgFinCloseX = param("LINE_BDG_FIN_CLOSE_X", -1.0f);
-  const double closeStart =
-      std::max(tClosed - (bdgFin && kBdgFinCloseX >= 0 ? kBdgFinCloseX : 1.0f) * (kApproachMs + kSealMs) * ms, phonemeStart_ + 1);
+  // (G-FINAL-2 agent27 round Y, lab; < 0: as above) ... a final g's after a back vowel x LINE_GF_CLOSE_X.
+  static const float kGfCloseX = param("LINE_GF_CLOSE_X", -1.0f);
+  const float closeX = gfBack && kGfCloseX >= 0 ? kGfCloseX : bdgFin && kBdgFinCloseX >= 0 ? kBdgFinCloseX : 1.0f;
+  const double closeStart = std::max(tClosed - closeX * (kApproachMs + kSealMs) * ms, phonemeStart_ + 1);
   const float closeMs = static_cast<float>((tClosed - closeStart) / ms);
   const float sealMs = std::min(kSealMs, closeMs);
   // A vowel before k g (LINE_KG_APPROACH_MS) or b p (LINE_BP_APPROACH_MS)
@@ -8375,11 +8397,13 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     // the last 10 ms. Lab (352 final-t words, base 132 t errors / 328 words right): 25 118 / 348 (heard d 68 -> 58).
     static const float kTFinalApMs = param("LINE_T_FINAL_APPROACH_MS", -1.0f);
     const bool tFinalAp = alveolarT && kTFinalApMs >= 0 && (!next || *next == Ph::Stop);
-    const float apMsT = tFinalAp ? kTFinalApMs : tBackV && kTApMsBack >= 0 ? kTApMsBack : apMs;
+    // (G-FINAL-2 agent27 round Y, lab; < 0: as above) a final g's after a back vowel: LINE_GF_AP_MS, area LINE_GF_AP_A.
+    static const float kGfApMs = param("LINE_GF_AP_MS", -1.0f), kGfApA = param("LINE_GF_AP_A", -1.0f);
+    const float apMsT = tFinalAp ? kTFinalApMs : tBackV && kTApMsBack >= 0 ? kTApMsBack : gfBack && kGfApMs >= 0 ? kGfApMs : apMs;
     if (tract_ == Tract::Line && apMsT > 0 && (prevWasVowel_ || kApLiq || tApLiq) && !prevWasPlosive_ && !afterUnreleased) {
       Event ap{std::max(tClosed - apMsT * ms, phonemeStart_ + 1)};
       if (ap.t < closeStart - ms) {
-        ap.ac = tok.ph == Ph::G && kGApproachA >= 0 ? kGApproachA : velar ? kLineKgApproachA : labial ? kLineBpApproachA : tBackV && kTApABack >= 0 ? kTApABack : kLineTApproachA;
+        ap.ac = gfBack && kGfApA >= 0 ? kGfApA : tok.ph == Ph::G && kGApproachA >= 0 ? kGApproachA : velar ? kLineKgApproachA : labial ? kLineBpApproachA : tBackV && kTApABack >= 0 ? kTApABack : kLineTApproachA;
         ap.acMs = static_cast<float>((closeStart - ap.t) / ms);
         ap.lineX = kPlaceTok;
         ap.lineXClosure = true;
@@ -8460,11 +8484,16 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     // At 0.6 with LINE_GD_FIN_X_G 0.69 and LINE_GD_FIN_LIPS 1: centroid 2.3 kHz (female 1.8 -> 2.7, af_heart 2.9); lab
     // (4 seeded draws, 788 targets) 58 / 56 / 53 / 53 -> 37 / 40 / 40 / 42 errors, words1000 control unchanged.
     static const float kGdFinGBackMix = param("LINE_GD_FIN_G_BACK_MIX", 0.6f);
-    const bool gBackV = tok.ph == Ph::G && (lastPh_ == Ph::AA || lastPh_ == Ph::AO || lastPh_ == Ph::AH || lastPh_ == Ph::OH ||
-                                            lastPh_ == Ph::O || lastPh_ == Ph::U || lastPh_ == Ph::UH);
+    const bool gBackV = tok.ph == Ph::G && gFinBackVowel(lastPh_);
     const float gdFinMix1 = gBackV && kGdFinGBackMix >= 0 ? kGdFinGBackMix : gdFinMix;
     float preMix = finPre ? (gdFinMix1 >= 0 ? gdFinMix1 : kBdgFinPreMix) : bzPre ? kBzPreMix : kBdgPreMix;
     int preRow = finPre ? kBdgFinPreRow[bdgIdx] : bzPre ? kBzPreRow[bdgIdx] : row;
+    // (G-FINAL-2 agent27 round Y, lab; < 0: as above) the final g after a back vowel: its pre-shape row LINE_GF_ROW (a Ph
+    // index: 2 i, 9 ɪ, 16 ɜ), window LINE_GF_MS, demand weight LINE_GF_W, held LINE_GF_TAIL_MS past the release.
+    static const float kGfRow = param("LINE_GF_ROW", -1.0f), kGfMs = param("LINE_GF_MS", -1.0f),
+                       kGfW = param("LINE_GF_W", -1.0f), kGfTailMs = param("LINE_GF_TAIL_MS", -1.0f);
+    const bool gfPre = finPre && gBackV;
+    if (gfPre && kGfRow >= 0) preRow = static_cast<int>(kGfRow);
     const bool bdgV = (bdgOn || finPre || bzPre) && !afterUnreleased && lineShapeOf(lastPh_, &v);
     if (bdgV && preRow >= 0) ihoPreShape(prevIhCtx_, female_, &preRow, &preMix, &v);  // (LINE_IHO_PRE_*)
     if (bdgV && preMix > 0 && preRow >= 0 && lineShapeOf(static_cast<Ph>(preRow), &o)) {
@@ -8483,17 +8512,23 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
       // LINE_GD_FIN_LIPS_D: the d's own (< 0: LINE_GD_FIN_LIPS).
       static const float kGdFinLips = param("LINE_GD_FIN_LIPS", 1.0f), kGdFinLipsD = param("LINE_GD_FIN_LIPS_D", -1.0f);
       const float lips = tok.ph == Ph::D && kGdFinLipsD >= 0 ? kGdFinLipsD : kGdFinLips;
-      if (finPre && tok.ph != Ph::B && lips > 0) {
-        m.aLip = v.aLip + lips * (o.aLip - v.aLip);
-        m.lLip = v.lLip + lips * (o.lLip - v.lLip);
+      // (G-FINAL-2 agent27 round Y, lab; < 0: as above) the final g's after a back vowel: LINE_GF_LIPS.
+      static const float kGfLips = param("LINE_GF_LIPS", -1.0f);
+      const float lips1 = gfPre && kGfLips >= 0 ? kGfLips : lips;
+      if (finPre && tok.ph != Ph::B && lips1 > 0) {
+        m.aLip = v.aLip + lips1 * (o.aLip - v.aLip);
+        m.lLip = v.lLip + lips1 * (o.lLip - v.lLip);
       }
       m.sc = lineVowelStrength(m.xc, m.wc, m.length);
       const float preMs = finPre && kBdgFinPreMs >= 0 ? kBdgFinPreMs : bzPre && kBzPreMs >= 0 ? kBzPreMs : kBdgPreMs;
       // (FINAL-GD agent21 round S, lab; 0: off) the final d's / g's tongue body holds the pre-shape LINE_GD_FIN_TAIL_MS past
       // the release, so the release tail into the pause carries the stop's locus (the tail drifted to the rest shape).
       static const float kGdFinTailMs = param("LINE_GD_FIN_TAIL_MS", 0.0f);
-      const double preEnd = finPre && tok.ph != Ph::B && kGdFinTailMs > 0 ? release + kGdFinTailMs * ms : release;
-      addShapeDemand(std::max(closeStart - preMs * ms, phonemeStart_ + 1.0), preEnd, m, lastPh_, kBdgPreW);
+      const float tailMs = gfPre && kGfTailMs >= 0 ? kGfTailMs : finPre && tok.ph != Ph::B ? kGdFinTailMs : 0.0f;
+      const double preEnd = tailMs > 0 ? release + tailMs * ms : release;
+      const float preMs1 = gfPre && kGfMs >= 0 ? kGfMs : preMs;
+      addShapeDemand(std::max(closeStart - preMs1 * ms, phonemeStart_ + 1.0), preEnd, m, lastPh_,
+                     gfPre && kGfW >= 0 ? kGfW : kBdgPreW);
     }
   }
   // (POST-L-STOP agent22 round T, lab; 0: off) the stop after a coda liquid (pl2Ctx): its tongue body toward a row over
@@ -8644,7 +8679,10 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     static const float kLineFinalVstopPress = param("LINE_FINAL_VSTOP_PRESS", 0.8f);
     static const float kNdVstopPress = param("LINE_ND_VSTOP_PRESS", -1.0f);  // (D-AFTER-N agent15; < 0: as above) the nd's own
     static const float kBdgFinPress = param("LINE_BDG_FIN_PRESS", -1.0f);  // (FINAL-BDG agent18; < 0: as above) a final b d g's
-    const float vstopPress = ndFinal && kNdVstopPress >= 0 ? kNdVstopPress : bdgFin && kBdgFinPress >= 0 ? kBdgFinPress : kLineFinalVstopPress;
+    // (G-FINAL-2 agent27 round Y, lab; < 0: as above) a final g's after a back vowel (LINE_GF_PRESS).
+    static const float kGfPress = param("LINE_GF_PRESS", -1.0f);
+    const float vstopPress = ndFinal && kNdVstopPress >= 0 ? kNdVstopPress : gfBack && kGfPress >= 0 ? kGfPress
+                             : bdgFin && kBdgFinPress >= 0 ? kBdgFinPress : kLineFinalVstopPress;
     if (tract_ == Tract::Line && nextIsPause && pi.voiced && vstopPress < 1.0f && close.press < 0) {
       close.press = vstopPress;
       close.pressMs = 30;
@@ -8867,6 +8905,9 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // at -4..-10 dB re the word peak; Kokoro's release is a burst and a breathy tail at -14..-20 dB. Lab: 0.3 79 -> 128.
   static const float kBdgFinRelAc = param("LINE_BDG_FIN_REL_AC", -1.0f);
   if (bdgFin && kBdgFinRelAc >= 0) rel.ac = kBdgFinRelAc;
+  // (G-FINAL-2 agent27 round Y, lab; < 0: as above) a final g's after a back vowel opens to LINE_GF_REL_AC (cm^2).
+  static const float kGfRelAc = param("LINE_GF_REL_AC", -1.0f);
+  if (gfBack && kGfRelAc >= 0) rel.ac = kGfRelAc;
   // On the line the release is also the next sound's own event (emit drops
   // the event of a sound after a plosive): it carries that sound's slit, place
   // and groove. Without them the f of "not forget" was made at the t's
@@ -9568,6 +9609,15 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // pressure (LINE_FINAL_VSTOP_PRESS), and with LINE_G_REL_RE 3 its burst came out at the vowel's level ("Dog.": -2 dB).
   static const float kGRelReFinal = param("LINE_G_REL_RE_FINAL", 1.5f);
   if (gRelRe) rel.lineFricReMul = (!next || nextIsPause) && kGRelReFinal >= 0 ? kGRelReFinal : kGRelRe;  // (back to 1 after addEvent(rel), below)
+  // (G-FINAL-2 agent27 round Y, lab; < 0: as above) a final g's after a back vowel x LINE_GF_RE (LINE_GF_RE_F the female's,
+  // < 0: LINE_GF_RE): the male's release was a loud diffuse noise, d-like: its first 30 ms high-passed at -12.8 dB re the
+  // word peak (8 words, median; Kokoro am_adam -22.3), 1-7 kHz flat; the female's -19.9 (af_heart -17.3). Male 0.85:
+  // -24.7 dB; the female's kept at 1.5. Lab (266 targets, seeds 5 / 7 / 11) with LINE_GF_X 0.64: 44 / 46 / 46 -> 16 /
+  // 14 / 16 errors (g heard d 40 -> ~10), words right +12..+22 of 238; male and female 0.7: 7-8 (the release ~10 dB under
+  // Kokoro's), 0.3 alone 28. LINE_GF_FRIC (the release's frication gain) is inert here: RE sets the noise.
+  static const float kGfRe = param("LINE_GF_RE", -1.0f), kGfReF = param("LINE_GF_RE_F", -1.0f);
+  const float gfRe = female_ && kGfReF >= 0 ? kGfReF : kGfRe;
+  if (gRelRe && gfBack && gfRe >= 0) rel.lineFricReMul = gfRe;
   if (gRelRe && tok.shape.gctx == 1 && kGiRelRe >= 0) rel.lineFricReMul = kGiRelRe;  // (LINE_GI_REL_RE)
   // (K agent 9 round J, lab; 0: off) the same for the k: its release jet as if LINE_K_REL_RE x faster for
   // LINE_G_REL_RE_MS (a final k's: LINE_K_REL_RE_FINAL, < 0: LINE_K_REL_RE).
@@ -9610,6 +9660,10 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // burst carries the place: 1-3 kHz 5-14 dB under the 20 ms's total for g d, puhuja's 26-32 dB.
   static const float kBdgFinFric = param("LINE_BDG_FIN_FRIC", -1.0f), kBdgVvFric = param("LINE_BDG_VV_FRIC", -1.0f);
   if (vstopBurst && bdgFin && kBdgFinFric >= 0) rel.lineFricMul = kBdgFinFric;
+  // (G-FINAL-2 agent27 round Y, lab; < 0: as above) a final g's after a back vowel: frication gain LINE_GF_FRIC (linear,
+  // where LINE_GF_RE moves the jet's Reynolds number and so the noise onset).
+  static const float kGfFric = param("LINE_GF_FRIC", -1.0f);
+  if (vstopBurst && gfBack && kGfFric >= 0) rel.lineFricMul = kGfFric;
   if (vstopBurst && bdgOn && bdgCtx == 4 && kBdgVvFric >= 0) rel.lineFricMul = kBdgVvFric;
   // ... and a b d g released into a z (LINE_BDG_Z_REL) LINE_BDG_Z_FRIC (< 0: the z's own gain carries on): at 1 "Bags"
   // gets a 1-3 kHz burst 4-6 dB under the frame total at -14 dB re the peak (Kokoro's: -4 dB at -13.5).
