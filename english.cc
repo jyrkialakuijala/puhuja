@@ -1562,7 +1562,7 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
         // (PROS3 agent30, lab knobs; 1: off) connected-speech tempo per voice: every phone x EN_MW_TEMPO (male) /
         // EN_MW_TEMPO_F (female), vowels fully, consonants by the square root (the male Kennedy passage ran 173 s of
         // speech against the 11labs readers' 155-161, the female 159).
-        static const float kMwTempoM = param("EN_MW_TEMPO", 1.0f), kMwTempoF = param("EN_MW_TEMPO_F", 1.0f);
+        static const float kMwTempoM = param("EN_MW_TEMPO", 0.92f), kMwTempoF = param("EN_MW_TEMPO_F", 1.0f);
         const float mwT = synth_.female() ? kMwTempoF : kMwTempoM;
         if (mwT != 1.0f && phrase_.size() > 1) out[w][i] *= vowel ? mwT : std::sqrt(mwT);
       }
@@ -2107,7 +2107,7 @@ float bgStep(float a, float b, float x) {
   const float t = std::clamp((x - a) / std::max(b - a, 1e-3f), 0.0f, 1.0f);
   return t * t * (3.0f - 2.0f * t);
 }
-float bgStartTo() { static const float v = param("EN_BG_START_TO", 0.4f); return v; }
+float bgStartTo() { static const float v = param("EN_BG_START_TO", 0.15f); return v; }
 float bgFinalFrom() { static const float v = param("EN_BG_FINAL_FROM", 0.7f); return v; }
 }  // namespace
 
@@ -2680,9 +2680,9 @@ void EnglishReader::sayPhrase(char end) {
   // place in its planned breath group: env rises from EN_GACC_LO0 at g 0 to 1 at EN_GACC_AT and falls to EN_GACC_LO1 at
   // g 1. The unaccented syllables between accents follow on the line between them (the sag below), so the
   // content-function contrast is not raised. Connected speech only (2+ words; the dictionary unchanged).
-  static const float kGaccMix = param("EN_GACC_MIX", 0.0f), kGaccAt = param("EN_GACC_AT", 0.45f),
-                     kGaccLo0 = param("EN_GACC_LO0", 0.8f), kGaccLo1 = param("EN_GACC_LO1", 0.6f),
-                     kGaccNuc = param("EN_GACC_NUC", 1.0f), kGaccH = param("EN_GACC_H", 1.0f);
+  static const float kGaccMix = param("EN_GACC_MIX", 1.0f), kGaccAt = param("EN_GACC_AT", 0.45f),
+                     kGaccLo0 = param("EN_GACC_LO0", 0.95f), kGaccLo1 = param("EN_GACC_LO1", 0.6f),
+                     kGaccNuc = param("EN_GACC_NUC", 1.0f), kGaccH = param("EN_GACC_H", 1.25f);
   std::vector<float> gaccPos;
   const float gaccH0 = accentHeight;
   if (kGaccMix > 0 && phrase_.size() > 1) {
@@ -2882,7 +2882,7 @@ void EnglishReader::sayPhrase(char end) {
     // off its last part (from EN_BG_FINAL_FROM): the readers' 7.5 st sit in a high start and a final drop, the middle
     // declines only ~0.5 st/s.
     static const float kBgSt = param("EN_BG_ST", 0.0f), kAirSt = param("EN_AIR_ST", 0.0f),
-                       kBgStartSt = param("EN_BG_START_ST", 3.5f), kBgFinSt = param("EN_BG_FINAL_ST", 2.5f);
+                       kBgStartSt = param("EN_BG_START_ST", 5.0f), kBgFinSt = param("EN_BG_FINAL_ST", 2.5f);
     if ((kBgSt != 0 || kAirSt != 0 || kBgStartSt != 0 || kBgFinSt != 0) && !wordGroupPos_.empty())
       for (Syl& y : syl) {
         if (y.word >= wordGroupPos_.size()) continue;
@@ -3756,7 +3756,7 @@ void EnglishReader::sayPhrase(char end) {
             const char* vn = kEnglishTokens[tokens[i] - 0x80];
             if (vn[strlen(vn) - 1] == '1') shape.pitchAt = kAccPitchAt;
           } }
-        { static const float kAccDip = param("EN_ACC_DIP_ST", 4.0f);
+        { static const float kAccDip = param("EN_ACC_DIP_ST", 6.0f);
           if (kAccDip > 0 && vowel && k == 0 && phrase_.size() > 1 && phrase_[w].accent && pitchEnd == Synth::kNoPitch) {
             const char* vn = kEnglishTokens[tokens[i] - 0x80];
             if (vn[strlen(vn) - 1] == '1') shape.pitchDip = kAccDip;
