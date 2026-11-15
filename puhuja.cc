@@ -3444,8 +3444,8 @@ void Synth::emit(const Token& tok, const Ph* next) {
   // phrase: setPhraseLeft) counts as connected speech too, per feature group: 1 TRANS (TRANS_CS_MASK, TRANS_*_CS),
   // 2 LIQ (LIQ_CS), 4 VOWEL (LINE_VQ_CS, LINE_*_CS vowel knobs), 8 STOP (LINE_*_CS stop knobs). Single words keep
   // the old sound (a phrase of one word has nothing left after it). CSW_FIRST_F: the female's mask (-1: = CSW_FIRST).
-  static const int kCswFirst = static_cast<int>(param("CSW_FIRST", 0.0f));
-  static const int kCswFirstF = static_cast<int>(param("CSW_FIRST_F", -1.0f));
+  static const int kCswFirst = static_cast<int>(param("CSW_FIRST", 10.0f));
+  static const int kCswFirstF = static_cast<int>(param("CSW_FIRST_F", 0.0f));
   const int cswMask = female_ && kCswFirstF >= 0 ? kCswFirstF : kCswFirst;
   // CSW_FIRST_MIN: only when the phrase has at least this many words (2: any multi-word phrase); CSW_FIRST_ONSET 0:
   // not the word's first sound (a phrase-initial consonant starts from rest); CSW_FIRST_VQ_X: the first word's LINE_VQ_*
