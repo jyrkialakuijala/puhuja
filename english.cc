@@ -2917,7 +2917,15 @@ void EnglishReader::sayPhrase(char end) {
     // Endings vary a little (from the words, so repeatable): every full
     // fall at the same depth sounded recited.
     if (statement < kLevelEnding) statement += static_cast<float>(static_cast<int>((hash >> 10) % 3) - 1) * kEndingVariety;
-    const float target = question ? kQuestionHigh : final ? statement : kContinuation;
+    float target = question ? kQuestionHigh : final ? statement : kContinuation;
+    // (MELODY agent34 round AF, lab knobs; 0: as before; 2+ words only) the phrase-end target + MEL_FIN_M / MEL_FIN_F st
+    // for a statement, + MEL_CONT_M / MEL_CONT_F st before a comma: puhuja's phrases end 4.5 st under their median,
+    // the 11labs readers' 2.0-3.4, af_heart / af_bella 1.4-1.5.
+    { static const float kFinM = param("MEL_FIN_M", 0.0f), kFinF = param("MEL_FIN_F", 0.0f),
+                         kContM = param("MEL_CONT_M", 0.0f), kContF = param("MEL_CONT_F", 0.0f);
+      const bool fem = synth_.female();
+      const float d = final ? (fem ? kFinF : kFinM) : (fem ? kContF : kContM);
+      if (d != 0 && phrase_.size() > 1 && !question) target += d; }
     const size_t last = syl.size() - 1;
     if (question && lastAccent >= 0) syl[lastAccent].pitch = -1.0f;  // low accent, then rise
     const size_t from = lastAccent >= 0 ? static_cast<size_t>(lastAccent) + 1 : last;
@@ -3032,6 +3040,58 @@ void EnglishReader::sayPhrase(char end) {
         syl[k].pitch += d[k];
         if (syl[k].end != Synth::kNoPitch) syl[k].end += d[k];
       }
+    }
+  }
+  // (MELODY agent34 round AF, lab knobs; all neutral by default; connected speech only: phrases of 2+ words, the
+  // dictionary unchanged; _M the male, _F the female)
+  //  MEL_RANGE_*: every syllable's pitch around the phrase's mean x this (af_heart / af_bella: per-phrase range 5.6-6.7 st,
+  //    puhuja's female 10); MEL_START_*: the phrase's first word + st (the readers start 2-2.8 st over the phrase median,
+  //    puhuja 1.1-1.3); MEL_ACC_*: accented syllables + st; MEL_LEAD_* / MEL_TRAIL_*: the unaccented syllable before /
+  //    after an accent + st (a deeper valley: bigger, faster rises and falls); MEL_DECL_*: + st over the phrase
+  //    (linear from 0 at the first syllable); MEL_HL_*: an accented stressed vowel that is not the nucleus falls this
+  //    many st inside itself (a peak and a fall, H* L; it then has no L+H* dip); MEL_HL_NUC_* the same on the nucleus.
+  {
+    const bool fem = synth_.female();
+    auto kv = [&](const char* m, const char* f) { return param(fem ? f : m, fem ? 1e30f : 1e30f); };
+    static const float kRange = [&] { float v = kv("MEL_RANGE_M", "MEL_RANGE_F"); return v > 1e29f ? 1.0f : v; }();
+    static const float kStart = [&] { float v = kv("MEL_START_M", "MEL_START_F"); return v > 1e29f ? 0.0f : v; }();
+    static const float kAcc = [&] { float v = kv("MEL_ACC_M", "MEL_ACC_F"); return v > 1e29f ? 0.0f : v; }();
+    static const float kLead = [&] { float v = kv("MEL_LEAD_M", "MEL_LEAD_F"); return v > 1e29f ? 0.0f : v; }();
+    static const float kTrail = [&] { float v = kv("MEL_TRAIL_M", "MEL_TRAIL_F"); return v > 1e29f ? 0.0f : v; }();
+    static const float kDecl = [&] { float v = kv("MEL_DECL_M", "MEL_DECL_F"); return v > 1e29f ? 0.0f : v; }();
+    static const float kHl = [&] { float v = kv("MEL_HL_M", "MEL_HL_F"); return v > 1e29f ? 0.0f : v; }();
+    static const float kHlNuc = [&] { float v = kv("MEL_HL_NUC_M", "MEL_HL_NUC_F"); return v > 1e29f ? 0.0f : v; }();
+    if (phrase_.size() > 1 && !syl.empty()) {
+      if (kRange != 1.0f) {
+        float mean = 0;
+        for (const Syl& y : syl) mean += y.pitch;
+        mean /= static_cast<float>(syl.size());
+        for (Syl& y : syl) {
+          y.pitch = mean + kRange * (y.pitch - mean);
+          if (y.end != Synth::kNoPitch) y.end = mean + kRange * (y.end - mean);
+        }
+      }
+      std::vector<float> d(syl.size(), 0.0f);
+      const size_t ns = syl.size();
+      for (size_t k = 0; k < ns; ++k) {
+        if (syl[k].word == 0) d[k] += kStart;
+        if (kDecl != 0 && ns > 1) d[k] += kDecl * static_cast<float>(k) / static_cast<float>(ns - 1);
+        if (!syl[k].accent) continue;
+        d[k] += kAcc;
+        if (k > 0 && !syl[k - 1].accent) d[k - 1] += kLead;
+        if (k + 1 < ns && !syl[k + 1].accent && k + 1 != ns - 1) d[k + 1] += kTrail;
+      }
+      for (size_t k = 0; k < ns; ++k) {
+        if (d[k] == 0) continue;
+        syl[k].pitch += d[k];
+        if (syl[k].end != Synth::kNoPitch) syl[k].end += d[k];
+      }
+      if (kHl != 0 || kHlNuc != 0)
+        for (size_t k = 0; k + 1 < ns; ++k) {
+          if (!syl[k].accent || syl[k].stress != 1 || syl[k].end != Synth::kNoPitch) continue;
+          const float h = static_cast<int>(k) == lastAccent ? kHlNuc : kHl;
+          if (h != 0) syl[k].end = syl[k].pitch - h;
+        }
     }
   }
   const std::vector<std::vector<float>> dur = durations();
@@ -3846,12 +3906,12 @@ void EnglishReader::sayPhrase(char end) {
         }
         // (PROS2 agent29, lab knob; < 0: as before) an accented stressed vowel in connected speech (2+ words), not a
         // falling one: its pitch anchor at EN_ACC_PITCH_AT of the vowel instead of its centre (the peak comes later).
-        { static const float kAccPitchAt = param("EN_ACC_PITCH_AT", 0.65f);
+        { static const float kAccPitchAt = param(synth_.female() ? "EN_ACC_PITCH_AT_F" : "EN_ACC_PITCH_AT", param("EN_ACC_PITCH_AT", 0.65f));  // (MELODY agent34: _F the female's own)
           if (kAccPitchAt >= 0 && vowel && phrase_.size() > 1 && phrase_[w].accent && pitchEnd == Synth::kNoPitch) {
             const char* vn = kEnglishTokens[tokens[i] - 0x80];
             if (vn[strlen(vn) - 1] == '1') shape.pitchAt = kAccPitchAt;
           } }
-        { static const float kAccDip = param("EN_ACC_DIP_ST", 6.0f);
+        { static const float kAccDip = param(synth_.female() ? "EN_ACC_DIP_ST_F" : "EN_ACC_DIP_ST", param("EN_ACC_DIP_ST", 6.0f));  // (MELODY agent34: _F)
           if (kAccDip > 0 && vowel && k == 0 && phrase_.size() > 1 && phrase_[w].accent && pitchEnd == Synth::kNoPitch) {
             const char* vn = kEnglishTokens[tokens[i] - 0x80];
             if (vn[strlen(vn) - 1] == '1') shape.pitchDip = kAccDip;

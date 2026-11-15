@@ -7328,14 +7328,16 @@ void Synth::emit(const Token& tok, const Ph* next) {
           static const float kDipAt = param("EN_ACC_DIP_AT", 0.15f);
           // (CHIRP agent33, lab) after a voiceless obstruent the dip at F0_DIP_AT_VL_CS of the vowel (< -50: EN_ACC_DIP_AT;
           // negative: inside the consonant, where the rise is not heard), else the dip x F0_DIP_X_VD_CS (1: as before).
-          static const float kDipAtVl = param("F0_DIP_AT_VL_CS", -0.3f), kDipXVd = param("F0_DIP_X_VD_CS", 1.0f);
+          static const float kDipAtVl = param(female_ ? "F0_DIP_AT_VL_CS_F" : "F0_DIP_AT_VL_CS", param("F0_DIP_AT_VL_CS", -0.3f)),
+                            kDipXVd = param("F0_DIP_X_VD_CS", 1.0f);
+          // (MELODY agent34 round AF, lab) the _F knobs: the female's own values (default: the shared knob's)
           const bool vlBefore = lastPh_ == Ph::P || lastPh_ == Ph::T || lastPh_ == Ph::K || lastPh_ == Ph::CH ||
                                 lastPh_ == Ph::S || lastPh_ == Ph::SH || lastPh_ == Ph::F || lastPh_ == Ph::TH || lastPh_ == Ph::H;
           const double td = t0 + (f0Cs && vlBefore && kDipAtVl > -50 ? kDipAtVl : kDipAt) * dur;
           // (CHIRP agent33, lab; 0: off) F0_DIP_RATE: the dip no deeper than this rise rate (st/s) allows from the dip to
           // the anchor (a short vowel scooped 6 st in 50 ms, an f0 chirp); F0_DIP_X_SHORT: ... and the rest of the depth
           // goes to a dip this share earlier (in the onset consonant), keeping the excursion.
-          static const float kDipRate = param("F0_DIP_RATE", 45.0f);
+          static const float kDipRate = param(female_ ? "F0_DIP_RATE_F" : "F0_DIP_RATE", param("F0_DIP_RATE", 45.0f));
           float dipSt = tok.shape.pitchDip;
           if (f0Cs && !vlBefore && kDipXVd != 1.0f) dipSt *= kDipXVd;
           if (kDipRate > 0 && f0Cs) dipSt = std::min(dipSt, static_cast<float>(kDipRate * (tc - td) / fs_));
@@ -7359,7 +7361,8 @@ void Synth::emit(const Token& tok, const Ph* next) {
           // (CHIRP agent33, lab; 1: linear) F0_FALL_SHARP_CS / F0_RISE_SHARP_CS: a fall / rise between two anchors as an
           // S-curve (f^a / (f^a + (1-f)^a)): the pitch holds near the anchors and moves in the middle, faster.
           // F0_SHARP_MAX_ST: only moves up to this size (semitones; bigger ones stay linear, no chirp).
-          { static const float kFallSharp = param("F0_FALL_SHARP_CS", 1.6f), kRiseSharp = param("F0_RISE_SHARP_CS", 3.0f);
+          { static const float kFallSharp = param(female_ ? "F0_FALL_SHARP_CS_F" : "F0_FALL_SHARP_CS", param("F0_FALL_SHARP_CS", 1.6f)),
+                               kRiseSharp = param(female_ ? "F0_RISE_SHARP_CS_F" : "F0_RISE_SHARP_CS", param("F0_RISE_SHARP_CS", 3.0f));
             static const float kSharpMax = param("F0_SHARP_MAX_ST", 2.5f);
             static const float kFallMax = param("F0_FALL_MAX_ST", 5.0f);  // falls' own limit (< 0: F0_SHARP_MAX_ST)
             const bool fall = target < pitchAnchor_;
