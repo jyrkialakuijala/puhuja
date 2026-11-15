@@ -10770,6 +10770,7 @@ float Synth::tick() {
       planUsed_ = actualUsed_ = 0;
       inhaleLen_ = inhaleLeft_ = msToSamples(e.inhaleMs, fs_);
       inhaleSnatched_ = e.inhaleSnatched;
+      ++inhaleCount_;
       inhaleRate_ = std::max(kLungMax - lungVolume_, 0.0f) / inhaleLen_;
     }
     if (e.setNoise) {
@@ -11451,7 +11452,10 @@ float Synth::tick() {
     // (PROSODY agent11, lab knob; 0: as before) the breathing-in noise x LINE_INHALE_GAIN: the line tract dropped it
     // with the parallel branch, so every breath was silent (the 11labs readers' are ~9 dB over puhuja's room tone).
     static const float kLineInhaleGain = param("LINE_INHALE_GAIN", 0.0f);
-    cPar = kLineInhaleGain != 0 ? inhale * kLineInhaleGain : 0.0f;
+    // (PROS agent28, lab knob; 1: as before) the utterance's opening breath x LINE_INHALE_FIRST (0: silent, so a single
+    // word or a sentence does not start with a breath noise; the breaths between phrases stay audible).
+    static const float kLineInhaleFirst = param("LINE_INHALE_FIRST", 1.0f);
+    cPar = kLineInhaleGain != 0 ? inhale * kLineInhaleGain * (inhaleCount_ <= 1 ? kLineInhaleFirst : 1.0f) : 0.0f;
   }
   float out = lowCut_.process(outHp_.process(y * kOutGain + cPar));
   if (voice_.treble != 0) out = trebleShelf_.process(out);

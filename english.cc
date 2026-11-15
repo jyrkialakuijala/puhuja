@@ -601,12 +601,12 @@ bool isFunctionWord(const std::string& w) {
 // Baseline at the phrase start, below the voice's base pitch: accents rise
 // above it and endings fall below, so the speaking pitch centres on the
 // base (at +1.9 every variation went up: a 92 Hz voice spoke at ~126 Hz; now ~95).
-constexpr float kPhraseStart = -4.5f;
-constexpr float kDeclination = -0.3f;    // baseline change per syllable,
+const float kPhraseStart = param("EN_PHRASE_START", -4.5f);  // (PROS agent28: knob)
+const float kDeclination = param("EN_DECLINATION", -0.3f);  // (PROS agent28: knob)    // baseline change per syllable,
 constexpr float kDeclinationMin = -2.0f, kDeclinationMax = -6.5f;  // in total over a phrase
 constexpr float kParagraphStartLift = 0.67f;  // first sentence of a paragraph (st)
 constexpr float kSentenceStep = 0.33f, kSentenceStepMax = 0.67f;  // later sentences: lower
-constexpr float kAfterCommaStart = -1.0f;     // a phrase after a comma starts lower
+const float kAfterCommaStart = param("EN_AFTER_COMMA_START", -1.0f);     // a phrase after a comma starts lower
 constexpr float kPhraseVariation = 0.5f;     // +- deterministic variation of accent height
 // Accent sizes by meaning (see sayPhrase).
 const char* const kEmphatic[] = {"every", "only", "never", "all", "not", "no", "nothing", "none",
@@ -647,18 +647,18 @@ constexpr float kExclaimDb = 2.0f;    // and louder
 const float kFirstAccent = param("EN_FIRST_ACCENT", 11.0f);      // first accent above the baseline
 const float kDownstep = param("EN_DOWNSTEP", 0.85f);         // each further accent: this much of the last
 constexpr float kMinAccent = 5.5f;
-constexpr float kPostAccent = 0.2f;       // syllable after an accent keeps this share
+const float kPostAccent = param("EN_POST_ACCENT", 0.2f);       // syllable after an accent keeps this share
 // Unaccented syllables between two accents: a single quick one sits on the
 // line, a longer run sags into a valley (st per syllable of the run, capped).
-constexpr float kInterAccentSagPerSyl = 2.0f, kInterAccentSagMax = 5.0f;
+const float kInterAccentSagPerSyl = param("EN_SAG_PER_SYL", 2.0f), kInterAccentSagMax = param("EN_SAG_MAX", 5.0f);
 constexpr float kSecondary = 1.0f;        // secondary stress in a content word
-constexpr float kFinalLow = -7.0f;        // end of a long or exclaimed statement
-constexpr float kFinalLowShort = -5.0f;   // end of a short statement
+const float kFinalLow = param("EN_FINAL_LOW", -7.0f);        // end of a long or exclaimed statement
+const float kFinalLowShort = param("EN_FINAL_LOW_SHORT", -5.0f);   // end of a short statement
 constexpr float kLevelEnding = -5.0f;     // a level ending (near the baseline)
 constexpr unsigned kLevelEndingEvery = 5;
 constexpr size_t kLongSentenceSyllables = 12;
 constexpr float kQuestionHigh = 6.0f;     // end of a question
-constexpr float kContinuation = -3.0f;    // end before a comma (a little above the baseline)
+const float kContinuation = param("EN_CONTINUATION", -3.0f);    // end before a comma (a little above the baseline)
 // Pauses in 15 ms stops: about 200 ms after a comma (longer when the speaker
 // breathes there); after a sentence 120 ms plus the breath (>= 180 ms).
 const int kCommaPauseStops = static_cast<int>(param("EN_COMMA_PAUSE_STOPS", 13));     // 195 ms after a phrase of 5 syllables, growing:
@@ -666,12 +666,12 @@ const int kCommaPauseMaxStops = static_cast<int>(param("EN_COMMA_PAUSE_MAX_STOPS
 constexpr int kShortPhraseSyllables = 4; // a phrase this short gets the short pause:
 constexpr int kShortCommaPauseStops = 8; // 120 ms
 constexpr int kClausePauseStops = 18;    // after ; and : at least 270 ms
-constexpr float kPauseVariation = 0.15f; // +- share
+const float kPauseVariation = param("EN_PAUSE_VARIATION", 0.15f); // +- share
 const float kFinalLengthSentence = param("kFinalLengthSentence", 1.3f) /* 1.17: the sentence-final word was 1.18x a content word, goog 1.41, 11labs 1.21 */, kFinalLengthPhrase = param("kFinalLengthPhrase", 1.15f);  // final lengthening
 constexpr float kFinalLengthClause = 1.25f;  // before ; or :
 const float kFunctionWordVowel = param("kFunctionWordVowel", 0.8f);  // vowel length in a function word inside the phrase
-constexpr float kFinalCodaSonorant = 3.5f;  // a phrase-final l m n ŋ coda
-constexpr float kFinalCodaFricative = 2.7f;  // a phrase-final s ʃ f θ after a vowel or sonorant
+const float kFinalCodaSonorant = param("EN_FINAL_CODA_SON", 3.5f);  // a phrase-final l m n ŋ coda
+const float kFinalCodaFricative = param("EN_FINAL_CODA_FRIC", 2.7f);  // a phrase-final s ʃ f θ after a vowel or sonorant
 const int kSentencePauseStops = static_cast<int>(param("EN_SENTENCE_PAUSE_STOPS", 10));  // + the breath before the next sentence
 constexpr int kDashPauseStops = 8;        // parenthesis: ~120 ms
 constexpr int kThinkingPauseStops = 20;   // en/em dash: a pause for thought, ~300 ms (400 outranked sentence ends)
@@ -725,11 +725,11 @@ bool isSonorantCoda(const std::string& b) { return isNasal(b) || b == "L" || b =
 // Duration (ms) of every token of the phrase, by Klatt's rules (simplified).
 // Tempo by phrase structure (duration multipliers).
 constexpr int kFastPhraseSyllables = 15, kShortPhraseTempoSyllables = 6;
-constexpr float kLongPhraseTempo = 0.94f, kShortPhraseTempo = 1.06f, kParagraphOpeningTempo = 1.06f;
+const float kLongPhraseTempo = param("EN_LONG_PHRASE_TEMPO", 0.94f), kShortPhraseTempo = param("EN_SHORT_PHRASE_TEMPO", 1.06f), kParagraphOpeningTempo = 1.06f;
 
 // Stress timing (on top of Klatt's rules).
 const float kUnstressedVowel = param("EN_UNSTRESSED_VOWEL", 0.6f);  // (a knob since 2026-11-07: "Americans" ə 83/78/122 ms against Kokoro's 50/20/70)       // Klatt: 0.5 (0.42: function words 137 ms against goog.wav's 240 on the same text, content words 431 vs 360: runs of function words lurched)
-constexpr float kAccentedVowelTiming = 1.2f, kUnstressedVowelTiming = 0.85f;  // stress timing
+const float kAccentedVowelTiming = param("EN_ACC_VOWEL_TIMING", 1.2f), kUnstressedVowelTiming = param("EN_UNSTR_VOWEL_TIMING", 0.85f);  // stress timing
 constexpr float kStressedOnset = 1.2f;         // consonants starting a stressed syllable
 constexpr float kUnstressedConsonant = 0.85f;  // other consonants
 // All consonants: against goog.wav's reading of the same text (its DTW
@@ -800,8 +800,10 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
         // (PROSODY agent11, lab knob; 1: as before) a phrase-final vowel x EN_FINAL_VOWEL_LEN: its last vowel ran 1.50x
         // the same vowel inside the phrase (both voices), the 11labs readers' 1.19 (1.12-1.25).
         { static const float kFinVowelLen = param("EN_FINAL_VOWEL_LEN", 1.0f); if (phraseFinal && kFinVowelLen != 1.0f) prc *= kFinVowelLen; }
-        if (!inLastSyllable) prc *= 0.85f;
-        if (vowels > 1) prc *= 0.8f;
+        // (PROS agent28: knobs EN_NONFINAL_SYL_VOWEL / EN_POLY_VOWEL; long words ran 1.3-1.4x the 11labs readers' relative length)
+        { static const float kNonFinSyl = param("EN_NONFINAL_SYL_VOWEL", 0.85f), kPoly = param("EN_POLY_VOWEL", 0.8f);
+        if (!inLastSyllable) prc *= kNonFinSyl;
+        if (vowels > 1) prc *= kPoly; }
         if (!stressed) {
           prc *= kUnstressedVowel;
           mn *= kUnstressedVowel;
@@ -1522,6 +1524,45 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
       const float r = rate_ / kDefaultRate;
       const float rateDiv = kDefaultRate * (vowel ? r : std::sqrt(r));
       out[w][i] = (mn + (k.inh - mn) * prc) * whole * kEnglishTempo * structure / rateDiv;
+      // (PROS agent28, lab knobs; 1: as before) word rhythm against the 11labs Kennedy readings: puhuja's function
+      // words ran 0.79x and its content words 1.24x their relative length (phone-aligned, both voices); words of 3+
+      // syllables 1.4x. EN_UNACC_WORD_LEN / EN_ACC_WORD_LEN scale every phone of an unaccented / accented word that is
+      // not phrase-final, EN_UNACC_CONS_LEN only an unaccented word's consonants, EN_LONG_WORD_LEN words of 3+ vowels.
+      {
+        static const float kUnaccW = param("EN_UNACC_WORD_LEN", 1.0f), kAccW = param("EN_ACC_WORD_LEN", 1.0f),
+                           kUnaccC = param("EN_UNACC_CONS_LEN", 1.0f), kLongW = param("EN_LONG_WORD_LEN", 1.0f),
+                           kVowelW = param("EN_VOWEL_LEN", 1.0f);  // every vowel (vowels were 57 % of the phone time, 11labs 46 %)
+        if (kUnaccW != 1.0f || kAccW != 1.0f || kUnaccC != 1.0f || kLongW != 1.0f || kVowelW != 1.0f) {
+          if (vowel) out[w][i] *= kVowelW;
+          const bool finalWord = static_cast<int>(w) == lastWordWithVowel;
+          if (!finalWord) out[w][i] *= phrase_[w].accent ? kAccW : kUnaccW;
+          if (!phrase_[w].accent && !finalWord && !vowel) out[w][i] *= kUnaccC;
+          if (vowels >= 3) out[w][i] *= kLongW;
+        }
+      }
+      // (PROS agent28, lab knobs; 1: as before) in connected speech only (a phrase of 2+ words; single words, the
+      // dictionary, unchanged): an unstressed vowel x EN_UNSTR_VOWEL_MW, a sentence-final syllable x EN_SFINAL_SYL_LEN, a
+      // comma-final one x EN_CFINAL_SYL_LEN (the sentence-final words ran 1.28x the 11labs readers' relative length).
+      {
+        static const float kUnstrMw = param("EN_UNSTR_VOWEL_MW", 1.0f), kSfinSyl = param("EN_SFINAL_SYL_LEN", 1.0f),
+                           kCfinSyl = param("EN_CFINAL_SYL_LEN", 1.0f);
+        if ((kUnstrMw != 1.0f || kSfinSyl != 1.0f || kCfinSyl != 1.0f) && phrase_.size() > 1) {
+          if (vowel) {
+            const char* nm = kEnglishTokens[tok[i] - 0x80];
+            const bool str = (phrase_[w].accent || phraseFinal) && nm[strlen(nm) - 1] != '0';
+            if (!str) out[w][i] *= kUnstrMw;
+          }
+          if (phraseFinal) out[w][i] *= sentenceEnd_ ? kSfinSyl : kCfinSyl;
+        }
+      }
+      // (PROS agent28, lab knob; 1: as before) the phrase's first word x EN_PINIT_LEN (it ran 1.17-1.27x the 11labs
+      // readers' relative length).
+      {
+        static const float kPinitLen = param("EN_PINIT_LEN", 1.0f);
+        if (kPinitLen != 1.0f && w == 0 && phrase_.size() > 1) {
+          out[w][i] *= kPinitLen;
+        }
+      }
       if (phrase_[w].repeat == 2) out[w][i] *= kRepeatSecondLen;  // (EN_REPEAT_LEN)
       { static const float kEmoLen = param("EN_EMOTIVE_LEN", 1.25f); if (kEmoLen != 1.0f && isEmotiveWord(phrase_[w].text)) out[w][i] *= kEmoLen; }
       // The breath plan's tempo for this word (planBreaths), as the rate.
@@ -1929,7 +1970,7 @@ void applyForeign(std::vector<EnglishReader::Word>& phrase, const ForeignWord (&
 const float kArcStartDb = param("EN_ARC_START_DB", 1.0f), kArcEndDb = param("EN_ARC_END_DB", -2.0f);  // (-3: with the end release too steep)
 constexpr float kCreakBelow = -6.5f;  // st: statement endings this low get creaky voice (-5: nearly all)
 constexpr float kPressedAccent = 0.9f, kLaxUnstressed = 1.08f, kLaxFinal = 1.12f;  // glottal opening
-constexpr float kAccentDb = 1.5f, kFunctionWordDb = -1.5f;
+const float kAccentDb = param("EN_ACCENT_DB", 1.5f), kFunctionWordDb = param("EN_FUNC_WORD_DB", -1.5f);
 const float kSecondaryDb = param("kSecondaryDb", -4.0f), kUnstressedDb = param("kUnstressedDb", 2.0f);
 const float kSecondaryPreDb = param("kSecondaryPreDb", 3.0f);  // a secondary stress before the primary (see the level rule; Jyrki 2026-11-06: "gen-sp4 is the best, but probably sp3 would be better", then "sp3 is better"; kennedy Whisper 788 vs 798)
 const float kSecondaryVowelLength = param("kSecondaryVowelLength", 1.362f) /* cost 0.0307218938484690 wobble */ /* 1.19 from the timing search made the secondary-stress syllable as long as the primary */, kInitialRLength = 1.0f;
@@ -2621,6 +2662,7 @@ void EnglishReader::sayPhrase(char end) {
   const float n = static_cast<float>(syl.size());
   const float decline = std::clamp(kDeclination * n, kDeclinationMax, kDeclinationMin);
   std::vector<float> wordPitch(phrase_.size(), kPhraseStart);  // each word's accent pitch (for repeats)
+  bool firstAccentDone = false;
   for (size_t k = 0; k < syl.size(); ++k) {
     const float base = kPhraseStart + startShift + decline * (n > 1 ? k / (n - 1) : 0.0f);
     float p = base;
@@ -2652,6 +2694,11 @@ void EnglishReader::sayPhrase(char end) {
       // (on the full decline a late climax was buried, "...to Berlin").
       const float accentBase = static_cast<int>(k) == lastAccent
                                    ? std::max(base, kPhraseStart + startShift + kNucleusDecline) : base;
+      // (PROS agent28, lab knob; 1: as before) the phrase's first accent x EN_FIRST_ACC_SCALE: puhuja's pitch peak sat
+      // at 0.13 of a breath group, the 11labs readers' at 0.45 (their first accent is not the highest).
+      { static const float kFirstAccScale = param("EN_FIRST_ACC_SCALE", 1.0f);
+        if (kFirstAccScale != 1.0f && !firstAccentDone && static_cast<int>(k) != lastAccent) scale *= kFirstAccScale; }
+      firstAccentDone = true;
       p = accentBase + height * scale;
       // Emphasis words reach most of a first accent's height, however far
       // the phrase has stepped down ("come not from": "not" was at +2 st).
@@ -2801,11 +2848,37 @@ void EnglishReader::sayPhrase(char end) {
       for (Syl& y : syl) {
         if (y.word >= wordGroupPos_.size()) continue;
         const float g = wordGroupPos_[y.word];
-        const float d = kBgSt * (0.5f - g) + kAirSt * (wordAirU_[y.word] - 0.5f) +
-                        kBgStartSt * (1.0f - bgStep(0.0f, bgStartTo(), g)) - kBgFinSt * bgStep(bgFinalFrom(), 1.0f, g);
+        float d = kBgSt * (0.5f - g) + kAirSt * (wordAirU_[y.word] - 0.5f) +
+                  kBgStartSt * (1.0f - bgStep(0.0f, bgStartTo(), g)) - kBgFinSt * bgStep(bgFinalFrom(), 1.0f, g);
+        // (PROS agent28, lab knobs; 0: as before) a hump of EN_BG_HUMP_ST st peaking at EN_BG_HUMP_AT of the group, EN_BG_HUMP_W
+        // wide on each side: the 11labs readers' pitch peak sits at 0.45 of a breath group, puhuja's at 0.14.
+        {
+          static const float kHumpSt = param("EN_BG_HUMP_ST", 0.0f), kHumpAt = param("EN_BG_HUMP_AT", 0.35f),
+                             kHumpW = param("EN_BG_HUMP_W", 0.35f);
+          if (kHumpSt != 0)
+            d += kHumpSt * bgStep(std::max(kHumpAt - kHumpW, 0.0f), kHumpAt, g) * (1.0f - bgStep(kHumpAt, kHumpAt + kHumpW, g));
+        }
         y.pitch += d;
         if (y.end != Synth::kNoPitch) y.end += d;
       }
+  }
+  // (PROS agent28, lab knobs; 0: as before) the phrase's first word + EN_PINIT_ST, a sentence's last word + EN_SFINAL_ST,
+  // a comma phrase's last word + EN_CFINAL_ST (semitones): puhuja's phrase-initial words sat 0.7 st under the 11labs
+  // readers' and its sentence-final words 1.6 st over them (comma-final 0.5).
+  {
+    static const float kPinitSt = param("EN_PINIT_ST", 0.0f), kSfinSt = param("EN_SFINAL_ST", 0.0f),
+                       kCfinSt = param("EN_CFINAL_ST", 0.0f);
+    if ((kPinitSt != 0 || kSfinSt != 0 || kCfinSt != 0) && phrase_.size() > 1) {
+      const bool sentEnd = end == '.' || end == '!';
+      for (Syl& y : syl) {
+        float d = 0;
+        if (y.word == 0) d += kPinitSt;
+        if (y.word + 1 == phrase_.size()) d += sentEnd ? kSfinSt : end == '?' ? 0.0f : kCfinSt;
+        if (d == 0) continue;
+        y.pitch += d;
+        if (y.end != Synth::kNoPitch) y.end += d;
+      }
+    }
   }
   const std::vector<std::vector<float>> dur = durations();
   // "the" before a vowel sound is "thee" (ði): "the heirs" with ðə ran into
@@ -3494,6 +3567,15 @@ void EnglishReader::sayPhrase(char end) {
               db += kBgDb * (0.5f - g) + kAirDb * (wordAirU_[w] - 0.5f) +
                     kBgStartDb * (1.0f - bgStep(0.0f, bgStartTo(), g)) - kBgFinDb * bgStep(bgFinalFrom(), 1.0f, g);
             }
+          }
+          // (PROS agent28, lab knobs; 0: as before) the phrase's first word + EN_PINIT_DB, a sentence's last word +
+          // EN_SFINAL_DB, a comma phrase's last word + EN_CFINAL_DB: against the 11labs Kennedy readings puhuja's
+          // phrase-initial words were 2.5 dB too soft and its sentence-final words 1.9 dB (comma-final 0.7) too loud.
+          {
+            static const float kPinitDb = param("EN_PINIT_DB", 0.0f), kSfinDb = param("EN_SFINAL_DB", 0.0f),
+                               kCfinDb = param("EN_CFINAL_DB", 0.0f);
+            if (w == 0 && phrase_.size() > 1) db += kPinitDb;
+            if (w + 1 == phrase_.size() && phrase_.size() > 1) db += sentenceEnd_ ? kSfinDb : kCfinDb;
           }
           if (phrase_[w].accent && vn[strlen(vn) - 1] == '1') db += kAccentDb;
           else if (!phrase_[w].accent) db += kFunctionWordDb;

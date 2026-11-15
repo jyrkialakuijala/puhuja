@@ -531,6 +531,7 @@ class Synth {
   float nextInhaleMs_ = 0;     // inhalation for the next emitted pause
   bool nextInhaleSnatched_ = false, inhaleSnatched_ = false;
   float inhaleLeft_ = 0, inhaleLen_ = 0, inhaleRate_ = 0;  // samples, cm^3/sample
+  int inhaleCount_ = 0;  // (PROS agent28) inhalations started; the first one is the utterance's opening breath
   FricationFilter inhaleFilter_;  // airy breath-in noise (bypasses the tract)
   FricationFilter inhaleSnatchFilter_;  // the quick breath's brighter noise
   float speechEnv_ = 1, speechTarget_ = 1;  // fade-out at pauses
