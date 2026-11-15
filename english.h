@@ -59,7 +59,8 @@ class EnglishReader {
   float phraseHash() const;  // after a '.': true if it was not a sentence end
   void addNumber(const std::string& digits);
   void sayPhrase(char end);  // end: '.', '?', ',' (continues) ...
-  void pause(int stops);     // silence in 15 ms steps
+  void pause(int stops);
+  void pauseScaled(int stops, int kind);  // (RHYTHM2 agent34) x EN_PAUSE_{COMMA,SENT,PARA,DASH}_SCALE     // silence in 15 ms steps
   std::vector<std::vector<float>> durations() const;  // ms per token (Klatt)
   // Breath planning over the rest of the sentence (see planBreaths in english.cc).
   void planBreaths();

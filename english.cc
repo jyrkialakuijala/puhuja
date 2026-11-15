@@ -1594,24 +1594,27 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
                                  }();
         if (kDOn && phrase_.size() > 1 && static_cast<float>(w) >= kDFrom) {
           float m = 1.0f;
+          int dcls = 0;  // (RHYTHM2 agent34) the class for DUR_CS_M_<class>: see kDMcls below
           if (vowel) {
             const char* nm = kEnglishTokens[tok[i] - 0x80];
             const bool str = nm[strlen(nm) - 1] != '0' && (phrase_[w].accent || phraseFinal);
             m = str ? kDV1 : kDV0;
+            dcls = str ? 1 : 2;
             if (!phrase_[w].accent) m *= kDFuncV;
           } else {
             const std::string b = baseName(tok[i]);
-            if (isNasal(b)) m = kDNas;
-            else if (isVoicelessPlosive(b)) m = kDVlS;
+            if (isNasal(b)) { m = kDNas; dcls = 3; }
+            else if (isVoicelessPlosive(b)) { m = kDVlS; dcls = 4; }
             else if (isVoicedPlosive(b)) {
               static const float kDVdSFin = param("DUR_CS_VDSTOP_FINAL", 1.217f);  // a word-final one (< 0: DUR_CS_VDSTOP)
               m = kDVdSFin >= 0 && i + 1 == tok.size() ? kDVdSFin : kDVdS;
+              dcls = 5;
             }
-            else if (b == "HH") m = kDH >= 0 ? kDH : kDVlF;
-            else if (b == "F" || b == "TH" || b == "S" || b == "SH") m = kDVlF;
-            else if (b == "V" || b == "DH" || b == "Z" || b == "ZH") m = kDVdF;
-            else if (b == "L" || b == "R") m = kDLiq;
-            else if (b == "W" || b == "Y") m = kDGl;
+            else if (b == "HH") { m = kDH >= 0 ? kDH : kDVlF; dcls = 8; }
+            else if (b == "F" || b == "TH" || b == "S" || b == "SH") { m = kDVlF; dcls = 6; }
+            else if (b == "V" || b == "DH" || b == "Z" || b == "ZH") { m = kDVdF; dcls = 7; }
+            else if (b == "L" || b == "R") { m = kDLiq; dcls = 9; }
+            else if (b == "W" || b == "Y") { m = kDGl; dcls = 10; }
           }
           // ... and per phoneme: DUR_CS_P_<ARPAbet base name> (e.g. DUR_CS_P_D, DUR_CS_P_OW), on top.
           {
@@ -1669,7 +1672,60 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
             }
           }
           if (synth_.female() && kDFem != 1.0f && m > 0) m = std::pow(m, kDFem);
-          if (!synth_.female() && kDMale != 1.0f && m > 0) m = std::pow(m, kDMale);
+          // (RHYTHM2 agent34, lab knobs; < 0: DUR_CS_M) the male's share per class: DUR_CS_M_V1 / V0 (stressed /
+          // unstressed vowels), NAS, VLSTOP, VDSTOP, VLFRIC, VDFRIC, H, LIQ, GLIDE; DUR_CS_M_OTHER (the rest).
+          static const float kDMcls[11] = {
+              param("DUR_CS_M_OTHER", -1.0f), param("DUR_CS_M_V1", -1.0f), param("DUR_CS_M_V0", -1.0f),
+              param("DUR_CS_M_NAS", -1.0f), param("DUR_CS_M_VLSTOP", -1.0f), param("DUR_CS_M_VDSTOP", -1.0f),
+              param("DUR_CS_M_VLFRIC", -1.0f), param("DUR_CS_M_VDFRIC", -1.0f), param("DUR_CS_M_H", -1.0f),
+              param("DUR_CS_M_LIQ", -1.0f), param("DUR_CS_M_GLIDE", -1.0f)};
+          float kDMaleC = kDMcls[dcls] >= 0 ? kDMcls[dcls] : kDMale;
+          // (RHYTHM2 agent34, lab knobs; < 0: off) a vowel next to another word's vowel ("who are", "many a") takes the
+          // male share DUR_CS_M_HIATUS / the female share DUR_CS_F_HIATUS instead.
+          static const float kDMHi = param("DUR_CS_M_HIATUS", -1.0f), kDFHi = param("DUR_CS_F_HIATUS", -1.0f);
+          float kDFemC = kDFem;
+          if (vowel && (kDMHi >= 0 || kDFHi >= 0)) {
+            const bool hi = (i == 0 && w > 0 && !phrase_[w - 1].tokens.empty() && isVowelToken(phrase_[w - 1].tokens.back())) ||
+                            (i + 1 == tok.size() && w + 1 < phrase_.size() && !phrase_[w + 1].tokens.empty() &&
+                             isVowelToken(phrase_[w + 1].tokens[0]));
+            if (hi && kDMHi >= 0) kDMaleC = kDMHi;
+            if (hi && kDFHi >= 0) kDFemC = kDFHi;
+          }
+          // (RHYTHM2 agent34, lab knobs; < 0: off) a vowel right after w j (DUR_CS_M_AFTGL / DUR_CS_F_AFTGL) or l ɹ
+          // (DUR_CS_M_AFTLQ / DUR_CS_F_AFTLQ) in the same word: the lengthened glide's slow formant move eats into it.
+          {
+            static const float kDMAg = param("DUR_CS_M_AFTGL", -1.0f), kDFAg = param("DUR_CS_F_AFTGL", -1.0f),
+                               kDMAl = param("DUR_CS_M_AFTLQ", -1.0f), kDFAl = param("DUR_CS_F_AFTLQ", -1.0f);
+            if (vowel && i > 0 && (kDMAg >= 0 || kDFAg >= 0 || kDMAl >= 0 || kDFAl >= 0)) {
+              const std::string pb = baseName(tok[i - 1]);
+              const bool g = pb == "W" || pb == "Y", l = pb == "L" || pb == "R";
+              if (g && kDMAg >= 0) kDMaleC = kDMAg;
+              if (g && kDFAg >= 0) kDFemC = kDFAg;
+              if (l && kDMAl >= 0) kDMaleC = kDMAl;
+              if (l && kDFAl >= 0) kDFemC = kDFAl;
+            }
+          }
+          // (RHYTHM2 agent34, lab knobs; < 0: off) the word's last vowel before a word-final voiced obstruent (b d g v
+          // ð z ʒ ʤ: "word", "friend", "deeds"; its length is the voicing cue) takes DUR_CS_M_PREVD / DUR_CS_F_PREVD.
+          static const float kDMPv = param("DUR_CS_M_PREVD", -1.0f), kDFPv = param("DUR_CS_F_PREVD", -1.0f);
+          if (vowel && (kDMPv >= 0 || kDFPv >= 0) && static_cast<int>(i) == lastVowel && i + 1 < tok.size()) {
+            const std::string fb = baseName(tok.back());
+            const bool vd = isVoicedPlosive(fb) || fb == "V" || fb == "DH" || fb == "Z" || fb == "ZH";
+            if (vd && kDMPv >= 0) kDMaleC = kDMPv;
+            if (vd && kDFPv >= 0) kDFemC = kDFPv;
+          }
+          if (synth_.female() && kDFemC != kDFem && m > 0) m = std::pow(m, kDFemC / kDFem);  // (kDFem applied above)
+          if (!synth_.female() && kDMaleC != 1.0f && m > 0) m = std::pow(m, kDMaleC);
+          // (RHYTHM2 agent34, lab knobs; 0: off) a shortened vowel stays at least DUR_CS_VMIN_M (male) / DUR_CS_VMIN_F
+          // (female) ms (or its own length, if shorter).
+          {
+            static const float kVminM = param("DUR_CS_VMIN_M", 0.0f), kVminF = param("DUR_CS_VMIN_F", 0.0f);
+            const float vmin = synth_.female() ? kVminF : kVminM;
+            if (vowel && vmin > 0 && m < 1.0f && out[w][i] > 0) {
+              const float d = out[w][i], nd = d * m;
+              if (nd < vmin) m *= std::min(d, vmin) / nd;
+            }
+          }
           out[w][i] *= m * red;
         }
       }
@@ -2111,7 +2167,7 @@ const float kToBeforeVowel = param("EN_TO_VOWEL", 0.0f);  // Jyrki 2026-11-05: i
 const float kToVowelLength = param("EN_TO_VOWEL_LEN", 0.6f);  // ... its vowel's length then
 const float kToGlide = param("EN_TO_GLIDE", 1.0f);  // ... and its linking w (0: none)
 const float kToWeakOnly = param("EN_TO_VOWEL_WEAK", 1.0f);  // 1: only before an unstressed vowel ("to abolish", not "to ask")
-constexpr float kLinkGlideMs = 40, kLinkGlideLevel = 0.7f;  // w / j linking a vowel to the next word's
+const float kLinkGlideMs = param("EN_LINK_GLIDE_MS", 40.0f), kLinkGlideLevel = param("EN_LINK_GLIDE_LEVEL", 0.7f);  // (RHYTHM2 agent34: knobs) w / j linking a vowel to the next word's
 constexpr float kGlideBeforeVowel = 0.4f;  // a diphthong's glide before a vowel: share of that vowel
 // EN_FLAP_SYLLABIC_L: only t d before a syllabic l ("mortal", "little"):
 // Kokoro and 11labs tap it; the full t released into the l's narrow side
@@ -4054,6 +4110,16 @@ void EnglishReader::sayPhrase(char end) {
   synth_.planSentence();  // the formant and pitch paths of the phrase, as a whole
 }
 
+// (RHYTHM2 agent34, lab knobs; 1: as before) pause lengths in running text vs the 11labs Kennedy readings (matched
+// pauses 1.6x theirs, 24.6 s of pauses against 12-13 s): the pause after a comma / ; / : (EN_PAUSE_COMMA_SCALE), a
+// sentence end (EN_PAUSE_SENT_SCALE), a paragraph (EN_PAUSE_PARA_SCALE), a dash (EN_PAUSE_DASH_SCALE). Not the
+// pause after a line without a closing mark, nor that of a one-word sentence (the dictionary stream).
+void EnglishReader::pauseScaled(int stops, int kind) {
+  static const float k[5] = {param("EN_PAUSE_COMMA_SCALE", 1.0f), param("EN_PAUSE_SENT_SCALE", 1.0f),
+                             param("EN_PAUSE_PARA_SCALE", 1.0f), param("EN_PAUSE_DASH_SCALE", 1.0f), 1.0f};
+  pause(k[kind] == 1.0f ? stops : static_cast<int>(stops * k[kind] + 0.5f));
+}
+
 void EnglishReader::pause(int stops) {
   // Pauses follow the rate most (rate^2, relative to the default).
   const float r = rate_ / kDefaultRate;
@@ -4431,7 +4497,7 @@ void EnglishReader::push(std::string_view input) {
         commaRun_ = clause ? 0 : commaRun_ + 1;
         const int commaStops = static_cast<int>(stops * vary + 0.5f);
         maxCommaStops_ = std::max(maxCommaStops_, commaStops);
-        pause(commaStops);
+        pauseScaled(commaStops, 0);
         synth_.breathPoint(false);  // only when the air is running low
         break;
       }
@@ -4443,7 +4509,7 @@ void EnglishReader::push(std::string_view input) {
       case '~':  // en or em dash ("--"): a pause for thought
         if (!words) break;
         sayPhrase(',');
-        pause(kThinkingPauseStops);
+        pauseScaled(kThinkingPauseStops, 3);
         synth_.breathPoint(false);  // only when the air is running low
         break;
       case '"':  // opening quotation: set off by a short pause
@@ -4456,11 +4522,13 @@ void EnglishReader::push(std::string_view input) {
         if (!words) break;
       {
         const float vary = 1.0f + kPauseVariation * phraseHash();
+        const bool multiWord = phrase_.size() > 1 || phraseInSentence_ > 0;  // (RHYTHM2 agent34: EN_PAUSE_SENT_SCALE)
         sayPhrase(static_cast<char>(c));
         commaRun_ = 0;
         // Pause hierarchy: a sentence end is never a shorter break than a
         // comma inside the sentence.
-        pause(std::max(static_cast<int>(kSentencePauseStops * vary + 0.5f), maxCommaStops_));
+        // (a one-word sentence, the dictionary stream's "Word.", keeps its pause)
+        pauseScaled(std::max(static_cast<int>(kSentencePauseStops * vary + 0.5f), maxCommaStops_), multiWord ? 1 : 4);
         maxCommaStops_ = 0;
         // A breath before every sentence (the user's choice; goog.wav's
         // sentence gaps: median 0.43 s), taken when the next one starts:
@@ -4481,12 +4549,12 @@ void EnglishReader::push(std::string_view input) {
         // in the Kennedy text): half the paragraph pause; an empty line the
         // rest.
         if (newlines_ == 1 && !words && sentenceEnded_) {
-          pause(kParagraphPauseStops / 2);
+          pauseScaled(kParagraphPauseStops / 2, 2);
           sentenceInParagraph_ = 0;
         }
         if (newlines_ == 2) {
           sentenceInParagraph_ = 0;
-          pause(kParagraphPauseStops - kParagraphPauseStops / 2);
+          pauseScaled(kParagraphPauseStops - kParagraphPauseStops / 2, 2);
           synth_.breathPoint(true, true);  // a paragraph: the longest breath
         }
         break;
