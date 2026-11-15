@@ -411,7 +411,14 @@ void VocalTractLine::init(float fs, float nasalScale) {
   }
   static const float kNoiseLp = param("LINE_NOISE_LP", 5000.0f);
   aaNoise_ = 1.0f - std::exp(kM2PiL * kNoiseLp /* 2026-11-04: the search had 2265 (s heard as f); 6000: initial s 3 -> 8 of 10 (Whisper), 4000 matched Kokoro s level; Jyrki: 5000 */ * dt_);  // the readers' s peaks at 8-12 kHz (goog "house"); at 5.5 kHz the line's s had its energy at 4-6 kHz
+  aaNoiseDef_ = aaNoise_;
   out_ = uNasal_ = an_ = 0;
+}
+
+void VocalTractLine::setNoiseLp(float hz, bool asDefault) {
+  if (hz <= 0) { aaNoise_ = aaNoiseDef_; return; }
+  aaNoise_ = 1.0f - std::exp(kM2PiL * hz * dt_);
+  if (asDefault) aaNoiseDef_ = aaNoise_;
 }
 
 void VocalTractLine::setShape(const TractShape& shape, float x, float ac, float an) {

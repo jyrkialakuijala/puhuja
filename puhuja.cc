@@ -2377,6 +2377,10 @@ void Synth::setTract(Tract t) {
     static const float kNasalScaleF = param("LINE_NASAL_SCALE_F", 1.0f);
     line_.init(fs_, female_ ? kNasalScaleF : 1.0f);
     line_.setFemale(female_);
+    // (BLEND agent28 round Z, lab; <= 0: LINE_NOISE_LP) the turbulence noise's low-pass per voice: at 5 kHz the male s
+    // peaked at 4-5 kHz with 1.6-3.2 kHz 8-14 dB over 11labs' and 6.4-8 kHz 3-9 dB under (centroid 4.9 kHz vs 5.4-6.6).
+    static const float kNoiseLpM = param("LINE_NOISE_LP_M", 0.0f), kNoiseLpF = param("LINE_NOISE_LP_F", 0.0f);
+    if ((female_ ? kNoiseLpF : kNoiseLpM) > 0) line_.setNoiseLp(female_ ? kNoiseLpF : kNoiseLpM, true);
     lineXFollow_ = 1.0f - std::exp(-1.0f / msToSamples(kBoundaryMs, fs_));
     larynx_->attachLine(&line_);
   } else {
@@ -2761,6 +2765,7 @@ static uint64_t eventFields(const Event& e) {
   bit(e.lineJetD >= 0); bit(e.lineX >= 0); bit(e.aspBurst); bit(e.creak >= 0); bit(e.expand >= 0);
   bit(e.inhaleMs > 0); bit(e.speech >= 0); bit(e.lineFricReSmooth >= 0); bit(e.lineHumpNorm > -1.5f);
   bit(e.lineExpandLp > -1.5f);
+  bit(e.lineNoiseLp >= 0);
   return m;
 }
 
@@ -4076,6 +4081,13 @@ void Synth::emit(const Token& tok, const Ph* next) {
     if (zhOwn && kLineZhSlit >= 0) e.lineSlitScale = kLineZhSlit;
     if (zhOwn && kLineZhJetMix >= 0) e.lineJetMix = kLineZhJetMix;
     e.lineFricLpr = tok.ph == Ph::Z && kLineZLpr > 0 ? kLineZLpr : tok.ph == Ph::ZH && !inAffricate_ && kLineZhLpr >= 0 ? kLineZhLpr : tok.ph == Ph::SH || tok.ph == Ph::ZH ? kLinePostLpr : tok.ph == Ph::F ? kLineFLpr : tok.ph == Ph::VV ? kLineVLpr : 0.0f;  // (not ʧ ʤ: at 3 they lost 39 -> 34, 26 -> 23 of 54, 56)
+    // (BLEND agent28 round Z, lab; 0: off) s's / ʃ's own noise low-pass (Hz; the other sounds back to the voice's): at
+    // 5 kHz the s peaked at 4-5 kHz with 1.6-3.2 kHz 8-14 dB over 11labs' and 6.4-8 kHz 3-9 dB under; the global
+    // LINE_NOISE_LP_M brightened every onset (snap list +0.4 dB: ʃ ʧ t p z).
+    { static const float kSNoiseLp = param("LINE_S_NOISE_LP", 0.0f), kShNoiseLp = param("LINE_SH_NOISE_LP", 0.0f);
+      static const float kSNoiseLpF = param("LINE_S_NOISE_LP_FEMALE", 1.0f);  // (the female's: x this, 0: off)
+      const float sLp = female_ ? kSNoiseLp * kSNoiseLpF : kSNoiseLp, shLp = female_ ? kShNoiseLp * kSNoiseLpF : kShNoiseLp;
+      if (sLp > 0 || shLp > 0) e.lineNoiseLp = tok.ph == Ph::S && sLp > 0 ? sLp : tok.ph == Ph::SH && !inAffricate_ && shLp > 0 ? shLp : 0.0f; }
     { static const float kFiJetD = param("LINE_FI_JET_D", -1.0f), kFiLpr = param("LINE_FI_LPR", 4.0f), kFiHw = param("LINE_FI_HW", -1.0f);
       static const float kFiJetDF = param("LINE_FI_JET_D_F", -1.0f);  // (F-INIT: the jet, band and lip-teeth contact; < 0: as before)
       if (fiTok && kFiJetD >= 0) e.lineJetD = kFiJetD;
@@ -5937,6 +5949,10 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // hiss rose 20 dB in 6 ms as the slit closed (snap 2.2 dB mean on ten medial-θ words, female; 35 ms: 1.5, 50 ms: 0.7).
     static const float thOn = param("LINE_TH_ON_MS", 35.0f);
     if (tok.ph == Ph::TH && thOn > 0 && !prevWasPause_) e.acMs = thOn;
+    // (BLEND agent28 round Z, lab; 0: off) s f's groove closes over LINE_FRIC_ON_MS after a voiced sound (the 20 ms
+    // boundary: the hiss came 10-20 ms after the voice had faded, a 12 dB dip at vowel -> s; 11labs' has none)
+    static const float kFricOnMs = param("LINE_FRIC_ON_MS", 0.0f);
+    if ((tok.ph == Ph::S || tok.ph == Ph::F) && kFricOnMs > 0 && !prevWasPause_ && !prevWasPlosive_ && !inAffricate_) e.acMs = kFricOnMs;
     // v into a vowel or sonorant (V agent, round F; 0: the 20 ms boundary): the lip leaves the teeth over
     // LINE_V_OFF_MS. A quick opening from a hiss-less v is a b's release to Whisper (initial v: B 214 of 467 errors).
     static const float vOff = param("LINE_V_OFF_MS", 40.0f);
@@ -6059,6 +6075,43 @@ void Synth::emit(const Token& tok, const Ph* next) {
     static const float kLineHOwnAfterStop = param("LINE_H_OWN_AFTER_STOP", 0.0f);  // (0: Jyrki chose the h of the old path at 0.6 length, "let's make that the default then own60")
     if (!(tract_ == Tract::Line && in.cls == Cls::H && kLineHOwnAfterStop > 0.5f)) e.ag = -1;
     aspirating_ = false;
+  }
+  // (BLEND agent28 round Z, lab; 0: off) a voiceless s ʃ f θ after a vowel or sonorant: the glottis starts opening
+  // LINE_FRIC_AB_LEAD_MS before the sound (over LINE_FRIC_AB_LEAD_AGMS when > 0), so the vowel's end turns breathy and
+  // the hiss rises under a fading voice. On the 11labs1 text the median vowel -> s level dipped 14 dB 10-20 ms after the
+  // boundary (the voice gone, the groove not yet narrow: 3-8 kHz -36 dB re the vowels at the boundary); 11labs' s noise
+  // rises over the vowel's last 30-40 ms (-15 -> -7 dB) with no dip (boundary step 12.1 dB vs 4.1-4.9, Kokoro 5.7).
+  {
+    static const float kFricAbLeadMs = param("LINE_FRIC_AB_LEAD_MS", 0.0f), kFricAbLeadAgMs = param("LINE_FRIC_AB_LEAD_AGMS", 0.0f);
+    static const float kFricAbLeadF = param("LINE_FRIC_AB_LEAD_F", 1.0f);  // f θ's lead x this
+    const bool vlFric = tok.ph == Ph::S || tok.ph == Ph::SH || tok.ph == Ph::F || tok.ph == Ph::TH;
+    const bool sonPrev = prevWasVowel_ || lastPh_ == Ph::RR || lastPh_ == Ph::R || lastPh_ == Ph::L || lastPh_ == Ph::W ||
+                         lastPh_ == Ph::J || lastPh_ == Ph::M || lastPh_ == Ph::N || lastPh_ == Ph::NG;
+    const float lead = kFricAbLeadMs * (tok.ph == Ph::F || tok.ph == Ph::TH ? kFricAbLeadF : 1.0f);
+    // (< 0: a lag instead: the glottis opens |lead| ms after the sound starts, the voice running on under the narrowing
+    // groove, so the hiss rises under it)
+    if (tract_ == Tract::Line && lead != 0 && vlFric && sonPrev && !prevWasPlosive_ && !prevWasPause_ && !inAffricate_ &&
+        e.ag > kAgBreathy) {
+      Event ab{std::max(e.t - lead * ms, phonemeStart_ + 1.0)};
+      ab.ag = e.ag;
+      ab.agMs = kFricAbLeadAgMs > 0 ? kFricAbLeadAgMs : e.agMs;
+      e.ag = -1;
+      addEventAt(ab);
+    }
+    // (BLEND agent28, lab; 0: off) ... or in two stages: to the breathy LINE_FRIC_AB_MID cm^2 over LINE_FRIC_AB_MID_AGMS
+    // at the sound's start (the folds still vibrate, the flow and the groove's hiss rise under the voice), on to the
+    // fricative's opening LINE_FRIC_AB_MID_MS later.
+    static const float kFricAbMid = param("LINE_FRIC_AB_MID", 0.0f), kFricAbMidMs = param("LINE_FRIC_AB_MID_MS", 20.0f),
+                       kFricAbMidAgMs = param("LINE_FRIC_AB_MID_AGMS", 10.0f);
+    if (tract_ == Tract::Line && kFricAbMid > 0 && lead == 0 && vlFric && sonPrev && !prevWasPlosive_ && !prevWasPause_ &&
+        !inAffricate_ && e.ag > kFricAbMid) {
+      Event ab2{e.t + kFricAbMidMs * ms};
+      ab2.ag = e.ag;
+      ab2.agMs = e.agMs;
+      e.ag = kFricAbMid;
+      e.agMs = kFricAbMidAgMs;
+      addEventAt(ab2);
+    }
   }
   e.an = aero.an;
   e.anMs = kBoundaryMs;
@@ -9958,6 +10011,8 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     Event slit{release};
     slit.ac = pvInit && kPvBurstA >= 0 ? kPvBurstA : kPBurstA;
     slit.acMs = 3;
+    { static const float kPtkSlitAcMs = param("LINE_PTK_SLIT_AC_MS", -1.0f);  // (BLEND agent28: p's, below)
+      if (kPtkSlitAcMs >= 0) slit.acMs = kPtkSlitAcMs; }
     addEvent(slit);
     Event open{release + pBurstMs * ms};
     open.ac = rel.ac;
@@ -10075,7 +10130,10 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   if (tBurst) {
     Event slit{release};
     slit.ac = tFinalSlit && kTFinalSlitA >= 0 ? kTFinalSlitA : kLineTBurstA;
-    slit.acMs = tFinalSlit && kTFinalSlitAcMs >= 0 ? kTFinalSlitAcMs : 3;
+    // (BLEND agent28 round Z, lab; < 0: 3 ms) the voiceless stops' burst slit opens over LINE_PTK_SLIT_AC_MS (t: x
+    // LINE_T_SLIT_AC_X): from a -40 dB closure the release jumped 23-27 dB in one 5 ms frame (11labs 9-18, Kokoro 9-10).
+    static const float kPtkSlitAcMs = param("LINE_PTK_SLIT_AC_MS", -1.0f), kTSlitAcX = param("LINE_T_SLIT_AC_X", 1.0f);
+    slit.acMs = tFinalSlit && kTFinalSlitAcMs >= 0 ? kTFinalSlitAcMs : kPtkSlitAcMs >= 0 ? kPtkSlitAcMs * kTSlitAcX : 3;
     if (tSlitJetD > 0) slit.lineJetD = tSlitJetD, slit.lineJetMix = 1.0f;
     if (tFinalSlit && tSlitJetD > 0 && kTFinalFcMin >= 0) slit.lineJetFcMin = kTFinalFcMin;
     if (tFinalSlit && kTFinalLpr >= 0) slit.lineFricLpr = kTFinalLpr;
@@ -10152,6 +10210,8 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     if (dMed && kDmBurstA >= 0) slit.ac = kDmBurstA;  // (LINE_DM_BURST_A)
     if (kFrontV && kKBurstAFront >= 0) slit.ac = kKBurstAFront;
     slit.acMs = 3;
+    { static const float kPtkSlitAcMs = param("LINE_PTK_SLIT_AC_MS", -1.0f);  // (BLEND agent28: k's, above)
+      if (tok.ph == Ph::K && kPtkSlitAcMs >= 0) slit.acMs = kPtkSlitAcMs; }
     if (tok.ph == Ph::K && kLineKJetD > 0) slit.lineJetD = kFrontV && kKJetDFront >= 0 ? kKJetDFront : kLineKJetD, slit.lineJetMix = 1.0f;  // (LINE_K_JET_D)
     if (vJetD > 0) slit.lineJetD = vJetD, slit.lineJetMix = 1.0f;
     if (drSlit && kDrSlitA >= 0) slit.ac = kDrSlitA;
@@ -10730,6 +10790,7 @@ float Synth::tick() {
     }
     if (e.lineJetD >= 0) line_.setJetThickness(e.lineJetD, e.lineJetMix, e.lineSlitScale, e.lineJetSmoothMs, e.lineJetFcMin, e.lineJetFcMax);
     if (e.lineFricLpr >= 0) line_.setFricLpRatio(e.lineFricLpr);
+    if (e.lineNoiseLp >= 0) line_.setNoiseLp(e.lineNoiseLp);
     if (e.lineAspHp >= 0) {
       static const int tAspPoles = static_cast<int>(param("LINE_T_ASP_HP_POLES", 3.0f));
       line_.setAspHp(e.lineAspHp, tAspPoles);
@@ -10837,7 +10898,13 @@ float Synth::tick() {
     // glide's smaller end, except out of a closure, where the release's burst
     // is the opening slit's own noise: the destination (2026-11-05, round 8:
     // damped releases cost t and d, Whisper -44).
-    const float ref = ac_.glideFrom() < 0.01f ? ac_.glideTo() : ac_.glideMin();
+    float ref = ac_.glideFrom() < 0.01f ? ac_.glideTo() : ac_.glideMin();
+    // (BLEND agent28 round Z, lab; < 0: off) a glide closing into a slit (not a closure) is damped less: the reference
+    // moves this share (in log area) from the slit toward the glide's start. The law cut the closing vowel -> s groove's
+    // hiss 9-14 dB while the voice was already fading: a 12 dB dip after the boundary (11labs: none).
+    static const float kNoiseAreaClose = param("LINE_NOISE_AREA_CLOSE", -1.0f);
+    if (kNoiseAreaClose >= 0 && ac_.glideTo() > 0.01f && ac_.glideTo() < ac_.glideFrom())
+      ref = ac_.glideTo() * std::pow(ac_.glideFrom() / ac_.glideTo(), kNoiseAreaClose);
     line_.setNoiseAreaRef(std::max(ref, 0.0f));
   }
 

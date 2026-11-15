@@ -141,6 +141,7 @@ struct Event {
   float lineSink = -1;  // a sink flow through an open (fricative) tract on the line, the cavity walls yielding (cm^3/s; 0: none; < 0: unchanged)
   float lineHw = -1, lineLip = -1;  // the constriction's half-width and lip cap on the line (< 0: unchanged / none)
   float lineAspHp = -1;  // the aspiration's high-pass on the line (Hz; 0: LINE_ASP_HP; < 0: unchanged)
+  float lineNoiseLp = -1;  // the turbulence noise's low-pass on the line (Hz; 0: the voice's default; < 0: unchanged; BLEND agent28)
   float lineFricLpr = -1;  // the frication band's low-pass ratio on the line (0: LINE_NOISE_LPR; < 0: unchanged)
   float lineJetD = -1;  // the frication jet's thickness for its noise band on the line (cm; 0: slit area / width; < 0: unchanged)
   float lineJetMix = 1;  // ... how much of that fixed thickness the jet uses (1: fixed; 0: the slit's height; between: geometric blend), applied with lineJetD

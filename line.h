@@ -207,6 +207,7 @@ class VocalTractLine {
   void setJetThickness(float d, float mix = 1, float slitScale = 1, float smoothMs = -1, float fcMin = 0, float fcMax = 0) {
     jetD_ = d; jetMix_ = mix; slitScale_ = slitScale; jetSmoothMs_ = smoothMs; jetFcMin_ = fcMin; jetFcMax_ = fcMax;
   }  // mix: 1 fixed d, 0 the slit's height x slitScale, between: geometric blend
+  void setNoiseLp(float hz, bool asDefault = false);  // the turbulence noise's two-pole low-pass corner (Hz; <= 0: back to the default; BLEND agent28)
   void setFricLpRatio(float r) { fricLpr_ = r; }  // the frication band's low-pass / its corner (0: LINE_NOISE_LPR)
   void setFricReMul(float m) { fricReMul_ = m; }
   void setFricReSmooth(float s) { fricReSmooth_ = s; }  // (LINE_V_RE_SMOOTH)
@@ -282,6 +283,7 @@ class VocalTractLine {
   float breathGain_ = 0;  // (setBreath, LINE_BREATH)
   float breathEnv_ = 0;   // the breath drive's envelope, Re^2 low-passed over LINE_BREATH_MS (0: instantaneous)
   float breathHp_[2] = {0, 0};  // the breath's own fixed band (LINE_BREATH_FC): two one-pole high-passes on the white source
+  float aaNoiseDef_ = 0;
   float out_ = 0, aaNoise_ = 0, lpNoise_ = 0, lpNoise2_ = 0;
   float aspHpState_ = 0, aspHpA_ = 0, aspHpBaseA_ = 0;
   int aspHpPolesNow_ = 0;  // 0: LINE_ASP_HP_POLES
