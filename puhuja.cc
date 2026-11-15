@@ -380,13 +380,13 @@ const float kLineTApproachA = param("LINE_T_APPROACH_A", 0.6f);     // ... to th
 // 2026-11-04 (with LINE_T_STOP_ASP 18): initial p 13 -> 17 of 18, t 3 -> 6 of 20
 // (Whisper), the h unchanged byte for byte.
 const float kLinePuffLpr = param("LINE_PUFF_LPR", 10.0f);
-const float kLinePStopAspMul = param("LINE_P_STOP_ASP", 3.0f);  // p's own puff noise (< 0: LINE_STOP_ASP); 2026-11-04: with the fast release, initial p heard 25 -> 38 of 84 (Whisper)
+const float kLinePStopAspMul = param("LINE_P_STOP_ASP", 8.0f);  // p's own puff noise (< 0: LINE_STOP_ASP); 2026-11-04: with the fast release, initial p heard 25 -> 38 of 84 (Whisper)
 // g's glottis in its closure, as a fraction of the way from voicing toward open (0.15: a cascade-era "firmer
 // closure"; a more open glottis fills the mouth faster, stops the voice, and after the release breathes an h,
 // "Good." -> "huh", 2026-11-04). And g's own release time scale (< 0: the shared one).
 const float kLineGClosureAgFrac = param("LINE_G_CLOSURE_AG", 0.15f);
 const float kLineGReleaseScale = param("LINE_G_RELEASE_SCALE", -1.0f);
-const float kLinePReleaseScale = param("LINE_P_RELEASE_SCALE", 1.5f);  // p's own release time scale (< 0: LINE_RELEASE_SCALE): the lips part fast, a weaker puff
+const float kLinePReleaseScale = param("LINE_P_RELEASE_SCALE", 3.0f);  // p's own release time scale (< 0: LINE_RELEASE_SCALE): the lips part fast, a weaker puff
 // The voiceless h on the line (2026-11-04): it was mostly the flow step of the
 // glottis opening (a thump then a decaying tail), with too little glottal hiss;
 // the stop puff's mechanism: its own glottis width and noise gain (reset at the
@@ -809,7 +809,7 @@ const bool kLineXSnapClosures = param("LINE_X_SNAP_CLOSURES", 1) > 0;
 // narrowed at the lips (artsynth review B1, 2026-11-11).
 const float kLineStopApproachX = param("LINE_STOP_APPROACH_X", 1.0f);
 const float kLineKRelFric = param("LINE_K_REL_FRIC", 0.3f);  // k's release hiss (x LINE_FRIC while the closure opens; 1: as before)
-const float kLinePRelFric = param("LINE_P_REL_FRIC", 0.3f);  // p's
+const float kLinePRelFric = param("LINE_P_REL_FRIC", 1.0f);  // p's
 // t's (2026-11-06, Jyrki: in "torch has" "the t sounds off"): across kennedy puhuja's t bursts peaked -2.7 dB re the
 // vowel (p90 +3.4), Kokoro's -17.8 (p90 -9.1); the puffs (2.5 kHz+ over the vowel's first 40 ms) -12 vs -23.
 const float kLineTRelFric = param("LINE_T_REL_FRIC", 0.265f);  // 2026-11-07, Jyrki: "t like in tiger could be 1 db stronger, both t and its associated aspiration", then +0.7, then "a bit softer at 0.5 db": 0.25 -> 0.265
@@ -964,7 +964,7 @@ const float kLineFJetD = param("LINE_F_JET_D", 0.2f);
 // made at the lips with no front cavity, so the radiation's +6 dB/octave
 // tilted the flat band: it rose 25 dB from 1 to 7 kHz, an s-like whistle
 // (the readers' and Kokoro's f are level from 0.5 to 11 kHz, 2026-11-05).
-const float kLineFLpr = param("LINE_F_LPR", 0.0f);
+const float kLineFLpr = param("LINE_F_LPR", 3.0f);
 // ... for an f that does not start a stressed syllable (2026-11-06, Jyrki: "we can follow your refined proposal about f"):
 // Kokoro's typical f is dark (median centroid 1.3 kHz, the voice bleeding in) and only its stressed f ("forms") is the
 // bright 5.3 kHz one, so the thin jet and the gain lift go to stressed onsets; the voice tail (LINE_ABDUCT_MS) is global.
@@ -4084,8 +4084,8 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // (BLEND agent28 round Z, lab; 0: off) s's / ʃ's own noise low-pass (Hz; the other sounds back to the voice's): at
     // 5 kHz the s peaked at 4-5 kHz with 1.6-3.2 kHz 8-14 dB over 11labs' and 6.4-8 kHz 3-9 dB under; the global
     // LINE_NOISE_LP_M brightened every onset (snap list +0.4 dB: ʃ ʧ t p z).
-    { static const float kSNoiseLp = param("LINE_S_NOISE_LP", 0.0f), kShNoiseLp = param("LINE_SH_NOISE_LP", 0.0f);
-      static const float kSNoiseLpF = param("LINE_S_NOISE_LP_FEMALE", 1.0f);  // (the female's: x this, 0: off)
+    { static const float kSNoiseLp = param("LINE_S_NOISE_LP", 8000.0f), kShNoiseLp = param("LINE_SH_NOISE_LP", 7000.0f);
+      static const float kSNoiseLpF = param("LINE_S_NOISE_LP_FEMALE", 0.0f);  // (the female's: x this, 0: off)
       const float sLp = female_ ? kSNoiseLp * kSNoiseLpF : kSNoiseLp, shLp = female_ ? kShNoiseLp * kSNoiseLpF : kShNoiseLp;
       if (sLp > 0 || shLp > 0) e.lineNoiseLp = tok.ph == Ph::S && sLp > 0 ? sLp : tok.ph == Ph::SH && !inAffricate_ && shLp > 0 ? shLp : 0.0f; }
     { static const float kFiJetD = param("LINE_FI_JET_D", -1.0f), kFiLpr = param("LINE_FI_LPR", 4.0f), kFiHw = param("LINE_FI_HW", -1.0f);
@@ -10064,7 +10064,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     Event slit{release};
     slit.ac = pvInit && kPvBurstA >= 0 ? kPvBurstA : kPBurstA;
     slit.acMs = 3;
-    { static const float kPtkSlitAcMs = param("LINE_PTK_SLIT_AC_MS", -1.0f);  // (BLEND agent28: p's, below)
+    { static const float kPtkSlitAcMs = param("LINE_PTK_SLIT_AC_MS", 6.0f);  // (BLEND agent28: p's, below)
       if (kPtkSlitAcMs >= 0) slit.acMs = kPtkSlitAcMs; }
     addEvent(slit);
     Event open{release + pBurstMs * ms};
@@ -10185,7 +10185,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     slit.ac = tFinalSlit && kTFinalSlitA >= 0 ? kTFinalSlitA : kLineTBurstA;
     // (BLEND agent28 round Z, lab; < 0: 3 ms) the voiceless stops' burst slit opens over LINE_PTK_SLIT_AC_MS (t: x
     // LINE_T_SLIT_AC_X): from a -40 dB closure the release jumped 23-27 dB in one 5 ms frame (11labs 9-18, Kokoro 9-10).
-    static const float kPtkSlitAcMs = param("LINE_PTK_SLIT_AC_MS", -1.0f), kTSlitAcX = param("LINE_T_SLIT_AC_X", 1.0f);
+    static const float kPtkSlitAcMs = param("LINE_PTK_SLIT_AC_MS", 6.0f), kTSlitAcX = param("LINE_T_SLIT_AC_X", 1.0f);
     slit.acMs = tFinalSlit && kTFinalSlitAcMs >= 0 ? kTFinalSlitAcMs : kPtkSlitAcMs >= 0 ? kPtkSlitAcMs * kTSlitAcX : 3;
     if (tSlitJetD > 0) slit.lineJetD = tSlitJetD, slit.lineJetMix = 1.0f;
     if (tFinalSlit && tSlitJetD > 0 && kTFinalFcMin >= 0) slit.lineJetFcMin = kTFinalFcMin;
@@ -10263,7 +10263,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     if (dMed && kDmBurstA >= 0) slit.ac = kDmBurstA;  // (LINE_DM_BURST_A)
     if (kFrontV && kKBurstAFront >= 0) slit.ac = kKBurstAFront;
     slit.acMs = 3;
-    { static const float kPtkSlitAcMs = param("LINE_PTK_SLIT_AC_MS", -1.0f);  // (BLEND agent28: k's, above)
+    { static const float kPtkSlitAcMs = param("LINE_PTK_SLIT_AC_MS", 6.0f);  // (BLEND agent28: k's, above)
       if (tok.ph == Ph::K && kPtkSlitAcMs >= 0) slit.acMs = kPtkSlitAcMs; }
     if (tok.ph == Ph::K && kLineKJetD > 0) slit.lineJetD = kFrontV && kKJetDFront >= 0 ? kKJetDFront : kLineKJetD, slit.lineJetMix = 1.0f;  // (LINE_K_JET_D)
     if (vJetD > 0) slit.lineJetD = vJetD, slit.lineJetMix = 1.0f;
