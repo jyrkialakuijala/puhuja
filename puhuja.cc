@@ -1271,20 +1271,20 @@ void vowelQuality(Ph ph, TractShape* s, bool colour) {
       // (explicit param() calls, so tools/apply_params.py can write the values; order XC AC ALIP AOR APH HA HL FA FL)
       struct Row { int p; float v[9]; };
       const Row kRows[] = {
-        {0, {param("LINE_VQ_0_XC", 0.0f), param("LINE_VQ_0_AC", 0.0f), param("LINE_VQ_0_ALIP", 0.0f), param("LINE_VQ_0_AOR", 0.0f), param("LINE_VQ_0_APH", 0.0f), param("LINE_VQ_0_HA", 0.0f), param("LINE_VQ_0_HL", 0.0f), param("LINE_VQ_0_FA", 0.0f), param("LINE_VQ_0_FL", 0.0f)}},  // a
-        {1, {param("LINE_VQ_1_XC", 0.0f), param("LINE_VQ_1_AC", 0.0f), param("LINE_VQ_1_ALIP", 0.0f), param("LINE_VQ_1_AOR", 0.0f), param("LINE_VQ_1_APH", 0.0f), param("LINE_VQ_1_HA", 0.0f), param("LINE_VQ_1_HL", 0.0f), param("LINE_VQ_1_FA", 0.0f), param("LINE_VQ_1_FL", 0.0f)}},  // e
-        {2, {param("LINE_VQ_2_XC", 0.0f), param("LINE_VQ_2_AC", 0.0f), param("LINE_VQ_2_ALIP", 0.0f), param("LINE_VQ_2_AOR", 0.0f), param("LINE_VQ_2_APH", 0.0f), param("LINE_VQ_2_HA", 0.0f), param("LINE_VQ_2_HL", 0.0f), param("LINE_VQ_2_FA", 0.0f), param("LINE_VQ_2_FL", 0.0f)}},  // i
-        {3, {param("LINE_VQ_3_XC", 0.0f), param("LINE_VQ_3_AC", 0.0f), param("LINE_VQ_3_ALIP", 0.0f), param("LINE_VQ_3_AOR", 0.0f), param("LINE_VQ_3_APH", 0.0f), param("LINE_VQ_3_HA", 0.0f), param("LINE_VQ_3_HL", 0.0f), param("LINE_VQ_3_FA", 0.0f), param("LINE_VQ_3_FL", 0.0f)}},  // o
-        {4, {param("LINE_VQ_4_XC", 0.0f), param("LINE_VQ_4_AC", 0.0f), param("LINE_VQ_4_ALIP", 0.0f), param("LINE_VQ_4_AOR", 0.0f), param("LINE_VQ_4_APH", 0.0f), param("LINE_VQ_4_HA", 0.0f), param("LINE_VQ_4_HL", 0.0f), param("LINE_VQ_4_FA", 0.0f), param("LINE_VQ_4_FL", 0.0f)}},  // u
-        {6, {param("LINE_VQ_6_XC", 0.0f), param("LINE_VQ_6_AC", 0.0f), param("LINE_VQ_6_ALIP", 0.0f), param("LINE_VQ_6_AOR", 0.0f), param("LINE_VQ_6_APH", 0.0f), param("LINE_VQ_6_HA", 0.0f), param("LINE_VQ_6_HL", 0.0f), param("LINE_VQ_6_FA", 0.0f), param("LINE_VQ_6_FL", 0.0f)}},  // æ
-        {8, {param("LINE_VQ_8_XC", 0.0f), param("LINE_VQ_8_AC", 0.0f), param("LINE_VQ_8_ALIP", 0.0f), param("LINE_VQ_8_AOR", 0.0f), param("LINE_VQ_8_APH", 0.0f), param("LINE_VQ_8_HA", 0.0f), param("LINE_VQ_8_HL", 0.0f), param("LINE_VQ_8_FA", 0.0f), param("LINE_VQ_8_FL", 0.0f)}},  // ə
-        {9, {param("LINE_VQ_9_XC", 0.0f), param("LINE_VQ_9_AC", 0.0f), param("LINE_VQ_9_ALIP", 0.0f), param("LINE_VQ_9_AOR", 0.0f), param("LINE_VQ_9_APH", 0.0f), param("LINE_VQ_9_HA", 0.0f), param("LINE_VQ_9_HL", 0.0f), param("LINE_VQ_9_FA", 0.0f), param("LINE_VQ_9_FL", 0.0f)}},  // ɪ
-        {10, {param("LINE_VQ_10_XC", 0.0f), param("LINE_VQ_10_AC", 0.0f), param("LINE_VQ_10_ALIP", 0.0f), param("LINE_VQ_10_AOR", 0.0f), param("LINE_VQ_10_APH", 0.0f), param("LINE_VQ_10_HA", 0.0f), param("LINE_VQ_10_HL", 0.0f), param("LINE_VQ_10_FA", 0.0f), param("LINE_VQ_10_FL", 0.0f)}},  // ɛ
-        {11, {param("LINE_VQ_11_XC", 0.0f), param("LINE_VQ_11_AC", 0.0f), param("LINE_VQ_11_ALIP", 0.0f), param("LINE_VQ_11_AOR", 0.0f), param("LINE_VQ_11_APH", 0.0f), param("LINE_VQ_11_HA", 0.0f), param("LINE_VQ_11_HL", 0.0f), param("LINE_VQ_11_FA", 0.0f), param("LINE_VQ_11_FL", 0.0f)}},  // ʊ
-        {12, {param("LINE_VQ_12_XC", 0.0f), param("LINE_VQ_12_AC", 0.0f), param("LINE_VQ_12_ALIP", 0.0f), param("LINE_VQ_12_AOR", 0.0f), param("LINE_VQ_12_APH", 0.0f), param("LINE_VQ_12_HA", 0.0f), param("LINE_VQ_12_HL", 0.0f), param("LINE_VQ_12_FA", 0.0f), param("LINE_VQ_12_FL", 0.0f)}},  // ɔ
-        {13, {param("LINE_VQ_13_XC", 0.0f), param("LINE_VQ_13_AC", 0.0f), param("LINE_VQ_13_ALIP", 0.0f), param("LINE_VQ_13_AOR", 0.0f), param("LINE_VQ_13_APH", 0.0f), param("LINE_VQ_13_HA", 0.0f), param("LINE_VQ_13_HL", 0.0f), param("LINE_VQ_13_FA", 0.0f), param("LINE_VQ_13_FL", 0.0f)}},  // ʌ
-        {14, {param("LINE_VQ_14_XC", 0.0f), param("LINE_VQ_14_AC", 0.0f), param("LINE_VQ_14_ALIP", 0.0f), param("LINE_VQ_14_AOR", 0.0f), param("LINE_VQ_14_APH", 0.0f), param("LINE_VQ_14_HA", 0.0f), param("LINE_VQ_14_HL", 0.0f), param("LINE_VQ_14_FA", 0.0f), param("LINE_VQ_14_FL", 0.0f)}},  // ɑ
-        {16, {param("LINE_VQ_16_XC", 0.0f), param("LINE_VQ_16_AC", 0.0f), param("LINE_VQ_16_ALIP", 0.0f), param("LINE_VQ_16_AOR", 0.0f), param("LINE_VQ_16_APH", 0.0f), param("LINE_VQ_16_HA", 0.0f), param("LINE_VQ_16_HL", 0.0f), param("LINE_VQ_16_FA", 0.0f), param("LINE_VQ_16_FL", 0.0f)}},  // ɜ
+        {0, {param("LINE_VQ_0_XC", -0.0463f), param("LINE_VQ_0_AC", 0.6f), param("LINE_VQ_0_ALIP", 0.6f), param("LINE_VQ_0_AOR", 0.5045f), param("LINE_VQ_0_APH", -0.6f), param("LINE_VQ_0_HA", -0.6f), param("LINE_VQ_0_HL", 0.6f), param("LINE_VQ_0_FA", 0.5605f), param("LINE_VQ_0_FL", 0.6f)}},  // a
+        {1, {param("LINE_VQ_1_XC", 0.0149f), param("LINE_VQ_1_AC", 0.5214f), param("LINE_VQ_1_ALIP", 0.0f), param("LINE_VQ_1_AOR", -0.6f), param("LINE_VQ_1_APH", 0.2143f), param("LINE_VQ_1_HA", -0.0851f), param("LINE_VQ_1_HL", 0.0712f), param("LINE_VQ_1_FA", -0.3877f), param("LINE_VQ_1_FL", -0.3713f)}},  // e
+        {2, {param("LINE_VQ_2_XC", 0.0413f), param("LINE_VQ_2_AC", 0.3484f), param("LINE_VQ_2_ALIP", 0.0f), param("LINE_VQ_2_AOR", 0.153f), param("LINE_VQ_2_APH", -0.2287f), param("LINE_VQ_2_HA", -0.5939f), param("LINE_VQ_2_HL", -0.6f), param("LINE_VQ_2_FA", 0.0892f), param("LINE_VQ_2_FL", -0.4782f)}},  // i
+        {3, {param("LINE_VQ_3_XC", -0.0054f), param("LINE_VQ_3_AC", -0.3468f), param("LINE_VQ_3_ALIP", -0.4089f), param("LINE_VQ_3_AOR", 0.4269f), param("LINE_VQ_3_APH", 0.152f), param("LINE_VQ_3_HA", 0.5805f), param("LINE_VQ_3_HL", 0.1925f), param("LINE_VQ_3_FA", -0.0071f), param("LINE_VQ_3_FL", -0.03f)}},  // o
+        {4, {param("LINE_VQ_4_XC", -0.0055f), param("LINE_VQ_4_AC", 0.2222f), param("LINE_VQ_4_ALIP", 0.1034f), param("LINE_VQ_4_AOR", -0.4478f), param("LINE_VQ_4_APH", -0.0048f), param("LINE_VQ_4_HA", -0.0356f), param("LINE_VQ_4_HL", -0.0367f), param("LINE_VQ_4_FA", 0.0614f), param("LINE_VQ_4_FL", 0.0289f)}},  // u
+        {6, {param("LINE_VQ_6_XC", 0.0097f), param("LINE_VQ_6_AC", 0.2033f), param("LINE_VQ_6_ALIP", 0.0f), param("LINE_VQ_6_AOR", -0.196f), param("LINE_VQ_6_APH", -0.0744f), param("LINE_VQ_6_HA", -0.1557f), param("LINE_VQ_6_HL", -0.0774f), param("LINE_VQ_6_FA", 0.1096f), param("LINE_VQ_6_FL", 0.1704f)}},  // æ
+        {8, {param("LINE_VQ_8_XC", 0.0045f), param("LINE_VQ_8_AC", -0.1731f), param("LINE_VQ_8_ALIP", 0.1846f), param("LINE_VQ_8_AOR", 0.0683f), param("LINE_VQ_8_APH", 0.0385f), param("LINE_VQ_8_HA", 0.1003f), param("LINE_VQ_8_HL", -0.003f), param("LINE_VQ_8_FA", -0.1213f), param("LINE_VQ_8_FL", -0.1296f)}},  // ə
+        {9, {param("LINE_VQ_9_XC", 0.0296f), param("LINE_VQ_9_AC", 0.6f), param("LINE_VQ_9_ALIP", 0.0f), param("LINE_VQ_9_AOR", 0.5076f), param("LINE_VQ_9_APH", 0.6f), param("LINE_VQ_9_HA", 0.6f), param("LINE_VQ_9_HL", 0.3637f), param("LINE_VQ_9_FA", -0.2814f), param("LINE_VQ_9_FL", 0.5187f)}},  // ɪ
+        {10, {param("LINE_VQ_10_XC", 0.0209f), param("LINE_VQ_10_AC", 0.3624f), param("LINE_VQ_10_ALIP", 0.0f), param("LINE_VQ_10_AOR", 0.3298f), param("LINE_VQ_10_APH", 0.2083f), param("LINE_VQ_10_HA", -0.0707f), param("LINE_VQ_10_HL", 0.0466f), param("LINE_VQ_10_FA", -0.4769f), param("LINE_VQ_10_FL", -0.417f)}},  // ɛ
+        {11, {param("LINE_VQ_11_XC", 0.0408f), param("LINE_VQ_11_AC", 0.2519f), param("LINE_VQ_11_ALIP", -0.6f), param("LINE_VQ_11_AOR", -0.4336f), param("LINE_VQ_11_APH", -0.3627f), param("LINE_VQ_11_HA", -0.6f), param("LINE_VQ_11_HL", -0.6f), param("LINE_VQ_11_FA", -0.1562f), param("LINE_VQ_11_FL", -0.6f)}},  // ʊ
+        {12, {param("LINE_VQ_12_XC", 0.051f), param("LINE_VQ_12_AC", 0.3238f), param("LINE_VQ_12_ALIP", -0.6f), param("LINE_VQ_12_AOR", 0.3265f), param("LINE_VQ_12_APH", -0.0285f), param("LINE_VQ_12_HA", 0.3064f), param("LINE_VQ_12_HL", -0.2165f), param("LINE_VQ_12_FA", 0.0476f), param("LINE_VQ_12_FL", 0.0724f)}},  // ɔ
+        {13, {param("LINE_VQ_13_XC", -0.0008f), param("LINE_VQ_13_AC", -0.0663f), param("LINE_VQ_13_ALIP", 0.0651f), param("LINE_VQ_13_AOR", -0.0258f), param("LINE_VQ_13_APH", -0.0613f), param("LINE_VQ_13_HA", 0.2077f), param("LINE_VQ_13_HL", 0.1677f), param("LINE_VQ_13_FA", -0.0476f), param("LINE_VQ_13_FL", -0.0605f)}},  // ʌ
+        {14, {param("LINE_VQ_14_XC", -0.0005f), param("LINE_VQ_14_AC", -0.1685f), param("LINE_VQ_14_ALIP", 0.0225f), param("LINE_VQ_14_AOR", -0.1108f), param("LINE_VQ_14_APH", 0.3466f), param("LINE_VQ_14_HA", -0.1255f), param("LINE_VQ_14_HL", 0.2019f), param("LINE_VQ_14_FA", 0.0539f), param("LINE_VQ_14_FL", 0.076f)}},  // ɑ
+        {16, {param("LINE_VQ_16_XC", -0.0091f), param("LINE_VQ_16_AC", 0.1417f), param("LINE_VQ_16_ALIP", 0.3923f), param("LINE_VQ_16_AOR", -0.1038f), param("LINE_VQ_16_APH", -0.1652f), param("LINE_VQ_16_HA", -0.1736f), param("LINE_VQ_16_HL", -0.0169f), param("LINE_VQ_16_FA", 0.218f), param("LINE_VQ_16_FL", 0.005f)}},  // ɜ
       };
       for (const Row& r : kRows)
         for (int j = 0; j < 9; ++j) {
@@ -1393,7 +1393,7 @@ void ayStartShape(TractShape* sh) {
 void ayEndShape(TractShape* sh) {
   sh->aLip *= kLineAyEndALip;
   TractShape o;
-  static const float kMixCs = param("LINE_AY_END_MIX_CS", -99.0f), kRowCs = param("LINE_AY_END_ROW_CS", -99.0f);
+  static const float kMixCs = param("LINE_AY_END_MIX_CS", 0.3f), kRowCs = param("LINE_AY_END_ROW_CS", 8.0f);
   const float mix = csv(kLineAyEndMix, kMixCs);
   const int row = static_cast<int>(csv(static_cast<float>(kLineAyEndRow), kRowCs));
   if (mix > 0 && lineShapeOf(static_cast<Ph>(row), &o)) *sh = lineShapeMix(*sh, o, mix);
@@ -3071,7 +3071,7 @@ const float kLineOwStartAh = param("LINE_OW_START_AH", 0.5f);
 void owStartShape(TractShape* sh) {
   static const float kAo = param("LINE_OW_START_AO", 0.0f), kLip = param("LINE_OW_START_LIP", 1.0f),
                      kLipL = param("LINE_OW_START_LIPL", 1.0f);
-  static const float kAoCs = param("LINE_OW_START_AO_CS", -99.0f);
+  static const float kAoCs = param("LINE_OW_START_AO_CS", 0.3f);
   const float ao = csv(kAo, kAoCs);
   TractShape o;
   if (ao > 0 && lineShapeOf(Ph::AO, &o)) *sh = lineShapeMix(*sh, o, ao);
@@ -3085,7 +3085,7 @@ void owEndShape(TractShape* sh) {
   static const float kAo = param("LINE_OW_END_AO", 0.5f), kUh = param("LINE_OW_END_UH", 0.0f),
                      kLip = param("LINE_OW_END_LIP", 0.5f), kLipL = param("LINE_OW_END_LIPL", 0.5f),
                      kXc = param("LINE_OW_END_XC", -1.0f), kAc = param("LINE_OW_END_AC", 1.0f);
-  static const float kAoCs = param("LINE_OW_END_AO_CS", -99.0f), kLipCs = param("LINE_OW_END_LIP_CS", -99.0f);
+  static const float kAoCs = param("LINE_OW_END_AO_CS", 0.75f), kLipCs = param("LINE_OW_END_LIP_CS", 0.6f);
   const float ao = csv(kAo, kAoCs), lip = csv(kLip, kLipCs);
   TractShape o;
   if (kUh > 0 && lineShapeOf(Ph::UH, &o)) *sh = lineShapeMix(*sh, o, kUh);
@@ -3109,7 +3109,7 @@ void eyStartShape(TractShape* sh, bool female, unsigned ctx) {
   if (kEyStartEh > 0 && lineShapeOf(Ph::EH, &o)) *sh = lineShapeMix(*sh, o, kEyStartEh);
   if (kEyStartAe > 0 && lineShapeOf(Ph::AE, &o)) *sh = lineShapeMix(*sh, o, kEyStartAe);
   if (kEyStartAc != 1.0f) sh->ac *= kEyStartAc;
-  static const float kEyStartAphCs = param("LINE_EY_START_APH_CS", -99.0f);
+  static const float kEyStartAphCs = param("LINE_EY_START_APH_CS", 1.0f);
   const float eyAph = csv(kEyStartAph, kEyStartAphCs);
   if (eyAph != 1.0f) sh->aPharynx *= eyAph;
   if (kEyStartLip != 1.0f) sh->aLip *= kEyStartLip;
@@ -3125,7 +3125,7 @@ void eyStartShape(TractShape* sh, bool female, unsigned ctx) {
   static const float kEyFStartEh = param("LINE_EY_F_START_EH", 0.0f), kEyFStartAe = param("LINE_EY_F_START_AE", 0.0f),
                      kEyFStartAph = param("LINE_EY_F_START_APH", 1.0f), kEyFStartDx = param("LINE_EY_F_START_DX", 0.0f),
                      kEyClStartEh = param("LINE_EY_CL_START_EH", 0.4f), kEyNasStartEh = param("LINE_EY_NAS_START_EH", 0.0f);
-  static const float kEyClStartEhCs = param("LINE_EY_CL_START_EH_CS", -99.0f);
+  static const float kEyClStartEhCs = param("LINE_EY_CL_START_EH_CS", 0.2f);
   const float ehMix = (female ? kEyFStartEh : 0.0f) + ((ctx & 1) ? csv(kEyClStartEh, kEyClStartEhCs) : 0.0f) + ((ctx & 2) ? kEyNasStartEh : 0.0f);
   if (ehMix > 0 && lineShapeOf(Ph::EH, &o)) *sh = lineShapeMix(*sh, o, std::min(ehMix, 1.0f));
   if (female && kEyFStartAe > 0 && lineShapeOf(Ph::AE, &o)) *sh = lineShapeMix(*sh, o, kEyFStartAe);
@@ -3419,7 +3419,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
   const bool csSpeech = (tok.ph == Ph::Stop ? wordsBefore : wordsSincePause_) >= 2 && (!female_ || kCsFemale > 0);
   auto csOk = [&](int bit) { return !(kCsMask & bit) || csSpeech; };
   {  // (VOWEL agent31 round AC, lab; 0: everywhere) LINE_VQ_CS 1: the LINE_VQ_* vowel offsets only in connected speech
-    static const float kVqCs = param("LINE_VQ_CS", 0.0f);
+    static const float kVqCs = param("LINE_VQ_CS", 1.0f);
     vqCsScale = kVqCs > 0 && !csSpeech ? 0.0f : 1.0f;
     vqCsNow = csSpeech;
   }
@@ -4884,7 +4884,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
       static const float kOwlStartAh = param("LINE_OWL_START_AH", -1.0f), kOwFStartAh = param("LINE_OW_F_START_AH", -1.0f),
                          kOwlStartLip = param("LINE_OWL_START_LIP", 1.0f);
       const bool owl = tok.shape.owctx & 4;
-      static const float kOwStartAhCs = param("LINE_OW_START_AH_CS", -99.0f);
+      static const float kOwStartAhCs = param("LINE_OW_START_AH_CS", 0.2f);
       const float ahMix = owl && kOwlStartAh >= 0 ? kOwlStartAh : female_ && kOwFStartAh >= 0 ? kOwFStartAh : csv(kLineOwStartAh, kOwStartAhCs);
       TractShape mid;
       if (lineShapeOf(Ph::AH, &mid)) sh = lineShapeMix(sh, mid, ahMix);
@@ -4936,7 +4936,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
       TractShape ao;
       if (kOwlAo > 0 && lineShapeOf(Ph::AO, &ao)) sh = lineShapeMix(sh, ao, kOwlAo);
     }
-    static const float kAwOffUCs = param("LINE_AW_OFF_U_CS", -99.0f), kAwEndAoCs = param("LINE_AW_END_AO_CS", -99.0f);
+    static const float kAwOffUCs = param("LINE_AW_OFF_U_CS", 0.0f), kAwEndAoCs = param("LINE_AW_END_AO_CS", 0.0f);
     const float awOffU = csv(kLineAwOffU, kAwOffUCs), awEndAo = csv(kLineAwEndAo, kAwEndAoCs);
     if (have && tok.ph == Ph::UH && lastPh_ == Ph::A && shapePh == Ph::O && awOffU > 0) {
       TractShape u;  // aʊ's end: toward u (see kLineAwOffU)
@@ -5736,7 +5736,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
                   const double x = static_cast<double>(q) / n;  // the diphthong's time
                   const double u = ayStart ? x / kLineAyRampSplit : (x - kLineAyRampSplit) / (1.0 - kLineAyRampSplit);  // this part's
                   if (u < 0 || u > 1) continue;
-                  static const float kAyRampPowCs = param("LINE_AY_RAMP_POW_CS", -99.0f);
+                  static const float kAyRampPowCs = param("LINE_AY_RAMP_POW_CS", 1.0f);
                   const float frac = static_cast<float>(std::pow(x, static_cast<double>(csv(kLineAyRampPow, kAyRampPowCs))));
                   const double t = t0 + u * dur;
                   addShapeDemand(t, t, lineShapeMix(s0, s1, frac), tok.ph, ws * kShapeGlideW * kLineAyRampW);
@@ -5780,7 +5780,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
             if ((owStart || owGlide) && kOwRamp > 1) {
               TractShape s0, s1, mid;
               if (lineShapeOf(Ph::O, &s0) && lineShapeOf(Ph::U, &s1)) {
-                static const float kOwRampAhCs = param("LINE_OW_START_AH_CS", -99.0f);
+                static const float kOwRampAhCs = param("LINE_OW_START_AH_CS", 0.2f);
                 if (lineShapeOf(Ph::AH, &mid)) s0 = lineShapeMix(s0, mid, csv(kLineOwStartAh, kOwRampAhCs));
                 owStartShape(&s0);
                 owEndShape(&s1);
@@ -6131,7 +6131,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
             // (LINE_VQ_DECL_A0..A1 of the vowel: pharynx x exp(-LINE_VQ_DECL_PH), mouth x exp(LINE_VQ_DECL_OR)) and a closer
             // one late (B0..B1: the reverse), weight LINE_VQ_DECL_W of the vowel's.
             {
-              static const float kDeclPh = param("LINE_VQ_DECL_PH", 0.0f), kDeclOr = param("LINE_VQ_DECL_OR", 0.0f),
+              static const float kDeclPh = param("LINE_VQ_DECL_PH", 0.45f), kDeclOr = param("LINE_VQ_DECL_OR", 0.0f),
                                  kDeclW = param("LINE_VQ_DECL_W", 1.0f), kDeclA0 = param("LINE_VQ_DECL_A0", 0.1f),
                                  kDeclA1 = param("LINE_VQ_DECL_A1", 0.3f), kDeclB0 = param("LINE_VQ_DECL_B0", 0.7f),
                                  kDeclB1 = param("LINE_VQ_DECL_B1", 0.95f);
