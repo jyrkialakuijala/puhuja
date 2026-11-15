@@ -6717,7 +6717,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
         // EN_ACC_DIP_AT of the vowel, pitchDip semitones under its pitch, then up to its anchor (L+H*), without moving the
         // syllables before it.
         if (tok.shape.pitchDip > 0 && pitchAnchorT_ >= 0) {
-          static const float kDipAt = param("EN_ACC_DIP_AT", 0.1f);
+          static const float kDipAt = param("EN_ACC_DIP_AT", 0.15f);
           const double td = t0 + kDipAt * dur;
           const float dv = target * std::exp2(-tok.shape.pitchDip / 12.0f);
           if (td > pitchAnchorT_ && td < tc) {

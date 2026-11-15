@@ -602,7 +602,7 @@ bool isFunctionWord(const std::string& w) {
 // above it and endings fall below, so the speaking pitch centres on the
 // base (at +1.9 every variation went up: a 92 Hz voice spoke at ~126 Hz; now ~95).
 const float kPhraseStart = param("EN_PHRASE_START", -4.5f);  // (PROS agent28: knob)
-const float kDeclination = param("EN_DECLINATION", -0.3f);  // (PROS agent28: knob)    // baseline change per syllable,
+const float kDeclination = param("EN_DECLINATION", -0.2f);  // (PROS agent28: knob)    // baseline change per syllable,
 constexpr float kDeclinationMin = -2.0f, kDeclinationMax = -6.5f;  // in total over a phrase
 constexpr float kParagraphStartLift = 0.67f;  // first sentence of a paragraph (st)
 constexpr float kSentenceStep = 0.33f, kSentenceStepMax = 0.67f;  // later sentences: lower
@@ -1549,8 +1549,8 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
       // dictionary, unchanged): an unstressed vowel x EN_UNSTR_VOWEL_MW, a sentence-final syllable x EN_SFINAL_SYL_LEN, a
       // comma-final one x EN_CFINAL_SYL_LEN (the sentence-final words ran 1.28x the 11labs readers' relative length).
       {
-        static const float kUnstrMw = param("EN_UNSTR_VOWEL_MW", 1.0f), kSfinSyl = param("EN_SFINAL_SYL_LEN", 1.0f),
-                           kCfinSyl = param("EN_CFINAL_SYL_LEN", 1.0f);
+        static const float kUnstrMw = param("EN_UNSTR_VOWEL_MW", 1.4f), kSfinSyl = param("EN_SFINAL_SYL_LEN", 0.72f),
+                           kCfinSyl = param("EN_CFINAL_SYL_LEN", 0.85f);
         if ((kUnstrMw != 1.0f || kSfinSyl != 1.0f || kCfinSyl != 1.0f) && phrase_.size() > 1) {
           if (vowel) {
             const char* nm = kEnglishTokens[tok[i] - 0x80];
@@ -2898,7 +2898,7 @@ void EnglishReader::sayPhrase(char end) {
         y.pitch += kFemMwSt;
         if (y.end != Synth::kNoPitch) y.end += kFemMwSt;
       }
-    static const float kLeadSt = param("EN_ACC_LEAD_ST", 0.0f), kTrailSt = param("EN_ACC_TRAIL_ST", 0.0f),
+    static const float kLeadSt = param("EN_ACC_LEAD_ST", 0.0f), kTrailSt = param("EN_ACC_TRAIL_ST", -1.0f),
                        kSecondSt = param("EN_ACC_SECOND_ST", 0.0f), kFirstSt = param("EN_ACC_FIRST_ST", 0.0f);
     if ((kLeadSt != 0 || kTrailSt != 0 || kSecondSt != 0 || kFirstSt != 0) && phrase_.size() > 1) {
       std::vector<float> d(syl.size(), 0.0f);
@@ -3709,12 +3709,12 @@ void EnglishReader::sayPhrase(char end) {
         }
         // (PROS2 agent29, lab knob; < 0: as before) an accented stressed vowel in connected speech (2+ words), not a
         // falling one: its pitch anchor at EN_ACC_PITCH_AT of the vowel instead of its centre (the peak comes later).
-        { static const float kAccPitchAt = param("EN_ACC_PITCH_AT", -1.0f);
+        { static const float kAccPitchAt = param("EN_ACC_PITCH_AT", 0.65f);
           if (kAccPitchAt >= 0 && vowel && phrase_.size() > 1 && phrase_[w].accent && pitchEnd == Synth::kNoPitch) {
             const char* vn = kEnglishTokens[tokens[i] - 0x80];
             if (vn[strlen(vn) - 1] == '1') shape.pitchAt = kAccPitchAt;
           } }
-        { static const float kAccDip = param("EN_ACC_DIP_ST", 0.0f);
+        { static const float kAccDip = param("EN_ACC_DIP_ST", 4.0f);
           if (kAccDip > 0 && vowel && k == 0 && phrase_.size() > 1 && phrase_[w].accent && pitchEnd == Synth::kNoPitch) {
             const char* vn = kEnglishTokens[tokens[i] - 0x80];
             if (vn[strlen(vn) - 1] == '1') shape.pitchDip = kAccDip;
