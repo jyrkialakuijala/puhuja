@@ -998,7 +998,7 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
         // Lab (248 words: the 128 whose ɛ the combo22 gate heard æ + 120 ɛ fillers; 2 voices; bases 171-181 errors on
         // four seeds): EN_EH_MONO_LEN 0.8 -22 / -35 / -16 / -23 (æ 114-120 -> 92-98), words right +10..+22 of 496, words1000
         // +0; EN_EH_LEN 0.9 + MONO 0.9 -28 / -29 / -26 / -25. Every formant lever tried was noise (ref/opt/lab/EH/agent27).
-        { static const float kEhLen = param("EN_EH_LEN", 1.0f), kEhMonoLen = param("EN_EH_MONO_LEN", 1.0f),
+        { static const float kEhLen = param("EN_EH_LEN", 1.0f), kEhMonoLen = param("EN_EH_MONO_LEN", 0.8f),
                              kEhNasalLen = param("EN_EH_NASAL_LEN", 1.0f);
           if (b == "EH") {
             whole *= kEhLen;
