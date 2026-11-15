@@ -6205,10 +6205,10 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // _P / _E ms re the sound's start). deployed152, 11labs1 text: the vowel -> s level dips 8 dB (10 ms frames) 10-20 ms
     // after the boundary (the voice stops when the groove closes, the hiss waits for the glottal flow); 11labs 0-2 dB,
     // its vowel fading 4-6 dB over its last 30 ms under a rising hiss.
-    static const float kGapLeadMs = param("GAP_LEAD_MS", 0.0f), kGapSon = param("GAP_SON", 1.0f);
+    static const float kGapLeadMs = param("GAP_LEAD_MS", 40.0f), kGapSon = param("GAP_SON", 1.0f);
     static const bool kGapAny = param("GAP_FRIC_DB", 0.0f) != 0 || param("GAP_ASP_DB", 0.0f) != 0 || param("GAP_BREATH", 0.0f) != 0 ||
-                                param("GAP_OUT_DB", 0.0f) != 0 || param("GAP_PS_DB", 0.0f) != 0 || param("GAP_RE_MS", 0.0f) > 0 ||
-                                param("GAP_RISE_DB_MS", 0.0f) > 0 || param("GAP_SLIT_W", 1.0f) != 1.0f ||
+                                param("GAP_OUT_DB", 0.0f) != 0 || param("GAP_PS_DB", -4.0f) != 0 || param("GAP_RE_MS", 0.3f) > 0 ||
+                                param("GAP_RISE_DB_MS", 2.0f) > 0 || param("GAP_SLIT_W", 1.0f) != 1.0f ||
                                 param("GAP_CRIT_X", 1.0f) != 1.0f;
     const bool gapPrev = prevWasVowel_ || isVowel(lastPh_) || (kGapSon > 0 && sonPrev);  // (prevWasVowel_ is false across a word boundary)
     if (tract_ == Tract::Line && kGapAny && vlFric && gapPrev && !prevWasPlosive_ && !prevWasPause_ && !inAffricate_) {
@@ -7816,7 +7816,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
   // 12-15 dB over the f's hiss (at any closing time, 20-45 ms); Kokoro's f
   // fades in (2026-11-05).
   {
-    static const float fRampMs = param("LINE_F_RAMP_MS", 70.0f), fRamp0 = param("LINE_F_RAMP0", 0.0f);
+    static const float fRampMs = param("LINE_F_RAMP_MS", 40.0f), fRamp0 = param("LINE_F_RAMP0", 0.3f);
     // (F-INIT: < 0 as above) the word-initial f's own ramp LINE_FI_RAMP_MS / LINE_FI_RAMP0
     static const float fiRampMs = param("LINE_FI_RAMP_MS", -1.0f), fiRamp0 = param("LINE_FI_RAMP0", -1.0f);
     const bool fiInit = tok.ph == Ph::F && tok.wordStart && next && isVowel(*next);
@@ -11405,7 +11405,7 @@ float Synth::tick() {
       static const float kAspDb = param("GAP_ASP_DB", 0.0f), kAspS = param("GAP_ASP_S", -10.0f), kAspP = param("GAP_ASP_P", 5.0f), kAspE = param("GAP_ASP_E", 30.0f);
       static const float kBreath = param("GAP_BREATH", 0.0f), kBrS = param("GAP_BREATH_S", -10.0f), kBrP = param("GAP_BREATH_P", 5.0f), kBrE = param("GAP_BREATH_E", 30.0f);
       static const float kOutDb = param("GAP_OUT_DB", 0.0f), kOutS = param("GAP_OUT_S", 0.0f), kOutP = param("GAP_OUT_P", 12.0f), kOutE = param("GAP_OUT_E", 30.0f);
-      static const float kPsDb = param("GAP_PS_DB", 0.0f), kPsS = param("GAP_PS_S", -30.0f), kPsP = param("GAP_PS_P", 0.0f), kPsE = param("GAP_PS_E", 15.0f);
+      static const float kPsDb = param("GAP_PS_DB", -4.0f), kPsS = param("GAP_PS_S", -40.0f), kPsP = param("GAP_PS_P", 0.0f), kPsE = param("GAP_PS_E", 10.0f);
       static const float kFx = param("GAP_F_X", 1.0f), kFemX = param("GAP_FEMALE_X", 1.0f);
       static const float kEnd = std::max({kFricE, kAspE, kBrE, kOutE, kPsE, param("GAP_RE_E", 40.0f)});
       const float rel = static_cast<float>((t_ - gapAt_) * 1000.0 / fs_);
@@ -11425,11 +11425,11 @@ float Synth::tick() {
       }
       // GAP_RE_MS (> 0): the frication jet's Re rise lag from the envelope's start to GAP_RE_E ms into the sound (the
       // global LINE_NOISE_RE_MS 10 delays the s's hiss by ~10 ms after the groove narrows: the hole's main cause)
-      static const float kReMs = param("GAP_RE_MS", 0.0f), kReE = param("GAP_RE_E", 40.0f), kReFem = param("GAP_RE_FEMALE", 1.0f);
+      static const float kReMs = param("GAP_RE_MS", 0.3f), kReE = param("GAP_RE_E", 40.0f), kReFem = param("GAP_RE_FEMALE", 1.0f);
       // GAP_RISE_DB_MS (> 0): the frication drive rises at most this many dB per ms in the envelope (from GAP_RISE_FLOOR_DB
       // under its target): a fast jet without a snap
-      static const float kRise = param("GAP_RISE_DB_MS", 0.0f), kRiseFloor = param("GAP_RISE_FLOOR_DB", 30.0f);
-      static const float kRiseS = param("GAP_RISE_S_X", 1.0f);  // (the s's rise limit x this; 0: none for s)
+      static const float kRise = param("GAP_RISE_DB_MS", 2.0f), kRiseFloor = param("GAP_RISE_FLOOR_DB", 14.0f);
+      static const float kRiseS = param("GAP_RISE_S_X", 0.0f);  // (the s's rise limit x this; 0: none for s)
       const float riseNow = gapCls_ == 1.0f ? kRise * kRiseS : kRise;
       if (kRise > 0) line_.setRiseLimit(gapT0_ >= 0 && rel <= kReE && riseNow > 0 ? riseNow : 0.0f, kRiseFloor);
       // GAP_SLIT_W (> 0, != 1): the frication source's fade-out areas x this in the envelope's window (GAP_RE_E): with
