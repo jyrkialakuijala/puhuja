@@ -9987,9 +9987,9 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
       static const float kVlKAdductMs = param("LINE_VL_K_ADDUCT_MS", -1.0f);
       const float adductMs = tvInit && kTvAdductMs >= 0 ? kTvAdductMs : vlK && kVlKAdductMs >= 0 ? kVlKAdductMs : pvInit && kPvAdductMs >= 0 ? kPvAdductMs : kvInit && kKvAdductMs >= 0 ? kKvAdductMs : plInit && kPlAdductMs >= 0 ? kPlAdductMs : wNext && kWAdductMs >= 0 ? kWAdductMs : kInitStr && kKInitAdductMs >= 0 ? kKInitAdductMs : kLineVotAdductMs;
       // (STOP agent31 round AC, lab; < 0: as LINE_P_VOT_HOLD_MS) LINE_P_VOT_HOLD_MS_CS: the p's puff hold in connected speech
-      static const float kPVotHoldCs = param("LINE_P_VOT_HOLD_MS_CS", -1.0f);
+      static const float kPVotHoldCs = param("LINE_P_VOT_HOLD_MS_CS", 12.0f);
       // (LINE_P_VOT_CS_FEMALE 0: the female keeps her p puff: Kokoro af_heart's p VOT is 36 ms on the Kennedy text, hers 32)
-      static const float kPVotCsFemale = param("LINE_P_VOT_CS_FEMALE", 1.0f);
+      static const float kPVotCsFemale = param("LINE_P_VOT_CS_FEMALE", 0.0f);
       const float pVotHold = csSpeech_ && kPVotHoldCs >= 0 && (!female_ || kPVotCsFemale > 0.5f) ? kPVotHoldCs : kLinePVotHoldMs;
       Event adductLine{release + (tok.ph == Ph::P && pVotHold >= 0 ? pVotHold : tok.ph == Ph::K && kLineKVotHoldMs >= 0 ? kLineKVotHoldMs : tok.ph == Ph::T && kLineTVotHoldMs >= 0 ? kLineTVotHoldMs : kLineVotHoldMs) * (curStress_ ? 1.0f : unstrHold) * (pLiq ? kLinePLiqVot : 1.0f) * (tLiq ? kLineTLiqVot : 1.0f) * (kLiq ? kKLiqVot : 1.0f) * (kInitStr ? kKInitVot : 1.0f) * (vlK ? kVlKVot : 1.0f) * (lastPh_ == Ph::S ? kLineSkAsp : 1.0f) * (wNext ? kWVot : 1.0f) * (plInit ? kPlVot : 1.0f) * ms};
       if (stopJ && kJVot != 1.0f) adductLine.t = release + (adductLine.t - release) * kJVot;
@@ -10365,12 +10365,12 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   if (diRe) rel.lineFricReMul = dInit ? kDiRelRe : kDmRelRe;
   // (STOP agent31 round AC, lab; < 0: as above) LINE_D_BURST_CS / LINE_G_BURST_CS: the d's / g's release frication gain in
   // connected speech (word 2+ of a phrase): 11labs1-3's d bursts peak 9 dB over the vowels' 2-8 kHz level, puhuja's -4.
-  static const float kDBurstCs = param("LINE_D_BURST_CS", -1.0f), kGBurstCs = param("LINE_G_BURST_CS", -1.0f);
+  static const float kDBurstCs = param("LINE_D_BURST_CS", 1.1f), kGBurstCs = param("LINE_G_BURST_CS", 1.0f);
   const float dBurst = csSpeech_ && kDBurstCs >= 0 ? kDBurstCs : kLineDBurst, gBurst = csSpeech_ && kGBurstCs >= 0 ? kGBurstCs : kLineGBurst;
   if (vstopBurst) rel.lineFricMul = tok.ph == Ph::G && gBurst >= 0 ? gBurst : tok.ph == Ph::D && dBurst >= 0 ? dBurst : tok.ph == Ph::B && kLineBBurst >= 0 ? kLineBBurst : kLineVStopBurst;
   // (STOP agent31 round AC, lab; < 0: off) LINE_VSTOP_LPR_CS: the b d g release's frication band low-pass ratio in
   // connected speech (0: LINE_NOISE_LPR): their bursts lack 5-8 kHz (10-12 dB under 11labs1-3's, mean-normalised).
-  static const float kVstopLprCs = param("LINE_VSTOP_LPR_CS", -1.0f);
+  static const float kVstopLprCs = param("LINE_VSTOP_LPR_CS", 20.0f);
   if (vstopBurst && csSpeech_ && kVstopLprCs >= 0) rel.lineFricLpr = kVstopLprCs;
   // ... before l ɹ w j (LINE_VSTOP_BURST_LIQ) or a nasal (LINE_VSTOP_BURST_NAS); < 0: as above (BDG agent 2026-11-11:
   // Kokoro's g / b release into l ɹ lifts 2-7 kHz by 27-56 dB, puhuja's none: "glad", "bring").
@@ -10706,9 +10706,9 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   if (tBurst) {
     Event slit{release};
     // (STOP agent31 round AC, lab; < 0: LINE_T_BURST_A) LINE_T_BURST_A_CS: the t's slit area in connected speech (word 2+)
-    static const float kTBurstACs = param("LINE_T_BURST_A_CS", -1.0f);
+    static const float kTBurstACs = param("LINE_T_BURST_A_CS", 0.06f);
     // (LINE_T_BURST_A_CS_F, < 0: LINE_T_BURST_A_CS) the female's
-    static const float kTBurstACsF = param("LINE_T_BURST_A_CS_F", -1.0f);
+    static const float kTBurstACsF = param("LINE_T_BURST_A_CS_F", 0.035f);
     const float tBurstACs = female_ && kTBurstACsF >= 0 ? kTBurstACsF : kTBurstACs;
     slit.ac = tFinalSlit && kTFinalSlitA >= 0 ? kTFinalSlitA : csSpeech_ && tBurstACs >= 0 ? tBurstACs : kLineTBurstA;
     // (BLEND agent28 round Z, lab; < 0: 3 ms) the voiceless stops' burst slit opens over LINE_PTK_SLIT_AC_MS (t: x
@@ -10789,7 +10789,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     if (gLiqSlit) slit.lineX = vlG ? kPlaceTok : lineKPlace(Ph::G, *next), slit.lineXClosure = true;
     if (kSlitLiq) slit.lineX = vlK ? kPlaceTok : lineKPlace(Ph::K, kVowel), slit.lineXClosure = true;
     // (STOP agent31 round AC, lab; < 0: LINE_K_BURST_A) LINE_K_BURST_A_CS: the k's slit area in connected speech (word 2+)
-    static const float kKBurstACs0 = param("LINE_K_BURST_A_CS", -1.0f), kKBurstACsF = param("LINE_K_BURST_A_CS_F", -1.0f);  // (_F: the female's; < 0: as the male's)
+    static const float kKBurstACs0 = param("LINE_K_BURST_A_CS", 0.35f), kKBurstACsF = param("LINE_K_BURST_A_CS_F", 0.6f);  // (_F: the female's; < 0: as the male's)
     const float kKBurstACs = female_ && kKBurstACsF >= 0 ? kKBurstACsF : kKBurstACs0;
     slit.ac = tok.ph == Ph::G && kLineGBurstA >= 0 ? kLineGBurstA : tok.ph == Ph::B ? kLineBBurstA : tok.ph == Ph::D ? kLineDBurstA : csSpeech_ && kKBurstACs >= 0 ? kKBurstACs : kLineKBurstA;
     if (kSlitFinal && kKFinalSlitA >= 0) slit.ac = kKFinalSlitA;
