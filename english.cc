@@ -2866,8 +2866,8 @@ void EnglishReader::sayPhrase(char end) {
   // a comma phrase's last word + EN_CFINAL_ST (semitones): puhuja's phrase-initial words sat 0.7 st under the 11labs
   // readers' and its sentence-final words 1.6 st over them (comma-final 0.5).
   {
-    static const float kPinitSt = param("EN_PINIT_ST", 0.0f), kSfinSt = param("EN_SFINAL_ST", 0.0f),
-                       kCfinSt = param("EN_CFINAL_ST", 0.0f);
+    static const float kPinitSt = param("EN_PINIT_ST", 0.7f), kSfinSt = param("EN_SFINAL_ST", -2.0f),
+                       kCfinSt = param("EN_CFINAL_ST", -0.8f);
     if ((kPinitSt != 0 || kSfinSt != 0 || kCfinSt != 0) && phrase_.size() > 1) {
       const bool sentEnd = end == '.' || end == '!';
       for (Syl& y : syl) {
@@ -3572,8 +3572,8 @@ void EnglishReader::sayPhrase(char end) {
           // EN_SFINAL_DB, a comma phrase's last word + EN_CFINAL_DB: against the 11labs Kennedy readings puhuja's
           // phrase-initial words were 2.5 dB too soft and its sentence-final words 1.9 dB (comma-final 0.7) too loud.
           {
-            static const float kPinitDb = param("EN_PINIT_DB", 0.0f), kSfinDb = param("EN_SFINAL_DB", 0.0f),
-                               kCfinDb = param("EN_CFINAL_DB", 0.0f);
+            static const float kPinitDb = param("EN_PINIT_DB", 1.5f), kSfinDb = param("EN_SFINAL_DB", -1.5f),
+                               kCfinDb = param("EN_CFINAL_DB", -0.5f);
             if (w == 0 && phrase_.size() > 1) db += kPinitDb;
             if (w + 1 == phrase_.size() && phrase_.size() > 1) db += sentenceEnd_ ? kSfinDb : kCfinDb;
           }

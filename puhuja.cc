@@ -1665,7 +1665,7 @@ constexpr float kLungRest = 1000;        // before the first breath
 const float kLungRangeInv = 1.0f / (kLungMax - kLungRest);
 constexpr float kCommaBreathBelow = 900; // breathe at a comma below this (1600: three breaths in a row at the commas of "Let every nation know, whether it wishes us well or ill, that we shall pay any price,", 360-435 ms each where the recordings' commas are 170 ms; 1000: breaths fell at phrase splits)
 constexpr float kInhaleRate = 2500;      // cm^3/s while breathing in
-const float kInhaleMinMs = param("kInhaleMinMs", 180.0f), kInhaleMaxMs = param("kInhaleMaxMs", 600.0f);
+const float kInhaleMinMs = param("kInhaleMinMs", 120.0f), kInhaleMaxMs = param("kInhaleMaxMs", 400.0f);
 const float kCatchInhaleMaxMs = param("kCatchInhaleMaxMs", 300.0f);  // within a sentence (at a comma or a seam): a quick catch breath
 // The breath's length by its place: a catch breath inside a sentence shorter,
 // between sentences longer, after an empty line (a paragraph) longer still.
@@ -11527,10 +11527,10 @@ float Synth::tick() {
     if (kLineEqPeakDb != 0) y = lineEqPeak_.process(y);
     // (PROSODY agent11, lab knob; 0: as before) the breathing-in noise x LINE_INHALE_GAIN: the line tract dropped it
     // with the parallel branch, so every breath was silent (the 11labs readers' are ~9 dB over puhuja's room tone).
-    static const float kLineInhaleGain = param("LINE_INHALE_GAIN", 0.0f);
+    static const float kLineInhaleGain = param("LINE_INHALE_GAIN", 0.85f);
     // (PROS agent28, lab knob; 1: as before) the utterance's opening breath x LINE_INHALE_FIRST (0: silent, so a single
     // word or a sentence does not start with a breath noise; the breaths between phrases stay audible).
-    static const float kLineInhaleFirst = param("LINE_INHALE_FIRST", 1.0f);
+    static const float kLineInhaleFirst = param("LINE_INHALE_FIRST", 0.0f);
     cPar = kLineInhaleGain != 0 ? inhale * kLineInhaleGain * (inhaleCount_ <= 1 ? kLineInhaleFirst : 1.0f) : 0.0f;
   }
   float out = lowCut_.process(outHp_.process(y * kOutGain + cPar));
