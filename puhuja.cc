@@ -7315,9 +7315,9 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // Kokoro's at 1300-1400 / 2400-2450 (adam), 1900 / 2500-2700 (heart): the oral side branch behind the tip.
     // LINE_NF_MUR_WORD 1: also a word-final n inside a phrase (Shape::nctx 8; 0: only before a pause).
     {
-      static const float kNfMurMix = param("LINE_NF_MUR_MIX", 0.0f), kNfMurW = param("LINE_NF_MUR_W", 2.0f),
+      static const float kNfMurMix = param("LINE_NF_MUR_MIX", 0.8f), kNfMurW = param("LINE_NF_MUR_W", 2.0f),
                          kNfMurWord = param("LINE_NF_MUR_WORD", 0.0f);
-      static const int kNfMurRow = static_cast<int>(param("LINE_NF_MUR_ROW", 13.0f));
+      static const int kNfMurRow = static_cast<int>(param("LINE_NF_MUR_ROW", 16.0f));
       TractShape v2, o2;
       const bool nfEnd = !next || *next == Ph::Stop || (kNfMurWord > 0 && (tok.shape.nctx & 8));
       if (tract_ == Tract::Line && tok.ph == Ph::N && kNfMurMix > 0 && prevWasVowel_ && nfEnd &&
