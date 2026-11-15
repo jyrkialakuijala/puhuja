@@ -752,6 +752,16 @@ const float kDiDevoice = param("LINE_DI_DEVOICE", -1.0f), kDiExpand = param("LIN
             kDiBurstA = param("LINE_DI_BURST_A", -1.0f), kDiJetD = param("LINE_DI_JET_D", -1.0f),
             kDiRelScale = param("LINE_DI_REL_SCALE", -1.0f), kDiVotMs = param("LINE_DI_VOT_MS", -1.0f),
             kDiPress = param("LINE_DI_PRESS", 1.0f), kDiSlitX = param("LINE_DI_SLIT_X", -1.0f);
+// (TD-MED agent27 round Y, lab; < 0: off, the d's general values) the same handles for a d between a vowel and an
+// unstressed vowel (english.cc Shape::dctx 1: "Bidder", "Ada", "Jedi"; dictionary V_V s0: 31 of 620 heard t), used at
+// the LINE_DI_* sites: LINE_DM_LEAD_MS, _SOFT, _REL_SCALE, _PRESS, _REL_RE, _BURST, _BURST_MS, _BURST_A,
+// _JET_D, _SLIT_X.
+const float kDmLeadMs = param("LINE_DM_LEAD_MS", -1.0f), kDmSoft = param("LINE_DM_SOFT", -1.0f),
+            kDmRelScale = param("LINE_DM_REL_SCALE", -1.0f),
+            kDmPress = param("LINE_DM_PRESS", -1.0f), kDmRelRe = param("LINE_DM_REL_RE", -1.0f),
+            kDmBurst = param("LINE_DM_BURST", -1.0f), kDmBurstMs = param("LINE_DM_BURST_MS", -1.0f),
+            kDmBurstA = param("LINE_DM_BURST_A", -1.0f), kDmJetD = param("LINE_DM_JET_D", -1.0f),
+            kDmSlitX = param("LINE_DM_SLIT_X", -1.0f);
 const float kLinePauseStopPressRampMs = param("LINE_PAUSE_STOP_PRESS_RAMP_MS", 30.0f);
 // A short voice bar in b d g: the closure's expansion draws LINE_VBAR_FLOW
 // cm^3/s (< 0: the usual LINE_EXPAND_FLOW / LINE_B_EXPAND_FLOW) only for the
@@ -8190,6 +8200,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   if (englishGD) pi.closureAg = kAgVoice + (tok.ph == Ph::G && kLineEnGDevoice >= 0 ? kLineEnGDevoice : tok.ph == Ph::D && kLineEnDDevoice >= 0 ? kLineEnDDevoice : kLineEnGdDevoice) * (kAgOpen - kAgVoice);
   if (englishGD && tok.ph == Ph::G && tok.shape.gctx == 1 && kGiDevoice >= 0) pi.closureAg = kAgVoice + kGiDevoice * (kAgOpen - kAgVoice);  // (LINE_GI_DEVOICE)
   const bool dInit = tract_ == Tract::Line && tok.ph == Ph::D && tok.shape.dctx == 6;  // (LINE_DI_*: a word-initial d before a vowel)
+  const bool dMed = tract_ == Tract::Line && tok.ph == Ph::D && tok.shape.dctx == 1 && !tok.shape.flap;  // (LINE_DM_*, above)
   if (englishGD && dInit && kDiDevoice >= 0) pi.closureAg = kAgVoice + kDiDevoice * (kAgOpen - kAgVoice);  // (LINE_DI_DEVOICE)
   static const float kVlGDevoice = param("LINE_VL_G_DEVOICE", -1.0f);  // (VELAR-L agent15 round N, lab; < 0: off) an initial gl gɹ's
   if (englishGD && vlG && kVlGDevoice >= 0) pi.closureAg = kAgVoice + kVlGDevoice * (kAgOpen - kAgVoice);
@@ -8400,7 +8411,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // the voice is to start before the closure's nominal start, the mouth
   // closes that much earlier, inside the pause (once its breath has stopped,
   // as for a phrase-initial nasal); tClosed is when the closure is complete.
-  const float vstopLeadMs = tok.ph == Ph::G && tok.shape.gctx == 1 && kGiLeadMs >= 0 ? kGiLeadMs : dInit && kDiLeadMs >= 0 ? kDiLeadMs : kLineVStopLeadMs;  // (LINE_GI_LEAD_MS, LINE_DI_LEAD_MS)
+  const float vstopLeadMs = tok.ph == Ph::G && tok.shape.gctx == 1 && kGiLeadMs >= 0 ? kGiLeadMs : dInit && kDiLeadMs >= 0 ? kDiLeadMs : dMed && kDmLeadMs >= 0 ? kDmLeadMs : kLineVStopLeadMs;  // (LINE_GI_LEAD_MS, LINE_DI_LEAD_MS)
   const bool vstopLead = tract_ == Tract::Line && vstopLeadMs > 0 && pi.voiced && prevWasPause_ && !unreleased;
   double tClosed = timeline_;
   if (vstopLead) {
@@ -8412,7 +8423,11 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   static const float kBdgFinCloseX = param("LINE_BDG_FIN_CLOSE_X", -1.0f);
   // (G-FINAL-2 agent27 round Y, lab; < 0: as above) ... a final g's after a back vowel x LINE_GF_CLOSE_X.
   static const float kGfCloseX = param("LINE_GF_CLOSE_X", -1.0f);
-  const float closeX = gfBack && kGfCloseX >= 0 ? kGfCloseX : bdgFin && kBdgFinCloseX >= 0 ? kBdgFinCloseX : 1.0f;
+  // (TD-MED agent27 round Y, lab; < 0: off) ... and a d between a vowel and an unstressed vowel x LINE_DM_CLOSE_X: puhuja's
+  // "Bidder" fades from 15 ms before the label and stays shut ~60 ms at -15..-20 dB; Kokoro's tap is ~25 ms, 11labs's 10-30.
+  static const float kDmCloseX = param("LINE_DM_CLOSE_X", -1.0f);
+  const float closeX = gfBack && kGfCloseX >= 0 ? kGfCloseX : bdgFin && kBdgFinCloseX >= 0 ? kBdgFinCloseX
+                     : dMed && kDmCloseX >= 0 ? kDmCloseX : 1.0f;
   const double closeStart = std::max(tClosed - closeX * (kApproachMs + kSealMs) * ms, phonemeStart_ + 1);
   const float closeMs = static_cast<float>((tClosed - closeStart) / ms);
   const float sealMs = std::min(kSealMs, closeMs);
@@ -8651,6 +8666,9 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
      // "Skating" -> splitting); a k before w with its lips rounded already (LINE_KW_LIP, 0: none; kw heard tw 46 times).
     static const float kSkX = param("LINE_SK_X", -1.0f);
     if (tract_ == Tract::Line && tok.ph == Ph::K && lastPh_ == Ph::S && kSkX >= 0) close.lineX = kSkX;
+    // (TD-MED agent27 round Y, lab; < 0: off) a d between a vowel and an unstressed vowel closes at LINE_DM_X.
+    static const float kDmX = param("LINE_DM_X", -1.0f);
+    if (dMed && kDmX >= 0) close.lineX = kDmX;
   }
   {
     const bool post = tok.ph == Ph::CH || tok.ph == Ph::JH;
@@ -8677,6 +8695,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     close.lineSoft = pi.voiced ? kLineVoicedSoft : 1.0f;
     if (pi.voiced && tok.ph == Ph::G && tok.shape.gctx == 1 && kGiSoft >= 0) close.lineSoft = kGiSoft;  // (LINE_GI_SOFT)
     if (pi.voiced && dInit && kDiSoft >= 0) close.lineSoft = kDiSoft;  // (LINE_DI_SOFT)
+    if (pi.voiced && dMed && kDmSoft >= 0) close.lineSoft = kDmSoft;  // (LINE_DM_SOFT)
     close.lineExtra = tok.ph == Ph::B ? kLineVoicedExtraCm : 0.0f;  // the lips only: they move forward off the teeth for b
     // LINE_G_EXPAND_FLOW (lab knob 2026-11-11, G agent 5; < 0: the shared LINE_EXPAND_FLOW): the g's own cavity
     // expansion. The velar closure leaves the smallest cavity behind it, so its voicing stops soonest and the pressure
@@ -8792,6 +8811,10 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
      // 124 (+17), 900 136, 300 139; with LINE_BDG_Z_REL + _Z_FRIC 1 below, 400: 112 and 110 (seed 7, base 148).
     static const float kBdgExpand = param("LINE_BDG_EXPAND", 500.0f);
     if (bdgOn && kBdgExpand >= 0) close.lineExpand = std::max(kBdgExpand, 1e-3f);
+    // (TD-MED agent27 round Y, lab; < 0: off) a d between a vowel and an unstressed vowel (dctx 1): its own expansion
+    // flow LINE_DM_EXPAND (LINE_D_VV_EXPAND above is overridden here by LINE_BDG_EXPAND, bdgCtx 4: lab 46 = 46 errors).
+    static const float kDmExpand = param("LINE_DM_EXPAND", -1.0f);
+    if (dMed && kDmExpand >= 0) close.lineExpand = std::max(kDmExpand, 1e-3f);
     // (BDG-Z agent20 round R, lab; < 0: off) a b d g before a z's own flow (bdgCtx 2, whatever LINE_BDG_CTX says): at 500
     // the "Tubes" bar died 15 ms into the closure (-11 -> -28..-30 dB re the peak for 30 ms; at 300 it held -11..-15 for
     // 50 ms, Kokoro am_adam -11..-14 for 50 ms); the response is chaotic per word (the servo on the slow cavity pressure).
@@ -8915,6 +8938,13 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     glottis.t = std::max(release - vstopLeadMs * ms, tClosed);
     glottis.ag = kAgVoice;
   }
+  // (TD-MED agent27 round Y, lab; 0: off) a t between a vowel and an unstressed vowel opens its glottis
+  // LINE_TM_AG_LEAD_MS before the closure (the vowel's voice ends breathy, a pre-fortis cue: "Liter" -> leader).
+  static const float kTmAgLeadMs = param("LINE_TM_AG_LEAD_MS", 0.0f);
+  if (tract_ == Tract::Line && !glottalised && tok.ph == Ph::T && tok.shape.tMed && kTmAgLeadMs > 0) {
+    glottis.t = std::max(glottis.t - kTmAgLeadMs * ms, t_ + 1.0);
+    addEventAt(glottis);
+  } else
   addEvent(glottis);
   // (D-AFTER-N agent15; < 0: off) the nd's glottis opens to LINE_ND_CLOSE_AG cm^2 over the last LINE_ND_CLOSE_AG_MS of
   // the closure: the voice dies in the closure as in Kokoro's (its LF falls 10-20 dB under the n before the burst).
@@ -9134,6 +9164,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   static const float kBdgFinRelScale = param("LINE_BDG_FIN_REL_SCALE", -1.0f);  // (agent18) a final one's (< 0: off)
   if (bdgFin && kBdgFinRelScale >= 0) rel.acMs = pi.releaseMs * kBdgFinRelScale;
   if (dInit && kDiRelScale >= 0) rel.acMs = pi.releaseMs * kDiRelScale;  // (LINE_DI_REL_SCALE)
+  if (dMed && kDmRelScale >= 0) rel.acMs = pi.releaseMs * kDmRelScale;  // (LINE_DM_REL_SCALE)
   // (POST-L-STOP agent22 round T, lab; 1: as before) the opening time of a stop after a coda liquid (pl2Ctx) x LINE_PL2_REL_X.
   static const float kPl2RelX = param("LINE_PL2_REL_X", 1.0f);
   if (pl2Ctx && kPl2RelX != 1.0f) rel.acMs *= kPl2RelX;
@@ -9275,6 +9306,11 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
       static const float kTvAsp = param("LINE_TV_ASP", 1.0f), kTvVot = param("LINE_TV_VOT", 1.0f), kTvAdductMs = param("LINE_TV_ADDUCT_MS", -1.0f),
                          kTvVotUnstr = param("LINE_TV_VOT_UNSTR", -1.0f);
       if (tvInit && kTvAsp != 1.0f) rel.lineAspMul *= kTvAsp;
+      // (TD-MED agent27 round Y, lab; 1: as before) a t between a vowel and an unstressed vowel (Shape::tMed): the puff
+      // noise x LINE_TM_ASP, its hold x LINE_TM_VOT (below).
+      static const float kTmAsp = param("LINE_TM_ASP", 1.0f), kTmVot = param("LINE_TM_VOT", 1.0f);
+      const bool tMed = tok.ph == Ph::T && tok.shape.tMed;
+      if (tMed && kTmAsp != 1.0f) rel.lineAspMul *= kTmAsp;
       const bool tLiq = tok.ph == Ph::T && !isVowel(*next);  // (LINE_T_LIQ_VOT / _ASP)
       if (tLiq) rel.lineAspMul *= kLineTLiqAsp;
       // (CL-INIT agent20 round R, lab; 1: as before) trInit / twInit: the puff noise x LINE_TR_ASP / LINE_TW_ASP, its hold
@@ -9333,6 +9369,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
       if (pvInit && kPvVot != 1.0f) adductLine.t = release + (adductLine.t - release) * kPvVot;  // (LINE_PV_VOT)
       if (kvInit && kKvVot != 1.0f) adductLine.t = release + (adductLine.t - release) * kKvVot;  // (LINE_KV_VOT)
       if (tvInit && kTvVot != 1.0f) adductLine.t = release + (adductLine.t - release) * kTvVot;  // (LINE_TV_VOT)
+      if (tMed && kTmVot != 1.0f) adductLine.t = release + (adductLine.t - release) * kTmVot;  // (LINE_TM_VOT)
       if (trInit && kTrVot != 1.0f) adductLine.t = release + (adductLine.t - release) * kTrVot;  // (LINE_TR_VOT)
       if (twInit && kTwVot != 1.0f) adductLine.t = release + (adductLine.t - release) * kTwVot;  // (LINE_TW_VOT)
       adductLine.ag = nextAero.ag;
@@ -9488,7 +9525,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     // the pause-initial closure built no jet, the slit hissed nothing; female "Drain" burst 0.6 -> 3.5 kHz with the d's
     // slit fronted). Lab: 1 alone dɹ errors 16 -> 11 and 15.5 -> 8 (seed 1001); dɹ clip snap m 8.1 -> 10.9, f 12.6 -> 17.0.
     static const float kTrDPress = param("LINE_TR_D_PRESS", -1.0f);
-    const float kVstopPress = trInit && tok.ph == Ph::D && kTrDPress >= 0 ? kTrDPress : vlG && kVlGPress >= 0 ? kVlGPress : tok.ph == Ph::G && tok.shape.gctx == 1 && kGiPress >= 0 ? kGiPress : dInit && kDiPress >= 0 ? kDiPress : tok.ph == Ph::G && kGPress >= 0 ? kGPress : kVstopPress0;  // (LINE_GI_PRESS)
+    const float kVstopPress = trInit && tok.ph == Ph::D && kTrDPress >= 0 ? kTrDPress : vlG && kVlGPress >= 0 ? kVlGPress : tok.ph == Ph::G && tok.shape.gctx == 1 && kGiPress >= 0 ? kGiPress : dInit && kDiPress >= 0 ? kDiPress : dMed && kDmPress >= 0 ? kDmPress : tok.ph == Ph::G && kGPress >= 0 ? kGPress : kVstopPress0;  // (LINE_GI_PRESS)
     if (tract_ == Tract::Line && kVstopPress != 1.0f && pi.voiced && tok.ph != Ph::JH && !unreleased && next && !nextIsPause &&
         info(*next).cls != Cls::Fricative && rel.press < 0) {
       Event ease{std::max(release - kVstopPressLeadMs * ms, t_ + 1.0)};
@@ -9697,8 +9734,8 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   static const float kPlRe = param("LINE_PL_RE", -1.0f);
   const bool plRe = plInit && kPlRe >= 0 && !unreleased;
   if (plRe) rel.lineFricReMul = kPlRe;
-  const bool diRe = dInit && kDiRelRe >= 0 && !unreleased;  // (LINE_DI_REL_RE)
-  if (diRe) rel.lineFricReMul = kDiRelRe;
+  const bool diRe = ((dInit && kDiRelRe >= 0) || (dMed && kDmRelRe >= 0)) && !unreleased;  // (LINE_DI_REL_RE, LINE_DM_REL_RE)
+  if (diRe) rel.lineFricReMul = dInit ? kDiRelRe : kDmRelRe;
   if (vstopBurst) rel.lineFricMul = tok.ph == Ph::G && kLineGBurst >= 0 ? kLineGBurst : tok.ph == Ph::D && kLineDBurst >= 0 ? kLineDBurst : tok.ph == Ph::B && kLineBBurst >= 0 ? kLineBBurst : kLineVStopBurst;
   // ... before l ɹ w j (LINE_VSTOP_BURST_LIQ) or a nasal (LINE_VSTOP_BURST_NAS); < 0: as above (BDG agent 2026-11-11:
   // Kokoro's g / b release into l ɹ lifts 2-7 kHz by 27-56 dB, puhuja's none: "glad", "bring").
@@ -9709,6 +9746,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   if (vstopBurst && vNextNas && kVstopBurstNas >= 0) rel.lineFricMul = kVstopBurstNas;
   if (vstopBurst && tok.ph == Ph::G && tok.shape.gctx == 1 && kGiBurst >= 0) rel.lineFricMul = kGiBurst;  // (LINE_GI_BURST)
   if (vstopBurst && dInit && kDiBurst >= 0) rel.lineFricMul = kDiBurst;  // (LINE_DI_BURST)
+  if (vstopBurst && dMed && kDmBurst >= 0) rel.lineFricMul = kDmBurst;  // (LINE_DM_BURST)
   // (BDG-PLACE agent17 round O, lab; < 0: off) the release frication gain of a b d g after a vowel by context: word-final
   // LINE_BDG_FIN_FRIC, before a vowel LINE_BDG_VV_FRIC (LINE_G_BURST / _D_ / _B_ set both today). Kokoro's / 11labs's
   // burst carries the place: 1-3 kHz 5-14 dB under the 20 ms's total for g d, puhuja's 26-32 dB.
@@ -9937,7 +9975,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
                      kLineDBurstMs = param("LINE_D_BURST_MS", 10.0f), kLineDBurstA = param("LINE_D_BURST_A", 0.1f),
                      kVstopSlitLiq = param("LINE_VSTOP_SLIT_LIQ", 1.0f), kLineGJetD = param("LINE_G_JET_D", 0.3f),
                      kLineBJetD = param("LINE_B_JET_D", 0.0f), kLineDJetD = param("LINE_D_JET_D", 0.0f);
-  const float kgBurstMs = tok.ph == Ph::G && tok.shape.gctx == 1 && kGiBurstMs >= 0 ? kGiBurstMs : tok.ph == Ph::G && kLineGBurstMs >= 0 ? kLineGBurstMs : tok.ph == Ph::B ? kLineBBurstMs : dInit && kDiBurstMs >= 0 ? kDiBurstMs : tok.ph == Ph::D ? kLineDBurstMs : kLineKBurstMs;  // (LINE_GI_BURST_MS, LINE_DI_BURST_MS)
+  const float kgBurstMs = tok.ph == Ph::G && tok.shape.gctx == 1 && kGiBurstMs >= 0 ? kGiBurstMs : tok.ph == Ph::G && kLineGBurstMs >= 0 ? kLineGBurstMs : tok.ph == Ph::B ? kLineBBurstMs : dInit && kDiBurstMs >= 0 ? kDiBurstMs : dMed && kDmBurstMs >= 0 ? kDmBurstMs : tok.ph == Ph::D ? kLineDBurstMs : kLineKBurstMs;  // (LINE_GI_BURST_MS, LINE_DI_BURST_MS)
   const bool vSlitLiq = pi.voiced && kVstopSlitLiq > 0 && vNextLiq;
   // (D agent9 round J lab knob; 0: off) a word-final d (after a vowel, a nasal or l) opens in two steps too, through
   // the slit for LINE_D_FINAL_SLIT_MS: without it the final release made no jet whatever its frication gain
@@ -9979,7 +10017,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   static const float kGdFinJetD = param("LINE_GD_FIN_JET_D", -1.0f), kGdFinJetG = param("LINE_GD_FIN_JET_G", -1.0f);
   const float gdFinJet = !(bdgFin && !unreleased) ? -1.0f : tok.ph == Ph::D ? kGdFinJetD : tok.ph == Ph::G ? kGdFinJetG : -1.0f;
   const float vJetD = gdFinJet >= 0 ? gdFinJet : tract_ != Tract::Line || unreleased || !next || nextIsPause || info(*next).cls == Cls::Fricative ? 0.0f
-                      : tok.ph == Ph::G ? (vlG && kVlGJetD >= 0 ? kVlGJetD : tok.shape.gctx == 1 && kGiJetD >= 0 ? kGiJetD : kLineGJetD) : tok.ph == Ph::B ? kLineBJetD : tok.ph == Ph::D ? (dInit && kDiJetD >= 0 ? kDiJetD : kLineDJetD) : 0.0f;
+                      : tok.ph == Ph::G ? (vlG && kVlGJetD >= 0 ? kVlGJetD : tok.shape.gctx == 1 && kGiJetD >= 0 ? kGiJetD : kLineGJetD) : tok.ph == Ph::B ? kLineBJetD : tok.ph == Ph::D ? (dInit && kDiJetD >= 0 ? kDiJetD : dMed && kDmJetD >= 0 ? kDmJetD : kLineDJetD) : 0.0f;
   // t into a vowel (or l r w j: LINE_T_BURST_LIQ) in two steps too (LINE_T_BURST_MS, T agent 3; 0: off): the tongue
   // tip leaves the ridge through a slit first, an alveolar affrication (Kokoro's t burst peaks at 5-6.5 kHz).
   static const float kLineTBurstW = param("LINE_T_BURST_W", 1.0f);  // (W agent round G, lab; 0: no two-step t burst before a w)
@@ -10105,6 +10143,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     if (kSlitFinal && kKFinalSlitA >= 0) slit.ac = kKFinalSlitA;
     if (tok.ph == Ph::G && tok.shape.gctx == 1 && kGiBurstA >= 0) slit.ac = kGiBurstA;  // (LINE_GI_BURST_A)
     if (dInit && kDiBurstA >= 0) slit.ac = kDiBurstA;  // (LINE_DI_BURST_A)
+    if (dMed && kDmBurstA >= 0) slit.ac = kDmBurstA;  // (LINE_DM_BURST_A)
     if (kFrontV && kKBurstAFront >= 0) slit.ac = kKBurstAFront;
     slit.acMs = 3;
     if (tok.ph == Ph::K && kLineKJetD > 0) slit.lineJetD = kFrontV && kKJetDFront >= 0 ? kKJetDFront : kLineKJetD, slit.lineJetMix = 1.0f;  // (LINE_K_JET_D)
@@ -10127,6 +10166,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     if (ndFinal && dFinalSlit && kNdJetD > 0) slit.lineJetD = kNdJetD, slit.lineJetMix = 1.0f;
     if (ndFinal && dFinalSlit && kNdSlitX >= 0) slit.lineX = kNdSlitX, slit.lineXClosure = true;
     if (dInit && kDiSlitX >= 0) slit.lineX = kDiSlitX, slit.lineXClosure = true;
+    if (dMed && kDmSlitX >= 0) slit.lineX = kDmSlitX, slit.lineXClosure = true;  // (LINE_DM_SLIT_X)
     if (gdFinSlit && kGdFinSlitA >= 0) slit.ac = kGdFinSlitA;
     if (gdFinSlit && gdSlitX >= 0) slit.lineX = gdSlitX, slit.lineXClosure = true;
     if (gdFinSlit && kGdFinFric >= 0) slit.lineFricMul = kGdFinFric;
@@ -10188,6 +10228,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     if ((tok.ph == Ph::K && kLineKJetD > 0) || vJetD > 0 || (ndFinal && dFinalSlit && kNdJetD > 0)) open.lineJetD = 0.0f;  // (the slit's own jet again)
     if (ndFinal && dFinalSlit && kNdSlitX >= 0) open.lineX = rel.lineX, open.lineXClosure = rel.lineXClosure;
     if (dInit && kDiSlitX >= 0) open.lineX = rel.lineX, open.lineXClosure = rel.lineXClosure;
+    if (dMed && kDmSlitX >= 0) open.lineX = rel.lineX, open.lineXClosure = rel.lineXClosure;
     if (drSlit && kDrFric >= 0) open.lineFricMul = rel.lineFricMul >= 0 ? rel.lineFricMul : 1.0f;  // (LINE_DR_FRIC)
     if (drSlit && kDrX >= 0) open.lineX = rel.lineX, open.lineXClosure = rel.lineXClosure;
     if (trInit && kTrJetD >= 0) open.lineJetD = 0.0f;
@@ -10352,14 +10393,17 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // LINE_DI_PINCH_W, length LINE_DI_PINCH_MS, hump area LINE_DI_PINCH_AC (cm^2), place LINE_DI_PINCH_X (< 0: the d's).
   static const float kDiPinchW = param("LINE_DI_PINCH_W", 0.5f), kDiPinchMs = param("LINE_DI_PINCH_MS", 25.0f),
                      kDiPinchAc = param("LINE_DI_PINCH_AC", 0.6f), kDiPinchX = param("LINE_DI_PINCH_X", -1.0f);
-  if (dInit && kDiPinchW > 0 && !unreleased && next && isVowel(*next)) {
+  // (TD-MED agent27 round Y, lab; 0: off) ... and after a d between a vowel and an unstressed vowel: LINE_DM_PINCH_W
+  // (the length, area and place as LINE_DI_PINCH_*).
+  static const float kDmPinchW = param("LINE_DM_PINCH_W", 0.0f);
+  if (((dInit && kDiPinchW > 0) || (dMed && kDmPinchW > 0)) && !unreleased && next && isVowel(*next)) {
     TractShape v;
     if (lineShapeOf(*next, &v)) {
       v.xc = kDiPinchX >= 0 ? kDiPinchX : linePlaceOf(Ph::D);
       v.ac = kDiPinchAc;
       v.wc = 2.0f;
       v.sc = 1.0f;
-      addShapeDemand(release, release + kDiPinchMs * ms, v, Ph::J, kDiPinchW);
+      addShapeDemand(release, release + kDiPinchMs * ms, v, Ph::J, dInit ? kDiPinchW : kDmPinchW);
     }
   }
   if (tract_ == Tract::Line && nextIsPause && !pi.voiced) {

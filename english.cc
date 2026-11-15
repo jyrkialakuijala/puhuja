@@ -825,6 +825,10 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
           static const float kAaPreVless = param("EN_AA_PRE_VLESS", 0.75f);
           // (EN_PRE_T_VOWEL, T agent 10 round K, lab; < 0: as the other voiceless plosives) the vowel before a t x this.
           static const float kPreTVowel = param("EN_PRE_T_VOWEL", -1.0f);
+          // (TD-MED agent27 round Y, lab; < 0: as above) ... before a t between vowels whose next vowel is unstressed.
+          static const float kPreTVowelVv = param("EN_PRE_T_VOWEL_VV", -1.0f);
+          const bool tVv = n == "T" && i + 2 < tok.size() && isVowelToken(tok[i + 2]) &&
+                           kEnglishTokens[tok[i + 2] - 0x80][strlen(kEnglishTokens[tok[i + 2] - 0x80]) - 1] == '0';
           // (EN_PRE_Z_VOWEL: before a z x this instead of 1.4; lab 2026-11-11, the z heard as s: "his" ɪ 237 ms vs "hiss" 158)
           static const float kPreZVowel = param("EN_PRE_Z_VOWEL", 1.4f);
           // (EN_PRE_G_VOWEL, G agent 7 round H, lab; < 0: the voiced plosives' 1.2) the vowel before a g of the same word.
@@ -843,7 +847,7 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
             if (f >= 0) prc *= f / 1.2f;
           }
           prc *= n == "JH" ? kPreJhVowel : n == "ZH" ? kPreZhVowel : n == "Z" ? kPreZVowel : n == "G" && kPreGVowel >= 0 ? kPreGVowel : isVoicedFricative(n) ? 1.4f : isVoicedPlosive(n) ? 1.2f
-               : isNasal(n) ? 0.9f : isVoicelessPlosive(n) ? (n == "T" && kPreTVowel >= 0 ? kPreTVowel : b == "AA" ? kAaPreVless : 0.75f) : 1.0f;
+               : isNasal(n) ? 0.9f : isVoicelessPlosive(n) ? (tVv && kPreTVowelVv >= 0 ? kPreTVowelVv : n == "T" && kPreTVowel >= 0 ? kPreTVowel : b == "AA" ? kAaPreVless : 0.75f) : 1.0f;
           // Z-FINAL agent13 round L (lab; 1: as before): the vowel before a nasal / voiced stop + the word's final z
           // x EN_PRE_NZ_VOWEL / EN_PRE_BZ_VOWEL ("pens" ɛ 209 ms = "pence" 209: the z's voicing cue never reached the
           // vowel across the n; Kokoro's voiced stretch of "pens" "means" "beds" is ~420 ms, puhuja's ~347).
@@ -1337,7 +1341,15 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
           static const float kShStressLen = param("EN_SH_STRESS_LEN", 1.0f), kShInitLen = param("EN_SH_INIT_LEN", -1.0f);
           if (st == '1' || st == '2') whole *= i == 0 && kShInitLen >= 0 ? kShInitLen : kShStressLen;
         }
-        else if (isVoicelessPlosive(b)) whole *= vstopLen;
+        else if (isVoicelessPlosive(b)) {
+          whole *= vstopLen;
+          // (TD-MED agent27 round Y, lab; 1: as before) a t between a vowel and an unstressed vowel of its word x
+          // EN_T_VV_LEN ("Liter" -> leader, "Latter" -> ladder).
+          static const float kTVvLen = param("EN_T_VV_LEN", 1.0f);
+          if (kTVvLen != 1.0f && b == "T" && i > 0 && isVowelToken(tok[i - 1]) && i + 1 < tok.size() && isVowelToken(tok[i + 1]) &&
+              kEnglishTokens[tok[i + 1] - 0x80][strlen(kEnglishTokens[tok[i + 1] - 0x80]) - 1] == '0')
+            whole *= kTVvLen;
+        }
         else if (b == "D") {
           static const float kDLen = param("EN_D_LEN", 1.0f);  // (lab knob 2026-11-10, D agent)
           whole *= kDLen;
@@ -3382,6 +3394,9 @@ void EnglishReader::sayPhrase(char end) {
             shape.ms = kFlapDMs >= 0 ? kFlapDMs : kFlapMs;
           }
         }
+        if (baseName(tokens[i]) == "T" && i > 0 && isVowelToken(tokens[i - 1]) && i + 1 < tokens.size() && isVowelToken(tokens[i + 1]) &&
+            kEnglishTokens[tokens[i + 1] - 0x80][strlen(kEnglishTokens[tokens[i + 1] - 0x80]) - 1] == '0')
+          shape.tMed = true;  // (TD-MED agent27 round Y: the line's LINE_TM_* knobs)
         // The final unstressed n's context for the line (Shape::nctx; N agent13 round L): 1 the unstressed vowel right
         // before the word's final n, 2 that n ("Gavin", "Linen", "Aspen": the -in / -en heard as -ing).
         {

@@ -267,6 +267,7 @@ class Synth {
     float press = 1;   // vowels: glottal opening multiplier (< 1 pressed, > 1 lax)
     bool flap = false;  // a d said as a tap (English t/d between vowels)
     unsigned char dctx = 0;  // a d's context for the line's d knobs (english.cc, D agent9 round J; 0: none)
+    bool tMed = false;  // a t between a vowel and an unstressed vowel of its word (english.cc; TD-MED agent27: LINE_TM_*)
     unsigned char eyctx = 0;  // eɪ's context bits for the line's eɪ knobs (english.cc, EY agent10 round K): 1 closed
                               // syllable (a consonant follows in the word), 2 that consonant a nasal, 4 word-initial
     unsigned char nctx = 0;  // the line's final-n knobs (english.cc, N agent13 round L): 1 an unstressed vowel right before
