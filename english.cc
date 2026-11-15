@@ -864,7 +864,9 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
           // 110 -> 76 / 74 / 82 errors; M and NG 0.85 124 / 110 -> 83 / 84, words right 213 / 233 -> 254 / 266; 1.15
           // made it worse (162, 150: the nasal deleted). The murmur's own level re the vowel peak is unchanged.
           static const float kPreFinalNgVowel = param("EN_PRE_FINAL_NG_VOWEL", 1.0f), kPreFinalMVowel = param("EN_PRE_FINAL_M_VOWEL", 1.0f);
-          if (i + 2 == tok.size()) prc *= n == "NG" ? kPreFinalNgVowel : n == "M" ? kPreFinalMVowel : 1.0f;
+          // (FN-PLACE agent27 round Y, lab; 1: as before) EN_PRE_FINAL_N_VOWEL the same before a word-final n.
+          static const float kPreFinalNVowel = param("EN_PRE_FINAL_N_VOWEL", 1.0f);
+          if (i + 2 == tok.size()) prc *= n == "NG" ? kPreFinalNgVowel : n == "M" ? kPreFinalMVowel : n == "N" ? kPreFinalNVowel : 1.0f;
         }
         // (T agent 10 round K, lab; 1: as before) the vowel before a word-final t (also t + s, and with an ɹ l n between:
         // "Cart", "Built", "Brent") x EN_PRE_FINAL_T_VOWEL: the final t is heard as d 238 times in the dictionary ("Gate"
@@ -3380,6 +3382,8 @@ void EnglishReader::sayPhrase(char end) {
           if (i + 2 == tokens.size() && (baseName(tokens[i]) == "N" || baseName(tokens[i]) == "M") &&
               baseName(tokens[i + 1]) == "D")
             shape.nctx |= 4;  // (BDG-Z agent20 round R: the final nd's n, LINE_NDN_*)
+          // (FN-PLACE agent27 round Y) 8: a word-final n after a vowel, any stress (LINE_NF_MUR_WORD).
+          if (i + 1 == tokens.size() && i > 0 && baseName(tokens[i]) == "N" && isVowelToken(tokens[i - 1])) shape.nctx |= 8;
         }
         // An unstressed ə before a nasal of its word (Shape::axctx; AX-NASAL agent14 round M): 1, | 2 the word's first
         // vowel after one consonant ("Commands", "Commit"), | 4 after t / d ("Sutton", "Weston"), | 8 after a vowel ("Lions").

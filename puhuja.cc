@@ -6822,6 +6822,10 @@ void Synth::emit(const Token& tok, const Ph* next) {
       if (tract_ == Tract::Line) {
         e.press = 0.0f;
         e.pressMs = kLinePausePressMs;
+        // (FN-PLACE agent27 round Y, lab; < 0: as above) after a final nasal the breath stops over LINE_FNAS_PAUSE_PRESS_MS:
+        // 11labs' phrase-final n fades over ~50 ms (Kennedy: "Americans," -2 -6 -13 -24 dB per 10 ms re the vowel).
+        static const float kFnasPausePressMs = param("LINE_FNAS_PAUSE_PRESS_MS", -1.0f);
+        if (prevWasNasal_ && !prevWasPause_ && kFnasPausePressMs >= 0) e.pressMs = kFnasPausePressMs;
         if (!prevVoiced_ && !prevWasPause_) e.ag = -1;
         // The pause's later tokens (15 ms each) change nothing: each one
         // re-sent the closed glottis, the zero pressure and the silence, and
@@ -7153,6 +7157,10 @@ void Synth::emit(const Token& tok, const Ph* next) {
   static const float kEhNApMs = param("LINE_EH_N_APPROACH_MS", 0.0f), kEhNApA = param("LINE_EH_N_APPROACH_A", 0.4f);
   const bool ehNAp = (isN || isM) && lastPh_ == Ph::EH && kEhNApMs > 0 && kEhNApMs > approachMs;
   if (ehNAp) approachMs = kEhNApMs;
+  // (FN-PLACE agent27 round Y, lab; 0: off) a word-final m after a front vowel (ɪ iː ɛ æ, the end of eɪ): the lips'
+  // approach over LINE_M_FRONT_AP_MS ("Came" -> cane, "Dame" -> damn, "Sim" -> sin: m after eɪ / æ / ɪ 22 of 188 heard n).
+  static const float kMFrontApMs = param("LINE_M_FRONT_AP_MS", 0.0f);
+  if (isM && kMFrontApMs > 0 && (!next || *next == Ph::Stop) && frontVowel(lastPh_)) approachMs = kMFrontApMs;
   if (tract_ == Tract::Line && approachMs > 0 && prevWasVowel_ && !prevWasPlosive_) {
     Event ap{std::max(e.t - approachMs * ms, phonemeStart_ + 1)};
     // (NG-M-FINAL agent23 round U, lab; < 0: LINE_M_APPROACH_A) a word-final m's approach area LINE_M_FIN_APPROACH_A,
@@ -7186,6 +7194,11 @@ void Synth::emit(const Token& tok, const Ph* next) {
       if (lastPh_ == Ph::AH && kAhNgPreShaped > 0) ahShape(&v, Ph::Stop, &tok.ph, female_, false);
       v.xc = kNgPreX >= 0 ? kNgPreX : lineNgPlace(lastPh_, next);
       v.ac = kNgPreAc;
+      // (FN-PLACE agent27 round Y, lab; < 0: as above) after ɪ the pinch's place LINE_NG_PRE_X_IH and opening
+      // LINE_NG_PRE_AC_IH: -ing heard -in (Giving -> given, Paying -> pain, Ing -> in; combo22 ŋ after ɪ 23 of 3240).
+      static const float kNgPreXIh = param("LINE_NG_PRE_X_IH", -1.0f), kNgPreAcIh = param("LINE_NG_PRE_AC_IH", -1.0f);
+      if (lastPh_ == Ph::IH && kNgPreXIh >= 0) v.xc = kNgPreXIh;
+      if (lastPh_ == Ph::IH && kNgPreAcIh >= 0) v.ac = kNgPreAcIh;
       // (NG-M-FINAL agent23 round U, lab; 2: as before) the pinch's half-width LINE_NG_PRE_WC.
       static const float kNgPreWc = param("LINE_NG_PRE_WC", 2.0f);
       v.wc = kNgPreWc;
@@ -7273,17 +7286,51 @@ void Synth::emit(const Token& tok, const Ph* next) {
     static const float kAhNPreMix = param("LINE_AH_NPRE_MIX", -1.0f), kAhNPreMs = param("LINE_AH_NPRE_MS", 30.0f),
                        kAhNPreShaped = param("LINE_AH_NPRE_SHAPED", 1.0f);
     const bool ahnPre = isN && lastPh_ == Ph::AH && !fnPre && !axPre;
-    const float preMix = fnPre ? kFnPreMix : axPre ? kAxnNPreMix : ehnPre && kEhNPreMix >= 0 ? kEhNPreMix :
+    // (FN-PLACE agent27 round Y, lab; < 0: as above) the n after ɪ / iː: mix LINE_IHN_PRE_MIX toward the row
+    // LINE_IHN_PRE_ROW over the vowel's last LINE_IHN_PRE_MS. The default mix toward ə raised the ɪ's end into the n
+    // ("Lynn" male F2 1700 -> 1990, F3 2300 -> 3500 over the last 30 ms; Kokoro adam 1870 -> 1650, F3 2550): a velar
+    // pinch, heard ŋ (Lynn -> ling, Been -> bing, Arin -> ring; combo22 n after stressed ɪ 16 of 124 heard ŋ).
+    static const float kIhNPreMix = param("LINE_IHN_PRE_MIX", -1.0f), kIhNPreMs = param("LINE_IHN_PRE_MS", -1.0f);
+    static const int kIhNPreRow = static_cast<int>(param("LINE_IHN_PRE_ROW", -1.0f));
+    const bool ihnPre = isN && (lastPh_ == Ph::IH || lastPh_ == Ph::I) && !fnPre && !axPre &&
+                        (kIhNPreMix >= 0 || kIhNPreRow >= 0 || kIhNPreMs >= 0);
+    const float preMix = fnPre ? kFnPreMix : axPre ? kAxnNPreMix : ihnPre && kIhNPreMix >= 0 ? kIhNPreMix :
+                         ehnPre && kEhNPreMix >= 0 ? kEhNPreMix :
                          ndnPre && kNdnPreMix >= 0 ? kNdnPreMix : ahnPre && kAhNPreMix >= 0 ? kAhNPreMix : mix;
-    const float preMs = fnPre && kFnPreMs >= 0 ? kFnPreMs : ahnPre && kAhNPreMs >= 0 ? kAhNPreMs : kNPreMs,
+    const float preMs = fnPre && kFnPreMs >= 0 ? kFnPreMs : ihnPre && kIhNPreMs >= 0 ? kIhNPreMs :
+                        ahnPre && kAhNPreMs >= 0 ? kAhNPreMs : kNPreMs,
                 preW = fnPre && kFnPreW >= 0 ? kFnPreW : kNPreW;
     static const int kAxnNPreRow = static_cast<int>(param("LINE_AXN_NPRE_ROW", -1.0f));  // ... toward this row (13: ʌ; < 0: as above)
     const int preRow = fnPre && kFnPreRow >= 0 ? kFnPreRow : axPre && kAxnNPreRow >= 0 ? kAxnNPreRow :
+                       ihnPre && kIhNPreRow >= 0 ? kIhNPreRow :
                        ehnPre && kEhNPreRow >= 0 ? kEhNPreRow : ndnPre && kNdnPreRow >= 0 ? kNdnPreRow : kNPreRow;
     if (tract_ == Tract::Line && isN && preMix > 0 && prevWasVowel_ && lineShapeOf(lastPh_, &v) &&
         lineShapeOf(static_cast<Ph>(preRow), &o)) {
       if (ahnPre && kAhNPreShaped > 0) ahShape(&v, Ph::Stop, &tok.ph, female_, false);
       addShapeDemand(std::max(e.t - preMs * ms, phonemeStart_ + 1), e.t + dur, mixN(v, o, preMix), lastPh_, preW);
+    }
+    // (FN-PLACE agent27 round Y, lab; 0: off) the murmur of a word-final n after a vowel: from the closure on, the
+    // tongue body (mixN) is asked for the vowel's shape mixed LINE_NF_MUR_MIX toward the row LINE_NF_MUR_ROW, weight
+    // LINE_NF_MUR_W. Puhuja's final n murmur sits high ("Lynn" male F2 1550-1620 / F3 2700-2850, female 1850 / 3600);
+    // Kokoro's at 1300-1400 / 2400-2450 (adam), 1900 / 2500-2700 (heart): the oral side branch behind the tip.
+    // LINE_NF_MUR_WORD 1: also a word-final n inside a phrase (Shape::nctx 8; 0: only before a pause).
+    {
+      static const float kNfMurMix = param("LINE_NF_MUR_MIX", 0.0f), kNfMurW = param("LINE_NF_MUR_W", 2.0f),
+                         kNfMurWord = param("LINE_NF_MUR_WORD", 0.0f);
+      static const int kNfMurRow = static_cast<int>(param("LINE_NF_MUR_ROW", 13.0f));
+      TractShape v2, o2;
+      const bool nfEnd = !next || *next == Ph::Stop || (kNfMurWord > 0 && (tok.shape.nctx & 8));
+      if (tract_ == Tract::Line && tok.ph == Ph::N && kNfMurMix > 0 && prevWasVowel_ && nfEnd &&
+          lineShapeOf(lastPh_, &v2) && lineShapeOf(static_cast<Ph>(kNfMurRow), &o2))
+        addShapeDemand(e.t, e.t + dur, mixN(v2, o2, kNfMurMix), lastPh_, kNfMurW);
+      // ... and a phrase-final m after a vowel: its tongue mixed LINE_MF_MUR_MIX toward the row LINE_MF_MUR_ROW (0:
+      // off; weight LINE_NF_MUR_W): behind the lips the whole mouth is the murmur's side branch, and a front vowel's
+      // tongue kept there shortened it toward an n's ("Came" -> cane, "Dame" -> damn, "Sim" -> sin).
+      static const float kMfMurMix = param("LINE_MF_MUR_MIX", 0.0f);
+      static const int kMfMurRow = static_cast<int>(param("LINE_MF_MUR_ROW", 13.0f));
+      if (tract_ == Tract::Line && tok.ph == Ph::M && kMfMurMix > 0 && prevWasVowel_ && (!next || *next == Ph::Stop) &&
+          lineShapeOf(lastPh_, &v2) && lineShapeOf(static_cast<Ph>(kMfMurRow), &o2))
+        addShapeDemand(e.t, e.t + dur, mixN(v2, o2, kMfMurMix), lastPh_, kNfMurW);
     }
     // Out of an n not after a vowel (word-initial, after a consonant; LINE_N_REL_ALL 1: every n before a vowel): the n
     // and the next vowel's first LINE_N_REL_ON_MS are asked for the vowel's shape mixed LINE_N_REL_MIX (before a back

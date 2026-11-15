@@ -271,7 +271,8 @@ class Synth {
                               // syllable (a consonant follows in the word), 2 that consonant a nasal, 4 word-initial
     unsigned char nctx = 0;  // the line's final-n knobs (english.cc, N agent13 round L): 1 an unstressed vowel right before
                              // its word's final n, 2 that final n; 4 (BDG-Z agent20 round R) an n or m right before
-                             // its word's final d ("band", "fund", "claimed")
+                             // its word's final d ("band", "fund", "claimed"); 8 (FN-PLACE agent27 round Y) a word-final
+                             // n after a vowel
     unsigned char erctx = 0;  // a word-initial ER0 before a vowel said ə + ɹ (english.cc EN_ER_INIT / EN_ER_INIT_AH,
                               // ER-INITIAL agent13 round L): 1 its ə, 2 its ɹ; a word-medial one (EN_ER_MED, ER-UNSTR
                               // agent25 round W): 3 its first part, 4 its ɹ
