@@ -1656,8 +1656,8 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
             // RED_FW_LEN), its vowels x RED_FW_V more, its consonants x RED_FW_C more. 11labs' "the" "to" "a" "in" "and"
             // "that" "is" take 1.3-1.9 / 1000 of the passage's phone time each, puhuja's 0.6-1.2 (Kokoro 1.0-1.6).
             static const float kFw = param("RED_FW_LEN", 1.0f), kFwF = param("RED_FW_LEN_F", -1.0f),
-                               kFwV = param("RED_FW_V", 1.0f), kFwC = param("RED_FW_C", 1.0f),
-                               kFwVF = param("RED_FW_V_F", -1.0f), kFwCF = param("RED_FW_C_F", -1.0f);  // (the female's; < 0: as the male's)
+                               kFwV = param("RED_FW_V", 0.8f), kFwC = param("RED_FW_C", 1.15f),
+                               kFwVF = param("RED_FW_V_F", 1.0f), kFwCF = param("RED_FW_C_F", 1.0f);  // (the female's; < 0: as the male's)
             if (!phrase_[w].accent && static_cast<int>(w) != lastWordWithVowel) {
               const bool fem = synth_.female();
               // (RED_FW_VL: its long vowels and diphthongs uː ɑː iː ɔː ɝ aɪ aʊ ɔɪ eɪ oʊ instead, < 0: RED_FW_V; RED_FW_H: its h
@@ -3923,7 +3923,7 @@ void EnglishReader::sayPhrase(char end) {
           // (REDUCE agent34 round AF, lab; 0: as before) a reduced vowel (AH0 IH0 UH0, with RED_DB_I also IY0 UW0) from a
           // phrase's 2nd word on + RED_DB dB (the female's RED_DB_F; < -50: RED_DB); in an unaccented word + RED_DB_FN more.
           // 11labs' reduced vowels sit 0.9 dB further under the full vowels of their neighbourhood than puhuja's.
-          { static const float kRedDb = param("RED_DB", 0.0f), kRedDbF = param("RED_DB_F", -99.0f),
+          { static const float kRedDb = param("RED_DB", -1.0f), kRedDbF = param("RED_DB_F", -99.0f),
                                kRedDbFn = param("RED_DB_FN", 0.0f), kRedDbI = param("RED_DB_I", 0.0f);
             const float rdb = synth_.female() && kRedDbF > -50 ? kRedDbF : kRedDb;
             if ((rdb != 0 || kRedDbFn != 0) && phrase_.size() > 1 && w >= 1 && vn[strlen(vn) - 1] == '0') {

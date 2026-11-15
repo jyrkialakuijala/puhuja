@@ -6369,7 +6369,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
             // by RED_MIXP / RED_MIXN, its demand weight x RED_W (the tongue / lip / jaw channels x RED_TW / RED_LW / RED_JW),
             // window RED_FROM / RED_TO (shares; < 0: as before).
             TractShape shD = sh;
-            static const float kRedOn = param("RED_ON", 0.0f), kRedFem = param("RED_FEM", 1.0f);
+            static const float kRedOn = param("RED_ON", 1.0f), kRedFem = param("RED_FEM", 1.0f);
             static const int kRedSet = static_cast<int>(param("RED_SET", 7.0f));
             // (RED_FN 1: also a stressed ɪ ʊ of an unaccented word: "in", "his", "it", "to")
             static const float kRedFn = param("RED_FN", 0.0f);
@@ -6398,10 +6398,13 @@ void Synth::emit(const Token& tok, const Ph* next) {
               static bool tabInit = false;
               if (!tabInit) {
                 static const char* kC[8] = {"COR", "PAL", "LAB", "VEL", "W", "R", "L", "V"};
+                // defaults: the fitted per-class mixes (REDUCE agent34 p2, deployed)
+                static const float kDef[2][2][8] = {{{0.3f, 0.0f, 0.0f, 0.0f, 0.6f, 0.1f, 0.3f, 0.5f}, {0.45f, 0.35f, 0.1f, 0.1f, 0.15f, 0.0f, 1.0f, 1.0f}},
+                    {{0.0f, 0.0f, 0.0f, 0.0f, 0.5f, 0.8f, 1.0f, 0.0f}, {0.0f, 1.0f, 0.6f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f}}};
                 for (int v = 0; v < 2; ++v)
                   for (int d = 0; d < 2; ++d)
                     for (int c = 0; c < 8; ++c) {
-                      const float x = param((std::string("RED_") + (v ? "I_" : "S_") + (d ? "N_" : "P_") + kC[c]).c_str(), -1.0f);
+                      const float x = param((std::string("RED_") + (v ? "I_" : "S_") + (d ? "N_" : "P_") + kC[c]).c_str(), kDef[v][d][c]);
                       tab[v][d][c] = x >= 0 ? x : d ? kRedMixN : kRedMixP;
                     }
                 tabInit = true;
