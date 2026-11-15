@@ -11585,6 +11585,19 @@ float Synth::tick() {
     static const float kLineAspVowelAc = param("LINE_ASP_VOWEL_AC", 0.5f);
     const float aspVowel = female_ && kLineAspVowelF >= 0 ? kLineAspVowelF : kLineAspVowel;
     if (aspVowel > 0) aspV += aspVowel * smoothstep(0.5f * kLineAspVowelAc, kLineAspVowelAc, ac);
+    // Round AB (VQ3 agent30): the voiced aspiration share fades in over LINE_ASP_ONSET_MS after the glottis was last
+    // open past breathy (a voiceless sound, a pause), from LINE_ASP_ONSET_BASE (0: off; _F the female's, < 0: the
+    // male's). deployed156's male (LINE_ASP_VOICED 1.0) lost word-initial r ("Rad" -> grad, "Rope" -> throat) and k
+    // ("Kit" -> hit): the breath at the voicing onset is heard as a stop's release or an h.
+    {
+      static const float kOnsetMs = param("LINE_ASP_ONSET_MS", 0.0f), kOnsetMsF = param("LINE_ASP_ONSET_MS_F", -1.0f);
+      static const float kOnsetBase = param("LINE_ASP_ONSET_BASE", 0.15f);
+      const float onMs = female_ && kOnsetMsF >= 0 ? kOnsetMsF : kOnsetMs;
+      if (onMs > 0) {
+        aspOnsetMs_ = ag > kAgBreathy ? 0.0f : aspOnsetMs_ + 1000.0f / fs_;
+        if (aspV > kOnsetBase) aspV = kOnsetBase + (aspV - kOnsetBase) * smoothstep(0.0f, onMs, aspOnsetMs_);
+      }
+    }
     const float aspGate = aspV + (1.0f - aspV) * smoothstep(kAgVoice, kAgBreathy, ag);
     // The per-phoneme frication gain glides over LINE_FRIC_GLIDE_MS instead of stepping at the token (0: steps).
     // Jyrki 2026-11-10: "\"forebears fought\" has a snap in between" (the z's and the f's gains differ).
@@ -11785,6 +11798,37 @@ float Synth::tick() {
       if (o > 0) {
         shelfOpen_ += openA * (smoothstep(0.5f * o, o, ac) - shelfOpen_);
         lc.shelfScale = shelfOpen_;
+      }
+    }
+    // Round AB (VQ3 agent30): the oral line's HF loss LINE_HF_BW_CONS Hz where the tract is closed, the voice's own
+    // (LINE_HF_BW) where it is open (ac from half of LINE_HF_BW_OPEN to it, eased like the shelf; 0: off; _F the
+    // female's, < 0: the male's). deployed156's LINE_HF_BW 100 (was 198.6) cost the male ~40 of its words with s ʃ k r
+    // onsets: the consonants' noise brighter; the vowels keep the sharper high formants.
+    {
+      static const float hbC = param("LINE_HF_BW_CONS", 0.0f), hbCF = param("LINE_HF_BW_CONS_F", -1.0f);
+      static const float hbO = param("LINE_HF_BW_OPEN", 0.5f);
+      static const float hbA = 1.0f - std::exp(-1.0f / (param("LINE_HF_BW_OPEN_MS", 8.0f) * 0.001f * fs_));
+      const float c = female_ && hbCF >= 0 ? hbCF : hbC;
+      if (c > 0 && tract_ == Tract::Line) {
+        hfOpen_ += hbA * (smoothstep(0.5f * hbO, hbO, ac) - hfOpen_);
+        line_.setOralHfMix(c, hfOpen_);
+      }
+    }
+    // Round AB (VQ3 agent30): the male's output high-passes (OUT_HP_HZ 60, OUT_LOWCUT_HZ 48 since deployed156: H1 back)
+    // only where the tract is open (ac from half of OUT_HP_OPEN to it, eased over OUT_HP_OPEN_MS); OUT_HP_HZ_CONS /
+    // OUT_LOWCUT_HZ_CONS where it is not (0: off; the female keeps hers). The lower corners let the onsets' low thump
+    // through: with 100 / 90 Hz the male won back word-initial r and k (mini gate) and kept the vowels' H1.
+    {
+      static const float hpC = param("OUT_HP_HZ_CONS", 0.0f), lcC = param("OUT_LOWCUT_HZ_CONS", 0.0f);
+      static const float hpO = param("OUT_HP_OPEN", 1.5f);
+      static const float hpA = 1.0f - std::exp(-1.0f / (param("OUT_HP_OPEN_MS", 8.0f) * 0.001f * fs_));
+      static const float hpV = param("OUT_HP_HZ", 60.0f);
+      if (!female_ && (hpC > 0 || lcC > 0)) {
+        hpOpen_ += hpA * (smoothstep(0.5f * hpO, hpO, ac) - hpOpen_);
+        if ((++hpTick_ & 15) == 0) {
+          if (hpC > 0) outHp_.highPass1(hpC + (hpV - hpC) * hpOpen_, fs_);
+          if (lcC > 0) lowCut_.highPass(lcC + (kLowCutHz - lcC) * hpOpen_, fs_);
+        }
       }
     }
     lc.cycleShimmer = voice_.cycleShimmer;

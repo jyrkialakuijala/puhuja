@@ -331,6 +331,30 @@ void VocalTractLine::setFemale(bool female) {
   static const float kHfBwF = param("LINE_HF_BW_F", 198.6f);
   if (kHfBwF >= 0) oral_.setHfLoss(female ? kHfBwF : kHfBandwidth, kHfCorner);
   if (kHfBwF >= 0) sub_.setHfLoss(female ? kHfBwF : kHfBandwidth, kHfCorner);  // (the trachea's from the same knob)
+  oralHfBw_ = kHfBwF >= 0 && female ? kHfBwF : kHfBandwidth;
+  // Round AB (VQ3 agent30): the piriform fossae as a Helmholtz side branch on the oral line LINE_PIRIFORM_AT cm above
+  // the glottis, tuned to LINE_PIRIFORM_HZ (0: none; _F: the female's, < 0: the male's): its zero makes the trough that
+  // real voices have between F3 / F4 and the 5 kHz region (Dang & Honda 1997). deployed156's male LTAS sat 6-9 dB over
+  // 11labs and Kokoro onyx at 3-4 kHz. LINE_PIRIFORM_V: the volume (cm^3, both sides), _A the neck area, _Q the loss.
+  static const float pfHz = param("LINE_PIRIFORM_HZ", 0.0f), pfHzF = param("LINE_PIRIFORM_HZ_F", 0.0f);
+  static const float pfV = param("LINE_PIRIFORM_V", 2.0f), pfA = param("LINE_PIRIFORM_A", 1.0f);
+  static const float pfQ = param("LINE_PIRIFORM_Q", 4.0f), pfAt = param("LINE_PIRIFORM_AT", 1.5f);
+  // ... and the oral walls' damping per voice (LINE_WALL_B x LINE_ORAL_WALL_X; _F the female's, < 0: the male's):
+  // round AA's LINE_WALL_B x1.3 brought both voices' timbre closer, but for every line and both voices at once.
+  static const float wallX = param("LINE_ORAL_WALL_X", 1.0f), wallXF = param("LINE_ORAL_WALL_X_F", -1.0f);
+  oral_.setWallLoss(female && wallXF >= 0 ? wallXF : wallX);
+  const float hz = female && pfHzF >= 0 ? pfHzF : pfHz;
+  oral_.clearSinuses();
+  oralSinus_ = hz > 0;
+  if (oralSinus_) {
+    const float w0 = 2.0f * 3.14159265f * hz;
+    const float len = TransmissionLine::kC * TransmissionLine::kC * pfA / (pfV * w0 * w0);  // w0^2 = c^2 A / (V L)
+    oral_.addSinus(std::max(1, std::min(oral_.sections() - 2, static_cast<int>(pfAt / oral_.dx()))), pfV, pfA, len, pfQ);
+  }
+}
+
+void VocalTractLine::setOralHfMix(float consBw, float openness) {  // (round AB VQ3: LINE_HF_BW_CONS)
+  oral_.setHfLoss(consBw + (oralHfBw_ - consBw) * openness, kHfCorner);
 }
 
 void VocalTractLine::init(float fs, float nasalScale) {
@@ -784,7 +808,9 @@ float VocalTractLine::substep(float u0) {
   oral_.traceExtra_ = nasal_.lipFlow();  // the nostril flow, for the trace
   const float expandLp = expandLpHz_ >= 0 ? expandLpHz_ : kExpandLp;  // (setExpandLp: a closure's own, BDG-Z agent20)
   if (expandLp > 0 && !(expandFlow_ > 0 && expandSlow_)) expandPc_ = oral_.pressureAt(std::max(velumK_ - 4, 1));  // (tracks while idle)
+  if (oralSinus_) oral_.sinusFlows();  // (round AB VQ3: the piriform fossae, LINE_PIRIFORM_HZ)
   const float p1 = oral_.substep(u0);
+  if (oralSinus_) oral_.sinusPressures();
   oral_.sink(velumK_, uNasal_);
   if (expandFlow_ > 0) {
     // The expanding cavity behind a voiced closure (cheeks, larynx lowering):
