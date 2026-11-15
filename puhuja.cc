@@ -7370,7 +7370,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
           // (CHIRP agent33, lab; 1: linear) F0_FALL_SHARP_CS / F0_RISE_SHARP_CS: a fall / rise between two anchors as an
           // S-curve (f^a / (f^a + (1-f)^a)): the pitch holds near the anchors and moves in the middle, faster.
           // F0_SHARP_MAX_ST: only moves up to this size (semitones; bigger ones stay linear, no chirp).
-          { static const float kFallSharp = param(female_ ? "F0_FALL_SHARP_CS_F" : "F0_FALL_SHARP_CS", param("F0_FALL_SHARP_CS", 1.6f)),
+          { static const float kFallSharp = param(female_ ? "F0_FALL_SHARP_CS_F" : "F0_FALL_SHARP_CS", param("F0_FALL_SHARP_CS", 2.5f)),
                                kRiseSharp = param(female_ ? "F0_RISE_SHARP_CS_F" : "F0_RISE_SHARP_CS", param("F0_RISE_SHARP_CS", 3.0f));
             static const float kSharpMax = param("F0_SHARP_MAX_ST", 2.5f);
             static const float kFallMax = param("F0_FALL_MAX_ST", 5.0f);  // falls' own limit (< 0: F0_SHARP_MAX_ST)

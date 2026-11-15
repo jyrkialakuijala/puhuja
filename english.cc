@@ -3055,8 +3055,8 @@ void EnglishReader::sayPhrase(char end) {
     auto kv = [&](const char* m, const char* f) { return param(fem ? f : m, fem ? 1e30f : 1e30f); };
     static const float kRange = [&] { float v = kv("MEL_RANGE_M", "MEL_RANGE_F"); return v > 1e29f ? 1.0f : v; }();
     static const float kStart = [&] { float v = kv("MEL_START_M", "MEL_START_F"); return v > 1e29f ? 0.0f : v; }();
-    static const float kAcc = [&] { float v = kv("MEL_ACC_M", "MEL_ACC_F"); return v > 1e29f ? 0.0f : v; }();
-    static const float kLead = [&] { float v = kv("MEL_LEAD_M", "MEL_LEAD_F"); return v > 1e29f ? 0.0f : v; }();
+    static const float kAcc = [&] { float v = kv("MEL_ACC_M", "MEL_ACC_F"); return v > 1e29f ? (fem ? 0.0f : 1.5f) : v; /* male 1.5: deployed */ }();
+    static const float kLead = [&] { float v = kv("MEL_LEAD_M", "MEL_LEAD_F"); return v > 1e29f ? (fem ? 0.0f : -2.0f) : v; /* male -2: deployed */ }();
     static const float kTrail = [&] { float v = kv("MEL_TRAIL_M", "MEL_TRAIL_F"); return v > 1e29f ? 0.0f : v; }();
     static const float kDecl = [&] { float v = kv("MEL_DECL_M", "MEL_DECL_F"); return v > 1e29f ? 0.0f : v; }();
     static const float kHl = [&] { float v = kv("MEL_HL_M", "MEL_HL_F"); return v > 1e29f ? 0.0f : v; }();
