@@ -524,6 +524,7 @@ class Synth {
   bool prevWasNasal_ = false;
   bool prevWasPause_ = false;  // the last emitted phoneme was a pause
   int wordsSincePause_ = 0;  // (TRANS3 agent30) words begun since the last pause token: >= 2 is connected speech
+  bool csSpeech_ = false;  // (STOP agent31) the sound being emitted is in connected speech (word 2+ of a phrase)
   bool lastFi_ = false, afterFi_ = false;  // the last emitted phoneme was a word-initial f before a vowel (LINE_FI_OFF_MS, F-INIT agent26); afterFi_: this phoneme follows one
   bool lastShV_ = false;  // the last emitted phoneme was a ʃ before a full vowel (LINE_SH_V_OFF_MS)
   bool vAfterFric_ = false;  // this v follows a fricative (LINE_V_FRIC_AFTER_FRIC)

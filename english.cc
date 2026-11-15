@@ -3015,7 +3015,11 @@ void EnglishReader::sayPhrase(char end) {
         // flap merged the words for listeners ("better than").
         // ... or a syllabic l or n ("little", "button"): the tap is there too.
         const bool syllabic = i + 2 == t.size() && (phrase_[w].syllabicL || phrase_[w].syllabicN);
-        if (kFlapping <= 0.5f && !(i + 2 == t.size() && phrase_[w].syllabicL)) continue;
+        // (STOP agent31 round AC, lab; 0: off) EN_FLAP_CS 1: the tap also in a phrase of 2+ words (connected speech;
+        // single words keep the full t): 11labs taps "whatever", "liberty", "it is" (a voiced 10-40 ms dip).
+        static const float kFlapCs = param("EN_FLAP_CS", 0.0f);
+        const bool csFlap = kFlapCs > 0.5f && phrase_.size() >= 2;
+        if (kFlapping <= 0.5f && !csFlap && !(i + 2 == t.size() && phrase_[w].syllabicL)) continue;
         if (i + 1 >= t.size() || !(unstressedVowel(t[i + 1]) || syllabic)) continue;
         t[i] = kD;
         phrase_[w].flaps |= 1u << i;
