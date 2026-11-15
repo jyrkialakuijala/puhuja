@@ -3143,6 +3143,34 @@ void EnglishReader::sayPhrase(char end) {
           shape.ms *= kAyClosedLen;
         if (ey) shape.ms *= kEyLen * (i + 1 == tokens.size() ? kEyFinalLen : 1.0f) * (eyClosed ? kEyClosedLen : 1.0f) *
                             (i == 0 ? kEyInitLen : 1.0f);
+        // oʊ's context for the line (Shape::owctx) and its length / split before an l of its word (EN_OWL_LEN /
+        // _SHARE: "hole" -> hull, "bowl" -> ball; the ʊ before an l held F1 ~510 Hz to the l, Kokoro falls 500 -> 410)
+        // and before a vowel of its word (EN_OWH_LEN / _SHARE: "poet" -> put, "showing" -> chewing; the ʊ was demanded
+        // only to 30 % of its 87 ms, F2 held 1110-1180 Hz where Kokoro falls to 860-930); the l after such an oʊ x
+        // EN_OWL_L_LEN, the vowel after it x EN_OWH_NEXT_LEN. OW-2 agent26 round X lab knobs (1 / < 0: as before).
+        {
+          static const float kOwlLen = param("EN_OWL_LEN", 1.0f), kOwlShare = param("EN_OWL_SHARE", -1.0f),
+                             kOwhLen = param("EN_OWH_LEN", 1.0f), kOwhShare = param("EN_OWH_SHARE", -1.0f),
+                             kOwlLLen = param("EN_OWL_L_LEN", 1.0f), kOwhNextLen = param("EN_OWH_NEXT_LEN", 1.0f);
+          const bool ow = s.n == 2 && s.ph[0] == Ph::O && s.ph[1] == Ph::UH;
+          const std::string nb = i + 1 < tokens.size() ? baseName(tokens[i + 1]) : "";
+          const char* tn = kEnglishTokens[tokens[i] - 0x80];
+          if (ow) {
+            shape.owctx = static_cast<unsigned char>((k == 0 ? 1 : 2) | (nb == "L" ? 4 : 0) |
+                                                     (i + 1 < tokens.size() && isVowelToken(tokens[i + 1]) ? 8 : 0) |
+                                                     (i + 1 == tokens.size() ? 16 : 0) | (tn[strlen(tn) - 1] == '0' ? 32 : 0));
+            // ... and every other oʊ's split EN_OW_SHARE (11labs' Kennedy oʊ: o 10-130 ms, ʊ 60-260, the ʊ the longer
+            // part in most; puhuja 60 / 40).
+            static const float kOwShare = param("EN_OW_SHARE", -1.0f);
+            const float sh0 = (shape.owctx & 4) ? kOwlShare : (shape.owctx & 8) ? kOwhShare : kOwShare;
+            if (sh0 > 0 && sh0 < 1) shape.ms *= (k == 0 ? sh0 : 1.0f - sh0) / (k == 0 ? firstShare : 1.0f - firstShare);
+            if (shape.owctx & 4) shape.ms *= kOwlLen;
+            if (shape.owctx & 8) shape.ms *= kOwhLen;
+          } else if (i > 0 && baseName(tokens[i - 1]) == "OW") {
+            if (baseName(tokens[i]) == "L") shape.ms *= kOwlLLen;
+            if (vowel) { shape.ms *= kOwhNextLen; shape.owctx = 64; }
+          }
+        }
         // iː lab knobs (IY agent 2026-11-11; 1 = as before): every iː x EN_IY_LEN; an iː right before a vowel in the
         // same word ("media", "create", "area": 33 % of them wrong, heard as j, the next ə as u) x EN_IY_HIATUS_LEN;
         // the vowel right after such an iː x EN_IY_NEXT_LEN.
@@ -3440,6 +3468,9 @@ void EnglishReader::sayPhrase(char end) {
           else if (!phrase_[w].accent) db += kFunctionWordDb;
           { static const float kEmoDb = param("EN_EMOTIVE_DB", 1.5f); if (kEmoDb != 0 && isEmotiveWord(phrase_[w].text)) db += kEmoDb; }
           if (ay && k == 0) db += kAyADb;
+          // (OW-2 agent26 round X, lab; 0: as before) oʊ's ʊ level + EN_OW_U_DB, before an l of its word + EN_OWL_U_DB.
+          { static const float kOwUDb = param("EN_OW_U_DB", 0.0f), kOwlUDb = param("EN_OWL_U_DB", 0.0f);
+            if ((shape.owctx & 2) && (kOwUDb != 0 || kOwlUDb != 0)) db += kOwUDb + ((shape.owctx & 4) ? kOwlUDb : 0.0f); }
           // (round I EH agent 2026-11-12 lab knob; 0: as before) the ɛ's level + EN_EH_DB.
           { static const float kEhDb = param("EN_EH_DB", 0.0f); if (kEhDb != 0 && s.ph[k] == Ph::EH) db += kEhDb; }
           // (round-J ə agent 9, lab knobs; 0: as before) a word-initial unstressed ə's level + EN_SCHWA_INIT_DB (106 of its

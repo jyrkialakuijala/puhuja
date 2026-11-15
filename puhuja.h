@@ -280,6 +280,9 @@ class Synth {
                               // 1 stressed, 2 an l next in its word, 4 an n / m next, 8 after l ɹ w, 16 after m n,
                               // 32 a one-vowel word, 128 a voiced obstruent next (IH-EY agent25); on the l / n / m after
                               // a stressed ɪ: 64
+    unsigned char owctx = 0;  // oʊ's context for the line's oʊ knobs (english.cc, OW-2 agent26 round X): 1 its o, 2 its
+                              // ʊ; 4 an l next in its word, 8 a vowel next in its word, 16 word-final, 32 unstressed;
+                              // on the vowel right after an oʊ of its word: 64
     bool bzFinal = false;  // a b d g right before its word's final z ("tubes", "sides", "dogs"; english.cc, BDG-Z agent20
                            // round R: the line's LINE_BZ_* knobs; not the medial ɪgz of "example")
     unsigned char gctx = 0;  // the line's initial-g knobs (english.cc, G-INITIAL agent14 round M): 1 a word-initial g

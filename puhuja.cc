@@ -4716,11 +4716,40 @@ void Synth::emit(const Token& tok, const Ph* next) {
     if (have && tok.ph == Ph::O && next && *next == Ph::UH) {
       // ... and starts open-mid and central (Kokoro 530-600/1060-1290 at 20 %;
       // puhuja's o held 450/1070 and drifted up: "know" was heard as "no-ʉ").
+      // (OW-2 agent26 round X, lab; < 0 / 1: as before) the o's ə mix before an l of its word LINE_OWL_START_AH,
+      // in the female voice LINE_OW_F_START_AH (the female oʊ held F2 1390-1470 Hz into "go", "boat"; Kokoro 1150-1250
+      // falling); the o's lip area before an l x LINE_OWL_START_LIP.
+      static const float kOwlStartAh = param("LINE_OWL_START_AH", -1.0f), kOwFStartAh = param("LINE_OW_F_START_AH", -1.0f),
+                         kOwlStartLip = param("LINE_OWL_START_LIP", 1.0f);
+      const bool owl = tok.shape.owctx & 4;
+      const float ahMix = owl && kOwlStartAh >= 0 ? kOwlStartAh : female_ && kOwFStartAh >= 0 ? kOwFStartAh : kLineOwStartAh;
       TractShape mid;
-      if (lineShapeOf(Ph::AH, &mid)) sh = lineShapeMix(sh, mid, kLineOwStartAh);
+      if (lineShapeOf(Ph::AH, &mid)) sh = lineShapeMix(sh, mid, ahMix);
       owStartShape(&sh);
+      if (owl && kOwlStartLip != 1.0f) sh.aLip *= kOwlStartLip;
     }
-    if (have && tok.ph == Ph::UH && lastPh_ == Ph::O && shapePh == Ph::U) owEndShape(&sh);
+    // (OW-2 agent26, lab; 0 / 1: off) the female ʊ end mixed toward ɔ by LINE_OW_F_END_AO more, its lip area x
+    // LINE_OW_F_END_LIP (female F2 at the end 1150-1320 Hz, Kokoro af_heart ~900-1000); in a hiatus ("poet", "going")
+    // the ʊ's lip area x LINE_OWH_LIP and its opening x LINE_OWH_AC.
+    static const float kOwFEndAo = param("LINE_OW_F_END_AO", 0.0f), kOwFEndLip = param("LINE_OW_F_END_LIP", 1.0f),
+                       kOwhLip = param("LINE_OWH_LIP", 1.0f), kOwhAc = param("LINE_OWH_AC", 1.0f);
+    if (have && tok.ph == Ph::UH && lastPh_ == Ph::O && shapePh == Ph::U) {
+      owEndShape(&sh);
+      TractShape ao;
+      if (female_ && kOwFEndAo > 0 && lineShapeOf(Ph::AO, &ao)) sh = lineShapeMix(sh, ao, kOwFEndAo);
+      if (female_ && kOwFEndLip != 1.0f) sh.aLip *= kOwFEndLip;
+      if ((tok.shape.owctx & 8) && kOwhLip != 1.0f) sh.aLip *= kOwhLip;
+      if ((tok.shape.owctx & 8) && kOwhAc != 1.0f) sh.ac *= kOwhAc;
+      // ... a stressed oʊ's ʊ end (not before an l): lip area x LINE_OWS_END_LIP, opening x LINE_OWS_END_AC (11labs'
+      // male ʊ ends 350-420 / 750-900 Hz; puhuja's "go" 430-450 / 1000-1100).
+      static const float kOwsEndLip = param("LINE_OWS_END_LIP", 1.0f), kOwsEndAc = param("LINE_OWS_END_AC", 1.0f);
+      if (!(tok.shape.owctx & 32) && kOwsEndLip != 1.0f) sh.aLip *= kOwsEndLip;
+      if (!(tok.shape.owctx & 32) && kOwsEndAc != 1.0f) sh.ac *= kOwsEndAc;
+      // ... its lip tube length x LINE_OWS_END_LIPL (the deployed LINE_OW_END_LIPL 0.5 halved every oʊ end's against the
+      // final unstressed one's -l; a stressed one may want the longer tube's lower F2).
+      static const float kOwsEndLipL = param("LINE_OWS_END_LIPL", 1.0f);
+      if (!(tok.shape.owctx & 32) && kOwsEndLipL != 1.0f) sh.lLip *= kOwsEndLipL;
+    }
     // Before an l the ʊ keeps o's shape (above), which held F1 at ~600 Hz (the ə-mixed start) into the l: "whole" ->
     // "hull", "goal" -> "trawl" (Kokoro's F1 falls 500 -> 360-420, F2 to ~900). LINE_OW_L_U: this share of the ʊ end
     // (u's row through owEndShape) mixed in (0: as before).
@@ -4728,6 +4757,21 @@ void Synth::emit(const Token& tok, const Ph* next) {
     if (have && tok.ph == Ph::UH && lastPh_ == Ph::O && shapePh == Ph::O && kLineOwLU > 0) {
       TractShape u;
       if (lineShapeOf(Ph::U, &u)) { owEndShape(&u); sh = lineShapeMix(sh, u, kLineOwLU); }
+      // (OW-2 agent26 round X, lab; 1: as before) this ʊ's opening x LINE_OWL_AC (F1 down: Kokoro's falls 500 -> 410
+      // before the l, puhuja's held ~510 to it: "hole" -> hull, "Holt" -> halt) and its lip area x LINE_OWL_LIP.
+      static const float kOwlAc = param("LINE_OWL_AC", 1.0f), kOwlLip = param("LINE_OWL_LIP", 1.0f);
+      if (kOwlAc != 1.0f) sh.ac *= kOwlAc;
+      if (kOwlLip != 1.0f) sh.aLip *= kOwlLip;
+      static const float kOwlLipL = param("LINE_OWL_LIPL", 1.0f);  // ... its lip tube length x this
+      if (kOwlLipL != 1.0f) sh.lLip *= kOwlLipL;
+      // ... then mixed toward ɔ by LINE_OWL_AO (0: off): the u end lowers F3 (male 2400 -> 2220-2270 with LINE_OW_L_U 1;
+      // Kokoro's rises 2330 -> 2580-2650 into the l) and darkens the voice (lab bright +7.9σ); ɔ's row is back with a
+      // high F3 (488/903/2760). With LINE_OW_RAMP 8 and LINE_OW_L_U 0.8, 0.3 here: male "hole" ʊ 483/1005/2502 Hz
+      // (before 520/1058/2414, Kokoro 417/887/2517); oʊ lab (377 hard words) 124 -> 102 / 100 errors on two seeds,
+      // hybrid "better" with no veto on both.
+      static const float kOwlAo = param("LINE_OWL_AO", 0.0f);
+      TractShape ao;
+      if (kOwlAo > 0 && lineShapeOf(Ph::AO, &ao)) sh = lineShapeMix(sh, ao, kOwlAo);
     }
     if (have && tok.ph == Ph::UH && lastPh_ == Ph::A && shapePh == Ph::O && kLineAwOffU > 0) {
       TractShape u;  // aʊ's end: toward u (see kLineAwOffU)
@@ -5393,17 +5437,31 @@ void Synth::emit(const Token& tok, const Ph* next) {
             static const float kHnFrom = param("LINE_HN_FROM", 0.1f), kHnV1To = param("LINE_HN_V1_TO", 0.6f),
                                kHnChainW = param("LINE_HN_CHAIN_W", 1.0f);
             const bool hnEnd = chainEnd && (tok.shape.hnctx & 1), hnStart = chainStart && (tok.shape.hnctx & 4);
+            // (OW-2 agent26 round X, lab; < 0 / 1: as before) oʊ's ʊ before a vowel of its word (Shape::owctx 8) is a chain
+            // start as well, so it was demanded only from 0.1 to SPLAN_GLIDE_START (0.3) of its length: "poet" F2 held
+            // 1110-1180 Hz (Kokoro falls to 860-930), heard "put", "showing" -> chewing. LINE_OWH_FROM / _TO its window
+            // (shares), LINE_OWH_W its weight; the vowel after it demanded from LINE_OWH_NEXT_FROM. Before an l (owctx 4)
+            // the ʊ (o's shape mixed toward the ʊ end) demanded from LINE_OWL_FROM, weight x LINE_OWL_W.
+            static const float kOwhFrom = param("LINE_OWH_FROM", -1.0f), kOwhTo = param("LINE_OWH_TO", -1.0f),
+                               kOwhW = param("LINE_OWH_W", 1.0f), kOwhNextFrom = param("LINE_OWH_NEXT_FROM", -1.0f),
+                               kOwlFrom = param("LINE_OWL_FROM", -1.0f), kOwlW = param("LINE_OWL_W", 1.0f);
+            const bool owh = owGlide && (tok.shape.owctx & 8), owl = owGlide && (tok.shape.owctx & 4);
+            const bool owNext = chainEnd && tok.shape.owctx == 64;
             const double a = hnEnd && kHnFrom >= 0 ? kHnFrom
+                             : owh && kOwhFrom >= 0 ? kOwhFrom : owl && kOwlFrom >= 0 ? kOwlFrom
+                             : owNext && kOwhNextFrom >= 0 ? kOwhNextFrom
                              : iyStart && kIyChainFrom >= 0 ? kIyChainFrom : iyNext && kIyNextFrom >= 0 ? kIyNextFrom
                              : uwNext && kUwNextFrom >= 0 ? kUwNextFrom : a0;
             const double b = hnStart && kHnV1To >= 0 ? kHnV1To
+                             : owh && kOwhTo >= 0 ? kOwhTo
                              : iyStart && kIyChainTo >= 0 ? kIyChainTo : iyNext && kIyNextTo >= 0 ? kIyNextTo
                              : uwStart && kUwChainTo >= 0 ? kUwChainTo
                              : oyStart && kLineOyHoldTo >= 0 ? kLineOyHoldTo : ayStart && kLineAyHold >= 0 ? kLineAyHold
                              : chainStart ? (eyStart && kEyHoldTo >= 0 ? kEyHoldTo : kShapeGlideStart)
                              : ayGlide && kLineAyGlideTo >= 0 ? kLineAyGlideTo : eyGlide && kEyGlideTo >= 0 ? kEyGlideTo : 0.9;
             const float oyW = (oyStart ? kLineOyAoW : oyEnd ? kLineOyIhW : ayStart ? kLineAyAW : ayGlide ? kLineAyIW : 1.0f) *
-                              (iyStart ? kIyChainW : 1.0f) * (uwStart ? kUwChainW : 1.0f);
+                              (iyStart ? kIyChainW : 1.0f) * (uwStart ? kUwChainW : 1.0f) * (owh ? kOwhW : 1.0f) *
+                              (owl ? kOwlW : 1.0f);
             // aɪ's a wanted before its start after a pause (LINE_AY_PRE_MS: "I", "item" start from the pause's ə) or
             // in a plosive's closure (LINE_AY_STOP_LEAD_MS: "time", "type"); 0: from 10 % of the a, as before.
             const float ayLead = !ayStart ? 0.0f : prevWasPause_ ? kLineAyPreMs : prevWasPlosive_ ? kLineAyStopLeadMs : 0.0f;
