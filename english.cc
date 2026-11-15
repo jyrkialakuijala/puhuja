@@ -1635,9 +1635,42 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
             if (!finalWord && vowels >= 3) m *= kDLongW;
             if (!finalWord && vowels == 2) m *= kDW2;
           }
+          // (REDUCE agent34 round AF, lab; 1: as before) a reduced vowel (AH0 IH0 UH0) x RED_DUR (the female's RED_DUR_F,
+          // < 0: RED_DUR), in an unaccented word x RED_DUR_FN more; applied after the male / female shares.
+          float red = 1.0f;
+          {
+            static const float kRedDur = param("RED_DUR", 1.0f), kRedDurF = param("RED_DUR_F", -1.0f),
+                               kRedDurFn = param("RED_DUR_FN", 1.0f);
+            if (vowel) {
+              const char* nm = kEnglishTokens[tok[i] - 0x80];
+              const std::string b = baseName(tok[i]);
+              if (nm[strlen(nm) - 1] == '0' && (b == "AH" || b == "IH" || b == "UH")) {
+                red = synth_.female() && kRedDurF >= 0 ? kRedDurF : kRedDur;
+                if (!phrase_[w].accent) red *= kRedDurFn;
+              }
+            }
+            // ... and every phone of an unaccented word (not the phrase's last) x RED_FW_LEN (the female's RED_FW_LEN_F, < 0:
+            // RED_FW_LEN), its vowels x RED_FW_V more, its consonants x RED_FW_C more. 11labs' "the" "to" "a" "in" "and"
+            // "that" "is" take 1.3-1.9 / 1000 of the passage's phone time each, puhuja's 0.6-1.2 (Kokoro 1.0-1.6).
+            static const float kFw = param("RED_FW_LEN", 1.0f), kFwF = param("RED_FW_LEN_F", -1.0f),
+                               kFwV = param("RED_FW_V", 1.0f), kFwC = param("RED_FW_C", 1.0f),
+                               kFwVF = param("RED_FW_V_F", -1.0f), kFwCF = param("RED_FW_C_F", -1.0f);  // (the female's; < 0: as the male's)
+            if (!phrase_[w].accent && static_cast<int>(w) != lastWordWithVowel) {
+              const bool fem = synth_.female();
+              // (RED_FW_VL: its long vowels and diphthongs uː ɑː iː ɔː ɝ aɪ aʊ ɔɪ eɪ oʊ instead, < 0: RED_FW_V; RED_FW_H: its h
+              // instead of RED_FW_C, < 0: RED_FW_C: "the many who are poor" -> "manual war poor" with both shortened / lengthened)
+              static const float kFwVL = param("RED_FW_VL", -1.0f), kFwH = param("RED_FW_H", -1.0f);
+              const std::string fb = baseName(tok[i]);
+              const bool longV = vowel && !(fb == "AH" || fb == "IH" || fb == "UH" || fb == "EH" || fb == "AE");
+              float fv = fem && kFwVF >= 0 ? kFwVF : kFwV, fc = fem && kFwCF >= 0 ? kFwCF : kFwC;
+              if (longV && kFwVL >= 0) fv = kFwVL;
+              if (fb == "HH" && kFwH >= 0) fc = kFwH;
+              red *= (fem && kFwF >= 0 ? kFwF : kFw) * (vowel ? fv : fc);
+            }
+          }
           if (synth_.female() && kDFem != 1.0f && m > 0) m = std::pow(m, kDFem);
           if (!synth_.female() && kDMale != 1.0f && m > 0) m = std::pow(m, kDMale);
-          out[w][i] *= m;
+          out[w][i] *= m * red;
         }
       }
       // (PROS agent28, lab knob; 1: as before) the phrase's first word x EN_PINIT_LEN (it ran 1.17-1.27x the 11labs
@@ -3831,6 +3864,17 @@ void EnglishReader::sayPhrase(char end) {
               if (i == 0 && i + 1 < tokens.size()) db += kSwInitDb;
               else if (static_cast<int>(i) == lastV && i + 1 < tokens.size()) db += kSwLastDb;
             } }
+          // (REDUCE agent34 round AF, lab; 0: as before) a reduced vowel (AH0 IH0 UH0, with RED_DB_I also IY0 UW0) from a
+          // phrase's 2nd word on + RED_DB dB (the female's RED_DB_F; < -50: RED_DB); in an unaccented word + RED_DB_FN more.
+          // 11labs' reduced vowels sit 0.9 dB further under the full vowels of their neighbourhood than puhuja's.
+          { static const float kRedDb = param("RED_DB", 0.0f), kRedDbF = param("RED_DB_F", -99.0f),
+                               kRedDbFn = param("RED_DB_FN", 0.0f), kRedDbI = param("RED_DB_I", 0.0f);
+            const float rdb = synth_.female() && kRedDbF > -50 ? kRedDbF : kRedDb;
+            if ((rdb != 0 || kRedDbFn != 0) && phrase_.size() > 1 && w >= 1 && vn[strlen(vn) - 1] == '0') {
+              const std::string b = baseName(tokens[i]);
+              if (b == "AH" || b == "IH" || b == "UH" || (kRedDbI > 0 && (b == "IY" || b == "UW")))
+                db += rdb + (!phrase_[w].accent ? kRedDbFn : 0.0f);
+            } }
           // (AX-NASAL agent14 round M, lab knob; 0: as before) an ə before a nasal of its word (Shape::axctx) + EN_AXN_DB.
           { static const float kAxnDb = param("EN_AXN_DB", 0.0f); if (kAxnDb != 0 && s.ph[k] == Ph::Schwa && shape.axctx) db += kAxnDb; }
           // (UNSTR-N agent20 round R, lab; 0: as before) the hiatus vowel before a nasal (Shape::hnctx 1) + EN_HN_DB, the
@@ -3916,6 +3960,8 @@ void EnglishReader::sayPhrase(char end) {
             const char* vn = kEnglishTokens[tokens[i] - 0x80];
             if (vn[strlen(vn) - 1] == '1') shape.pitchDip = kAccDip;
           } }
+        // (REDUCE agent34 round AF) a vowel of an unaccented word from a phrase's 2nd word on (puhuja.cc RED_FN)
+        if (vowel && phrase_.size() > 1 && w >= 1 && !phrase_[w].accent) shape.redFn = true;
         synth_.shapeNext(shape);
         if (first) synth_.setWord(phrase_[w].source), lastSourceWord_ = phrase_[w].source;
         if (first) synth_.setPhraseLeft(static_cast<int>(phrase_.size() - w));  // (CSW agent32: CSW_FIRST's lookahead)

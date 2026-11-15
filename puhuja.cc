@@ -464,6 +464,10 @@ const float kLineAyGlideFrom = param("LINE_AY_GLIDE_FROM", 0.85f);
 // (VOWEL agent31 round AC, lab) the current token is in connected speech (from a phrase's 2nd word on; Synth::emit), and
 // csv(v, vCs): a diphthong knob's connected-speech value <knob>_CS when set (> -50; default -99: off).
 bool vqCsNow = false;
+// (REDUCE agent34 round AF, lab; 1: off) the channel weights of a reduced vowel's demands in connected speech
+// (Synth::emit's RED_* block sets them around its addShapeDemand calls): tongue (place, area, width, strength), lips,
+// jaw (oral + pharynx areas).
+float gRedTongueW = 1.0f, gRedLipW = 1.0f, gRedJawW = 1.0f;
 bool vqFemale = false;  // the voice of this process (Synth::setVoice)
 // (FEM agent32 round AD, lab; 0: off) LINE_VQF_ON 1: the connected-speech vowel knobs (the diphthong *_CS values, the F1
 // decline) act in the female voice too, without the male's per-vowel offsets (LINE_VQ_F); LINE_VQ_F_DIPH 0: not her
@@ -3475,6 +3479,7 @@ void rCodaShape(TractShape* sh) {
 
 void Synth::emit(const Token& tok, const Ph* next) {
   Info in = info(tok.ph);
+  gRedTongueW = gRedLipW = gRedJawW = 1.0f;
   curPh_ = tok.ph;
   const int wordsBefore = wordsSincePause_;  // (a pause token still belongs to the phrase it ends)
   const int leftBefore = curPhraseLeft_;
@@ -6356,7 +6361,71 @@ void Synth::emit(const Token& tok, const Ph* next) {
             // (TRANS3 agent30, lab; < 0: TRANS_W_RAMP_FROM) TRANS_W_RAMP_FROM_CS: the hold's end in connected speech
             static const float kWRampFromCs = param("TRANS_W_RAMP_FROM_CS", -1.0f);
             if (wRamp) dTo = std::max(dFrom, static_cast<double>(csSpeech && kWRampFromCs >= 0 ? kWRampFromCs : kWRampFrom));
-            addShapeDemand(preMs > 0 ? t0 - preMs * ms : t0 + dFrom * dur, t0 + dTo * dur, sh, tok.ph, vonPre ? dW * kVonPreW : dW, er ? std::max(preR, kErPlaceW) : iy || uhD || uwD || ahD || aoD || swD ? std::max(preR, vPlaceW) : preR);
+            // (REDUCE agent34 round AF, lab; RED_ON 0: off) a reduced vowel in connected speech (vqCsNow: a phrase's 2nd
+            // word on; RED_SET bits: 1 ə, 2 unstressed ɪ, 4 unstressed ʊ, 8 unstressed i u; RED_FEM 0: male only) takes its
+            // colour from its neighbours. 11labs' Kennedy readings: the ə / ɪ F2 spread over tokens 3.0-3.6 / 2.6-3.6 st
+            // (Kokoro 3.6 / 2.9), puhuja's 1.1 / 1.1: the same target whatever the consonants around it. Its target mixed
+            // toward the previous / next sound's locus (coronal ɪ, palatal i, labial o, velar u, ɹ ɜ, l ʊ, a vowel its own)
+            // by RED_MIXP / RED_MIXN, its demand weight x RED_W (the tongue / lip / jaw channels x RED_TW / RED_LW / RED_JW),
+            // window RED_FROM / RED_TO (shares; < 0: as before).
+            TractShape shD = sh;
+            static const float kRedOn = param("RED_ON", 0.0f), kRedFem = param("RED_FEM", 1.0f);
+            static const int kRedSet = static_cast<int>(param("RED_SET", 7.0f));
+            // (RED_FN 1: also a stressed ɪ ʊ of an unaccented word: "in", "his", "it", "to")
+            static const float kRedFn = param("RED_FN", 0.0f);
+            const bool redV = kRedOn > 0 && vqCsNow && (!female_ || kRedFem > 0) && !er && (!sylStress_ || (kRedFn > 0 && tok.shape.redFn)) &&
+                              (((kRedSet & 1) && tok.ph == Ph::Schwa) || ((kRedSet & 2) && tok.ph == Ph::IH) ||
+                               ((kRedSet & 4) && tok.ph == Ph::UH) || ((kRedSet & 8) && (tok.ph == Ph::I || tok.ph == Ph::U)));
+            if (kRedOn > 0 && isVowel(tok.ph) && std::getenv("PUHUJA_RED_TRACE"))
+              std::fprintf(stderr, "red t %.3f ph %d cs %d st %d fn %d red %d\n", timeline_ / fs_, static_cast<int>(tok.ph), vqCsNow ? 1 : 0, sylStress_, tok.shape.redFn ? 1 : 0, redV ? 1 : 0);
+            if (redV) {
+              static const float kRedMixP = param("RED_MIXP", 0.0f), kRedMixN = param("RED_MIXN", 0.0f),
+                                 kRedW = param("RED_W", 1.0f), kRedTW = param("RED_TW", 1.0f), kRedLW = param("RED_LW", 1.0f),
+                                 kRedJW = param("RED_JW", 1.0f), kRedFrom = param("RED_FROM", -1.0f), kRedTo = param("RED_TO", -1.0f),
+                                 kRedVowX = param("RED_VOWX", 1.0f), kRedLabX = param("RED_LABX", 1.0f);
+              // context classes: 0 coronal (t d s z n θ ð: ɪ's shape), 1 palatal (ʃ ʒ ʧ ʤ j: i's), 2 labial (p b m f v: o's),
+              // 3 velar (k g ŋ: i's: 11labs' ɪ before ŋ / k sits 1.5-2.4 st higher in F2), 4 w, 5 ɹ, 6 l (their own line shapes), 7 a
+              // vowel (its own). The mix toward the previous / next sound: RED_<V>_<P|N>_<CLS> (V: S ə, I ɪ ʊ i u; CLS COR PAL
+              // LAB VEL W R L V; < 0: RED_MIXP / RED_MIXN).
+              auto cls = [](Ph n) {
+                return n == Ph::T || n == Ph::D || n == Ph::S || n == Ph::Z || n == Ph::N || n == Ph::TH || n == Ph::DH ? 0
+                       : n == Ph::SH || n == Ph::ZH || n == Ph::CH || n == Ph::JH || n == Ph::J ? 1
+                       : n == Ph::P || n == Ph::B || n == Ph::M || n == Ph::F || n == Ph::VV ? 2
+                       : n == Ph::K || n == Ph::G || n == Ph::NG ? 3 : n == Ph::W ? 4 : n == Ph::RR ? 5 : n == Ph::L ? 6
+                       : isVowel(n) ? 7 : -1;
+              };
+              static float tab[2][2][8];
+              static bool tabInit = false;
+              if (!tabInit) {
+                static const char* kC[8] = {"COR", "PAL", "LAB", "VEL", "W", "R", "L", "V"};
+                for (int v = 0; v < 2; ++v)
+                  for (int d = 0; d < 2; ++d)
+                    for (int c = 0; c < 8; ++c) {
+                      const float x = param((std::string("RED_") + (v ? "I_" : "S_") + (d ? "N_" : "P_") + kC[c]).c_str(), -1.0f);
+                      tab[v][d][c] = x >= 0 ? x : d ? kRedMixN : kRedMixP;
+                    }
+                tabInit = true;
+              }
+              auto locus = [](int c, Ph n) {
+                return c == 0 ? Ph::IH : c == 1 || c == 3 ? Ph::I : c == 2 ? Ph::O : c == 4 ? Ph::W : c == 5 ? Ph::RR
+                       : c == 6 ? Ph::L : c == 7 ? n : Ph::Count;
+              };
+              const int vi = tok.ph == Ph::Schwa ? 0 : 1;
+              TractShape o;
+              const int pc = prevWasPause_ ? -1 : cls(lastPh_), nc = next ? cls(*next) : -1;
+              // (RED_M_X / RED_F_X: the male's / female's share of every mix)
+              static const float kRedMX = param("RED_M_X", 1.0f), kRedFX = param("RED_F_X", 1.0f);
+              const float vx = female_ ? kRedFX : kRedMX;
+              const float mp = pc >= 0 ? vx * tab[vi][0][pc] * (pc == 7 ? kRedVowX : pc == 2 ? kRedLabX : 1.0f) : 0.0f;
+              const float mn = nc >= 0 ? vx * tab[vi][1][nc] * (nc == 7 ? kRedVowX : nc == 2 ? kRedLabX : 1.0f) : 0.0f;
+              if (mp > 0 && lineShapeOf(locus(pc, lastPh_), &o)) shD = lineShapeMix(shD, o, std::min(mp, 1.0f));
+              if (mn > 0 && lineShapeOf(locus(nc, *next), &o)) shD = lineShapeMix(shD, o, std::min(mn / (1.0f + mp), 1.0f));
+              dW *= kRedW;
+              if (kRedFrom >= 0) dFrom = kRedFrom;
+              if (kRedTo >= 0) dTo = std::max(dFrom, static_cast<double>(kRedTo));
+              gRedTongueW = kRedTW; gRedLipW = kRedLW; gRedJawW = kRedJW;
+            }
+            addShapeDemand(preMs > 0 ? t0 - preMs * ms : t0 + dFrom * dur, t0 + dTo * dur, shD, tok.ph, vonPre ? dW * kVonPreW : dW, er ? std::max(preR, kErPlaceW) : iy || uhD || uwD || ahD || aoD || swD ? std::max(preR, vPlaceW) : preR);
             if (wRamp) {
               const int n = static_cast<int>(kWRamp);
               for (int q = 1; q <= n; ++q) {
@@ -6404,7 +6473,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
                   const float clsX = info(n).cls == Cls::Nasal ? kAntNasX : info(n).cls == Cls::Plosive ? kAntStopX : 1.0f;
                   const float mix = std::min(1.0f, kAntMix * clsX * (fric ? kAntFricX : kAntOtherX));
                   if (mix > 0)
-                  addShapeDemand(t0 + kAntFrom * dur, t0 + dur, lineShapeMix(sh, o, mix), tok.ph, dW * kAntW);
+                  addShapeDemand(t0 + kAntFrom * dur, t0 + dur, lineShapeMix(shD, o, mix), tok.ph, dW * kAntW);
                 }
               }
             }
@@ -6438,6 +6507,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
             // the uː from LINE_UW_LATE_AT (0.7).
             static const float kUwLateAt = param("LINE_UW_LATE_AT", 0.5f);
             if (uwD && uwLate) addShapeDemand(t0 + kUwLateAt * dur, t0 + dur, late, tok.ph, ws * vW, vPlaceW);
+            gRedTongueW = gRedLipW = gRedJawW = 1.0f;
           }
           else {
             const bool open = tok.ph == Ph::AA || tok.ph == Ph::A;
@@ -13191,6 +13261,9 @@ void Synth::addShapeDemand(double tA, double tB, const TractShape& s, Ph ph, flo
     d.w[0] *= std::max({kShapeOpenXcW, place, placeFloor});
   }
   for (float& w : d.w) w *= wScale * kShapeW;
+  if (gRedTongueW != 1.0f) d.w[0] *= gRedTongueW, d.w[1] *= gRedTongueW, d.w[2] *= gRedTongueW, d.w[9] *= gRedTongueW;
+  if (gRedLipW != 1.0f) d.w[3] *= gRedLipW, d.w[6] *= gRedLipW;
+  if (gRedJawW != 1.0f) d.w[4] *= gRedJawW, d.w[5] *= gRedJawW;
   shapeDemands_.push_back(d);
   // A phrase without pauses: plan all but its last second.
   if (tA - shapePlanEnd_ > 4.0 * fs_) planShapes(tA - 1.0 * fs_);
