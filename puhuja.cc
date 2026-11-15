@@ -468,7 +468,7 @@ bool vqFemale = false;  // the voice of this process (Synth::setVoice)
 // (FEM agent32 round AD, lab; 0: off) LINE_VQF_ON 1: the connected-speech vowel knobs (the diphthong *_CS values, the F1
 // decline) act in the female voice too, without the male's per-vowel offsets (LINE_VQ_F); LINE_VQ_F_DIPH 0: not her
 // diphthong *_CS values; LINE_VQ_F_DECL 0: not her decline.
-inline bool vqFemaleOff() { static const float f = param("LINE_VQ_F", 0.0f), on = param("LINE_VQF_ON", 0.0f); return f == 0 && on == 0; }
+inline bool vqFemaleOff() { static const float f = param("LINE_VQ_F", 0.0f), on = param("LINE_VQF_ON", 1.0f); return f == 0 && on == 0; }
 inline bool vqFemaleDiphOff() { static const float d = param("LINE_VQ_F_DIPH", 1.0f); return vqFemaleOff() || d == 0; }
 inline float csv(float v, float vCs) { return vqCsNow && vCs > -50 && !(vqFemale && vqFemaleDiphOff()) ? vCs : v; }  // (female: only with LINE_VQ_F != 0)
 const float kLineAwGlideFrom = param("LINE_AW_GLIDE_FROM", 0.35f) /* 0.3 until 2026-11-05: Jyrki chose the glide from the start (vdn-U) for "now"; 0 until 2026-11-08: with the ɔ end (LINE_AW_END_AO) the end is reached late, now-ao100g50 */;
@@ -3542,7 +3542,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
   // words render as before), 0: everywhere.
   // LIQ_FEMALE: in the female voice only for these sounds (bits: 1 ɹ, 2 l, 4 w, 8 j; 15 all, 0: the knobs male-only).
   static const float kLiqCs = param("LIQ_CS", 1.0f);
-  static const int kLiqFemale = static_cast<int>(param("LIQ_FEMALE", 1.0f));
+  static const int kLiqFemale = static_cast<int>(param("LIQ_FEMALE", 5.0f));
   const int liqBit = tok.ph == Ph::RR ? 1 : tok.ph == Ph::L ? 2 : tok.ph == Ph::W ? 4 : tok.ph == Ph::J ? 8 : 0;
   const bool liqOn = (kLiqCs == 0.0f || csFor(2)) && (!female_ || (kLiqFemale & liqBit));
   const bool liqCoda = !(next && isVowel(*next));
@@ -3556,7 +3556,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
     static const float kRPF = fv("R_PRESS", kRP), kRCPF = fv("RC_PRESS", kRCP), kLPF = fv("L_PRESS", kLP), kLCPF = fv("LC_PRESS", kLCP),
                        kJPF = fv("J_PRESS", kJP);
     // (the w's female knobs as explicit param() calls, so tools/apply_params.py can write them)
-    static const float kWPF0 = param("LIQ_F_W_PRESS", -1.0f), kWPF = kWPF0 >= 0 ? kWPF0 : kWP;
+    static const float kWPF0 = param("LIQ_F_W_PRESS", 0.8f), kWPF = kWPF0 >= 0 ? kWPF0 : kWP;
     if (liqOn && !female_) liqP = tok.ph == Ph::RR ? (liqCoda ? kRCP : kRP) : tok.ph == Ph::L ? (liqCoda ? kLCP : kLP)
                       : tok.ph == Ph::W ? kWP : tok.ph == Ph::J ? kJP : 1.0f;
     if (liqOn && female_) liqP = tok.ph == Ph::RR ? (liqCoda ? kRCPF : kRPF) : tok.ph == Ph::L ? (liqCoda ? kLCPF : kLPF)
@@ -5355,7 +5355,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
       static const LiqShape kRF = lf("R", kR), kRCF = lf("RC", kRC), kLF = lf("L", kL), kLCF = lf("LC", kLC), kJF = lf("J", kJ);
       // (the w's as explicit param() calls, for tools/apply_params.py)
       static const float kFwLipA = param("LIQ_F_W_LIPA", -1.0f), kFwLipL = param("LIQ_F_W_LIPL", -1.0f), kFwAph = param("LIQ_F_W_APH", -1.0f),
-                         kFwMix = param("LIQ_F_W_MIX", -1.0f), kFwRow = param("LIQ_F_W_ROW", -1.0f);
+                         kFwMix = param("LIQ_F_W_MIX", 0.0f), kFwRow = param("LIQ_F_W_ROW", -1.0f);
       static const LiqShape kWF{kFwLipA >= 0 ? kFwLipA : kW.lipA, kFwLipL >= 0 ? kFwLipL : kW.lipL, kFwAph >= 0 ? kFwAph : kW.aph,
                                 kFwMix >= 0 ? kFwMix : kW.mix, kFwRow >= 0 ? static_cast<int>(kFwRow) : kW.row};
       const LiqShape& q = female_ ? (tok.ph == Ph::RR ? (liqCoda ? kRCF : kRF) : tok.ph == Ph::L ? (liqCoda ? kLCF : kLF) : tok.ph == Ph::W ? kWF : kJF)
@@ -5373,7 +5373,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // 3 st more through eɪ and aɪ, 2 st more through oʊ than hers).
     if (have && female_ && csSpeech_ && ((tok.ph == Ph::IH && (lastPh_ == Ph::E || lastPh_ == Ph::A)) ||
                                          (tok.ph == Ph::UH && (lastPh_ == Ph::O || lastPh_ == Ph::A)))) {
-      static const float kDEndPh = param("LINE_VQF_DEND_PH", 0.0f), kDEndAc = param("LINE_VQF_DEND_AC", 1.0f);
+      static const float kDEndPh = param("LINE_VQF_DEND_PH", 0.6f), kDEndAc = param("LINE_VQF_DEND_AC", 1.0f);
       if (kDEndPh != 0) sh.aPharynx *= std::exp(kDEndPh);
       if (kDEndAc != 1.0f) sh.ac *= kDEndAc;
     }
@@ -6271,7 +6271,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
               static const float kAntMixM = param("TRANS_ANT_MIX", 0.5f), kAntFromM = param("TRANS_ANT_FROM", 0.7f),
                                  kAntW = param("TRANS_ANT_W", 1.0f), kAntFricX = param("TRANS_ANT_FRIC_X", 1.0f);
               // (FEM agent32 round AD, lab; < 0: as the male's) TRANS_ANT_MIX_F / TRANS_ANT_FROM_F: the female's anticipation.
-              static const float kAntMixF = param("TRANS_ANT_MIX_F", -1.0f), kAntFromF = param("TRANS_ANT_FROM_F", -1.0f);
+              static const float kAntMixF = param("TRANS_ANT_MIX_F", 0.7f), kAntFromF = param("TRANS_ANT_FROM_F", -1.0f);
               const float kAntMix = female_ && kAntMixF >= 0 ? kAntMixF : kAntMixM, kAntFrom = female_ && kAntFromF >= 0 ? kAntFromF : kAntFromM;
               if (kAntMix > 0 && csOk(2) && isVowel(tok.ph) && !er && next && !isVowel(*next) && *next != Ph::Stop) {
                 const Ph n = *next;
@@ -6312,7 +6312,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
                                  kDeclB1 = param("LINE_VQ_DECL_B1", 0.95f);
               // (FEM agent32, lab; -99: as the male's) the female's own decline LINE_VQ_DECL_PH_F / _OR_F.
               static const float kDeclPhF = param("LINE_VQ_DECL_PH_F", -99.0f), kDeclOrF = param("LINE_VQ_DECL_OR_F", -99.0f),
-                                 kDeclFOn = param("LINE_VQ_F_DECL", 1.0f);
+                                 kDeclFOn = param("LINE_VQ_F_DECL", 0.0f);
               const float dPh = vqFemale && kDeclPhF > -50 ? kDeclPhF : kDeclPh, dOr = vqFemale && kDeclOrF > -50 ? kDeclOrF : kDeclOr;
               // (FEM agent32, lab; 0: off) LINE_VQ_DECL_ER_F: the female's ɜ (r-coloured) gets the decline with this strength.
               static const float kDeclErF = param("LINE_VQ_DECL_ER_F", 0.0f);
@@ -10558,7 +10558,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // (FEM agent32 round AD, lab; < 0: off) LINE_D_REL_RE_CS_F / LINE_B_REL_RE_CS_F: the female's d / b release jet as if this x
   // faster for LINE_G_REL_RE_MS in connected speech (her d's release stays under the critical Reynolds number: the
   // frication gain LINE_D_BURST_CS moves nothing; af_heart's d bursts peak 16 dB over the vowels' 2-8 kHz, hers 0).
-  static const float kDRelReCsF = param("LINE_D_REL_RE_CS_F", -1.0f), kBRelReCsF = param("LINE_B_REL_RE_CS_F", -1.0f);
+  static const float kDRelReCsF = param("LINE_D_REL_RE_CS_F", 2.0f), kBRelReCsF = param("LINE_B_REL_RE_CS_F", -1.0f);
   const bool dbReF = tract_ == Tract::Line && female_ && csSpeech_ && !unreleased && !(next && info(*next).cls == Cls::Fricative) &&
                      ((tok.ph == Ph::D && kDRelReCsF >= 0) || (tok.ph == Ph::B && kBRelReCsF >= 0));
   if (dbReF) rel.lineFricReMul = tok.ph == Ph::D ? kDRelReCsF : kBRelReCsF;
@@ -10567,7 +10567,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   static const float kDBurstCs = param("LINE_D_BURST_CS", 1.1f), kGBurstCs = param("LINE_G_BURST_CS", 1.0f);
   // (FEM agent32 round AD, lab; < 0: as above) the female's own in connected speech: LINE_D_BURST_CS_F / LINE_G_BURST_CS_F /
   // LINE_B_BURST_CS_F (Kokoro af_heart's d bursts peak 16 dB over the vowels' 2-8 kHz before a vowel, the female's 0).
-  static const float kDBurstCsF = param("LINE_D_BURST_CS_F", -1.0f), kGBurstCsF = param("LINE_G_BURST_CS_F", -1.0f),
+  static const float kDBurstCsF = param("LINE_D_BURST_CS_F", 0.6f), kGBurstCsF = param("LINE_G_BURST_CS_F", -1.0f),
                      kBBurstCsF = param("LINE_B_BURST_CS_F", -1.0f);
   const bool fCs = female_ && csSpeech_;
   const float dBurst = fCs && kDBurstCsF >= 0 ? kDBurstCsF : csSpeech_ && kDBurstCs >= 0 ? kDBurstCs : kLineDBurst,
