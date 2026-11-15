@@ -5836,6 +5836,14 @@ void Synth::emit(const Token& tok, const Ph* next) {
               dW *= kTVW;
               if (kTVLeadMs > 0 && !prevWasPause_) preMs = kTVLeadMs;
             }
+            // (TRANS2 agent29 round AA, lab; 0: as before) the vowel's window start moved by TRANS_V_FROM_D (a share of the
+            // vowel; < 0: the vowel asks for its target earlier, less carry-over from the consonant: puhuja's vowel starts
+            // 34 cents of an octave of F2 from its middle, 11labs' 21) and its end by TRANS_V_TO_D.
+            static const float kTVFromD = param("TRANS_V_FROM_D", 0.0f), kTVToD = param("TRANS_V_TO_D", 0.0f);
+            if (isVowel(tok.ph) && !er && preMs <= 0 && (kTVFromD != 0.0f || kTVToD != 0.0f)) {
+              dFrom = std::max(0.0, dFrom + kTVFromD);
+              dTo = std::max(dFrom, dTo + kTVToD);
+            }
             // (TRANS agent28, lab; 1 / 0 / 1: as before) the same for the glides w j l ɹ (a glide is a passing target, not a
             // hold: puhuja's w held F2 at 430 Hz for 50 ms, then rose 1.5 octaves in 40 ms; 11labs' rose through all of it):
             // TRANS_G_SCALE, TRANS_G_SHIFT, weight x TRANS_G_W.
@@ -5846,7 +5854,31 @@ void Synth::emit(const Token& tok, const Ph* next) {
               dFrom = mid - half + kTGShift; dTo = mid + half + kTGShift;
               dW *= kTGW;
             }
+            // (TRANS2 agent29 round AA, lab; TRANS_W_RAMP 0: off) a w before a vowel is held only to TRANS_W_RAMP_FROM of
+            // it, then asks for TRANS_W_RAMP points to its KEY_TO, mixed toward the vowel's shape (up to TRANS_W_RAMP_MIX):
+            // 11labs' w rises 650 -> 1900 Hz through all of the w, puhuja's held 430 Hz and jumped 1.5 octaves in 40 ms.
+            static const float kWRamp = param("TRANS_W_RAMP", 0.0f), kWRampFrom = param("TRANS_W_RAMP_FROM", 0.5f),
+                               kWRampMix = param("TRANS_W_RAMP_MIX", 0.5f), kWRampW = param("TRANS_W_RAMP_W", 1.0f);
+            TractShape wNextSh;
+            // (TRANS_W_RAMP_CLS: 1 w (default), 2 j, 4 ɹ, 8 l; the others' ramps end at TRANS_G_RAMP_TO of the glide)
+            static const int kWRampCls = static_cast<int>(param("TRANS_W_RAMP_CLS", 1.0f));
+            static const float kGRampTo = param("TRANS_G_RAMP_TO", 1.1f);
+            const int rampBit = tok.ph == Ph::W ? 1 : tok.ph == Ph::J ? 2 : tok.ph == Ph::RR ? 4 : tok.ph == Ph::L ? 8 : 0;
+            const double rampEnd = tok.ph == Ph::W ? dTo : std::max(dTo, static_cast<double>(kGRampTo));
+            const bool wRamp = kWRamp >= 1 && (kWRampCls & rampBit) && !er && next && isVowel(*next) && preMs <= 0 &&
+                               rampEnd > kWRampFrom && lineShapeOf(*next, &wNextSh);
+            const double wRampTo = rampEnd;
+            if (wRamp) dTo = std::max(dFrom, static_cast<double>(kWRampFrom));
             addShapeDemand(preMs > 0 ? t0 - preMs * ms : t0 + dFrom * dur, t0 + dTo * dur, sh, tok.ph, vonPre ? dW * kVonPreW : dW, er ? std::max(preR, kErPlaceW) : iy || uhD || uwD || ahD || aoD || swD ? std::max(preR, vPlaceW) : preR);
+            if (wRamp) {
+              const int n = static_cast<int>(kWRamp);
+              for (int q = 1; q <= n; ++q) {
+                const double x = static_cast<double>(q) / n;
+                const double u = dTo + (wRampTo - dTo) * x;
+                addShapeDemand(t0 + u * dur, t0 + u * dur, lineShapeMix(sh, wNextSh, static_cast<float>(x * kWRampMix)), tok.ph,
+                               dW * kWRampW, preR);
+              }
+            }
             // (TRANS agent28 round Z, lab; 0: as before) anticipation: over the vowel's last share from TRANS_ANT_FROM (0.8)
             // to its end, a demand toward the next consonant's locus (alveolar t d s z n l θ ð: ɪ's shape, palatal ʃ ʒ ʧ ʤ:
             // i's, labial p b m f v: o's; mixed TRANS_ANT_MIX into the vowel's shape, weight TRANS_ANT_W of the vowel's).
@@ -5863,7 +5895,10 @@ void Synth::emit(const Token& tok, const Ph* next) {
                                : n == Ph::P || n == Ph::B || n == Ph::M || n == Ph::F || n == Ph::VV ? Ph::O : Ph::Count;
                 TractShape o;
                 if (loc != Ph::Count && lineShapeOf(loc, &o)) {
-                  const float mix = std::min(1.0f, kAntMix * (fric ? kAntFricX : 1.0f));
+                  // (TRANS2 agent29: x TRANS_ANT_OTHER_X before a non-fricative; 0: fricatives only)
+                  static const float kAntOtherX = param("TRANS_ANT_OTHER_X", 1.0f);
+                  const float mix = std::min(1.0f, kAntMix * (fric ? kAntFricX : kAntOtherX));
+                  if (mix > 0)
                   addShapeDemand(t0 + kAntFrom * dur, t0 + dur, lineShapeMix(sh, o, mix), tok.ph, dW * kAntW);
                 }
               }
@@ -7833,6 +7868,20 @@ void Synth::emit(const Token& tok, const Ph* next) {
   }
   if (in.cls == Cls::Vowel) syllOnsetT_ = -1;
   last_ = p;
+  // (TRANS2 agent29 round AA, lab) consonant intervals for TRANS_SM_CONS_MASK: 2 fricatives and h, 4 nasals, 8 l r w j, 16 w, 32 diphthong vowels
+  {
+    static const int kSmConsMaskF = static_cast<int>(param("TRANS_SM_CONS_MASK", 0.0f));
+    const int bit = in.cls == Cls::Fricative || in.cls == Cls::H ? 2 : in.cls == Cls::Nasal ? 4
+                  : in.cls == Cls::Liquid || in.cls == Cls::Trill || in.cls == Cls::Glide ? 8 : 0;
+    // (32: the vowels of a chain, a diphthong's two halves: the kernel cut the aɪ / oʊ glide short, "Guy", "Rose")
+    const bool chainV = in.cls == Cls::Vowel && (prevWasVowel_ || (next && isVowel(*next)));
+    if ((kSmConsMaskF & bit) || ((kSmConsMaskF & 16) && tok.ph == Ph::W) || ((kSmConsMaskF & 32) && chainV))
+      transCons_.push_back({t0, t0 + dur});
+    // (64: a vowel's part from TRANS_SM_VEND of it to its end: the kernel only brings the vowel's onset toward its
+    // target earlier, the vowel's own end keeps its target: no undershoot of the next sound's cue)
+    static const float kSmVEnd = param("TRANS_SM_VEND", 0.5f);
+    if ((kSmConsMaskF & 64) && in.cls == Cls::Vowel && !chainV) transCons_.push_back({t0 + kSmVEnd * dur, t0 + dur});
+  }
   phonemeStart_ = t0;
   timeline_ += dur;
   prevWasVowel_ = in.cls == Cls::Vowel;
@@ -8447,6 +8496,9 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   {
     static const float kSmRelMsP = param("TRANS_SM_REL_MS", 0.0f);
     if (kSmRelMsP > 0) transRel_.push_back(release);
+    // (TRANS2 agent29 round AA, lab) the plosive's closure..release for TRANS_SM_CONS_MASK bit 1
+    static const int kSmConsMaskP = static_cast<int>(param("TRANS_SM_CONS_MASK", 0.0f));
+    if (kSmConsMaskP & 1) transCons_.push_back({timeline_, release});
   }
   const float ms = 0.001f * fs_;
   // The line's shape through the closure: a labial stop is cut into o's
@@ -12067,6 +12119,8 @@ bool Synth::shapePlanAt(double t, TractShape* s) const {
   // ramps): the closure keeps its own shape and the release its transition (the kernel blurred initial consonants:
   // Be -> we, Day -> they).
   static const float kSmRelMs = param("TRANS_SM_REL_MS", 0.0f);
+  static const float kSmTongueX = param("TRANS_SM_TONGUE_X", 1.0f), kSmAcX = param("TRANS_SM_AC_X", 1.0f),
+                     kSmCavX = param("TRANS_SM_CAV_X", 1.0f);
   double g = 1.0;
   if ((kSmBack > 0 || kSmFwd > 0) && kSmRelMs > 0 && !transRel_.empty()) {
     const double ms1 = 0.001 * fs_;
@@ -12077,9 +12131,34 @@ bool Synth::shapePlanAt(double t, TractShape* s) const {
     const double dms = dmin / ms1;
     g = std::clamp((dms - kSmRelMs) / 10.0, 0.0, 1.0);
   }
+  // (TRANS2 agent29 round AA, lab; TRANS_SM_CONS_MASK 0: off) no kernel inside the consonants of the mask (1 plosive
+  // closures, 2 fricatives / h, 4 nasals, 8 l r w j, 16 w, 32 the vowels of a chain), from TRANS_SM_CONS_PRE_MS before one to TRANS_SM_CONS_POST_MS
+  // after it, with TRANS_SM_CONS_RAMP_MS ramps: the vowels and their transitions get the inertia, the consonants keep
+  // their own crisp constriction (k33's kernel blurred initial consonants: the dictionary lost 690 words).
+  static const float kSmConsMask = param("TRANS_SM_CONS_MASK", 0.0f), kSmConsPre = param("TRANS_SM_CONS_PRE_MS", 0.0f),
+                     kSmConsPost = param("TRANS_SM_CONS_POST_MS", 0.0f), kSmConsRamp = param("TRANS_SM_CONS_RAMP_MS", 10.0f);
+  if ((kSmBack > 0 || kSmFwd > 0) && kSmConsMask > 0 && !transCons_.empty() && g > 0) {
+    const double ms1 = 0.001 * fs_;
+    auto it = std::lower_bound(transCons_.begin(), transCons_.end(), std::make_pair(t, 0.0));
+    const long j0 = static_cast<long>(it - transCons_.begin());
+    double gc = 1.0;
+    for (long j = std::max(0L, j0 - 4); j < std::min<long>(static_cast<long>(transCons_.size()), j0 + 4); ++j) {
+      const auto& iv = transCons_[static_cast<size_t>(j)];
+      double d;  // ms outside the widened interval (<= 0: inside)
+      if (t < iv.first) d = (iv.first - t) / ms1 - kSmConsPre;
+      else if (t > iv.second) d = (t - iv.second) / ms1 - kSmConsPost;
+      else d = -1.0;
+      gc = std::min(gc, std::clamp(d / std::max(1.0f, kSmConsRamp), 0.0, 1.0));
+    }
+    g *= gc;
+  }
   if ((kSmBack > 0 || kSmFwd > 0) && g > 0) {
     for (int c = 0; c < kShapeCh; ++c) {
-      const float gx = c == 3 || c == 6 ? kSmLipX : (c >= 4 && c <= 8) ? kSmBodyX : 1.0f;
+      // (TRANS2 agent29: x TRANS_SM_TONGUE_X for the tongue's place / width, x TRANS_SM_AC_X for its opening and
+      // strength, x TRANS_SM_CAV_X for the cavity colour; 0 = that group reads the plan as is)
+      float gx = c == 3 || c == 6 ? kSmLipX : (c >= 4 && c <= 8) ? kSmBodyX : (c == 1 || c == 9) ? kSmAcX
+               : (c == 0 || c == 2) ? kSmTongueX : kSmCavX;
+      if (gx <= 0) continue;
       const double tb = kSmBack * gx / kShapeHopMs, tf = kSmFwd * gx / kShapeHopMs;  // in frames
       const int kb = static_cast<int>(std::ceil(3 * std::max(0.2, tb))) + 1, kf = static_cast<int>(std::ceil(3 * std::max(0.2, tf))) + 1;
       double sw = 0, sx = 0;
