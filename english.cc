@@ -989,6 +989,11 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
         // nasal of its word (round E/F EH agents 2026-11-11 lab knobs; 1 / 1 / 1: as before): ɛ heard as æ 784 times in
         // the dictionary (352 before a nasal: "send" -> sand), 38 % wrong in monosyllables; its connected-speech label ran
         // 139 ms against Kokoro's 72 and 11labs' 101, longer than puhuja's own æ words: an American æ length.
+        // (EH-3 agent27 round Y) still long at bee2a15: in the three 11labs Kennedy texts rendered by puhuja the ɛ's
+        // median is 126-137 ms against 11labs' 80-95 (its æ 110-125): a long lax vowel is heard as the American æ.
+        // Lab (248 words: the 128 whose ɛ the combo22 gate heard æ + 120 ɛ fillers; 2 voices; bases 171-181 errors on
+        // four seeds): EN_EH_MONO_LEN 0.8 -22 / -35 / -16 / -23 (æ 114-120 -> 92-98), words right +10..+22 of 496, words1000
+        // +0; EN_EH_LEN 0.9 + MONO 0.9 -28 / -29 / -26 / -25. Every formant lever tried was noise (ref/opt/lab/EH/agent27).
         { static const float kEhLen = param("EN_EH_LEN", 1.0f), kEhMonoLen = param("EN_EH_MONO_LEN", 1.0f),
                              kEhNasalLen = param("EN_EH_NASAL_LEN", 1.0f);
           if (b == "EH") {
@@ -3050,6 +3055,13 @@ void EnglishReader::sayPhrase(char end) {
               kEnglishTokens[tokens[i] - 0x80][strlen(kEnglishTokens[tokens[i] - 0x80]) - 1] == '0' &&
               isNasal(baseName(tokens[i + 1])))
             synth_.setPitch(pitch + kHnPitch);
+        }
+        // (EH-3 agent27 round Y, lab; 0: as before) the ɛ's pitch + EN_EH_PITCH semitones (a closer vowel's intrinsic
+        // pitch is higher: ɛ over æ by ~0.5-1 semitone in speech; Whisper heard ɛ as æ 287 times in combo22). Lab:
+        // +1 / -1: 174 / 175 errors (base 171-178): noise.
+        {
+          static const float kEhPitch = param("EN_EH_PITCH", 0.0f);
+          if (kEhPitch != 0 && vowel && s.ph[k] == Ph::EH) synth_.setPitch(pitch + kEhPitch);
         }
         if (vowel && k == lastPart && pitchEnd != Synth::kNoPitch) synth_.setPitchEnd(pitchEnd);
         // English variant of this phoneme (tools/tune_english.py).

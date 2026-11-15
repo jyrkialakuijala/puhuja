@@ -4850,7 +4850,19 @@ void Synth::emit(const Token& tok, const Ph* next) {
       if (next && info(*next).cls == Cls::Nasal) {
         if (kEhNasAx > 0 && lineShapeOf(Ph::Schwa, &o)) sh = lineShapeMix(sh, o, kEhNasAx);
         if (kEhNasAlip != 1.0f) sh.aLip *= kEhNasAlip;
-        if (kEhNasDxc != 0.0f) sh.xc += kEhNasDxc;
+        // (EH-3 agent27 round Y, lab; < -50: as LINE_EH_NASAL_DXC) the female voice's value: her ɛ before n sits at F2
+        // 1973 Hz (Kokoro af_heart 1993, 11labs2 2034); the male's lever may not suit her. Lab: 0 / 0.10: 122 / 120
+        // (base 116, a 1e-4 nudge 126): noise.
+        static const float kEhNasDxcF = param("LINE_EH_NASAL_DXC_F", -99.0f);
+        const float ehNasDxc = female_ && kEhNasDxcF > -50 ? kEhNasDxcF : kEhNasDxc;
+        if (ehNasDxc != 0.0f) sh.xc += ehNasDxc;
+        // (EH-3 agent27 round Y, lab; 1 / 0: off) before a nasal the lip tube's length x LINE_EH_NASAL_LLIP and the front
+        // space's log area + LINE_EH_NASAL_DFA: DXC 0.06 took the male F3 2339 -> 2136 Hz (Kokoro am_adam ~2500, 11labs
+        // 2280-2650); these raise F3 without moving F2 back up. Lab: LLIP 0.6 (F3 +230 Hz) 127, 1.3 124, DFA -0.4 / +0.4
+        // 124 / 121 (base 116, a 1e-4 nudge 126): Whisper does not hear the low F3 as æ.
+        static const float kEhNasLlip = param("LINE_EH_NASAL_LLIP", 1.0f), kEhNasDfa = param("LINE_EH_NASAL_DFA", 0.0f);
+        if (kEhNasLlip != 1.0f) sh.lLip *= kEhNasLlip;
+        if (kEhNasDfa != 0.0f) sh.dFrontA += kEhNasDfa;
         if (kEhNasIh > 0 && lineShapeOf(Ph::IH, &o)) sh = lineShapeMix(sh, o, kEhNasIh);
         if (kEhNasAc != 1.0f) sh.ac *= kEhNasAc;
         if (kEhNasAph != 1.0f) sh.aPharynx *= kEhNasAph;
@@ -4858,7 +4870,37 @@ void Synth::emit(const Token& tok, const Ph* next) {
       // (EH-AE-2 agent23 round U, lab; 0: off) every ɛ's tongue place + LINE_EH_DXC (the nasal context's lever everywhere;
       // round I: the male ɛ's F2 sits 200-250 Hz over ten Kokoro voices').
       static const float kEhDxc = param("LINE_EH_DXC", 0.0f);
-      if (kEhDxc != 0.0f) sh.xc += kEhDxc;
+      // (EH-3 agent27 round Y, lab; < -50: as LINE_EH_DXC) the female voice's value: the male ɛ before an oral consonant
+      // sits at mid F1/F2 587 / 1783 Hz (Kokoro am_adam 559 / 1664, 11labs 491-501 / 1624-1705), the female's at 679 /
+      // 1988 (11labs2 621 / 2057). Lab: LINE_EH_DXC 0.08 with LINE_EH_NASAL_DXC -0.02 (the nasal context unchanged):
+      // -4 errors mean of four seeds (-5..-18 / +6), female words lost; male-only (DXC_F 0) 174 vs 171: noise.
+      static const float kEhDxcF = param("LINE_EH_DXC_F", -99.0f);
+      const float ehDxc = female_ && kEhDxcF > -50 ? kEhDxcF : kEhDxc;
+      if (ehDxc != 0.0f) sh.xc += ehDxc;
+      // (EH-3 agent27 round Y, lab; 1 / 1 / 0 / 0 / 1 / 1 / 0: off) every ɛ: lip tube length x LINE_EH_LLIP, lip area x
+      // LINE_EH_ALIP, tract length + LINE_EH_LEN_D cm, the hypopharynx's log area + LINE_EH_DHA, pharynx x LINE_EH_APH,
+      // opening x LINE_EH_F_AC in the female voice only; before an l the tongue + LINE_EH_L_DXC further back (male ɛ
+      // before l mid F2 1800 Hz vs Kokoro am_adam 1300-1470, 11labs 1560-1680: "Cells" -> sales, "Helps" -> health). Lab
+      // (base 116, a 1e-4 nudge 126): LLIP 0.6 / 1.3 124 / 127, ALIP 1.3 / 0.8 125 / 122, LEN_D -0.8 / +0.5 122 / 124, APH 1.25
+      // 120, F_AC 0.85 120, L_DXC 0.06 / 0.12 121 / 127; DHA moves no formant (+-4 Hz): none a gain.
+      static const float kEhLlip = param("LINE_EH_LLIP", 1.0f), kEhAlip = param("LINE_EH_ALIP", 1.0f),
+                         kEhLenD = param("LINE_EH_LEN_D", 0.0f), kEhDha = param("LINE_EH_DHA", 0.0f),
+                         kEhAph = param("LINE_EH_APH", 1.0f), kEhFAc = param("LINE_EH_F_AC", 1.0f),
+                         kEhLDxc = param("LINE_EH_L_DXC", 0.0f);
+      if (kEhLlip != 1.0f) sh.lLip *= kEhLlip;
+      if (kEhAlip != 1.0f) sh.aLip *= kEhAlip;
+      if (kEhLenD != 0.0f) sh.length += kEhLenD;
+      if (kEhDha != 0.0f) sh.dHypoA += kEhDha;
+      static const float kEhAphF = param("LINE_EH_APH_F", -1.0f);  // (< 0: as LINE_EH_APH) the female voice's value
+      const float ehAph = female_ && kEhAphF >= 0 ? kEhAphF : kEhAph;
+      if (ehAph != 1.0f) sh.aPharynx *= ehAph;
+      if (female_ && kEhFAc != 1.0f) sh.ac *= kEhFAc;
+      if (kEhLDxc != 0.0f && next && *next == Ph::L) sh.xc += kEhLDxc;
+      // (EH-3 agent27 round Y, lab; 0: off) a word-initial ɛ toward e by LINE_EH_INIT_MIX_E: "End" ->
+      // and, "Ends" -> ants, "Ent" -> and (#_N: 15 of 52 draws heard æ). Lab: 0.3 -7 / 0 / -19 on three seeds (noise alone; with
+      // EN_EH_MONO_LEN 0.8 -20 / -28).
+      static const float kEhInitE = param("LINE_EH_INIT_MIX_E", 0.0f);
+      if (kEhInitE > 0 && tok.wordStart && lineShapeOf(Ph::E, &o)) sh = lineShapeMix(sh, o, kEhInitE);
       // (round I EH agent 2026-11-12 lab knobs; 0: off) mixed toward ʌ (LINE_EH_MIX_AH) or ə (LINE_EH_MIX_AX), before an
       // l toward ʌ by LINE_EH_L_MIX_AH more: against ten Kokoro voices the male ɛ's middle third sits at F2 +200..+250 Hz
       // and F3 -150..-250 Hz (one-syllable words 1885-1906 / 2410 vs 1660-1680 / 2600); before l ("sells" -> sales) +230.
@@ -4867,6 +4909,18 @@ void Synth::emit(const Token& tok, const Ph* next) {
       const float mixAh = kEhAh + (next && *next == Ph::L ? kEhLAh : 0.0f);
       if (mixAh > 0 && lineShapeOf(Ph::AH, &o)) sh = lineShapeMix(sh, o, mixAh);
       if (kEhAx > 0 && lineShapeOf(Ph::Schwa, &o)) sh = lineShapeMix(sh, o, kEhAx);
+    }
+    if (have && tok.ph == Ph::AE) {
+      // (EH-3 agent27 round Y, lab; 0 / 1 / 0: off) the æ's tongue place + LINE_AE_DXC (< 0: forward, F2 up), its opening x
+      // LINE_AE_AC, mixed toward ɑ by LINE_AE_MIX_AA: Whisper heard æ as ɛ 118 times (combo22); the male æ's mid F1/F2
+      // 673 / 1446 Hz against Kokoro am_adam 565 / 1744, 11labs 725 / 1670 (before a nasal 883 / 1978). AE lab (300 commonest
+      // æ words; base 20 errors of 612): MIX_AA 0.2 34, AC 1.2 22, DXC -0.1 28 (F2 does not rise): æ is fine in common words.
+      static const float kAeDxc = param("LINE_AE_DXC", 0.0f), kAeAc = param("LINE_AE_AC", 1.0f),
+                         kAeAa = param("LINE_AE_MIX_AA", 0.0f);
+      TractShape o;
+      if (kAeAa > 0 && lineShapeOf(Ph::AA, &o)) sh = lineShapeMix(sh, o, kAeAa);
+      if (kAeDxc != 0.0f) sh.xc += kAeDxc;
+      if (kAeAc != 1.0f) sh.ac *= kAeAc;
     }
     if (have && next && *next == Ph::NG && (tok.ph == Ph::IH || tok.ph == Ph::EH || tok.ph == Ph::AE)) {
       // A front vowel before ŋ mixed toward i over its whole length (LINE_NG_PRE_I_MIX, lab knob 2026-11-11, NG agent 3;
