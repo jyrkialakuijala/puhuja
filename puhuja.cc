@@ -1769,16 +1769,16 @@ const float kCreakJitter = param("LINE_CREAK_JITTER", 2.0f), kCreakPress = param
 // (x 1 - _PS E) and opens / presses the glottis (ag x 1 + _AG E). After the pause (when the phrase before was
 // long enough, or CREAK_MIN_MS 0) an onset envelope O starts at 1 and decays with CREAK_ON_MS while voicing:
 // chink, aspiration, pressure and ag likewise. CREAK_F_X scales the female's amounts.
-const float kCrEndMs = param("CREAK_END_MS", 0.0f), kCrEndRampMs = param("CREAK_END_RAMP_MS", -1.0f);
+const float kCrEndMs = param("CREAK_END_MS", 300.0f), kCrEndRampMs = param("CREAK_END_RAMP_MS", -1.0f);
 const float kCrEndPow = param("CREAK_END_POW", 1.0f), kCrMinMs = param("CREAK_MIN_MS", 0.0f);
 const float kCrEndIrr = param("CREAK_END_IRR", 0.0f), kCrEndGap = param("CREAK_END_GAP", 0.0f);
-const float kCrEndAsp = param("CREAK_END_ASP", 0.0f), kCrEndPs = param("CREAK_END_PS", 0.0f);
+const float kCrEndAsp = param("CREAK_END_ASP", 2.0f), kCrEndPs = param("CREAK_END_PS", 0.3f);
 const float kCrEndAg = param("CREAK_END_AG", 0.0f), kCrEndDiplo = param("CREAK_END_DIPLO", 0.0f);
 const float kCrEndJit = param("CREAK_END_JIT", 0.0f), kCrEndShim = param("CREAK_END_SHIM", 0.0f);
-const float kCrOnMs = param("CREAK_ON_MS", 0.0f), kCrOnGap = param("CREAK_ON_GAP", 0.0f);
-const float kCrOnAsp = param("CREAK_ON_ASP", 0.0f), kCrOnPs = param("CREAK_ON_PS", 0.0f);
+const float kCrOnMs = param("CREAK_ON_MS", 100.0f), kCrOnGap = param("CREAK_ON_GAP", 0.0f);
+const float kCrOnAsp = param("CREAK_ON_ASP", 0.0f), kCrOnPs = param("CREAK_ON_PS", 0.4f);
 const float kCrOnAg = param("CREAK_ON_AG", 0.0f), kCrFemX = param("CREAK_F_X", 1.0f);
-const float kCrMinWords = param("CREAK_MIN_WORDS", 0.0f);  // ... and of at least this many words (2: connected speech only)
+const float kCrMinWords = param("CREAK_MIN_WORDS", 2.0f);  // ... and of at least this many words (2: connected speech only)
 const bool kCrOn = kCrEndMs > 0 || kCrOnMs > 0;
 // (a knob since 2026-11-08: Jyrki, "heritage is missing its end, it sounds like 'heriti'": the final ʤ's
 // frication ran inside this easing and came out 11-14 dB under a non-final one at the same slit, glottis
