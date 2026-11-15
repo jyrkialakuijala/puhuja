@@ -1267,6 +1267,9 @@ void cavityColour(Ph ph, TractShape* s) {
 // multipliers of the constriction, lip, mouth and pharynx areas), _HA / _HL / _FA / _FL (added to the cavity colour).
 // LINE_VQ_F scales them for the female voice (0: male only; there is no female 11labs reference).
 float vqCsScale = 1.0f;  // LINE_VQ_CS 1: 0 outside connected speech (Synth::emit sets it per token)
+// (FEMV agent34 round AF, lab; 1: off) the female offsets LINE_VQF_<n>_* x this (Synth::emit: LINE_VQF_X, x LINE_VQF_UNSTR_X
+// in an unstressed syllable, x LINE_VQF_STR_X in a stressed one)
+float vqfScale = 1.0f;
 void vowelQuality(Ph ph, TractShape* s, bool colour) {
   struct T {
     float v[static_cast<int>(Ph::Count)][9] = {};
@@ -1336,7 +1339,9 @@ void vowelQuality(Ph ph, TractShape* s, bool colour) {
   const float g = t.on ? (vqFemale ? kF : 1.0f) * vqCsScale : 0.0f;
   if (g == 0 && !fOn) return;
   float v[9];
-  for (int j = 0; j < 9; ++j) v[j] = g * t.v[static_cast<int>(ph)][j] + (fOn ? vqCsScale * tf.v[static_cast<int>(ph)][j] : 0.0f);
+  // (FEMV agent34, lab; 511: all) LINE_VQF_DIMS: bit j applies dimension j (XC AC ALIP AOR APH HA HL FA FL) of her offsets
+  static const int kVqfDims = static_cast<int>(param("LINE_VQF_DIMS", 511.0f));
+  for (int j = 0; j < 9; ++j) v[j] = g * t.v[static_cast<int>(ph)][j] + (fOn && (kVqfDims >> j & 1) ? vqCsScale * vqfScale * tf.v[static_cast<int>(ph)][j] : 0.0f);
   if (colour) { s->dHypoA += v[5]; s->dHypoL += v[6]; s->dFrontA += v[7]; s->dFrontL += v[8]; return; }
   s->xc = std::clamp(s->xc + v[0], 0.05f, 0.98f);
   s->ac *= std::exp(v[1]); s->aLip *= std::exp(v[2]); s->aOral *= std::exp(v[3]); s->aPharynx *= std::exp(v[4]);
@@ -3629,6 +3634,10 @@ void Synth::emit(const Token& tok, const Ph* next) {
   if (newSyllable) {
     sylStress_ = curStress_;
     curStress_ = 0;
+  }
+  if (in.cls == Cls::Vowel) {  // (FEMV agent34, lab; all 1: off) the scale of her vowel offsets by the syllable's stress
+    static const float kVqfX = param("LINE_VQF_X", 1.0f), kVqfUn = param("LINE_VQF_UNSTR_X", 1.0f), kVqfStr = param("LINE_VQF_STR_X", 1.0f);
+    vqfScale = kVqfX * (sylStress_ ? kVqfStr : kVqfUn);
   }
   float lengthMul = !tok.isLong ? 1.0f
                     : !tok.doubled ? kLongFactor

@@ -91,6 +91,13 @@ const float kVqcsShelfFHz = param("VQCS_SHELF_HZ_F", 2000.0f), kVqcsShelf2FHz = 
 const float kVqcsLowDb = param("VQCS_LOW_DB", 0.0f), kVqcsLowFDb0 = param("VQCS_LOW_F_DB", -999.0f);
 const float kVqcsLowFDb = kVqcsLowFDb0 > -900 ? kVqcsLowFDb0 : kVqcsLowDb;
 const float kVqcsLowHz = param("VQCS_LOW_HZ", 200.0f), kVqcsLowFHz = param("VQCS_LOW_F_HZ", 300.0f);
+// (FEMV agent34 round AF, lab; 0: off) VQCS_LOW_HP_HZ: the low shelf boosts only the band between this corner and
+// VQCS_LOW_(F_)HZ (a band boost around H1): the flow's DC and slow drift are left alone (no thumps at voicing edges).
+const float kVqcsLowHpHz = param("VQCS_LOW_HP_HZ", 0.0f);
+// (FEMV agent34, lab; 0: off) VQCS_LOW_OPEN 1: the low (band) boost x shelfScale (the open-tract gate of the source
+// shelves, LARYNX_SRC_SHELF_OPEN): not in consonants, so the flow transients of releases are not boosted; 2: also x the
+// vibration estimate vibDrive (0..1: only while the folds vibrate).
+const float kVqcsLowOpen = param("VQCS_LOW_OPEN", 0.0f);
 const float kVqcsRestX = param("VQCS_REST_X", 1.0f), kVqcsRestXF0 = param("VQCS_REST_X_F", -999.0f);
 const float kVqcsRestXF = kVqcsRestXF0 > -900 ? kVqcsRestXF0 : kVqcsRestX;
 constexpr float kMicroHz = 8;
@@ -311,7 +318,13 @@ void FoldLarynx::step(const LarynxControl& c, LarynxOutput& out) {
         if (csL != 0.0f) {  // (VQCS agent33) the low shelf: y + (G - 1) lp(y)
           const float aL = 1.0f - std::exp(-2.0f * 3.14159265f * (c.female ? kVqcsLowFHz : kVqcsLowHz) / (kFoldOversample * fs_));
           srcLpL_ += aL * (y2 - srcLpL_);
-          if (c.cs > 0.0f) y2 += (std::pow(10.0f, csL * c.cs / 20.0f) - 1.0f) * srcLpL_;
+          float lowBand = srcLpL_;
+          if (kVqcsLowHpHz > 0.0f) {  // (FEMV agent34) minus the DC / drift below VQCS_LOW_HP_HZ
+            const float aH = 1.0f - std::exp(-2.0f * 3.14159265f * kVqcsLowHpHz / (kFoldOversample * fs_));
+            srcLpLH_ += aH * (y2 - srcLpLH_);
+            lowBand -= srcLpLH_;
+          }
+          if (c.cs > 0.0f) y2 += (std::pow(10.0f, csL * c.cs * (kVqcsLowOpen > 1.5f ? std::clamp(c.vibDrive, 0.0f, 1.0f) * c.shelfScale : kVqcsLowOpen > 0.0f ? c.shelfScale : 1.0f) / 20.0f) - 1.0f) * lowBand;
         }
         p1_ = line_->substep(y2);
       } else {

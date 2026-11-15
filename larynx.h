@@ -213,6 +213,7 @@ class FoldLarynx : public Larynx {
   BandPass tractMode_[3];  // formant modes of the tract input impedance
   float p1_ = 0;           // acoustic pressure above the folds (feedback)
   float srcLpL_ = 0;  // VQCS agent33: the low shelf's low-pass
+  float srcLpLH_ = 0;  // FEMV agent34: the low shelf's DC-blocking low-pass (VQCS_LOW_HP_HZ)
   float srcLp_ = 0, srcLp2_ = 0;  // LARYNX_SRC_SHELF*_*: the flow's low-passed parts
   float dipZ1_ = 0, dipZ2_ = 0;  // LARYNX_SRC_DIP_*: the peaking filter's state (round AA VQ2)
   VocalTractLine* line_ = nullptr;  // the line tract, if attached (p1 comes from it)
