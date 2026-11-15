@@ -3340,6 +3340,17 @@ void rCodaShape(TractShape* sh) {
 void Synth::emit(const Token& tok, const Ph* next) {
   Info in = info(tok.ph);
   curPh_ = tok.ph;
+  const int wordsBefore = wordsSincePause_;  // (a pause token still belongs to the phrase it ends)
+  if (tok.ph == Ph::Stop) wordsSincePause_ = 0;
+  else if (tok.wordStart) ++wordsSincePause_;
+  // (TRANS3 agent30 round AB, lab; 0: everywhere) TRANS_CS_MASK: these knobs only in connected speech (from the second
+  // word of a phrase on; single words render as before): 1 TRANS_VE_D_* / TRANS_VO_D_*, 2 TRANS_ANT_*, 4 TRANS_NAS_AP_*,
+  // 8 TRANS_VEL2_* / TRANS_VEL_LAG_CS_X, 16 TRANS_PAUSE_*, 32 TRANS_ANTICIP_N_LATE_CS.
+  static const int kCsMask = static_cast<int>(param("TRANS_CS_MASK", 0.0f));
+  // (TRANS_CS_FEMALE 0: never connected speech in the female voice, i.e. the masked knobs are male-only)
+  static const float kCsFemale = param("TRANS_CS_FEMALE", 1.0f);
+  const bool csSpeech = (tok.ph == Ph::Stop ? wordsBefore : wordsSincePause_) >= 2 && (!female_ || kCsFemale > 0);
+  auto csOk = [&](int bit) { return !(kCsMask & bit) || csSpeech; };
   // (Y-INIT agent25 round W, lab knobs; all off by default) the word-initial j: the dictionary's j before a stressed
   // vowel after a pause was deleted in 14 of 148 and heard l in 9 ("Year" -> ear, "Yet" -> let, "Yields" -> fields).
   // Isolated words, against Kokoro (am_adam / af_heart): its j holds F2 2200 / 2600 Hz for ~100 ms from the word start,
@@ -5176,11 +5187,20 @@ void Synth::emit(const Token& tok, const Ph* next) {
         // (R-POSTVOCALIC agent14 round M, lab; < 0: 0.15) after an ɹ the mouth keeps its shape to this share of the
         // pause (a final ɹ's F3 rose back to 3000-4000 Hz while the voice died away: Kokoro's "Bare" ends at F3 ~1750).
         static const float kRFinalHold = param("LINE_R_FINAL_HOLD", -1.0f);
-        const double pHold = lastPh_ == Ph::RR && kRFinalHold >= 0 ? std::min(kRFinalHold, 0.55f) : 0.15;
+        double pHold = lastPh_ == Ph::RR && kRFinalHold >= 0 ? std::min(kRFinalHold, 0.55f) : 0.15;
+        // (TRANS3 agent30 round AB, lab; < 0: as before) after a vowel the last shape is held only to TRANS_PAUSE_HOLD of
+        // the pause and the neutral demand starts at TRANS_PAUSE_REL_AT (0.6), weight x TRANS_PAUSE_REL_W (CS bit 16: in
+        // connected speech only): 11labs' phrase-final vowel ends 17 cents of F2 off its middle, puhuja's 2.
+        static const float kPHold = param("TRANS_PAUSE_HOLD", -1.0f), kPRelAt = param("TRANS_PAUSE_REL_AT", -1.0f),
+                           kPRelW = param("TRANS_PAUSE_REL_W", 1.0f);
+        const bool pRel = isVowel(lastPh_) && csOk(16) && (kPHold >= 0 || kPRelAt >= 0 || kPRelW != 1.0f);
+        if (pRel && kPHold >= 0) pHold = kPHold;
+        const double relAt = pRel && kPRelAt >= 0 ? std::max<double>(kPRelAt, pHold) : 0.6;
+        const float relW = pRel ? kShapePauseW * kPRelW : kShapePauseW;
         lineKeys_.push_back({t0 + pHold * dur, lastKeyShape_});
-        lineKeys_.push_back({t0 + 0.6 * dur, sh});
+        lineKeys_.push_back({t0 + relAt * dur, sh});
         addShapeDemand(t0, t0 + pHold * dur, lastKeyShape_, lastPh_, 1.0f);
-        addShapeDemand(t0 + 0.6 * dur, t0 + dur, sh, Ph::Stop, kShapePauseW);
+        addShapeDemand(t0 + relAt * dur, t0 + dur, sh, Ph::Stop, relW);
       } else {
         // The ɑ's hold keys at these shares instead of 0.3 / 0.7 (LINE_AA_KEY_FROM / _TO, -1 = as every vowel; 2026-11-10 AA agent:
         // does the coda alveolar's coarticulation pull the ɑ's F2 up?).
@@ -5844,8 +5864,11 @@ void Synth::emit(const Token& tok, const Ph* next) {
             // before the vowel (anticipation through the consonant before it), weight x TRANS_V_W.
             static const float kTVShift = param("TRANS_V_SHIFT", 0.0f), kTVScale = param("TRANS_V_SCALE", 1.0f),
                                kTVLeadMs = param("TRANS_V_LEAD_MS", 0.0f), kTVW = param("TRANS_V_W", 1.0f);
-            if (isVowel(tok.ph) && !er && preMs <= 0 && (kTVShift != 0.0f || kTVScale != 1.0f || kTVW != 1.0f || kTVLeadMs > 0)) {
-              const double mid = 0.5 * (dFrom + dTo), half = 0.5 * (dTo - dFrom) * kTVScale;
+            // (TRANS3 agent30, lab; < 0: TRANS_V_SCALE) TRANS_V_SCALE_CS: the scale in connected speech (word 2+ of a phrase)
+            static const float kTVScaleCs = param("TRANS_V_SCALE_CS", -1.0f);
+            const float tvScale = csSpeech && kTVScaleCs >= 0 ? kTVScaleCs : kTVScale;
+            if (isVowel(tok.ph) && !er && preMs <= 0 && (kTVShift != 0.0f || tvScale != 1.0f || kTVW != 1.0f || kTVLeadMs > 0)) {
+              const double mid = 0.5 * (dFrom + dTo), half = 0.5 * (dTo - dFrom) * tvScale;
               dFrom = mid - half + kTVShift; dTo = mid + half + kTVShift;
               dW *= kTVW;
               if (kTVLeadMs > 0 && !prevWasPause_) preMs = kTVLeadMs;
@@ -5857,6 +5880,42 @@ void Synth::emit(const Token& tok, const Ph* next) {
             if (isVowel(tok.ph) && !er && preMs <= 0 && (kTVFromD != 0.0f || kTVToD != 0.0f)) {
               dFrom = std::max(0.0, dFrom + kTVFromD);
               dTo = std::max(dFrom, dTo + kTVToD);
+            }
+            // (TRANS3 agent30 round AB, lab; 0: as before) the same per neighbour class: the window end moved by
+            // TRANS_VE_D_<next> (NAS m n ŋ, L, R ɹ, GL w j, V a vowel, P a pause / the end, F a fricative or h, S a
+            // plosive or affricate) and its start by TRANS_VO_D_<previous> (NAS, L, R, W, J, V, F; never after a plosive
+            // or a pause: the stop's place cue). 11labs' vowel ends 31 / 34 / 24 / 17 cents of F2 off its middle before a
+            // fricative / l / vowel / pause, puhuja's 13 / 21 / 13 / 2 (it plateaus and the move happens in the consonant).
+            if (isVowel(tok.ph) && !er && preMs <= 0 && csOk(1)) {
+              static const float kVeNas = param("TRANS_VE_D_NAS", 0.0f), kVeL = param("TRANS_VE_D_L", 0.0f),
+                                 kVeR = param("TRANS_VE_D_R", 0.0f), kVeGl = param("TRANS_VE_D_GL", 0.0f),
+                                 kVeV = param("TRANS_VE_D_V", 0.0f), kVeP = param("TRANS_VE_D_P", 0.0f),
+                                 kVeF = param("TRANS_VE_D_F", 0.0f), kVeS = param("TRANS_VE_D_S", 0.0f);
+              static const float kVoNas = param("TRANS_VO_D_NAS", 0.0f), kVoL = param("TRANS_VO_D_L", 0.0f),
+                                 kVoR = param("TRANS_VO_D_R", 0.0f), kVoW = param("TRANS_VO_D_W", 0.0f),
+                                 kVoJ = param("TRANS_VO_D_J", 0.0f), kVoV = param("TRANS_VO_D_V", 0.0f),
+                                 kVoF = param("TRANS_VO_D_F", 0.0f);
+              float ve = 0.0f, vo = 0.0f;
+              if (!next || *next == Ph::Stop) ve = kVeP;
+              else {
+                const Ph n = *next;
+                const Cls c = info(n).cls;
+                ve = isVowel(n) ? kVeV : c == Cls::Nasal ? kVeNas : n == Ph::L ? kVeL : n == Ph::RR ? kVeR
+                   : n == Ph::W || n == Ph::J ? kVeGl
+                   : n == Ph::S || n == Ph::Z || n == Ph::SH || n == Ph::ZH || n == Ph::F || n == Ph::VV || n == Ph::TH || n == Ph::DH || n == Ph::H ? kVeF
+                   : c == Cls::Plosive ? kVeS : 0.0f;
+              }
+              if (!prevWasPause_ && !prevWasPlosive_) {
+                const Ph p = lastPh_;
+                vo = prevWasNasal_ ? kVoNas : p == Ph::L ? kVoL : p == Ph::RR ? kVoR : p == Ph::W ? kVoW : p == Ph::J ? kVoJ
+                   : isVowel(p) ? kVoV
+                   : p == Ph::S || p == Ph::Z || p == Ph::SH || p == Ph::ZH || p == Ph::F || p == Ph::VV || p == Ph::TH || p == Ph::DH || p == Ph::H ? kVoF
+                   : 0.0f;
+              }
+              if (ve != 0.0f || vo != 0.0f) {
+                dFrom = std::max(0.0, dFrom + vo);
+                dTo = std::max(dFrom, dTo + ve);
+              }
             }
             // (TRANS agent28, lab; 1 / 0 / 1: as before) the same for the glides w j l ɹ (a glide is a passing target, not a
             // hold: puhuja's w held F2 at 430 Hz for 50 ms, then rose 1.5 octaves in 40 ms; 11labs' rose through all of it):
@@ -5882,14 +5941,19 @@ void Synth::emit(const Token& tok, const Ph* next) {
             const bool wRamp = kWRamp >= 1 && (kWRampCls & rampBit) && !er && next && isVowel(*next) && preMs <= 0 &&
                                rampEnd > kWRampFrom && lineShapeOf(*next, &wNextSh);
             const double wRampTo = rampEnd;
-            if (wRamp) dTo = std::max(dFrom, static_cast<double>(kWRampFrom));
+            // (TRANS3 agent30, lab; < 0: TRANS_W_RAMP_FROM) TRANS_W_RAMP_FROM_CS: the hold's end in connected speech
+            static const float kWRampFromCs = param("TRANS_W_RAMP_FROM_CS", -1.0f);
+            if (wRamp) dTo = std::max(dFrom, static_cast<double>(csSpeech && kWRampFromCs >= 0 ? kWRampFromCs : kWRampFrom));
             addShapeDemand(preMs > 0 ? t0 - preMs * ms : t0 + dFrom * dur, t0 + dTo * dur, sh, tok.ph, vonPre ? dW * kVonPreW : dW, er ? std::max(preR, kErPlaceW) : iy || uhD || uwD || ahD || aoD || swD ? std::max(preR, vPlaceW) : preR);
             if (wRamp) {
               const int n = static_cast<int>(kWRamp);
               for (int q = 1; q <= n; ++q) {
                 const double x = static_cast<double>(q) / n;
                 const double u = dTo + (wRampTo - dTo) * x;
-                addShapeDemand(t0 + u * dur, t0 + u * dur, lineShapeMix(sh, wNextSh, static_cast<float>(x * kWRampMix)), tok.ph,
+                // (TRANS3 agent30, lab; < 0: TRANS_W_RAMP_MIX) TRANS_W_RAMP_MIX_CS: the mix in connected speech (word 2+)
+                static const float kWRampMixCs = param("TRANS_W_RAMP_MIX_CS", -1.0f);
+                const float wMix = csSpeech && kWRampMixCs >= 0 ? kWRampMixCs : kWRampMix;
+                addShapeDemand(t0 + u * dur, t0 + u * dur, lineShapeMix(sh, wNextSh, static_cast<float>(x * wMix)), tok.ph,
                                dW * kWRampW, preR);
               }
             }
@@ -5901,17 +5965,29 @@ void Synth::emit(const Token& tok, const Ph* next) {
             {
               static const float kAntMix = param("TRANS_ANT_MIX", 0.0f), kAntFrom = param("TRANS_ANT_FROM", 0.8f),
                                  kAntW = param("TRANS_ANT_W", 1.0f), kAntFricX = param("TRANS_ANT_FRIC_X", 1.0f);
-              if (kAntMix > 0 && isVowel(tok.ph) && !er && next && !isVowel(*next) && *next != Ph::Stop) {
+              if (kAntMix > 0 && csOk(2) && isVowel(tok.ph) && !er && next && !isVowel(*next) && *next != Ph::Stop) {
                 const Ph n = *next;
                 const bool fric = n == Ph::S || n == Ph::Z || n == Ph::SH || n == Ph::ZH || n == Ph::F || n == Ph::VV || n == Ph::TH || n == Ph::DH;
                 const Ph loc = n == Ph::T || n == Ph::D || n == Ph::S || n == Ph::Z || n == Ph::N || n == Ph::L || n == Ph::TH || n == Ph::DH ? Ph::IH
                                : n == Ph::SH || n == Ph::ZH || n == Ph::CH || n == Ph::JH ? Ph::I
                                : n == Ph::P || n == Ph::B || n == Ph::M || n == Ph::F || n == Ph::VV ? Ph::O : Ph::Count;
+                // (TRANS3 agent30, lab; 0: as before) TRANS_ANT_GL 1: also toward a w (o's shape) and a j (i's);
+                // TRANS_ANT_VELAR 1: toward k g ŋ (u's shape: the tongue body back and up).
+                static const float kAntGl = param("TRANS_ANT_GL", 0.0f), kAntVel = param("TRANS_ANT_VELAR", 0.0f);
+                // TRANS_ANT_L: the l's locus (0: ɪ's shape, as before; 1: ʊ's, 2: o's, 3: none): the English coda l is dark (F2
+                // falls into it: 11labs' vowel ends 34 cents off its middle before an l; toward ɪ puhuja's fell 21 -> 8).
+                static const int kAntL = static_cast<int>(param("TRANS_ANT_L", 0.0f));
+                const Ph locL = n != Ph::L || kAntL == 0 ? loc : kAntL == 1 ? Ph::UH : kAntL == 2 ? Ph::O : Ph::Count;
+                const Ph loc2 = n == Ph::L ? locL : loc != Ph::Count ? loc : kAntGl > 0 && n == Ph::W ? Ph::O : kAntGl > 0 && n == Ph::J ? Ph::I
+                                : kAntVel > 0 && (n == Ph::K || n == Ph::G || n == Ph::NG) ? Ph::U : Ph::Count;
                 TractShape o;
-                if (loc != Ph::Count && lineShapeOf(loc, &o)) {
+                if (loc2 != Ph::Count && lineShapeOf(loc2, &o)) {
                   // (TRANS2 agent29: x TRANS_ANT_OTHER_X before a non-fricative; 0: fricatives only)
                   static const float kAntOtherX = param("TRANS_ANT_OTHER_X", 1.0f);
-                  const float mix = std::min(1.0f, kAntMix * (fric ? kAntFricX : kAntOtherX));
+                  // (TRANS3 agent30, lab; 1: as before) x TRANS_ANT_NAS_X before a nasal, x TRANS_ANT_STOP_X before a plosive
+                  static const float kAntNasX = param("TRANS_ANT_NAS_X", 1.0f), kAntStopX = param("TRANS_ANT_STOP_X", 1.0f);
+                  const float clsX = info(n).cls == Cls::Nasal ? kAntNasX : info(n).cls == Cls::Plosive ? kAntStopX : 1.0f;
+                  const float mix = std::min(1.0f, kAntMix * clsX * (fric ? kAntFricX : kAntOtherX));
                   if (mix > 0)
                   addShapeDemand(t0 + kAntFrom * dur, t0 + dur, lineShapeMix(sh, o, mix), tok.ph, dW * kAntW);
                 }
@@ -6377,6 +6453,9 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // keeps the port shut until that point, then opens it over the rest
     // (Krakow 1993: the port opens late). Defaults 1 / 0: as before.
     static const float kAnN = param("LINE_ANTICIP_N_SCALE", 1.0f), kAnNLate = param("LINE_ANTICIP_N_LATE", 0.0f);
+    // (TRANS3 agent30, lab; < 0: LINE_ANTICIP_N_LATE) TRANS_ANTICIP_N_LATE_CS: the late share in connected speech (CS bit 32)
+    static const float kAnNLateCs = param("TRANS_ANTICIP_N_LATE_CS", -1.0f);
+    const float anNLate = kAnNLateCs >= 0 && csSpeech && csOk(32) ? kAnNLateCs : kAnNLate;
     // The ɛ before any nasal (round F EH agent 2026-11-11 lab knobs; -1 / 0: as above): its port x LINE_EH_ANTICIP_SCALE
     // (< 0: as every vowel), shut until LINE_EH_NASAL_LATE of the vowel and opened over the rest. A ɛ nasalized
     // over its whole 139 ms is the American [ɛə̃n] of "and": ɛ before a nasal was heard as æ 352 times ("send" -> sand).
@@ -6389,7 +6468,10 @@ void Synth::emit(const Token& tok, const Ph* next) {
     const bool ehLate = (tok.ph == Ph::EH && (kEhAnScale >= 0 || kEhAnLate > 0)) || ihsLate;
     // ... and before an m (round J, M agent; 1 / 0: as before): LINE_ANTICIP_M_SCALE, LINE_ANTICIP_M_LATE as the n's.
     static const float kAnM = param("LINE_ANTICIP_M_SCALE", 1.0f), kAnMLate = param("LINE_ANTICIP_M_LATE", 0.0f);
-    const bool mAnt = !ehLate && *next == Ph::M && (kAnM != 1.0f || kAnMLate > 0);
+    // (TRANS3 agent30, lab; < 0: LINE_ANTICIP_M_LATE) TRANS_ANTICIP_M_LATE_CS: its late share in connected speech (CS bit 32)
+    static const float kAnMLateCs = param("TRANS_ANTICIP_M_LATE_CS", -1.0f);
+    const float anMLate = kAnMLateCs >= 0 && csSpeech && csOk(32) ? kAnMLateCs : kAnMLate;
+    const bool mAnt = !ehLate && *next == Ph::M && (kAnM != 1.0f || anMLate > 0);
     // ... and the unstressed vowel before its word's final n (Shape::nctx 1; N agent13 round L lab knobs, < 0 / 0: as
     // above): its port x LINE_FN_ANTICIP, shut until LINE_FN_ANTICIP_LATE of the vowel. Over the whole vowel the port
     // put "Gavin"'s ɪ at F2 2170 / F3 3500 Hz (male; port 0: 1860 / 2250; before s 1745 / 2310; Kokoro 1500-1750 /
@@ -6399,7 +6481,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
     const bool fnAnt = !ehLate && (tok.shape.nctx & 1) && *next == Ph::N && (kFnAn >= 0 || kFnAnLate > 0);
     if (fnAnt) {
       e.an = kAnNasal * kLineAnticipNasal * (kFnAn >= 0 ? kFnAn : kAnN);
-      const float lateShare = kFnAnLate > 0 ? kFnAnLate : kAnNLate;
+      const float lateShare = kFnAnLate > 0 ? kFnAnLate : anNLate;
       if (lateShare > 0) {
         Event late{e.t + lateShare * dur};
         late.an = e.an;
@@ -6410,16 +6492,16 @@ void Synth::emit(const Token& tok, const Ph* next) {
       }
     } else if (mAnt) {
       e.an = kAnNasal * kLineAnticipNasal * kAnM;
-      if (kAnMLate > 0) {
-        Event late{e.t + kAnMLate * dur};
+      if (anMLate > 0) {
+        Event late{e.t + anMLate * dur};
         late.an = e.an;
-        late.anMs = static_cast<float>((1.0f - kAnMLate) * dur / ms);
+        late.anMs = static_cast<float>((1.0f - anMLate) * dur / ms);
         addEventAt(late);
         e.an = aero.an;
         e.anMs = kBoundaryMs;
       }
-    } else if (ehLate || (*next == Ph::N && (kAnN != 1.0f || kAnNLate > 0))) {
-      const float lateShare = ihsLate ? kIhsAnLate : ehLate ? kEhAnLate : kAnNLate;
+    } else if (ehLate || (*next == Ph::N && (kAnN != 1.0f || anNLate > 0))) {
+      const float lateShare = ihsLate ? kIhsAnLate : ehLate ? kEhAnLate : anNLate;
       if (ihsLate) {
         if (kIhsAnScale >= 0) e.an *= kIhsAnScale;
       } else if (ehLate) {
@@ -6483,6 +6565,8 @@ void Synth::emit(const Token& tok, const Ph* next) {
   // velum closes, and how long the velum stays open into the vowel.
   Event velLag{0}, closeFricBack{0};
   bool hasVelLag = false, hasCloseFricBack = false;
+  Event vel2{0};
+  bool hasVel2 = false;
   if (tract_ == Tract::Line && prevWasNasal_ && isVowel(tok.ph)) {
     // After a word-initial n (N-INIT agent26 round X, lab; < 0: as for every n): the velum closes over LINE_NI_VEL_MS
     // starting LINE_NI_VEL_LAG_MS after the release, the mouth opens over LINE_NI_REL_MS, the release's frication gain
@@ -6494,7 +6578,10 @@ void Synth::emit(const Token& tok, const Ph* next) {
                        kNiRelMs = param("LINE_NI_REL_MS", 20.0f), kNiCloseFric = param("LINE_NI_CLOSE_FRIC", -1.0f);
     const bool ni = lastPh_ == Ph::N && nIni_;
     const float velMs = ni && kNiVelMs >= 0 ? kNiVelMs : nasalKnob(lastPh_, kLineNasalVelMs, kLineNVelMs);
-    const float velLagMs = ni && kNiVelLagMs >= 0 ? kNiVelLagMs : nasalKnob(lastPh_, kLineNasalVelLagMs, kLineNVelLagMs);
+    // (TRANS3 agent30, lab; 1: as before) the lag x TRANS_VEL_LAG_CS_X in connected speech (CS bit 8)
+    static const float kVelLagCsX = param("TRANS_VEL_LAG_CS_X", 1.0f);
+    const float velLagMs = (ni && kNiVelLagMs >= 0 ? kNiVelLagMs : nasalKnob(lastPh_, kLineNasalVelLagMs, kLineNVelLagMs)) *
+                           (kVelLagCsX != 1.0f && csSpeech && csOk(8) ? kVelLagCsX : 1.0f);
     e.acMs = ni && kNiRelMs >= 0 ? kNiRelMs : nasalKnob(lastPh_, kLineNasalRelMs, kLineNRelMs);
     const float closeFric = ni && kNiCloseFric >= 0 ? kNiCloseFric : kLineCloseFric;
     e.anMs = velMs;
@@ -6510,6 +6597,20 @@ void Synth::emit(const Token& tok, const Ph* next) {
       velLag.anMs = velMs;
       e.an = -1;
       hasVelLag = true;
+      // (TRANS3 agent30 round AB, lab; TRANS_VEL2_A < 0: off) a two-stage velum after a nasal: the port closes to
+      // TRANS_VEL2_A x the open nasal port (0.25 cm^2) over TRANS_VEL2_T of LINE_*_VEL_MS, then shuts over the rest x
+      // TRANS_VEL2_TAIL_X. The coupling of a raised-cosine closure ends late and at once: the LPC F2 sat on the nasal
+      // pole (~800 Hz) for 60 ms of the vowel, then jumped 1.3 octaves (the vowel-start F2 jumps after m / n).
+      static const float kVel2A = param("TRANS_VEL2_A", -1.0f), kVel2T = param("TRANS_VEL2_T", 0.5f),
+                         kVel2TailX = param("TRANS_VEL2_TAIL_X", 1.0f);
+      if (kVel2A >= 0 && csOk(8) && velLag.an < kAnNasal * kVel2A) {
+        vel2 = Event{velLag.t + kVel2T * velMs * ms};
+        vel2.an = velLag.an;
+        vel2.anMs = std::max(1.0f, (1.0f - kVel2T) * velMs * kVel2TailX);
+        velLag.an = kAnNasal * kVel2A;
+        velLag.anMs = std::max(1.0f, kVel2T * velMs);
+        hasVel2 = true;
+      }
     }
   }
   // Z-FINAL agent13 round L (lab; 0: off): a word-final z after a nasal keeps the velum port open (LINE_NZ_VEL_A x the
@@ -7778,6 +7879,34 @@ void Synth::emit(const Token& tok, const Ph* next) {
       addEventAt(ap);
     }
   }
+  // (TRANS3 agent30 round AB, lab; TRANS_NAS_AP_MS 0: off) a nasal after a vowel: the closure approaches over the vowel's
+  // last TRANS_NAS_AP_MS (x TRANS_M_AP_X for an m) to TRANS_NAS_AP_A cm^2 at the nasal's place, then closes as before;
+  // TRANS_AP_XWORD 1 also across a word boundary (prevWasVowel_ is false there). puhuja's closure started at the
+  // boundary: the vowel plateaued and F2 moved only inside the nasal (11labs' vowel moves toward the nasal).
+  // TRANS_L_AP_XWORD 1: the l's approach (LINE_L_APPROACH_MS) across a word boundary too.
+  {
+    static const float kNasApMs = param("TRANS_NAS_AP_MS", 0.0f), kNasApA = param("TRANS_NAS_AP_A", 0.8f),
+                       kMApX = param("TRANS_M_AP_X", 1.0f), kApXw = param("TRANS_AP_XWORD", 0.0f),
+                       kLApXw = param("TRANS_L_AP_XWORD", 0.0f);
+    const bool vBefore = prevWasVowel_ || (isVowel(lastPh_) && !prevWasPause_ && !prevWasPlosive_);
+    const float apMs = tok.ph == Ph::M ? kNasApMs * kMApX : kNasApMs;
+    if (tract_ == Tract::Line && apMs > 0 && csOk(4) && info(tok.ph).cls == Cls::Nasal && !prevWasPlosive_ &&
+        (prevWasVowel_ || (kApXw > 0 && vBefore))) {
+      Event ap{std::max(e.t - apMs * ms, phonemeStart_ + 1)};
+      ap.ac = kNasApA;
+      ap.acMs = static_cast<float>((e.t - ap.t) / ms);
+      ap.lineX = linePlaceOf(tok.ph);
+      addEventAt(ap);
+    }
+    static const float lApMs2 = param("LINE_L_APPROACH_MS", 80.0f), lApA2 = param("LINE_L_APPROACH_A", 0.8f);
+    if (tract_ == Tract::Line && kLApXw > 0 && lApMs2 > 0 && tok.ph == Ph::L && !prevWasVowel_ && vBefore) {
+      Event ap{std::max(e.t - lApMs2 * ms, phonemeStart_ + 1)};
+      ap.ac = lApA2;
+      ap.acMs = static_cast<float>((e.t - ap.t) / ms);
+      ap.lineX = linePlaceOf(tok.ph);
+      addEventAt(ap);
+    }
+  }
   // LINE_Z_AG_LAG_MS (lab 2026-11-11; 0: off): the z's glottis opens this long after its gesture starts, at first
   // only to LINE_Z_AG_LAG_AG (< 0: it stays at the vowel's), so that the voice runs on under the rising hiss
   // (Kokoro's final z: the voice bar fades over its first 30-40 ms while the hiss is already at -18 dB).
@@ -7871,6 +8000,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
   if (!prevWasPlosive_) {
     if (!events_.empty() && e.t < events_.back().t) addEventAt(e); else addEvent(e);
     if (hasVelLag) addEventAt(velLag);
+    if (hasVel2) addEventAt(vel2);
     if (hasCloseFricBack) addEventAt(closeFricBack);
   }
   // f's hiss fades in over LINE_F_RAMP_MS (0: off) in four steps from

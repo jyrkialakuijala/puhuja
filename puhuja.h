@@ -521,6 +521,7 @@ class Synth {
   bool jAfterStop_ = false;  // the last token was a j released from a plosive (LINE_U_AFTER_STOP_J)
   bool prevWasNasal_ = false;
   bool prevWasPause_ = false;  // the last emitted phoneme was a pause
+  int wordsSincePause_ = 0;  // (TRANS3 agent30) words begun since the last pause token: >= 2 is connected speech
   bool lastFi_ = false, afterFi_ = false;  // the last emitted phoneme was a word-initial f before a vowel (LINE_FI_OFF_MS, F-INIT agent26); afterFi_: this phoneme follows one
   bool lastShV_ = false;  // the last emitted phoneme was a ʃ before a full vowel (LINE_SH_V_OFF_MS)
   bool vAfterFric_ = false;  // this v follows a fricative (LINE_V_FRIC_AFTER_FRIC)
