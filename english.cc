@@ -1577,17 +1577,17 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
       // DUR_CS_FROM_W: from this word of the phrase on (0: all words). DUR_CS_F: the female's share of each change (in
       // the log domain), DUR_CS_M the male's. DUR_CS_FUNC_V: the vowels of unaccented words.
       {
-        static const float kDV1 = param("DUR_CS_V1", 1.0f), kDV0 = param("DUR_CS_V0", 1.0f),
-                           kDNas = param("DUR_CS_NAS", 1.0f), kDVlS = param("DUR_CS_VLSTOP", 1.0f),
-                           kDVdS = param("DUR_CS_VDSTOP", 1.0f), kDVlF = param("DUR_CS_VLFRIC", 1.0f),
-                           kDVdF = param("DUR_CS_VDFRIC", 1.0f), kDLiq = param("DUR_CS_LIQ", 1.0f),
-                           kDGl = param("DUR_CS_GLIDE", 1.0f), kDFem = param("DUR_CS_F", 1.0f), kDMale = param("DUR_CS_M", 1.0f),
+        static const float kDV1 = param("DUR_CS_V1", 0.765f), kDV0 = param("DUR_CS_V0", 0.749f),
+                           kDNas = param("DUR_CS_NAS", 1.252f), kDVlS = param("DUR_CS_VLSTOP", 1.321f),
+                           kDVdS = param("DUR_CS_VDSTOP", 1.489f), kDVlF = param("DUR_CS_VLFRIC", 1.147f),
+                           kDVdF = param("DUR_CS_VDFRIC", 1.389f), kDLiq = param("DUR_CS_LIQ", 1.321f),
+                           kDGl = param("DUR_CS_GLIDE", 1.618f), kDFem = param("DUR_CS_F", 1.0f), kDMale = param("DUR_CS_M", 0.5f),
                            kDFuncV = param("DUR_CS_FUNC_V", 1.0f), kDFrom = param("DUR_CS_FROM_W", 0.0f),
-                           kDH = param("DUR_CS_H", -1.0f);
+                           kDH = param("DUR_CS_H", 1.0f);
         static const bool kDOn = kDV1 != 1.0f || kDV0 != 1.0f || kDNas != 1.0f || kDVlS != 1.0f || kDVdS != 1.0f ||
                                  kDVlF != 1.0f || kDVdF != 1.0f || kDLiq != 1.0f || kDGl != 1.0f || kDFuncV != 1.0f ||
                                  kDH >= 0 || param("DUR_CS_FUNC", 1.0f) != 1.0f || param("DUR_CS_LONGW", 1.0f) != 1.0f ||
-                                 param("DUR_CS_W2", 1.0f) != 1.0f || param("DUR_CS_VDSTOP_FINAL", -1.0f) >= 0 || [] {
+                                 param("DUR_CS_W2", 1.0f) != 1.0f || param("DUR_CS_VDSTOP_FINAL", 1.217f) >= 0 || [] {
                                    for (const auto& kv : paramFile())
                                      if (kv.first.compare(0, 9, "DUR_CS_P_") == 0 && kv.second != 1.0f) return true;
                                    return false;
@@ -1604,7 +1604,7 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
             if (isNasal(b)) m = kDNas;
             else if (isVoicelessPlosive(b)) m = kDVlS;
             else if (isVoicedPlosive(b)) {
-              static const float kDVdSFin = param("DUR_CS_VDSTOP_FINAL", -1.0f);  // a word-final one (< 0: DUR_CS_VDSTOP)
+              static const float kDVdSFin = param("DUR_CS_VDSTOP_FINAL", 1.217f);  // a word-final one (< 0: DUR_CS_VDSTOP)
               m = kDVdSFin >= 0 && i + 1 == tok.size() ? kDVdSFin : kDVdS;
             }
             else if (b == "HH") m = kDH >= 0 ? kDH : kDVlF;
@@ -1618,7 +1618,11 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
             static std::map<std::string, float> perPh;
             const std::string b = baseName(tok[i]);
             auto it = perPh.find(b);
-            if (it == perPh.end()) it = perPh.emplace(b, param(("DUR_CS_P_" + b).c_str(), 1.0f)).first;
+            if (it == perPh.end()) {
+              // defaults (DUR agent33 c28, deployed): d longer, w g n z a little longer
+              const float d0 = b == "D" ? 1.239f : (b == "W" || b == "G" || b == "N" || b == "Z") ? 1.182f : 1.0f;
+              it = perPh.emplace(b, param(("DUR_CS_P_" + b).c_str(), d0)).first;
+            }
             m *= it->second;
           }
           // whole words: an unaccented word's every phone x DUR_CS_FUNC, a word of 3+ vowels x DUR_CS_LONGW, of 2 x
@@ -3427,8 +3431,8 @@ void EnglishReader::sayPhrase(char end) {
           // of aʊ / oʊ / eɪ / aɪ: DUR_CS_AW_SHARE, DUR_CS_OW_SHARE, DUR_CS_EY_SHARE, DUR_CS_AY_SHARE (against 11labs
           // Kennedy, deployed167 male: the first parts a / o / e ran +0 / +26 / +56 cents too long, the ʊ -88).
           {
-            static const float kCsAw = param("DUR_CS_AW_SHARE", -1.0f), kCsOw = param("DUR_CS_OW_SHARE", -1.0f),
-                               kCsEy = param("DUR_CS_EY_SHARE", -1.0f), kCsAy = param("DUR_CS_AY_SHARE", -1.0f);
+            static const float kCsAw = param("DUR_CS_AW_SHARE", 0.45f), kCsOw = param("DUR_CS_OW_SHARE", 0.412f),
+                               kCsEy = param("DUR_CS_EY_SHARE", 0.487f), kCsAy = param("DUR_CS_AY_SHARE", -1.0f);
             if (s.n == 2 && phrase_.size() > 1 && (kCsAw > 0 || kCsOw > 0 || kCsEy > 0 || kCsAy > 0)) {
               const bool aw = s.ph[0] == Ph::A && s.ph[1] == Ph::UH, ay = s.ph[0] == Ph::A && s.ph[1] == Ph::IH;
               const float want = aw ? kCsAw : ow ? kCsOw : ey ? kCsEy : ay ? kCsAy : -1.0f;
@@ -3743,7 +3747,7 @@ void EnglishReader::sayPhrase(char end) {
           // EN_SFINAL_DB, a comma phrase's last word + EN_CFINAL_DB: against the 11labs Kennedy readings puhuja's
           // phrase-initial words were 2.5 dB too soft and its sentence-final words 1.9 dB (comma-final 0.7) too loud.
           {
-            static const float kPinitDb = param("EN_PINIT_DB", 1.5f), kSfinDb = param("EN_SFINAL_DB", -1.5f),
+            static const float kPinitDb = param("EN_PINIT_DB", -1.5f), kSfinDb = param("EN_SFINAL_DB", -1.5f),
                                kCfinDb = param("EN_CFINAL_DB", -0.5f);
             if (w == 0 && phrase_.size() > 1) db += kPinitDb;
             if (w + 1 == phrase_.size() && phrase_.size() > 1) db += sentenceEnd_ ? kSfinDb : kCfinDb;
