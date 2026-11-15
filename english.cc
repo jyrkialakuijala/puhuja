@@ -1575,13 +1575,13 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
       // normalised medians: vowels 1.37x, stops 0.61x, l ɹ w j 0.71x, nasals 0.78x, fricatives 0.81x): stressed /
       // unstressed vowels, nasals, voiceless / voiced stops (+ affricates), voiceless / voiced fricatives, l ɹ, w j;
       // DUR_CS_FROM_W: from this word of the phrase on (0: all words). DUR_CS_F: the female's share of each change (in
-      // the log domain). DUR_CS_FUNC_V: the vowels of unaccented words.
+      // the log domain), DUR_CS_M the male's. DUR_CS_FUNC_V: the vowels of unaccented words.
       {
         static const float kDV1 = param("DUR_CS_V1", 1.0f), kDV0 = param("DUR_CS_V0", 1.0f),
                            kDNas = param("DUR_CS_NAS", 1.0f), kDVlS = param("DUR_CS_VLSTOP", 1.0f),
                            kDVdS = param("DUR_CS_VDSTOP", 1.0f), kDVlF = param("DUR_CS_VLFRIC", 1.0f),
                            kDVdF = param("DUR_CS_VDFRIC", 1.0f), kDLiq = param("DUR_CS_LIQ", 1.0f),
-                           kDGl = param("DUR_CS_GLIDE", 1.0f), kDFem = param("DUR_CS_F", 1.0f),
+                           kDGl = param("DUR_CS_GLIDE", 1.0f), kDFem = param("DUR_CS_F", 1.0f), kDMale = param("DUR_CS_M", 1.0f),
                            kDFuncV = param("DUR_CS_FUNC_V", 1.0f), kDFrom = param("DUR_CS_FROM_W", 0.0f),
                            kDH = param("DUR_CS_H", -1.0f);
         static const bool kDOn = kDV1 != 1.0f || kDV0 != 1.0f || kDNas != 1.0f || kDVlS != 1.0f || kDVdS != 1.0f ||
@@ -1632,6 +1632,7 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
             if (!finalWord && vowels == 2) m *= kDW2;
           }
           if (synth_.female() && kDFem != 1.0f && m > 0) m = std::pow(m, kDFem);
+          if (!synth_.female() && kDMale != 1.0f && m > 0) m = std::pow(m, kDMale);
           out[w][i] *= m;
         }
       }
