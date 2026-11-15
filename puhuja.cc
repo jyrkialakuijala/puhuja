@@ -3199,7 +3199,7 @@ void ahShape(TractShape* sh, Ph prev, const Ph* next, bool female, bool afterPau
                      kDx = param("LINE_AH_DX", 0.0f), kAc = param("LINE_AH_AC", 1.0f), kWc = param("LINE_AH_WC", 1.0f),
                      kAph = param("LINE_AH_APH", 0.7f), kAor = param("LINE_AH_AOR", 1.3f), kLipA = param("LINE_AH_LIPA", 1.0f),
                      kLipL = param("LINE_AH_LIPL", 1.0f), kAlar = param("LINE_AH_ALAR", 1.0f), kLen = param("LINE_AH_LEN", 0.0f),
-                     kCorBack = param("LINE_AH_COR_BACK", 0.0f), kNasBack = param("LINE_AH_NAS_BACK", 0.0f),
+                     kCorBack = param("LINE_AH_COR_BACK", 0.0f), kNasBack = param("LINE_AH_NAS_BACK", 0.2f),
                      kFAc = param("LINE_AH_F_AC", 1.0f), kFAph = param("LINE_AH_F_APH", 1.0f);
   TractShape o;
   const bool nas = next && (*next == Ph::N || *next == Ph::M || *next == Ph::NG);
@@ -5580,7 +5580,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
                                kEhPlaceW = param("LINE_EH_PLACE_W", 0.0f);
             // (round-I ʌ agent, lab; -1 / -1 / 1 / 0: as before) the same for the stressed ʌ: LINE_AH_FROM, _TO, _W, _PLACE_W
             // (a lax vowel: does the planner reach it, or should it leave earlier?).
-            static const float kAhFrom = param("LINE_AH_FROM", -1.0f), kAhTo = param("LINE_AH_TO", -1.0f), kAhW = param("LINE_AH_W", 1.0f),
+            static const float kAhFrom = param("LINE_AH_FROM", -1.0f), kAhTo = param("LINE_AH_TO", -1.0f), kAhW = param("LINE_AH_W", 3.0f),
                                kAhPlaceW = param("LINE_AH_PLACE_W", 0.0f);
             const bool ahD = tok.ph == Ph::AH && (kAhFrom >= 0 || kAhTo >= 0 || kAhW != 1.0f || kAhPlaceW != 0.0f);
             const bool uhD = uhAlone || (tok.ph == Ph::EH && (kEhFrom >= 0 || kEhTo >= 0 || kEhW != 1.0f || kEhPlaceW > 0));
@@ -5769,7 +5769,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
                               tok.ph == Ph::AO && next && *next == Ph::L && kAoLAt >= 0 ? kAoLAt : ihsKey && kIhsLateAt >= 0 ? kIhsLateAt : ihoKey && kIhoLateAt >= 0 ? kIhoLateAt : tok.ph == Ph::EH && ehAt >= 0 ? ehAt : uhAlone && kUhRAt >= 0 && next && *next == Ph::RR ? kUhRAt : open && kRColourOpenAt >= 0 ? kRColourOpenAt : frontVowel(tok.ph) && kRColourFrontAt >= 0 ? kRColourFrontAt : kRColourAt;
             // (round-I ʌ agent, lab) LINE_AH_W weighs the ʌ's two demands here too (its late key, LINE_AH_OFF_SCHWA,
             // lands in this branch).
-            static const float kAhW2 = param("LINE_AH_W", 1.0f);
+            static const float kAhW2 = param("LINE_AH_W", 3.0f);
             // (AO-L agent21 round S, lab; 1: as before) the ɔ's held demand before an l / ɹ x LINE_AO_LIQ_W (does the planner
             // reach the ɔ before the liquid pulls it away?).
             static const float kAoLiqW = param("LINE_AO_LIQ_W", 1.0f);
