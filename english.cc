@@ -1581,7 +1581,7 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
                            kDNas = param("DUR_CS_NAS", 1.252f), kDVlS = param("DUR_CS_VLSTOP", 1.321f),
                            kDVdS = param("DUR_CS_VDSTOP", 1.489f), kDVlF = param("DUR_CS_VLFRIC", 1.147f),
                            kDVdF = param("DUR_CS_VDFRIC", 1.389f), kDLiq = param("DUR_CS_LIQ", 1.321f),
-                           kDGl = param("DUR_CS_GLIDE", 1.618f), kDFem = param("DUR_CS_F", 1.0f), kDMale = param("DUR_CS_M", 0.5f),
+                           kDGl = param("DUR_CS_GLIDE", 1.618f), kDFem = param("DUR_CS_F", 1.0f), kDMale = param("DUR_CS_M", 1.0f),
                            kDFuncV = param("DUR_CS_FUNC_V", 1.0f), kDFrom = param("DUR_CS_FROM_W", 0.0f),
                            kDH = param("DUR_CS_H", 1.0f);
         static const bool kDOn = kDV1 != 1.0f || kDV0 != 1.0f || kDNas != 1.0f || kDVlS != 1.0f || kDVdS != 1.0f ||
@@ -1678,11 +1678,11 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
               param("DUR_CS_M_OTHER", -1.0f), param("DUR_CS_M_V1", -1.0f), param("DUR_CS_M_V0", -1.0f),
               param("DUR_CS_M_NAS", -1.0f), param("DUR_CS_M_VLSTOP", -1.0f), param("DUR_CS_M_VDSTOP", -1.0f),
               param("DUR_CS_M_VLFRIC", -1.0f), param("DUR_CS_M_VDFRIC", -1.0f), param("DUR_CS_M_H", -1.0f),
-              param("DUR_CS_M_LIQ", -1.0f), param("DUR_CS_M_GLIDE", -1.0f)};
+              param("DUR_CS_M_LIQ", 0.5f), param("DUR_CS_M_GLIDE", 0.5f)};
           float kDMaleC = kDMcls[dcls] >= 0 ? kDMcls[dcls] : kDMale;
           // (RHYTHM2 agent34, lab knobs; < 0: off) a vowel next to another word's vowel ("who are", "many a") takes the
           // male share DUR_CS_M_HIATUS / the female share DUR_CS_F_HIATUS instead.
-          static const float kDMHi = param("DUR_CS_M_HIATUS", -1.0f), kDFHi = param("DUR_CS_F_HIATUS", -1.0f);
+          static const float kDMHi = param("DUR_CS_M_HIATUS", 0.0f), kDFHi = param("DUR_CS_F_HIATUS", -1.0f);
           float kDFemC = kDFem;
           if (vowel && (kDMHi >= 0 || kDFHi >= 0)) {
             const bool hi = (i == 0 && w > 0 && !phrase_[w - 1].tokens.empty() && isVowelToken(phrase_[w - 1].tokens.back())) ||
@@ -4115,7 +4115,7 @@ void EnglishReader::sayPhrase(char end) {
 // sentence end (EN_PAUSE_SENT_SCALE), a paragraph (EN_PAUSE_PARA_SCALE), a dash (EN_PAUSE_DASH_SCALE). Not the
 // pause after a line without a closing mark, nor that of a one-word sentence (the dictionary stream).
 void EnglishReader::pauseScaled(int stops, int kind) {
-  static const float k[5] = {param("EN_PAUSE_COMMA_SCALE", 1.0f), param("EN_PAUSE_SENT_SCALE", 1.0f),
+  static const float k[5] = {param("EN_PAUSE_COMMA_SCALE", 0.7f), param("EN_PAUSE_SENT_SCALE", 0.6f),
                              param("EN_PAUSE_PARA_SCALE", 1.0f), param("EN_PAUSE_DASH_SCALE", 1.0f), 1.0f};
   pause(k[kind] == 1.0f ? stops : static_cast<int>(stops * k[kind] + 0.5f));
 }
