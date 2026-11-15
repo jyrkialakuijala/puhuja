@@ -648,7 +648,7 @@ const float kLineFinalNasalOpen = param("LINE_FINAL_NASAL_MS", 100.0f);  // a pa
 const float kLineNasalLeadMs = param("LINE_NASAL_LEAD_MS", 40.0f);   // a phrase-initial nasal's gesture starts this long before it, in the pause (<= 0: the vowel's soft onset instead)
 const float kLineNasalOnsetMs = param("LINE_NASAL_ONSET_MS", 25.0f);  // ... and its voicing adducts over this long
 const float kLineNasalRelMs = param("LINE_NASAL_REL_MS", 35.0f);       // a nasal's release into a vowel: the mouth opens over this long
-const float kLineNasalVelMs = param("LINE_NASAL_VEL_MS", 30.0f);       // ... the velum closes over this long
+const float kLineNasalVelMs = param("LINE_NASAL_VEL_MS", 60.0f);       // ... the velum closes over this long
 const float kLineNasalVelLagMs = param("LINE_NASAL_VEL_LAG_MS", 40.0f); // ... starting this long after the release
 // The same for n (and ŋ) alone; < 0: as for m. Whisper on the n-initial
 // words (2026-11-04, 40 variants): n wants a longer lead and no velum lag
@@ -859,7 +859,7 @@ const float kLineHGfcMed = param("LINE_H_GFC_MED", -1.0f), kLineHPauseAsp = para
 // the folds start to vibrate this long before the release (as a phrase-initial
 // nasal's lead). 0: off.
 const float kLineVStopLeadMs = param("LINE_VSTOP_LEAD_MS", 0.0f);
-const float kLineNVelMs = param("LINE_N_VEL_MS", 20.0f);
+const float kLineNVelMs = param("LINE_N_VEL_MS", 45.0f);
 const float kLineNVelLagMs = param("LINE_N_VEL_LAG_MS", 20.0f);
 const float kLineNLeadMs = param("LINE_N_LEAD_MS", 40.0f);
 const float kLineNVoiceLagMs = param("LINE_N_VOICE_LAG_MS", -1.0f);
@@ -5857,7 +5857,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
             // (TRANS2 agent29 round AA, lab; TRANS_W_RAMP 0: off) a w before a vowel is held only to TRANS_W_RAMP_FROM of
             // it, then asks for TRANS_W_RAMP points to its KEY_TO, mixed toward the vowel's shape (up to TRANS_W_RAMP_MIX):
             // 11labs' w rises 650 -> 1900 Hz through all of the w, puhuja's held 430 Hz and jumped 1.5 octaves in 40 ms.
-            static const float kWRamp = param("TRANS_W_RAMP", 0.0f), kWRampFrom = param("TRANS_W_RAMP_FROM", 0.5f),
+            static const float kWRamp = param("TRANS_W_RAMP", 6.0f), kWRampFrom = param("TRANS_W_RAMP_FROM", 0.5f),
                                kWRampMix = param("TRANS_W_RAMP_MIX", 0.5f), kWRampW = param("TRANS_W_RAMP_W", 1.0f);
             TractShape wNextSh;
             // (TRANS_W_RAMP_CLS: 1 w (default), 2 j, 4 ɹ, 8 l; the others' ramps end at TRANS_G_RAMP_TO of the glide)
