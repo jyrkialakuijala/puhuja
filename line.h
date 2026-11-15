@@ -162,6 +162,7 @@ class TransmissionLine {
   // lN into a volume v, opening at section k. Its flow is a sink there.
   struct Sinus { int k = -1; float m = 0, cInv = 0, r = 0, u = 0, p = 0, dtOverM = 0, invDen = 0; };  // dtOverM, invDen: per-substep factors, from m and r
   void addSinus(int k, float volume, float neckArea, float neckLength, float q);
+  void retuneSinus(int i, float volume, float neckArea, float neckLength, float q);  // (NASAL2 agent33) keeps its state
   void clearSinuses() { nSinus_ = 0; }  // (init runs more than once: without this the slots filled up and later sets were dropped)
   void sinusFlows();      // before substep: the neck flows from the old pressures
   void sinusPressures();  // after substep: the volumes and the sections move with them
@@ -262,6 +263,12 @@ class VocalTractLine {
   void setNasalHfBw(float bw) { nasal_.setHfLoss(bw, nasHfFc_); }
   // NASAL agent32: the nasal passage's port / cavity / nostril areas (cm^2; < 0: LINE_NASAL_PORT_A / _CAVITY_A / LINE_NOSTRIL_A)
   void setNasalGeom(float portA, float cavA, float nostA, float endX = -1.0f, float endA = 8.0f);  // endX >= 0: from endX cm on, endA (an open end there)
+  // NASAL2 agent33 (round AE): the velum port's coupling point on the oral line moves to `frac` of the oral tract (from
+  // the glottis) over `ms` (linear; a fractional point between two sections); frac < 0: back to velumK_ (0.55), then off.
+  // Only the port's pressure tap and sink move (the stops' cavity taps stay at velumK_ - 4).
+  void setNasalCoupling(float frac, float ms);
+  // NASAL2 agent33: the paranasal sinuses' volumes x v1 (the maxillary pair) / v2 (the frontal), their Q x q (1: init's)
+  void setSinusScale(float v1, float v2, float q);
   // A voiced closure: softer (its sections lose soft times more) and longer by
   // extraLength cm (b against p: the lips compress and protrude; Jyrki
   // 2026-11-03: "b needs to be a softer, more damped closure ... two
@@ -315,6 +322,8 @@ class VocalTractLine {
   float closureSoft_ = 1.0f, closureExtra_ = 0.0f;
   int velumK_ = 0, noiseK_ = -1, noiseKc_ = 0;  // noiseK_: where the turbulence drives; noiseKc_: the constriction's centre
   float an_ = 0, uNasal_ = 0;
+  float nasKf_ = -1.0f, nasKfT_ = -1.0f, nasKStep_ = 0.0f, nasKw_ = 0.0f;  // NASAL2 agent33: the coupling point (sections; < 0: off)
+  int nasK0_ = 0;
   float velarG_ = 0, velarInv2A2_ = 0;  // dt an / (rho dx_nasal) and 1 / (2 an^2), set with an_
   float fricGain_ = 0, aspGain_ = 0, glotArea_ = 0.05f;
   int lastNoiseK_ = -1, moveFromK_ = -1; float moveW_ = 0;

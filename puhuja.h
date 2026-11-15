@@ -161,6 +161,8 @@ struct Event {
   // NASAL agent32: the nasal walls' radiation scale / the nasal HF loss bandwidth from now on; lineNasGeom 1: the
   // connected-speech nasal areas (NAS_*_A_CS, NAS_END_X_CS), 0: the base ones (< 0: unchanged)
   float lineNasRad = -1, lineNasHf = -1, lineNasGeom = -1;
+  float lineNasSin = -1;  // NASAL2 agent33: 1 the connected-speech sinus scales (NAS_SIN*_CS), 0 the base ones
+  float lineNasK = -1;  // NASAL2 agent33: the velum's coupling point (share of the oral tract; 2: back to the base one; < 0: unchanged)
   float endQ = -1, endQMs = 0;  // round AC CREAK agent31: the phrase-end voice quality envelope target (0..1) and its ramp (ms); < 0: unchanged
   float noiseFadeMs = -1;  // with setNoise: fade-in from silence (< 0: the default)
   // Cavity compliance multiplier (active expansion during voiced closures),
@@ -535,6 +537,8 @@ class Synth {
   int phraseLeft_ = 0, curPhraseLeft_ = 0;  // (CSW agent32) setPhraseLeft's value; the current word's (emit)
   bool csSpeech_ = false;  // (STOP agent31) the sound being emitted is in connected speech (word 2+ of a phrase)
   bool nasPressed_ = false;  // NASAL agent32: the last sound was a nasal eased by NAS_PRESS_CS
+  float nasSinNow_ = 0.0f;
+  float nasKNow_ = -1.0f;  // NASAL2 agent33: the coupling point last set (< 0: base)
   float nasRadNow_ = 1.0f, nasHfNow_ = -1.0f, nasGeomNow_ = 0.0f;  // NASAL agent32: the nasal radiation scale / HF bandwidth last set
   bool lastFi_ = false, afterFi_ = false;  // the last emitted phoneme was a word-initial f before a vowel (LINE_FI_OFF_MS, F-INIT agent26); afterFi_: this phoneme follows one
   bool lastShV_ = false;  // the last emitted phoneme was a ʃ before a full vowel (LINE_SH_V_OFF_MS)

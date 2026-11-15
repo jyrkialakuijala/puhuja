@@ -2900,6 +2900,8 @@ static uint64_t eventFields(const Event& e) {
   bit(e.endQ >= 0);
   bit(e.lineNasRad >= 0); bit(e.lineNasHf >= 0); bit(e.lineNasGeom >= 0);
   bit(e.vqcs >= 0);
+  bit(e.lineNasK >= 0);
+  bit(e.lineNasSin >= 0);
   return m;
 }
 
@@ -3695,6 +3697,34 @@ void Synth::emit(const Token& tok, const Ph* next) {
     if (kNasGeomCs) {
       const float want = csSpeech ? 1.0f : 0.0f;
       if (want != nasGeomNow_) e.lineNasGeom = nasGeomNow_ = want;
+    }
+    // NASAL2 agent33 (round AE, lab; < 0: off, as before): in connected speech the velum port couples to the oral line at
+    // NAS_K_CS of its length (from the glottis; base 0.55, velumK_), a nasal at NAS_K_CS_M / _N / _NG when those are
+    // >= 0 (_F: the female's, -2 the same, -1 off). Further back = a longer oral side branch = the murmur's zero lower
+    // (deployed167's m / n zeros sit ~an octave above 11labs1's). Ramped over NAS_K_MS.
+    {
+      // ... and the sinuses' volumes x NAS_SIN1_VX_CS / NAS_SIN2_VX_CS, Q x NAS_SIN_QX_CS (1: as before; _F the
+      // female's, < 0: the male's): the Helmholtz zeros move (V x4: an octave down)
+      static const bool kSinOn = param("NAS_SIN1_VX_CS", 1.0f) != 1.0f || param("NAS_SIN2_VX_CS", 1.0f) != 1.0f || param("NAS_SIN_QX_CS", 1.0f) != 1.0f ||
+                                 param("NAS_SIN1_VX_CS_F", -1.0f) >= 0 || param("NAS_SIN2_VX_CS_F", -1.0f) >= 0;
+      if (kSinOn) {
+        const float want = csSpeech ? 1.0f : 0.0f;
+        if (want != nasSinNow_) e.lineNasSin = nasSinNow_ = want;
+      }
+      static const float kKCs = param("NAS_K_CS", -1.0f), kKCsF = param("NAS_K_CS_F", -2.0f);
+      static const float kKM = param("NAS_K_CS_M", -1.0f), kKN = param("NAS_K_CS_N", -1.0f), kKNg = param("NAS_K_CS_NG", -1.0f);
+      static const bool kKOn = kKCs >= 0 || kKCsF >= 0 || kKM >= 0 || kKN >= 0 || kKNg >= 0;
+      if (kKOn) {
+        const bool fOff = female_ && kKCsF > -1.5f && kKCsF < 0;
+        float want = female_ && kKCsF >= 0 ? kKCsF : kKCs;
+        if (in.cls == Cls::Nasal) {
+          const float k = tok.ph == Ph::M ? kKM : tok.ph == Ph::NG ? kKNg : kKN;
+          if (k >= 0) want = k;
+        }
+        if (!csSpeech || fOff || want < 0) want = -1.0f;
+        if (want != nasKNow_) e.lineNasK = want < 0 ? 2.0f : want;
+        nasKNow_ = want;
+      }
     }
     if (kNasHfCs >= 0) {
       const float want = csSpeech ? kNasHfCs : kNasHfBase;
@@ -11668,6 +11698,16 @@ float Synth::tick() {
     if (e.lineNoiseLp >= 0) line_.setNoiseLp(e.lineNoiseLp);
     if (e.lineNasRad >= 0) line_.setNasalRad(e.lineNasRad);
     if (e.lineNasHf >= 0) line_.setNasalHfBw(e.lineNasHf);
+    if (e.lineNasSin >= 0) {
+      static const float k1 = param("NAS_SIN1_VX_CS", 1.0f), k2 = param("NAS_SIN2_VX_CS", 1.0f), kq = param("NAS_SIN_QX_CS", 1.0f);
+      static const float k1f = param("NAS_SIN1_VX_CS_F", -1.0f), k2f = param("NAS_SIN2_VX_CS_F", -1.0f);
+      if (e.lineNasSin > 0.5f) line_.setSinusScale(female_ && k1f >= 0 ? k1f : k1, female_ && k2f >= 0 ? k2f : k2, kq);
+      else line_.setSinusScale(1.0f, 1.0f, 1.0f);
+    }
+    if (e.lineNasK >= 0) {
+      static const float kKMs = param("NAS_K_MS", 20.0f);
+      line_.setNasalCoupling(e.lineNasK > 1.5f ? -1.0f : e.lineNasK, kKMs);
+    }
     if (e.lineNasGeom >= 0) {
       static const float kPortCs = param("NAS_PORT_A_CS", -1.0f), kCavCs = param("NAS_CAV_A_CS", -1.0f), kNostCs = param("NAS_NOST_A_CS", -1.0f);
       static const float kEndXCsM = param("NAS_END_X_CS", -1.0f), kEndXCsF = param("NAS_END_X_CS_F", -2.0f), kEndACs = param("NAS_END_A_CS", 8.0f);

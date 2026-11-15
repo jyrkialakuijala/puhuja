@@ -285,6 +285,17 @@ void TransmissionLine::addSinus(int k, float volume, float neckArea, float neckL
   s.u = s.p = 0;
 }
 
+void TransmissionLine::retuneSinus(int i, float volume, float neckArea, float neckLength, float q) {  // (NASAL2 agent33)
+  if (i < 0 || i >= nSinus_) return;
+  Sinus& s = sinus_[i];
+  s.m = kRho * neckLength / neckArea;
+  s.cInv = kRho * kC * kC / volume;
+  const float w0 = std::sqrt(s.cInv / s.m);
+  s.r = s.m * w0 / q;
+  s.dtOverM = dt_ / s.m;
+  s.invDen = 1.0f / (1.0f + dt_ * s.r / s.m);
+}
+
 // The sinuses in two halves around the line's own substep, so that the neck
 // flows, like the line's interface flows, come from the pressures before the
 // substep, and every pressure (the section's, the volume's) moves with the new
@@ -551,7 +562,17 @@ float VocalTractLine::substep(float u0) {
   // itself; no switch.
   {
     const float rho = TransmissionLine::kRho;
-    const float dp = oral_.pressureAt(velumK_) - nasal_.pressureAt(0);
+    float dp;
+    if (nasKf_ >= 0) {  // (NASAL2 agent33: setNasalCoupling)
+      const float tgt = nasKfT_ >= 0 ? nasKfT_ * oral_.sections() : static_cast<float>(velumK_);
+      nasKf_ = nasKf_ < tgt ? std::min(tgt, nasKf_ + nasKStep_) : std::max(tgt, nasKf_ - nasKStep_);
+      nasKf_ = std::clamp(nasKf_, 1.0f, static_cast<float>(oral_.sections() - 2));
+      nasK0_ = static_cast<int>(nasKf_);
+      nasKw_ = nasKf_ - nasK0_;
+      dp = (1.0f - nasKw_) * oral_.pressureAt(nasK0_) + nasKw_ * oral_.pressureAt(nasK0_ + 1) - nasal_.pressureAt(0);
+    } else {
+      dp = oral_.pressureAt(velumK_) - nasal_.pressureAt(0);
+    }
     const float g = velarG_;  // dt an / (rho dx), set with an_
     const float r = rho * std::fabs(uNasal_) * velarInv2A2_;
     uNasal_ = (uNasal_ + g * dp) / (1.0f + g * r);
@@ -818,7 +839,13 @@ float VocalTractLine::substep(float u0) {
   if (oralSinus_) oral_.sinusFlows();  // (round AB VQ3: the piriform fossae, LINE_PIRIFORM_HZ)
   const float p1 = oral_.substep(u0);
   if (oralSinus_) oral_.sinusPressures();
-  oral_.sink(velumK_, uNasal_);
+  if (nasKf_ >= 0) {
+    oral_.sink(nasK0_, (1.0f - nasKw_) * uNasal_);
+    oral_.sink(nasK0_ + 1, nasKw_ * uNasal_);
+    if (nasKfT_ < 0 && nasKf_ == static_cast<float>(velumK_)) nasKf_ = -1.0f;  // back home: the plain path again
+  } else {
+    oral_.sink(velumK_, uNasal_);
+  }
   if (expandFlow_ > 0) {
     // The expanding cavity behind a voiced closure (cheeks, larynx lowering):
     // a leak that holds the cavity near kExpandHold of the lung pressure, so
@@ -921,6 +948,30 @@ void VocalTractLine::setNasalGeom(float portA, float cavA, float nostA, float en
     if (endX >= 0 && x >= endX * nasalScale_) na[k] = endA;
   }
   nasal_.setAreas(na, true);
+}
+
+void VocalTractLine::setSinusScale(float vx1, float vx2, float qx) {  // (NASAL2 agent33; the init's sinus layout)
+  const float v1 = param("LINE_SINUS1_V", 24.0f), a1 = param("LINE_SINUS1_A", 0.1f), l1 = param("LINE_SINUS1_L", 0.6f);
+  const float v2 = param("LINE_SINUS2_V", 4.0f), a2 = param("LINE_SINUS2_A", 0.1f), l2 = param("LINE_SINUS2_L", 0.5f);
+  const float q = param("LINE_SINUS_Q", 5.0f) * qx;
+  const float split = param("LINE_SINUS1_SPLIT", 1.12f);
+  int i = 0;
+  if (v1 > 0 && split > 0) {
+    nasal_.retuneSinus(i++, vx1 * v1 * split / (1.0f + split), 0.5f * a1, l1, q);
+    nasal_.retuneSinus(i++, vx1 * v1 / (1.0f + split), 0.5f * a1, l1, q);
+  } else if (v1 > 0) {
+    nasal_.retuneSinus(i++, vx1 * v1, a1, l1, q);
+  }
+  if (v2 > 0) nasal_.retuneSinus(i, vx2 * v2, a2, l2, q);
+}
+
+void VocalTractLine::setNasalCoupling(float frac, float ms) {  // (NASAL2 agent33)
+  if (frac >= 0 && nasKf_ < 0) nasKf_ = static_cast<float>(velumK_);
+  if (nasKf_ < 0) return;
+  nasKfT_ = frac;
+  const float tgt = frac >= 0 ? frac * oral_.sections() : static_cast<float>(velumK_);
+  const float n = std::max(1.0f, 0.001f * ms / dt_);
+  nasKStep_ = std::max(std::fabs(tgt - nasKf_) / n, 1e-4f);
 }
 
 void VocalTractLine::setAspHp(float hz, int poles) {
