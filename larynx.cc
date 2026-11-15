@@ -78,6 +78,21 @@ const float kCycleJitterF = param("LARYNX_CYCLE_JITTER_F", 0.0f), kCycleShimmerF
 // there). 0 dB: none. _F_DB: the female's (< -900: the male's).
 const float kSrcDipDb = param("LARYNX_SRC_DIP_DB", 0.0f), kSrcDipHz = param("LARYNX_SRC_DIP_HZ", 3600.0f);
 const float kSrcDipQ = param("LARYNX_SRC_DIP_Q", 1.0f), kSrcDipFDb = param("LARYNX_SRC_DIP_F_DB", -999.0f);
+// Round AE (VQCS agent33, lab; 0: off): connected-speech source quality, x LarynxControl::cs (0 in single words, see
+// VQCS_ON in puhuja.cc): extra shelf dB (x shelfScale like the shelves: the vowels) VQCS_SHELF_DB / VQCS_SHELF2_DB, the
+// voicing rest gap x (1 + (VQCS_REST_X - 1) cs) (the open quotient). _F: the female's (< -900: the male's); VQCS_SHELF_HZ_F /
+// VQCS_SHELF2_HZ_F: the female's corners while her own shelves are off (0: the male's).
+const float kVqcsShelfDb = param("VQCS_SHELF_DB", 0.0f), kVqcsShelfFDb0 = param("VQCS_SHELF_F_DB", -999.0f);
+const float kVqcsShelf2Db = param("VQCS_SHELF2_DB", 0.0f), kVqcsShelf2FDb0 = param("VQCS_SHELF2_F_DB", -999.0f);
+const float kVqcsShelfFDb = kVqcsShelfFDb0 > -900 ? kVqcsShelfFDb0 : kVqcsShelfDb;
+const float kVqcsShelf2FDb = kVqcsShelf2FDb0 > -900 ? kVqcsShelf2FDb0 : kVqcsShelf2Db;
+const float kVqcsShelfFHz = param("VQCS_SHELF_HZ_F", 0.0f), kVqcsShelf2FHz = param("VQCS_SHELF2_HZ_F", 0.0f);
+// VQCS_LOW_DB / _HZ (_F): a low shelf on the source flow in connected speech, + dB below the corner (H1, a rounder pulse).
+const float kVqcsLowDb = param("VQCS_LOW_DB", 0.0f), kVqcsLowFDb0 = param("VQCS_LOW_F_DB", -999.0f);
+const float kVqcsLowFDb = kVqcsLowFDb0 > -900 ? kVqcsLowFDb0 : kVqcsLowDb;
+const float kVqcsLowHz = param("VQCS_LOW_HZ", 200.0f), kVqcsLowFHz = param("VQCS_LOW_F_HZ", 300.0f);
+const float kVqcsRestX = param("VQCS_REST_X", 1.0f), kVqcsRestXF0 = param("VQCS_REST_X_F", -999.0f);
+const float kVqcsRestXF = kVqcsRestXF0 > -900 ? kVqcsRestXF0 : kVqcsRestX;
 constexpr float kMicroHz = 8;
 constexpr int kFoldOversample = 4;
 constexpr float kFoldAntiAliasHz = 18000;
@@ -231,6 +246,14 @@ void FoldLarynx::step(const LarynxControl& c, LarynxOutput& out) {
       in.gap *= k;
     }
   }
+  {  // (VQCS agent33) the connected-speech open quotient
+    const float x = c.female ? kVqcsRestXF : kVqcsRestX;
+    if (x != 1.0f && c.cs > 0.0f) {
+      const float k = 1.0f + (x - 1.0f) * c.cs * (1.0f - smoothstep(kAgBreathy, kAgOpen, ag));
+      in.rest *= k;
+      in.gap *= k;
+    }
+  }
   // The folds run kFoldOversample times faster than the output, and their
   // flow is low-passed before it is taken once per sample: the flow drops
   // to zero within a sample at each closure, and sampled directly that
@@ -256,12 +279,16 @@ void FoldLarynx::step(const LarynxControl& c, LarynxOutput& out) {
       const float db1Full = c.female && kSrcShelfFDb > -900 ? kSrcShelfFDb : kSrcShelfDb;
       const float db2Full = c.female && kSrcShelf2FDb > -900 ? kSrcShelf2FDb : kSrcShelf2Db;
       const float dbDFull = c.female && kSrcDipFDb > -900 ? kSrcDipFDb : kSrcDipDb;
-      if (db1Full != 0.0f || db2Full != 0.0f || dbDFull != 0.0f) {
+      const float cs1 = c.female ? kVqcsShelfFDb : kVqcsShelfDb, cs2 = c.female ? kVqcsShelf2FDb : kVqcsShelf2Db;
+      const float csL = c.female ? kVqcsLowFDb : kVqcsLowDb;
+      if (db1Full != 0.0f || db2Full != 0.0f || dbDFull != 0.0f || cs1 != 0.0f || cs2 != 0.0f || csL != 0.0f) {
         // (the low-passes keep running where shelfScale is 0: no stale state when the shelf fades back in)
-        const float db1 = db1Full * c.shelfScale, db2 = db2Full * c.shelfScale;
+        float db1 = db1Full * c.shelfScale, db2 = db2Full * c.shelfScale;
+        if (cs1 != 0.0f) db1 += cs1 * c.cs * c.shelfScale;  // (VQCS agent33)
+        if (cs2 != 0.0f) db2 += cs2 * c.cs * c.shelfScale;
         // y = x + (G - 1) (x - lp(x)): unity below the corner, G above it.
-        const float hz1 = c.female && kSrcShelfFHz > 0 ? kSrcShelfFHz : kSrcShelfHz;
-        const float hz2 = c.female && kSrcShelf2FHz > 0 ? kSrcShelf2FHz : kSrcShelf2Hz;
+        const float hz1 = c.female && kSrcShelfFHz > 0 ? kSrcShelfFHz : c.female && db1Full == 0.0f && kVqcsShelfFHz > 0 ? kVqcsShelfFHz : kSrcShelfHz;
+        const float hz2 = c.female && kSrcShelf2FHz > 0 ? kSrcShelf2FHz : c.female && db2Full == 0.0f && kVqcsShelf2FHz > 0 ? kVqcsShelf2FHz : kSrcShelf2Hz;
         const float g1 = std::pow(10.0f, db1 / 20.0f) - 1.0f, g2 = std::pow(10.0f, db2 / 20.0f) - 1.0f;
         const float a1 = 1.0f - std::exp(-2.0f * 3.14159265f * hz1 / (kFoldOversample * fs_));
         const float a2 = 1.0f - std::exp(-2.0f * 3.14159265f * hz2 / (kFoldOversample * fs_));
@@ -280,6 +307,11 @@ void FoldLarynx::step(const LarynxControl& c, LarynxOutput& out) {
           dipZ1_ = b1 * y2 - a1d * o + dipZ2_;
           dipZ2_ = b2 * y2 - a2d * o;
           y2 = o;
+        }
+        if (csL != 0.0f) {  // (VQCS agent33) the low shelf: y + (G - 1) lp(y)
+          const float aL = 1.0f - std::exp(-2.0f * 3.14159265f * (c.female ? kVqcsLowFHz : kVqcsLowHz) / (kFoldOversample * fs_));
+          srcLpL_ += aL * (y2 - srcLpL_);
+          if (c.cs > 0.0f) y2 += (std::pow(10.0f, csL * c.cs / 20.0f) - 1.0f) * srcLpL_;
         }
         p1_ = line_->substep(y2);
       } else {

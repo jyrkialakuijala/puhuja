@@ -2899,6 +2899,7 @@ static uint64_t eventFields(const Event& e) {
   bit(e.liqShelf >= 0);
   bit(e.endQ >= 0);
   bit(e.lineNasRad >= 0); bit(e.lineNasHf >= 0); bit(e.lineNasGeom >= 0);
+  bit(e.vqcs >= 0);
   return m;
 }
 
@@ -3503,6 +3504,16 @@ void Synth::emit(const Token& tok, const Ph* next) {
     vqCsNow = csFor(4);
   }
   csSpeech_ = csFor(8);
+  // (VQCS agent33 round AE, lab; 0: off) VQCS_ON 1: the VQCS_* source knobs (larynx.cc, tick()) act in connected speech:
+  // from a phrase's 2nd word on, and with VQCS_FIRST 1 also in the first word of a phrase of 2+ words (the reader's
+  // phrase: setPhraseLeft), so a passage keeps one voice; single words (the dictionary) render as before.
+  static const float kVqcsOn = param("VQCS_ON", 0.0f), kVqcsFirst = param("VQCS_FIRST", 1.0f);
+  bool vqcsTok = false;
+  if (kVqcsOn > 0) {
+    const int wb = tok.ph == Ph::Stop ? wordsBefore : wordsSincePause_;
+    const int lb = tok.ph == Ph::Stop ? leftBefore : curPhraseLeft_;
+    vqcsTok = wb >= 2 || (kVqcsFirst > 0 && wb == 1 && lb >= 2);
+  }
   // (Y-INIT agent25 round W, lab knobs; all off by default) the word-initial j: the dictionary's j before a stressed
   // vowel after a pause was deleted in 14 of 148 and heard l in 9 ("Year" -> ear, "Yet" -> let, "Yields" -> fields).
   // Isolated words, against Kokoro (am_adam / af_heart): its j holds F2 2200 / 2600 Hz for ~100 ms from the word start,
@@ -3952,6 +3963,17 @@ void Synth::emit(const Token& tok, const Ph* next) {
     if (liqOn && tok.ph == Ph::L) v = liqCoda && kLCS >= 0 ? kLCS : kLS;
     if (v != 0.0f) { e.liqShelf = v; liqShelfSet_ = true; }
     else if (liqShelfSet_) { e.liqShelf = 0.0f; liqShelfSet_ = false; }
+  }
+  if (kVqcsOn > 0) {  // (VQCS agent33) the amount: x VQCS_UNSTR_X in an unstressed syllable, ramping in over the phrase's
+    // first VQCS_RAMP_WORDS words (0: at once)
+    static const float kUnstrX = param("VQCS_UNSTR_X", 1.0f), kRampW = param("VQCS_RAMP_WORDS", 0.0f);
+    float v = vqcsTok ? 1.0f : 0.0f;
+    if (v > 0 && kRampW > 0) v *= std::min(1.0f, static_cast<float>(std::max(wordsSincePause_, 1)) / kRampW);
+    if (v > 0 && kUnstrX != 1.0f) {  // (a vowel sets it from its syllable's stress; consonants keep the last vowel's)
+      if (in.cls == Cls::Vowel) { if (!sylStress_) v *= kUnstrX; }
+      else if (vqcsSet_ > 0) v = vqcsSet_;
+    }
+    if (v != vqcsSet_) { e.vqcs = v; vqcsSet_ = v; }
   }
   // v voiced through a wider slit (LINE_V_AC) has a weak hiss: its own gain
   // (2026-11-04; 1 = today's).
@@ -8438,9 +8460,10 @@ void Synth::emit(const Token& tok, const Ph* next) {
     if (hasVelLag) addEventAt(velLag);
     if (hasVel2) addEventAt(vel2);
     if (hasCloseFricBack) addEventAt(closeFricBack);
-  } else if (e.liqShelf >= 0) {  // (LIQ agent31: after a plosive the release's events stand in for this one; the shelf share still lands)
+  } else if (e.liqShelf >= 0 || e.vqcs >= 0) {  // (LIQ agent31: after a plosive the release's events stand in for this one; the shelf share still lands)
     Event q{e.t};
     q.liqShelf = e.liqShelf;
+    q.vqcs = e.vqcs;  // (VQCS agent33)
     addEventAt(q);
   }
   // f's hiss fades in over LINE_F_RAMP_MS (0: off) in four steps from
@@ -11661,6 +11684,7 @@ float Synth::tick() {
     if (e.lineHumpNorm > -1.5f) line_.setHumpNorm(e.lineHumpNorm);
     if (e.lineExpandLp > -1.5f) line_.setExpandLp(e.lineExpandLp);
     if (e.lineGlotFc >= 0) line_.setGlotFcScale(e.lineGlotFc);
+    if (e.vqcs >= 0) vqcsTarget_ = e.vqcs;  // (VQCS agent33)
     if (e.liqShelf >= 0) {
       liqShelfTarget_ = e.liqShelf;
       if (std::getenv("PUHUJA_LIQ_TRACE")) std::fprintf(stderr, "liqshelf t %.3f %.2f\n", t_, e.liqShelf);
@@ -12102,6 +12126,17 @@ float Synth::tick() {
     static const float kLineAspVoiced = param("LINE_ASP_VOICED", 1.0f);
     static const float kLineAspVoicedF = param("LINE_ASP_VOICED_F", 0.15f);  // the female voice's (< 0: LINE_ASP_VOICED; round Z VQ)
     float aspV = female_ && kLineAspVoicedF >= 0 ? kLineAspVoicedF : kLineAspVoiced;
+    // (VQCS agent33 round AE, lab; 0: off) the connected-speech amount eases toward its target over VQCS_MS; the voiced
+    // aspiration share + VQCS_ASP (_F: the female's, < -900: the male's) x it.
+    static const float kVqcsOnT = param("VQCS_ON", 0.0f);
+    static const float kVqcsAsp = param("VQCS_ASP", 0.0f), kVqcsAspF0 = param("VQCS_ASP_F", -999.0f);
+    static const float kVqcsAspF = kVqcsAspF0 > -900 ? kVqcsAspF0 : kVqcsAsp;
+    if (kVqcsOnT > 0) {
+      static const float vqA = 1.0f - std::exp(-1.0f / (param("VQCS_MS", 60.0f) * 0.001f * fs_));
+      vqcsNow_ += vqA * (vqcsTarget_ - vqcsNow_);
+      const float va = female_ ? kVqcsAspF : kVqcsAsp;
+      if (va != 0.0f) aspV = std::max(0.0f, aspV + va * vqcsNow_);
+    }
     // Round AA (VQ2 agent29): extra voiced aspiration only where the tract is open (ac fading in from half of
     // LINE_ASP_VOWEL_AC to it): breath in the vowels' high band, the consonants as before. 0: none.
     static const float kLineAspVowel = param("LINE_ASP_VOWEL", 0.0f), kLineAspVowelF = param("LINE_ASP_VOWEL_F", -1.0f);
@@ -12324,7 +12359,40 @@ float Synth::tick() {
       lc.ag *= std::max(0.0f, 1.0f + kCrEndAg * endE_ + kCrOnAg * onO_);
       lc.diplo = kCrEndDiplo * endE_;
     }
+    // (VQCS agent33 round AE, lab; 0: off) connected-speech voice quality, x the eased amount (VQCS_ON): the posterior chink
+    // + VQCS_GAP cm^2, the lung pressure x (1 + VQCS_PS), the abduction x (1 + VQCS_AG), per-cycle jitter / shimmer
+    // + VQCS_JIT / VQCS_SHIM (as the creak's). _F: the female's (< -900: the male's). The shelves / rest: larynx.cc.
+    if (static const float kVqcsOnL = param("VQCS_ON", 0.0f); kVqcsOnL > 0) {
+      auto fk = [this](float m, float f) { return female_ && f > -900 ? f : m; };
+      static const float kG = param("VQCS_GAP", 0.0f), kGF = param("VQCS_GAP_F", -999.0f);
+      static const float kP = param("VQCS_PS", 0.0f), kPF = param("VQCS_PS_F", -999.0f);
+      static const float kA = param("VQCS_AG", 0.0f), kAF = param("VQCS_AG_F", -999.0f);
+      static const float kJ = param("VQCS_JIT", 0.0f), kJF = param("VQCS_JIT_F", -999.0f);
+      static const float kS = param("VQCS_SHIM", 0.0f), kSF = param("VQCS_SHIM_F", -999.0f);
+      const float c = vqcsNow_;
+      lc.cs = c;
+      const float g = fk(kG, kGF), pp = fk(kP, kPF), aa = fk(kA, kAF), j = fk(kJ, kJF), sh = fk(kS, kSF);
+      if (g != 0.0f) lc.gap = std::max(0.0f, lc.gap + g * c);
+      if (pp != 0.0f) lc.ps *= std::max(0.0f, 1.0f + pp * c);
+      if (aa != 0.0f) lc.ag *= std::max(0.0f, 1.0f + aa * c);
+      if (j != 0.0f) lc.creakJ += j * c;
+      if (sh != 0.0f) lc.creakS += sh * c;
+    }
     lc.microGain = voice_.microGain;
+    {  // (VQCS agent33, lab; 0: off) the slow micro-variation x (1 + VQCS_MICRO cs) (_F: the female's, < -900: the male's);
+       // the oral HF loss bandwidth moves toward VQCS_HFBW Hz (_F) by cs (0: off; updated every 16 samples)
+      static const float kVqOn = param("VQCS_ON", 0.0f);
+      static const float kM = param("VQCS_MICRO", 0.0f), kMF0 = param("VQCS_MICRO_F", -999.0f), kMF = kMF0 > -900 ? kMF0 : kM;
+      static const float kH = param("VQCS_HFBW", 0.0f), kHF0 = param("VQCS_HFBW_F", -999.0f), kHF = kHF0 > -900 ? kHF0 : kH;
+      if (kVqOn > 0 && vqcsNow_ > 0.0f) {
+        const float m = female_ ? kMF : kM, h = female_ ? kHF : kH;
+        if (m != 0.0f) lc.microGain *= std::max(0.0f, 1.0f + m * vqcsNow_);
+        if (h > 0.0f && tract_ == Tract::Line && (static_cast<long long>(t_) & 15) == 0) line_.setOralHfMix(h, 1.0f - vqcsNow_);
+        static const float kL = param("VQCS_ASP_LP", 0.0f), kLF0 = param("VQCS_ASP_LP_F", -999.0f), kLF = kLF0 > -900 ? kLF0 : kL;
+        const float l = female_ ? kLF : kL;  // (Hz; 0: off) the glottal noise two-pole low-passed at this, x cs
+        if (l > 0.0f && tract_ == Tract::Line && (static_cast<long long>(t_) & 15) == 0) line_.setCsAspLp(l, vqcsNow_);
+      }
+    }
     lc.cycleJitter = voice_.cycleJitter;
     lc.female = female_;
     // Round AA (VQ2 agent29): the source shelf only where the tract is open (ac >= LARYNX_SRC_SHELF_OPEN cm^2, fading

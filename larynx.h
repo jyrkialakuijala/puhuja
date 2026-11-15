@@ -88,6 +88,7 @@ struct LarynxControl {
   bool female = false;  // (round Z VQ: per-voice source shelves)
   float shelfScale = 1;  // round AA VQ2: the source shelves' dB x this (LARYNX_SRC_SHELF_OPEN: vowels only)
   float creakJ = 0, creakS = 0;  // round AC CREAK agent31: extra per-cycle tension / pressure deviation (creak; 0: none)
+  float cs = 0;  // round AE VQCS agent33: the connected-speech voice quality amount (0..1; VQCS_* knobs in larynx.cc)
   float diplo = 0;  // round AC CREAK agent31: alternate cycles' pressure +-diplo (and tension +-CREAK_DIPLO_Q x diplo): creak's period doubling
 };
 
@@ -211,6 +212,7 @@ class FoldLarynx : public Larynx {
   float kPitchRelax_ = 0, kVibTrack_ = 0;
   BandPass tractMode_[3];  // formant modes of the tract input impedance
   float p1_ = 0;           // acoustic pressure above the folds (feedback)
+  float srcLpL_ = 0;  // VQCS agent33: the low shelf's low-pass
   float srcLp_ = 0, srcLp2_ = 0;  // LARYNX_SRC_SHELF*_*: the flow's low-passed parts
   float dipZ1_ = 0, dipZ2_ = 0;  // LARYNX_SRC_DIP_*: the peaking filter's state (round AA VQ2)
   VocalTractLine* line_ = nullptr;  // the line tract, if attached (p1 comes from it)

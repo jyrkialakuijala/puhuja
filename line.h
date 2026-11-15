@@ -255,6 +255,8 @@ class VocalTractLine {
   // The aspiration's high-pass corner from now on (Hz; 0: LINE_ASP_HP's), with
   // `poles` one-pole stages (0: LINE_ASP_HP_POLES): a t's own breath.
   void setAspHp(float hz, int poles);
+  // (VQCS agent33) the glottal noise low-passed (two poles at hz) by this share (0: off): connected-speech breath without 8-10 kHz hiss
+  void setCsAspLp(float hz, float mix) { csAspA_ = 1.0f - std::exp(-6.2831853f * hz * dt_); csAspMix_ = mix; }
   // NASAL agent32 (round AD): the nasal walls' radiation x s (1: as before); the nasal line's HF loss bandwidth (Hz)
   void setNasalRad(float s) { nasRadScale_ = s; }
   void setNasalHfBw(float bw) { nasal_.setHfLoss(bw, nasHfFc_); }
@@ -334,6 +336,7 @@ class VocalTractLine {
   float aspHpState_ = 0, aspHpA_ = 0, aspHpBaseA_ = 0;
   int aspHpPolesNow_ = 0;  // 0: LINE_ASP_HP_POLES
   float aspHpMore_[4] = {0, 0, 0, 0};  // LINE_ASP_HP_POLES' extra stages
+  float csAspA_ = 0, csAspMix_ = 0, csAspLp_[2] = {0, 0};  // (VQCS agent33) setCsAspLp
   float noiseHp1_ = 0, noiseHp2_ = 0, noiseHpA_ = 0;
   float stG_[4] = {}, stF_[4] = {}, stAlphaG_ = 0.1f, stAlphaF_ = 0.1f, stLpG_ = 0.5f, stLpF_ = 0.5f;  // the Strouhal-banded noises (glottis, slit)
   unsigned stCount_ = 0;

@@ -128,6 +128,7 @@ struct Event {
   float aspGain = -1;  // breath-noise strength from now on (< 0: unchanged)
   float lineAspMul = -1;  // the glottal noise gain factor on the line (a stop's puff; < 0: unchanged)
   float liqShelf = -1;  // LIQ agent31: the source shelf's extra dB share from now on (an ɹ / l; < 0: unchanged)
+  float vqcs = -1;  // VQCS agent33: the connected-speech voice quality target from now on (0 / 1; < 0: unchanged)
   float lineGlotFc = -1;  // the glottal noise band's corner x this on the line (an h's breath colour, LINE_H_GFC; < 0: unchanged)
   float lineHBreath = -1;  // an h's unthresholded breath gain on the line (x LINE_ASP; LINE_H_BREATH; < 0: unchanged)
   float lineExpandLp = -2;  // the voiced closure's expansion low-pass (Hz; -1: LINE_EXPAND_LP again; < -1: unchanged; BDG-Z agent20)
@@ -740,6 +741,8 @@ class Synth {
   float creakTarget_ = 0, creakNow_ = 0, kCreakFollow_ = 0;  // creaky irregularity
   float liqShelfNow_ = 0, liqShelfTarget_ = 0;  // LIQ agent31: extra source shelf share in an ɹ / l (LIQ_R_SHELF ...)
   bool liqShelfSet_ = false;
+  float vqcsNow_ = 0, vqcsTarget_ = 0;  // VQCS agent33: the connected-speech voice quality amount (eased) and its target
+  float vqcsSet_ = 0;  // the last amount sent
   // Round AC CREAK agent31: the phrase-end envelope (ramps to endTarget_ by endStep_ per sample), the post-pause
   // onset envelope (1 at the resume, decaying while voicing), their shaped values, the phrase start (samples).
   float endTarget_ = 0, endNow_ = 0, endStep_ = 0, onNow_ = 0, endE_ = 0, onO_ = 0;

@@ -667,6 +667,11 @@ float VocalTractLine::substep(float u0) {
         n -= aspHpMore_[k];
       }
     }
+    if (csAspMix_ > 0.0f) {  // (VQCS agent33)
+      csAspLp_[0] += csAspA_ * (n - csAspLp_[0]);
+      csAspLp_[1] += csAspA_ * (csAspLp_[0] - csAspLp_[1]);
+      n += csAspMix_ * (csAspLp_[1] - n);
+    }
     aspActive_ = re > kReynoldsCrit;
     if (aspActive_) oral_.addFlowDrive(1, aspGain_ * (re * re - reC2) * invReC2 * n);
     if (breathGain_ > 0) {  // (LINE_BREATH: no threshold; LINE_BREATH_MS smooths its envelope: Jyrki heard the instantaneous Re^2 drive as erratic)
