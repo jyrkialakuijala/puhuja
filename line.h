@@ -186,6 +186,7 @@ struct TractShape;
 // the pressure above the folds.
 class VocalTractLine {
  public:
+  void setFemale(bool female);  // per-voice oral losses (LINE_HF_BW_F)
   static constexpr int kOralSections = 64, kNasalSections = 40;
   void init(float fs, float nasalScale = 1.0f);  // nasalScale: the nasal line's length x (the female voice, LINE_NASAL_SCALE_F)
   // The vowel shape, with a constriction of area ac (cm^2; >= 1: none) at

@@ -326,6 +326,13 @@ const float kNasalCavityArea = param("LINE_NASAL_CAVITY_A", 3.5f);  // the main 
 const float kNasalPortArea = param("LINE_NASAL_PORT_A", 1.5f);      // the nasopharynx behind it (cm^2)
 const float kNostrilArea = param("LINE_NOSTRIL_A", 1.594f) /* cost 1814 whisper-run1-phon_err */;  // both nostrils together (cm^2; 1.2 put the n level with the vowel, the readers 9-14 dB under)
 
+void VocalTractLine::setFemale(bool female) {
+  // LINE_HF_BW_F: the female voice's oral HF loss (< 0: LINE_HF_BW; round Z VQ agent28)
+  static const float kHfBwF = param("LINE_HF_BW_F", -1.0f);
+  if (kHfBwF >= 0) oral_.setHfLoss(female ? kHfBwF : kHfBandwidth, kHfCorner);
+  if (kHfBwF >= 0) sub_.setHfLoss(female ? kHfBwF : kHfBandwidth, kHfCorner);  // (the trachea's from the same knob)
+}
+
 void VocalTractLine::init(float fs, float nasalScale) {
   fs_ = fs;
   dt_ = 1.0f / (TransmissionLine::kSubsteps * fs);

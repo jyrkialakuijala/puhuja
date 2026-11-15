@@ -85,6 +85,7 @@ struct LarynxControl {
   float formant[3] = {500, 1500, 2500};  // the tract's F1-F3 (Hz) and bandwidths: its load on the folds
   float bw[3] = {80, 100, 120};
   float vibDrive = 0;  // the aerodynamic vibration estimate (0..1) for the drawn waveforms
+  bool female = false;  // (round Z VQ: per-voice source shelves)
 };
 
 // What the larynx gives back for this sample.
@@ -206,6 +207,7 @@ class FoldLarynx : public Larynx {
   float kPitchRelax_ = 0, kVibTrack_ = 0;
   BandPass tractMode_[3];  // formant modes of the tract input impedance
   float p1_ = 0;           // acoustic pressure above the folds (feedback)
+  float srcLp_ = 0, srcLp2_ = 0;  // LARYNX_SRC_SHELF*_*: the flow's low-passed parts
   VocalTractLine* line_ = nullptr;  // the line tract, if attached (p1 comes from it)
   float prevFlow_ = 0;     // glottal flow one sample ago
   float flowMean_ = 0, physVib_ = 0;  // flow mean and fluctuation (~10 ms)

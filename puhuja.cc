@@ -139,7 +139,7 @@ constexpr bool kUseHighPoles = true;
 // each cycle (louder while the folds are open). It goes through the vocal
 // tract like the voicing, so it takes the vowel's colour. Scaled by the
 // vibration, so it is absent in p t k and fricatives.
-constexpr float kLowCutHz = 90;
+const float kLowCutHz = param("OUT_LOWCUT_HZ", 90.0f);  // (a knob since round Z VQ agent28: the male H1 at 90 Hz sits on it)
 constexpr float kRoomTone = 0.038f, kRoomToneHz = 1500;  // room-tone floor: level, darkness  // 2nd-order output cut (male boom)
 constexpr float kBreathiness = 0.08f;
 // High breath noise in voicing (see the glottal mix): gain, corner, pulsed share.
@@ -2376,6 +2376,7 @@ void Synth::setTract(Tract t) {
     // was heard ŋ / n 4x as often as the male one.
     static const float kNasalScaleF = param("LINE_NASAL_SCALE_F", 1.0f);
     line_.init(fs_, female_ ? kNasalScaleF : 1.0f);
+    line_.setFemale(female_);
     lineXFollow_ = 1.0f - std::exp(-1.0f / msToSamples(kBoundaryMs, fs_));
     larynx_->attachLine(&line_);
   } else {
@@ -2395,6 +2396,11 @@ void Synth::setCarrier(Carrier c) {
 void Synth::setVoice(VoicePreset preset) {
   voice_ = preset == VoicePreset::Female ? kFemaleVoice : kMaleVoice;
   female_ = preset == VoicePreset::Female;
+  {  // OUT_LOWCUT_HZ_F: the female voice's own output low cut (<= 0: OUT_LOWCUT_HZ; round Z VQ agent28)
+    static const float kLowCutHzF = param("OUT_LOWCUT_HZ_F", -1.0f);
+    if (kLowCutHzF > 0) lowCut_.highPass(female_ ? kLowCutHzF : kLowCutHz, fs_);
+    if (tract_ == Tract::Line) line_.setFemale(female_);
+  }
   pulse_ = preset == VoicePreset::Female ? &kFemalePulse : &kMalePulse;
   baseF0_ = voice_.f0;
   larynx_->setBaseF0(voice_.f0);
@@ -11152,7 +11158,9 @@ float Synth::tick() {
     // pitch period puhuja's 4-7 kHz energy swings 27 dB (1-4 kHz 22), Kokoro's 12 (15); Kokoro's high band is filled
     // between the pulses by noise (its 3-6 kHz harmonic-to-noise ratio -3.4 dB against puhuja's -0.3), a lax voice's breath.
     static const float kLineAspVoiced = param("LINE_ASP_VOICED", 0.15f);
-    const float aspGate = kLineAspVoiced + (1.0f - kLineAspVoiced) * smoothstep(kAgVoice, kAgBreathy, ag);
+    static const float kLineAspVoicedF = param("LINE_ASP_VOICED_F", -1.0f);  // the female voice's (< 0: LINE_ASP_VOICED; round Z VQ)
+    const float aspV = female_ && kLineAspVoicedF >= 0 ? kLineAspVoicedF : kLineAspVoiced;
+    const float aspGate = aspV + (1.0f - aspV) * smoothstep(kAgVoice, kAgBreathy, ag);
     // The per-phoneme frication gain glides over LINE_FRIC_GLIDE_MS instead of stepping at the token (0: steps).
     // Jyrki 2026-11-10: "\"forebears fought\" has a snap in between" (the z's and the f's gains differ).
     static const float kLineFricGlideMs = param("LINE_FRIC_GLIDE_MS", 0.0f);
@@ -11258,6 +11266,7 @@ float Synth::tick() {
     lc.gap = voice_.glottalGap;
     lc.microGain = voice_.microGain;
     lc.cycleJitter = voice_.cycleJitter;
+    lc.female = female_;
     lc.cycleShimmer = voice_.cycleShimmer;
     for (int k = 0; k < 3; ++k) lc.formant[k] = p[kF1 + k] * voice_.formant[k];
     lc.bw[0] = p[kB1];

@@ -58,7 +58,21 @@ constexpr float kPressedPitchComp = 0.0f;  // tension eased when pressed shut (o
 // scale (the voice's microGain is relative to 3).
 constexpr float kMicro2Gain = 3.0f;
 constexpr float kTensionJitter = 0.4f, kRestJitter = 0.12f, kPressureShimmer = 1.6f;
-constexpr float kCycleJitter = 0.0f, kCycleShimmer = 0.0f;  // per-cycle gaussian deviations (off: they cost HNR)
+// Per-cycle gaussian deviations (off: they cost HNR). Knobs since round Z (VQ agent28, 2026-11-15): puhuja's
+// frame-to-frame f0 jitter 0.19 % (m) / 0.27 % (f) against 11labs 0.38 %, Kokoro 0.30-0.57 %.
+const float kCycleJitter = param("LARYNX_CYCLE_JITTER", 0.0f), kCycleShimmer = param("LARYNX_CYCLE_SHIMMER", 0.0f);
+// The slow micro-variation x this (1: as before).
+const float kMicroX = param("LARYNX_MICRO_X", 1.0f);
+// Round Z (VQ agent28): a first-order high shelf on the folds' flow as the line tract receives it (dB above
+// LARYNX_SRC_SHELF_HZ; 0: none). A sharper effective closure (the mucosal wave's abrupt cut-off): puhuja's voiced
+// 4-8 kHz is 12-18 dB under 11labs / Kokoro, tilt -12.3 dB/oct vs -9.4; only the voice, not the jets' noise.
+const float kSrcShelfDb = param("LARYNX_SRC_SHELF_DB", 0.0f), kSrcShelfHz = param("LARYNX_SRC_SHELF_HZ", 2000.0f);
+// ... a second shelf after it (a negative one above the first makes a broad mid lift), and the female voice's own
+// values (_F_; < -900 dB or <= 0 Hz: the male's). Cycle jitter for the female voice: LARYNX_CYCLE_JITTER_F (< 0: the male's).
+const float kSrcShelf2Db = param("LARYNX_SRC_SHELF2_DB", 0.0f), kSrcShelf2Hz = param("LARYNX_SRC_SHELF2_HZ", 4000.0f);
+const float kSrcShelfFDb = param("LARYNX_SRC_SHELF_F_DB", -999.0f), kSrcShelfFHz = param("LARYNX_SRC_SHELF_F_HZ", 0.0f);
+const float kSrcShelf2FDb = param("LARYNX_SRC_SHELF2_F_DB", -999.0f), kSrcShelf2FHz = param("LARYNX_SRC_SHELF2_F_HZ", 0.0f);
+const float kCycleJitterF = param("LARYNX_CYCLE_JITTER_F", -1.0f), kCycleShimmerF = param("LARYNX_CYCLE_SHIMMER_F", -1.0f);
 constexpr float kMicroHz = 8;
 constexpr int kFoldOversample = 4;
 constexpr float kFoldAntiAliasHz = 18000;
@@ -165,12 +179,13 @@ void FoldLarynx::step(const LarynxControl& c, LarynxOutput& out) {
     microLp_[k] += (noise() - microLp_[k]) * kMicroSmooth_;
     microLp2_[k] += (microLp_[k] - microLp2_[k]) * kMicroSmooth_;
     micro[k] = kMicro2Gain * c.microGain * microScale_ / 3.0f * microLp2_[k];
+    if (kMicroX != 1.0f) micro[k] *= kMicroX;
   }
   const float irregular = c.irregular;
   in.q *= 1.0f + kTensionJitter * irregular * micro[0];
   in.ps *= 1.0f + kPressureShimmer * micro[2];
-  in.q *= 1.0f + kCycleJitter * c.cycleJitter * cycleJ_;
-  in.ps *= 1.0f + kCycleShimmer * c.cycleShimmer * cycleS_;
+  in.q *= 1.0f + (c.female && kCycleJitterF >= 0 ? kCycleJitterF : kCycleJitter) * c.cycleJitter * cycleJ_;
+  in.ps *= 1.0f + (c.female && kCycleShimmerF >= 0 ? kCycleShimmerF : kCycleShimmer) * c.cycleShimmer * cycleS_;
   // Fold rest position from the glottal opening (see kFoldRestPerAg).
   const float restVoice = kFoldRestPerAg * kAgVoice + kFoldRestOffset;
   in.rest = ag >= kAgVoice ? kFoldRestPerAg * ag + kFoldRestOffset
@@ -212,7 +227,24 @@ void FoldLarynx::step(const LarynxControl& c, LarynxOutput& out) {
       line_->setGlottalArea(core_->area());
     }
     const float raw = core_->step(1.0f / (kFoldOversample * fs_), in);
-    if (line_) p1_ = line_->substep(raw);
+    if (line_) {
+      const float db1 = c.female && kSrcShelfFDb > -900 ? kSrcShelfFDb : kSrcShelfDb;
+      const float db2 = c.female && kSrcShelf2FDb > -900 ? kSrcShelf2FDb : kSrcShelf2Db;
+      if (db1 != 0.0f || db2 != 0.0f) {
+        // y = x + (G - 1) (x - lp(x)): unity below the corner, G above it.
+        const float hz1 = c.female && kSrcShelfFHz > 0 ? kSrcShelfFHz : kSrcShelfHz;
+        const float hz2 = c.female && kSrcShelf2FHz > 0 ? kSrcShelf2FHz : kSrcShelf2Hz;
+        const float g1 = std::pow(10.0f, db1 / 20.0f) - 1.0f, g2 = std::pow(10.0f, db2 / 20.0f) - 1.0f;
+        const float a1 = 1.0f - std::exp(-2.0f * 3.14159265f * hz1 / (kFoldOversample * fs_));
+        const float a2 = 1.0f - std::exp(-2.0f * 3.14159265f * hz2 / (kFoldOversample * fs_));
+        srcLp_ += a1 * (raw - srcLp_);
+        const float y1 = raw + g1 * (raw - srcLp_);
+        srcLp2_ += a2 * (y1 - srcLp2_);
+        p1_ = line_->substep(y1 + g2 * (y1 - srcLp2_));
+      } else {
+        p1_ = line_->substep(raw);
+      }
+    }
     u = foldAa_[2].process(foldAa_[1].process(foldAa_[0].process(raw)));
     if (core_->closedNow()) {
       closed = true;
