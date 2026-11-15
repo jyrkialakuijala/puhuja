@@ -87,6 +87,8 @@ struct LarynxControl {
   float vibDrive = 0;  // the aerodynamic vibration estimate (0..1) for the drawn waveforms
   bool female = false;  // (round Z VQ: per-voice source shelves)
   float shelfScale = 1;  // round AA VQ2: the source shelves' dB x this (LARYNX_SRC_SHELF_OPEN: vowels only)
+  float creakJ = 0, creakS = 0;  // round AC CREAK agent31: extra per-cycle tension / pressure deviation (creak; 0: none)
+  float diplo = 0;  // round AC CREAK agent31: alternate cycles' pressure +-diplo (and tension +-CREAK_DIPLO_Q x diplo): creak's period doubling
 };
 
 // What the larynx gives back for this sample.
@@ -202,6 +204,7 @@ class FoldLarynx : public Larynx {
   float microLp_[3] = {0, 0, 0}, microLp2_[3] = {0, 0, 0}, kMicroSmooth_ = 0.004f;
   float breathyComp_ = 0, kBreathyCompFollow_ = 0;  // fold tension for a held-open glottis
   float cycleJ_ = 0, cycleS_ = 0;  // this cycle's random tension and pressure deviation
+  float diploSign_ = 1;  // round AC CREAK: the alternating cycle sign (LarynxControl::diplo)
   float pitchCorr_ = 1, pitchCorrTarget_ = 1;  // pitch controller: tension correction
   double lastCloseTime_ = 0;  // last fold closure (samples, sub-sample)
   bool belowHalf_ = false;  // the flow has been under half its mean since the last cycle mark

@@ -157,6 +157,7 @@ struct Event {
   bool lineXClosure = false;  // the place is a closure's (a stop, a nasal): LINE_X_SNAP_CLOSURES
   bool aspBurst = false;  // an aspirated release: the puff's noise starts
   float creak = -1;       // creaky voice from now on (0..1; < 0: unchanged)
+  float endQ = -1, endQMs = 0;  // round AC CREAK agent31: the phrase-end voice quality envelope target (0..1) and its ramp (ms); < 0: unchanged
   float noiseFadeMs = -1;  // with setNoise: fade-in from silence (< 0: the default)
   // Cavity compliance multiplier (active expansion during voiced closures),
   // reached over expandMs; < 0: no change.
@@ -726,6 +727,10 @@ class Synth {
   float creakTarget_ = 0, creakNow_ = 0, kCreakFollow_ = 0;  // creaky irregularity
   float liqShelfNow_ = 0, liqShelfTarget_ = 0;  // LIQ agent31: extra source shelf share in an ɹ / l (LIQ_R_SHELF ...)
   bool liqShelfSet_ = false;
+  // Round AC CREAK agent31: the phrase-end envelope (ramps to endTarget_ by endStep_ per sample), the post-pause
+  // onset envelope (1 at the resume, decaying while voicing), their shaped values, the phrase start (samples).
+  float endTarget_ = 0, endNow_ = 0, endStep_ = 0, onNow_ = 0, endE_ = 0, onO_ = 0;
+  double phraseStart_ = 0; int phraseWord_ = 0; bool lastPhraseLong_ = false;
   float shelfOpen_ = 1;  // round AA VQ2: the source shelf's openness gate (LARYNX_SRC_SHELF_OPEN)
   float hfOpen_ = 1;  // the eased openness for LINE_HF_BW_CONS
   float hpOpen_ = 0; unsigned hpTick_ = 0;  // OUT_HP_HZ_CONS: the eased openness, a coefficient update counter

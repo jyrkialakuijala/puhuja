@@ -1757,10 +1757,29 @@ constexpr float kNoiseSilent = 0.01f;  // (0.1: -20 dB, resets while still audib
 constexpr float kAcSoft = 0.001f;
 constexpr float kGlottalOnsetMs = 20;
 // Creaky statement ending: pressed glottis from this share of the last vowel.
-constexpr float kCreakStart = 0.5f, kCreakMs = 60;
-constexpr float kCreakAg = 0.8f * kAgVoice;  // (0.5: pressed, squeezed)
+// (Round AC CREAK agent31: knobs LINE_CREAK_START / _MS / _AG (x kAgVoice) / _JITTER / _PRESS; defaults as before.)
+const float kCreakStart = param("LINE_CREAK_START", 0.5f), kCreakMs = param("LINE_CREAK_MS", 60.0f);
+const float kCreakAg = param("LINE_CREAK_AG", 0.8f) * kAgVoice;  // (0.5: pressed, squeezed)
 // Creak: micro-variation multiplier (+x3) and breath pressure.
-constexpr float kCreakJitter = 2.0f, kCreakPress = 0.6f;  // glottal onset: press before, release over
+const float kCreakJitter = param("LINE_CREAK_JITTER", 2.0f), kCreakPress = param("LINE_CREAK_PRESS", 0.6f);  // glottal onset: press before, release over
+// Round AC (CREAK agent31): phrase-final and post-pause voice quality (all 0: off, as before). Before every pause
+// that ends a phrase of at least CREAK_MIN_MS, an envelope E rises over CREAK_END_RAMP_MS (< 0: CREAK_END_MS)
+// from CREAK_END_MS before the pause, shaped E = ramp^CREAK_END_POW; it adds creak irregularity (x LINE_CREAK_JITTER),
+// a posterior chink (cm^2), voiced aspiration (x 1 + _ASP E), period doubling (_DIPLO), lowers the breath pressure
+// (x 1 - _PS E) and opens / presses the glottis (ag x 1 + _AG E). After the pause (when the phrase before was
+// long enough, or CREAK_MIN_MS 0) an onset envelope O starts at 1 and decays with CREAK_ON_MS while voicing:
+// chink, aspiration, pressure and ag likewise. CREAK_F_X scales the female's amounts.
+const float kCrEndMs = param("CREAK_END_MS", 0.0f), kCrEndRampMs = param("CREAK_END_RAMP_MS", -1.0f);
+const float kCrEndPow = param("CREAK_END_POW", 1.0f), kCrMinMs = param("CREAK_MIN_MS", 0.0f);
+const float kCrEndIrr = param("CREAK_END_IRR", 0.0f), kCrEndGap = param("CREAK_END_GAP", 0.0f);
+const float kCrEndAsp = param("CREAK_END_ASP", 0.0f), kCrEndPs = param("CREAK_END_PS", 0.0f);
+const float kCrEndAg = param("CREAK_END_AG", 0.0f), kCrEndDiplo = param("CREAK_END_DIPLO", 0.0f);
+const float kCrEndJit = param("CREAK_END_JIT", 0.0f), kCrEndShim = param("CREAK_END_SHIM", 0.0f);
+const float kCrOnMs = param("CREAK_ON_MS", 0.0f), kCrOnGap = param("CREAK_ON_GAP", 0.0f);
+const float kCrOnAsp = param("CREAK_ON_ASP", 0.0f), kCrOnPs = param("CREAK_ON_PS", 0.0f);
+const float kCrOnAg = param("CREAK_ON_AG", 0.0f), kCrFemX = param("CREAK_F_X", 1.0f);
+const float kCrMinWords = param("CREAK_MIN_WORDS", 0.0f);  // ... and of at least this many words (2: connected speech only)
+const bool kCrOn = kCrEndMs > 0 || kCrOnMs > 0;
 // (a knob since 2026-11-08: Jyrki, "heritage is missing its end, it sounds like 'heriti'": the final ʤ's
 // frication ran inside this easing and came out 11-14 dB under a non-final one at the same slit, glottis
 // and gain; the hiss falls faster than the pressure past the Reynolds threshold)
@@ -2838,6 +2857,7 @@ static uint64_t eventFields(const Event& e) {
   bit(e.lineNoiseLp >= 0);
   bit(e.gapOn > 0);
   bit(e.liqShelf >= 0);
+  bit(e.endQ >= 0);
   return m;
 }
 
@@ -7273,6 +7293,15 @@ void Synth::emit(const Token& tok, const Ph* next) {
         ease.press = kEndPressure;
         ease.pressMs = kEndEaseMs;
         addEventAt(ease);  // in time order: queued after later events, it was moved late
+        if (kCrOn) {  // (round AC CREAK agent31) the phrase-end envelope
+          lastPhraseLong_ = (t0 - phraseStart_) * 1000.0 / fs_ >= kCrMinMs && curWord_ - phraseWord_ + 1 >= kCrMinWords;
+          if (kCrEndMs > 0 && lastPhraseLong_) {
+            Event q{t0 - kCrEndMs * 0.001 * fs_};
+            q.endQ = 1;
+            q.endQMs = kCrEndRampMs >= 0 ? kCrEndRampMs : kCrEndMs;
+            addEventAt(q);
+          }
+        }
       }
       e.ac = -1;
       if (tract_ == Tract::Line) {
@@ -7491,6 +7520,12 @@ void Synth::emit(const Token& tok, const Ph* next) {
   if (prevWasPause_ && in.cls != Cls::Stop) {  // speaking again: full pressure
     e.press = 1.0f;
     e.pressMs = kPressResumeMs;
+    if (kCrOn) {  // (round AC CREAK agent31) the end envelope off, the onset envelope on (endQMs 1) if allowed
+      e.endQ = 0;
+      e.endQMs = kCrOnMs > 0 && lastPhraseLong_ ? 1.0f : 0.0f;
+      phraseStart_ = t0;
+      phraseWord_ = curWord_;
+    }
     // (F-INIT agent26, lab; 1: as before) a phrase-initial f's breath x LINE_FI_PRESS (a softer push: less flow through
     // the lip slit, a weaker and darker hiss); the vowel after it returns to full pressure over LINE_FI_PRESS_MS.
     { static const float kFiPress = param("LINE_FI_PRESS", 1.0f); if (fiTok && kFiPress != 1.0f) e.press = kFiPress; }
@@ -11312,6 +11347,14 @@ float Synth::tick() {
     if (e.lineLip >= 0) lineLip_ = lineLipTarget_ = e.lineLip;
     planUsed_ += e.planAir;
     if (e.creak >= 0) creakTarget_ = e.creak;
+    if (e.endQ >= 0) {  // (round AC CREAK agent31)
+      if (e.endQ == 0) {
+        endNow_ = 0;
+        if (e.endQMs > 0) onNow_ = 1;
+      }
+      endTarget_ = e.endQ;
+      endStep_ = e.endQ > 0 ? 1.0f / (std::max(e.endQMs, 1.0f) * 0.001f * fs_) : 1.0f;
+    }
     if (e.aspBurst) aspBurst_ = aspirationGain_ * e.aspBurstGain;
     if (e.ac >= 0) ac_.start(e.ac, msToSamples(e.acMs, fs_), e.acLog);
     if (e.shFall >= 0) shFallT_ = t_, shFallCls_ = e.shFall;
@@ -11756,6 +11799,7 @@ float Synth::tick() {
         if (aspV > kOnsetBase) aspV = kOnsetBase + (aspV - kOnsetBase) * smoothstep(0.0f, onMs, aspOnsetMs_);
       }
     }
+    if (kCrOn) aspV *= 1.0f + kCrEndAsp * endE_ + kCrOnAsp * onO_;  // (round AC CREAK agent31)
     const float aspGate = aspV + (1.0f - aspV) * smoothstep(kAgVoice, kAgBreathy, ag);
     // The per-phoneme frication gain glides over LINE_FRIC_GLIDE_MS instead of stepping at the token (0: steps).
     // Jyrki 2026-11-10: "\"forebears fought\" has a snap in between" (the z's and the f's gains differ).
@@ -11942,6 +11986,21 @@ float Synth::tick() {
       static const float gapM = param("LARYNX_GAP", 0.0f), gapF = param("LARYNX_GAP_F", -1.0f);
       const float gp = female_ && gapF >= 0 ? gapF : gapM;
       if (gp > 0) lc.gap += gp;
+    }
+    if (kCrOn) {  // (round AC CREAK agent31) the phrase-end / post-pause voice quality
+      static const float onDecay = kCrOnMs > 0 ? std::exp(-1.0f / (kCrOnMs * 0.001f * fs_)) : 0.0f;
+      endNow_ = endNow_ < endTarget_ ? std::min(endTarget_, endNow_ + endStep_) : endTarget_;
+      if (ag <= kAgBreathy) onNow_ *= onDecay;
+      const float fx = female_ ? kCrFemX : 1.0f;
+      endE_ = fx * (kCrEndPow == 1.0f ? endNow_ : std::pow(endNow_, kCrEndPow));
+      onO_ = fx * onNow_;
+      lc.irregular += kCreakJitter * kCrEndIrr * endE_;
+      lc.creakJ = kCrEndJit * endE_;
+      lc.creakS = kCrEndShim * endE_;
+      lc.gap += kCrEndGap * endE_ + kCrOnGap * onO_;
+      lc.ps *= std::max(0.0f, 1.0f - kCrEndPs * endE_) * std::max(0.0f, 1.0f - kCrOnPs * onO_);
+      lc.ag *= std::max(0.0f, 1.0f + kCrEndAg * endE_ + kCrOnAg * onO_);
+      lc.diplo = kCrEndDiplo * endE_;
     }
     lc.microGain = voice_.microGain;
     lc.cycleJitter = voice_.cycleJitter;

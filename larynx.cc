@@ -191,6 +191,15 @@ void FoldLarynx::step(const LarynxControl& c, LarynxOutput& out) {
   in.ps *= 1.0f + kPressureShimmer * micro[2];
   in.q *= 1.0f + (c.female && kCycleJitterF >= 0 ? kCycleJitterF : kCycleJitter) * c.cycleJitter * cycleJ_;
   in.ps *= 1.0f + (c.female && kCycleShimmerF >= 0 ? kCycleShimmerF : kCycleShimmer) * c.cycleShimmer * cycleS_;
+  // Round AC (CREAK agent31): period doubling at a creaky phrase end, alternate cycles stronger / weaker and longer /
+  // shorter (0: off, as before).
+  if (c.creakJ > 0) in.q *= 1.0f + c.creakJ * cycleJ_;
+  if (c.creakS > 0) in.ps *= 1.0f + c.creakS * cycleS_;
+  if (c.diplo > 0) {
+    static const float kDiploQ = param("CREAK_DIPLO_Q", 0.5f);
+    in.ps *= 1.0f + c.diplo * diploSign_;
+    in.q *= 1.0f + kDiploQ * c.diplo * diploSign_;
+  }
   // Fold rest position from the glottal opening (see kFoldRestPerAg).
   const float restVoice = kFoldRestPerAg * kAgVoice + kFoldRestOffset;
   in.rest = ag >= kAgVoice ? kFoldRestPerAg * ag + kFoldRestOffset
@@ -306,6 +315,7 @@ void FoldLarynx::step(const LarynxControl& c, LarynxOutput& out) {
     // The next cycle's deviations (a rough gaussian from two draws).
     cycleJ_ = std::clamp(0.87f * (noise() + noise()), -2.5f, 2.5f);
     cycleS_ = std::clamp(0.87f * (noise() + noise()), -2.5f, 2.5f);
+    diploSign_ = -diploSign_;
     lastCloseTime_ = closeTime;
     const float measured = static_cast<float>(fs_ / std::max(period, 1.0));
     {

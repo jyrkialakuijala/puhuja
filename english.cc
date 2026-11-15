@@ -1979,7 +1979,7 @@ void applyForeign(std::vector<EnglishReader::Word>& phrase, const ForeignWord (&
 
 // Loudness shape of a phrase (dB, vowels).
 const float kArcStartDb = param("EN_ARC_START_DB", 1.0f), kArcEndDb = param("EN_ARC_END_DB", -2.0f);  // (-3: with the end release too steep)
-constexpr float kCreakBelow = -6.5f;  // st: statement endings this low get creaky voice (-5: nearly all)
+static const float kCreakBelow = param("EN_CREAK_BELOW", -6.5f);  // st: statement endings this low get creaky voice (-5: nearly all)
 constexpr float kPressedAccent = 0.9f, kLaxUnstressed = 1.08f, kLaxFinal = 1.12f;  // glottal opening
 const float kAccentDb = param("EN_ACCENT_DB", 1.5f), kFunctionWordDb = param("EN_FUNC_WORD_DB", -1.5f);
 const float kSecondaryDb = param("kSecondaryDb", -4.0f), kUnstressedDb = param("kUnstressedDb", 2.0f);
