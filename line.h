@@ -255,6 +255,11 @@ class VocalTractLine {
   // The aspiration's high-pass corner from now on (Hz; 0: LINE_ASP_HP's), with
   // `poles` one-pole stages (0: LINE_ASP_HP_POLES): a t's own breath.
   void setAspHp(float hz, int poles);
+  // NASAL agent32 (round AD): the nasal walls' radiation x s (1: as before); the nasal line's HF loss bandwidth (Hz)
+  void setNasalRad(float s) { nasRadScale_ = s; }
+  void setNasalHfBw(float bw) { nasal_.setHfLoss(bw, nasHfFc_); }
+  // NASAL agent32: the nasal passage's port / cavity / nostril areas (cm^2; < 0: LINE_NASAL_PORT_A / _CAVITY_A / LINE_NOSTRIL_A)
+  void setNasalGeom(float portA, float cavA, float nostA, float endX = -1.0f, float endA = 8.0f);  // endX >= 0: from endX cm on, endA (an open end there)
   // A voiced closure: softer (its sections lose soft times more) and longer by
   // extraLength cm (b against p: the lips compress and protrude; Jyrki
   // 2026-11-03: "b needs to be a softer, more damped closure ... two
@@ -346,6 +351,7 @@ class VocalTractLine {
   LineLowPass aa1_, aa2_;
   LineLowPass wallLp_;  // the walls' radiation through the cheeks and the neck (LINE_WALL_RAD_LP)
   float wallLpHz_ = 0;
+  float nasRadScale_ = 1.0f, nasHfFc_ = 1000.0f, nasalScale_ = 1.0f;  // NASAL agent32: the nasal walls' radiation x this (setNasalRad); the nasal HF loss corner
   float uAcc_ = 0, prevMean_ = 0;
   int subCount_ = 0;
   // The frication noise's state. Unsigned: the generator's signed form overflowed (UB; review cpp.md B4, dsp.md B4).

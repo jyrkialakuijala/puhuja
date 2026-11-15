@@ -157,6 +157,9 @@ struct Event {
   bool lineXClosure = false;  // the place is a closure's (a stop, a nasal): LINE_X_SNAP_CLOSURES
   bool aspBurst = false;  // an aspirated release: the puff's noise starts
   float creak = -1;       // creaky voice from now on (0..1; < 0: unchanged)
+  // NASAL agent32: the nasal walls' radiation scale / the nasal HF loss bandwidth from now on; lineNasGeom 1: the
+  // connected-speech nasal areas (NAS_*_A_CS, NAS_END_X_CS), 0: the base ones (< 0: unchanged)
+  float lineNasRad = -1, lineNasHf = -1, lineNasGeom = -1;
   float endQ = -1, endQMs = 0;  // round AC CREAK agent31: the phrase-end voice quality envelope target (0..1) and its ramp (ms); < 0: unchanged
   float noiseFadeMs = -1;  // with setNoise: fade-in from silence (< 0: the default)
   // Cavity compliance multiplier (active expansion during voiced closures),
@@ -530,6 +533,8 @@ class Synth {
   int wordsSincePause_ = 0;  // (TRANS3 agent30) words begun since the last pause token: >= 2 is connected speech
   int phraseLeft_ = 0, curPhraseLeft_ = 0;  // (CSW agent32) setPhraseLeft's value; the current word's (emit)
   bool csSpeech_ = false;  // (STOP agent31) the sound being emitted is in connected speech (word 2+ of a phrase)
+  bool nasPressed_ = false;  // NASAL agent32: the last sound was a nasal eased by NAS_PRESS_CS
+  float nasRadNow_ = 1.0f, nasHfNow_ = -1.0f, nasGeomNow_ = 0.0f;  // NASAL agent32: the nasal radiation scale / HF bandwidth last set
   bool lastFi_ = false, afterFi_ = false;  // the last emitted phoneme was a word-initial f before a vowel (LINE_FI_OFF_MS, F-INIT agent26); afterFi_: this phoneme follows one
   bool lastShV_ = false;  // the last emitted phoneme was a ʃ before a full vowel (LINE_SH_V_OFF_MS)
   bool vAfterFric_ = false;  // this v follows a fricative (LINE_V_FRIC_AFTER_FRIC)

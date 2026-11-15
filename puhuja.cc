@@ -2898,6 +2898,7 @@ static uint64_t eventFields(const Event& e) {
   bit(e.gapOn > 0);
   bit(e.liqShelf >= 0);
   bit(e.endQ >= 0);
+  bit(e.lineNasRad >= 0); bit(e.lineNasHf >= 0); bit(e.lineNasGeom >= 0);
   return m;
 }
 
@@ -3666,6 +3667,30 @@ void Synth::emit(const Token& tok, const Ph* next) {
   Event e{std::max(t0 - 0.5 * kBoundaryMs * ms, phonemeStart_ + 1)};
   if (tract_ == Tract::Line && afterChi_ && kChiVLeadMs > 0) e.t = std::max(e.t - kChiVLeadMs * ms, phonemeStart_ + 1);  // (LINE_CHI_V_LEAD_MS)
   e.planAir = planAir;
+  // NASAL agent32 (round AD, lab; < 0: off, as before): in connected speech (TRANS3's csSpeech: from a phrase's 2nd word
+  // on) the nasal walls' radiation (LINE_NASAL_WALL_RADIATE, the murmur's low hump) x NAS_WALLRAD_CS and the nasal line's
+  // HF loss bandwidth (LINE_NASAL_HF_BW) NAS_HF_BW_CS; back to 1 / LINE_NASAL_HF_BW outside it. 11labs' Kennedy murmurs
+  // sit 3-4 dB lower in 60-400 Hz re the vowels and are 5 dB brighter (1-4 kHz re 60-400 Hz) than deployed163's.
+  if (tract_ == Tract::Line) {
+    static const float kNasRadCs = param("NAS_WALLRAD_CS", -1.0f), kNasHfCs = param("NAS_HF_BW_CS", -1.0f);
+    static const float kNasHfBase = param("LINE_NASAL_HF_BW", 300.0f);
+    if (kNasRadCs >= 0) {
+      const float want = csSpeech ? kNasRadCs : 1.0f;
+      if (want != nasRadNow_) e.lineNasRad = nasRadNow_ = want;
+    }
+    // ... and the nasal passage's areas NAS_PORT_A_CS / NAS_CAV_A_CS / NAS_NOST_A_CS (< 0: as outside it)
+    static const bool kNasGeomCs = param("NAS_PORT_A_CS", -1.0f) >= 0 || param("NAS_CAV_A_CS", -1.0f) >= 0 || param("NAS_NOST_A_CS", -1.0f) >= 0 ||
+                                   param("NAS_END_X_CS", -1.0f) >= 0 || param("NAS_END_X_CS_F", -2.0f) >= 0;
+    if (kNasGeomCs) {
+      const float want = csSpeech ? 1.0f : 0.0f;
+      if (want != nasGeomNow_) e.lineNasGeom = nasGeomNow_ = want;
+    }
+    if (kNasHfCs >= 0) {
+      const float want = csSpeech ? kNasHfCs : kNasHfBase;
+      if (want != nasHfNow_ && !(nasHfNow_ < 0 && want == kNasHfBase)) e.lineNasHf = want;
+      nasHfNow_ = want;
+    }
+  }
   Aero aero = aeroOf(tok.ph);
   // The ʤ's frication is an emitted ʒ (emitAffricate): the ʒ's own glottis (LINE_AG_ZH) stays with the standalone ʒ
   // (2026-11-09: the ʒ candidate 0.17 took the ʤ's release hiss away, ʤ errors 172 -> 205 in the lab).
@@ -4269,6 +4294,22 @@ void Synth::emit(const Token& tok, const Ph* next) {
       static const float kLineNgPressF = param("LINE_NG_PRESS_F", -1.0f);
       if (tok.ph == Ph::NG) { e.press = female_ && kLineNgPressF >= 0 ? kLineNgPressF : kLineNgPress; e.pressMs = 20; }
       else if (lastPh_ == Ph::NG && e.press < 0) { e.press = 1.0f; e.pressMs = 20; }
+    }
+  }
+  // NASAL agent32 (round AD, lab; < 0: off): a nasal in connected speech eases the breath to NAS_PRESS_CS (x the ŋ's own
+  // press) over NAS_PRESS_CS_MS; the next sound takes it back to 1 over the same. deployed163's murmurs sat 1.5-2 dB
+  // louder re the vowels than 11labs' (m +1.9 vs +0.4, ŋ +3.0 vs +1.3 dB), louder than the vowel after them.
+  {
+    static const float kNasPressCs = param("NAS_PRESS_CS", -1.0f), kNasPressCsMs = param("NAS_PRESS_CS_MS", 20.0f);
+    if (tract_ == Tract::Line && kNasPressCs >= 0) {
+      if (csSpeech && in.cls == Cls::Nasal) {
+        e.press = (e.press >= 0 ? e.press : 1.0f) * kNasPressCs;
+        e.pressMs = kNasPressCsMs;
+        nasPressed_ = true;
+      } else if (nasPressed_) {
+        if (e.press < 0) { e.press = 1.0f; e.pressMs = kNasPressCsMs; }
+        nasPressed_ = false;
+      }
     }
   }
   // The sound after a word-initial n eased by LINE_NI_PRESS (N-INIT agent26 round X, lab) takes the breath back to 1
@@ -6772,6 +6813,19 @@ void Synth::emit(const Token& tok, const Ph* next) {
     static const float kNdnPort = param("LINE_NDN_PORT", 1.0f);
     if (tract_ == Tract::Line && tok.ph == Ph::N && (tok.shape.nctx & 4) && kNdnPort != 1.0f) e.an *= kNdnPort;
   }
+  // NASAL agent32 (round AD, lab; 1: off): a nasal's own port x NAS_PORT_CS in connected speech.
+  {
+    static const float kNasPortCs = param("NAS_PORT_CS", 1.0f);
+    if (tract_ == Tract::Line && csSpeech && in.cls == Cls::Nasal && kNasPortCs != 1.0f) e.an *= kNasPortCs;
+    // ... and its oral closure left open by NAS_AC_CS cm^2 (< 0: shut, as before): a lenited, more vowel-like murmur
+    // (NAS_AC_CS_F: the female's, < 0: the same)
+    static const float kNasAcCsM = param("NAS_AC_CS", -1.0f), kNasAcCsF = param("NAS_AC_CS_F", -1.0f);
+    const float kNasAcCs = female_ && kNasAcCsF >= 0 ? kNasAcCsF : kNasAcCsM;
+    // (NAS_AC_CS_MX / _NGX: the m's / ŋ's opening x this)
+    static const float kNasAcMx = param("NAS_AC_CS_MX", 1.0f), kNasAcNgx = param("NAS_AC_CS_NGX", 1.0f);
+    if (tract_ == Tract::Line && csSpeech && in.cls == Cls::Nasal && kNasAcCs >= 0)
+      e.ac = kNasAcCs * (tok.ph == Ph::M ? kNasAcMx : tok.ph == Ph::NG ? kNasAcNgx : 1.0f);
+  }
   // English nasalizes a vowel before a nasal through most of it: the velum
   // opens part way during the vowel ("man", "and", "on"); on the line the
   // port was shut until the nasal's own event (2026-11-02; set after the aero default, which had overwritten it).
@@ -6780,6 +6834,10 @@ void Synth::emit(const Token& tok, const Ph* next) {
     static const float kLineNgAnticip = param("LINE_NG_ANTICIP", -1.0f);
     e.an = kAnNasal * (*next == Ph::NG && kLineNgAnticip >= 0 ? kLineNgAnticip : kLineAnticipNasal);
     e.anMs = static_cast<float>(dur / ms);
+    // NASAL agent32 (round AD, lab; 1: off): the vowel's port before a nasal x NAS_ANT_CS in connected speech
+    static const float kNasAntCs = param("NAS_ANT_CS", 1.0f);
+    const float nasAntCs = csSpeech && kNasAntCs != 1.0f ? kNasAntCs : 1.0f;
+    e.an *= nasAntCs;
     // Before an n (round E, N agent): the port in the vowel is 0.63 cm^2,
     // 3-6x a physiological 0.05-0.2, and it pulls F2 (the n's place cue)
     // under a nasal pole near 800 Hz. LINE_ANTICIP_N_SCALE scales the
@@ -6814,7 +6872,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
     static const float kFnAn = param("LINE_FN_ANTICIP", 0.0f), kFnAnLate = param("LINE_FN_ANTICIP_LATE", 0.0f);
     const bool fnAnt = !ehLate && (tok.shape.nctx & 1) && *next == Ph::N && (kFnAn >= 0 || kFnAnLate > 0);
     if (fnAnt) {
-      e.an = kAnNasal * kLineAnticipNasal * (kFnAn >= 0 ? kFnAn : kAnN);
+      e.an = kAnNasal * kLineAnticipNasal * (kFnAn >= 0 ? kFnAn : kAnN) * nasAntCs;
       const float lateShare = kFnAnLate > 0 ? kFnAnLate : anNLate;
       if (lateShare > 0) {
         Event late{e.t + lateShare * dur};
@@ -6825,7 +6883,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
         e.anMs = kBoundaryMs;
       }
     } else if (mAnt) {
-      e.an = kAnNasal * kLineAnticipNasal * kAnM;
+      e.an = kAnNasal * kLineAnticipNasal * kAnM * nasAntCs;
       if (anMLate > 0) {
         Event late{e.t + anMLate * dur};
         late.an = e.an;
@@ -6841,7 +6899,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
       } else if (ehLate) {
         if (kEhAnScale >= 0) e.an *= kEhAnScale;
       } else {
-        e.an = kAnNasal * kLineAnticipNasal * kAnN;
+        e.an = kAnNasal * kLineAnticipNasal * kAnN * nasAntCs;
       }
       if (lateShare > 0) {
         Event late{e.t + lateShare * dur};
@@ -11585,6 +11643,15 @@ float Synth::tick() {
     if (e.lineJetD >= 0) line_.setJetThickness(e.lineJetD, e.lineJetMix, e.lineSlitScale, e.lineJetSmoothMs, e.lineJetFcMin, e.lineJetFcMax);
     if (e.lineFricLpr >= 0) line_.setFricLpRatio(e.lineFricLpr);
     if (e.lineNoiseLp >= 0) line_.setNoiseLp(e.lineNoiseLp);
+    if (e.lineNasRad >= 0) line_.setNasalRad(e.lineNasRad);
+    if (e.lineNasHf >= 0) line_.setNasalHfBw(e.lineNasHf);
+    if (e.lineNasGeom >= 0) {
+      static const float kPortCs = param("NAS_PORT_A_CS", -1.0f), kCavCs = param("NAS_CAV_A_CS", -1.0f), kNostCs = param("NAS_NOST_A_CS", -1.0f);
+      static const float kEndXCsM = param("NAS_END_X_CS", -1.0f), kEndXCsF = param("NAS_END_X_CS_F", -2.0f), kEndACs = param("NAS_END_A_CS", 8.0f);
+      const float kEndXCs = female_ && kEndXCsF > -1.5f ? kEndXCsF : kEndXCsM;  // (NAS_END_X_CS_F: the female's; -1 off, < -1.5: the same)
+      if (e.lineNasGeom > 0.5f) line_.setNasalGeom(kPortCs, kCavCs, kNostCs, kEndXCs, kEndACs);
+      else line_.setNasalGeom(-1.0f, -1.0f, -1.0f);
+    }
     if (e.gapOn > 0) gapT0_ = t_, gapCls_ = e.gapOn, gapAt_ = e.gapAt;
     if (e.lineAspHp >= 0) {
       static const int tAspPoles = static_cast<int>(param("LINE_T_ASP_HP_POLES", 3.0f));

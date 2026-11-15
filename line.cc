@@ -375,6 +375,8 @@ void VocalTractLine::init(float fs, float nasalScale) {
   // starting with m (24 without it; Whisper, 2026-11-04).
   static const float kNasalHfBw = param("LINE_NASAL_HF_BW", 300.0f), kNasalHfFc = param("LINE_NASAL_HF_FC", 1000.0f);
   nasal_.setHfLoss(kNasalHfBw, kNasalHfFc);
+  nasHfFc_ = kNasalHfFc;
+  nasalScale_ = nasalScale;
   static const float kNasalVisc = param("LINE_NASAL_VISC", 4.221f);
   nasal_.setViscLoss(kNasalVisc);  // (30: the m of "his mortal", starting from the voiceless z, fell to -26 dB)  // the turbinates: far more surface per volume than a tube
   // The nasal passage: the port and nasopharynx, the cavity, the nostrils.
@@ -889,7 +891,7 @@ float VocalTractLine::substep(float u0) {
     static const float tracheaRad = param("LINE_TRACHEA_RADIATE", 0.0f), nasalRad = param("LINE_NASAL_WALL_RADIATE", 20.0f);
     static const float nasalRadAn = param("LINE_NASAL_RAD_AN", 0.1f), invNasalRadAn = 1.0f / std::max(nasalRadAn, 1e-4f);
     if (tracheaRad != 0) wall += tracheaRad * sub_.wallFlow();
-    if (nasalRad != 0) wall += nasalRad * std::min(1.0f, an_ * invNasalRadAn) * nasal_.wallFlow();
+    if (nasalRad != 0) wall += nasalRad * nasRadScale_ * std::min(1.0f, an_ * invNasalRadAn) * nasal_.wallFlow();
   }
   if (wallLpHz_ > 0) wall = wallLp_.process(wall);
   uAcc_ += aa2_.process(aa1_.process(oral_.lipFlow() + nasal_.lipFlow() + wall));
@@ -901,6 +903,19 @@ float VocalTractLine::substep(float u0) {
     subCount_ = 0;
   }
   return p1;
+}
+
+void VocalTractLine::setNasalGeom(float portA, float cavA, float nostA, float endX, float endA) {  // (NASAL agent32)
+  if (portA < 0) portA = kNasalPortArea;
+  if (cavA < 0) cavA = kNasalCavityArea;
+  if (nostA < 0) nostA = kNostrilArea;
+  std::vector<float> na(nasal_.sections());
+  for (int k = 0; k < nasal_.sections(); ++k) {
+    const float x = (k + 0.5f) * nasal_.dx();
+    na[k] = x < 2.0f * nasalScale_ ? portA : x < 9.0f * nasalScale_ ? cavA : nostA;
+    if (endX >= 0 && x >= endX * nasalScale_) na[k] = endA;
+  }
+  nasal_.setAreas(na, true);
 }
 
 void VocalTractLine::setAspHp(float hz, int poles) {

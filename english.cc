@@ -1133,6 +1133,10 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
         // (N-INIT agent26 round X, lab; < 0: EN_NASAL_ONSET_LEN) a word-initial n before a vowel x EN_NI_LEN instead.
         static const float kNiLen = param("EN_NI_LEN", -1.0f);
         if (isNasal(b) && wordInitial && vowelAfter) whole *= b == "N" && kNiLen >= 0 ? kNiLen : kOnsetNasalLength;  // (EN_NASAL_ONSET_LEN)
+        // (NASAL agent32 round AD, lab; 1: off) a nasal from a phrase's 2nd word on x EN_NAS_LEN_CS (ŋ: EN_NG_LEN_CS, < 0:
+        // the same): deployed163's connected-speech murmurs ran m 52 / n 42 / ŋ 62 ms (median), 11labs1's 60 / 60 / 80.
+        static const float kNasLenCs = param("EN_NAS_LEN_CS", 1.0f), kNgLenCs = param("EN_NG_LEN_CS", -1.0f);
+        if (isNasal(b) && w >= 1 && (kNasLenCs != 1.0f || kNgLenCs >= 0)) whole *= b == "NG" && kNgLenCs >= 0 ? kNgLenCs : kNasLenCs;
         // A word-final voiceless stop linked to a vowel-initial next word ("not out" as "no-tout"): x EN_LINK_STOP_LEN.
         // Jyrki 2026-11-10: "plan for 'notout' with a little longer t".
         if (wordFinal && vowelBefore && isVoicelessPlosive(b) && w + 1 < phrase_.size() && !phrase_[w + 1].tokens.empty() &&
