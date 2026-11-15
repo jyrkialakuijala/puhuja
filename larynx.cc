@@ -60,19 +60,19 @@ constexpr float kMicro2Gain = 3.0f;
 constexpr float kTensionJitter = 0.4f, kRestJitter = 0.12f, kPressureShimmer = 1.6f;
 // Per-cycle gaussian deviations (off: they cost HNR). Knobs since round Z (VQ agent28, 2026-11-15): puhuja's
 // frame-to-frame f0 jitter 0.19 % (m) / 0.27 % (f) against 11labs 0.38 %, Kokoro 0.30-0.57 %.
-const float kCycleJitter = param("LARYNX_CYCLE_JITTER", 0.0f), kCycleShimmer = param("LARYNX_CYCLE_SHIMMER", 0.0f);
+const float kCycleJitter = param("LARYNX_CYCLE_JITTER", 0.006f), kCycleShimmer = param("LARYNX_CYCLE_SHIMMER", 0.03f);
 // The slow micro-variation x this (1: as before).
 const float kMicroX = param("LARYNX_MICRO_X", 1.0f);
 // Round Z (VQ agent28): a first-order high shelf on the folds' flow as the line tract receives it (dB above
 // LARYNX_SRC_SHELF_HZ; 0: none). A sharper effective closure (the mucosal wave's abrupt cut-off): puhuja's voiced
 // 4-8 kHz is 12-18 dB under 11labs / Kokoro, tilt -12.3 dB/oct vs -9.4; only the voice, not the jets' noise.
-const float kSrcShelfDb = param("LARYNX_SRC_SHELF_DB", 0.0f), kSrcShelfHz = param("LARYNX_SRC_SHELF_HZ", 2000.0f);
+const float kSrcShelfDb = param("LARYNX_SRC_SHELF_DB", 8.0f), kSrcShelfHz = param("LARYNX_SRC_SHELF_HZ", 1875.0f);
 // ... a second shelf after it (a negative one above the first makes a broad mid lift), and the female voice's own
 // values (_F_; < -900 dB or <= 0 Hz: the male's). Cycle jitter for the female voice: LARYNX_CYCLE_JITTER_F (< 0: the male's).
 const float kSrcShelf2Db = param("LARYNX_SRC_SHELF2_DB", 0.0f), kSrcShelf2Hz = param("LARYNX_SRC_SHELF2_HZ", 4000.0f);
-const float kSrcShelfFDb = param("LARYNX_SRC_SHELF_F_DB", -999.0f), kSrcShelfFHz = param("LARYNX_SRC_SHELF_F_HZ", 0.0f);
-const float kSrcShelf2FDb = param("LARYNX_SRC_SHELF2_F_DB", -999.0f), kSrcShelf2FHz = param("LARYNX_SRC_SHELF2_F_HZ", 0.0f);
-const float kCycleJitterF = param("LARYNX_CYCLE_JITTER_F", -1.0f), kCycleShimmerF = param("LARYNX_CYCLE_SHIMMER_F", -1.0f);
+const float kSrcShelfFDb = param("LARYNX_SRC_SHELF_F_DB", 0.0f), kSrcShelfFHz = param("LARYNX_SRC_SHELF_F_HZ", 0.0f);
+const float kSrcShelf2FDb = param("LARYNX_SRC_SHELF2_F_DB", 0.0f), kSrcShelf2FHz = param("LARYNX_SRC_SHELF2_F_HZ", 0.0f);
+const float kCycleJitterF = param("LARYNX_CYCLE_JITTER_F", 0.0f), kCycleShimmerF = param("LARYNX_CYCLE_SHIMMER_F", 0.0f);
 // Round AA (VQ2 agent29): a peaking filter (RBJ, LARYNX_SRC_DIP_DB at LARYNX_SRC_DIP_HZ, Q LARYNX_SRC_DIP_Q) after the
 // shelves, x shelfScale like them: the 1875 Hz shelf lifts 3-4 kHz 6-8 dB over both 11labs and Kokoro onyx (they dip
 // there). 0 dB: none. _F_DB: the female's (< -900: the male's).
