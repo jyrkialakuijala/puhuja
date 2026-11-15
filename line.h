@@ -213,6 +213,16 @@ class VocalTractLine {
     reMsNow_ = ms;
     reKNow_ = ms > 0 ? 1.0f - std::exp(-dt_ * 1000.0f / ms) : -1.0f;
   }
+  // SH agent30: the frication drive's fall limited to this many dB per ms (<= 0: off), down to floorDb under the level
+  // it had when the limit was switched on; below that it follows its target (an offset's hiss fades instead of stopping)
+  void setFallTrack() { fallTrack_ = true; }
+  void setFallLimit(float dbPerMs, float floorDb) {
+    if (dbPerMs == fallDbMs_ && floorDb == fallFloorDb_) return;
+    if (dbPerMs > 0 && fallDbMs_ <= 0) fallStop_ = fallEnv_ * std::pow(10.0f, -floorDb / 20.0f);
+    fallDbMs_ = dbPerMs;
+    fallFloorDb_ = floorDb;
+    fallMul_ = dbPerMs > 0 ? std::pow(10.0f, -dbPerMs * dt_ * 1000.0f / 20.0f) : 0.0f;
+  }
   // GAP agent29: the frication drive's rise limited to this many dB per ms (<= 0: off), from floorDb under its target
   void setRiseLimit(float dbPerMs, float floorDb) {
     if (dbPerMs == riseDbMs_ && floorDb == riseFloorDb_) return;
@@ -224,6 +234,8 @@ class VocalTractLine {
   }
   // GAP agent29: the frication source's fade-out areas (LINE_FRIC_A0 / A1) x this for now (1: as set)
   void setSlitWiden(float w) { slitLogW_ = w > 0 && w != 1.0f ? std::log(w) : 0.0f; }
+  // SH agent30: the frication source's fade-out window (LINE_FRIC_A0 .. A1 in log area) this many times as wide (1: as set)
+  void setSlitSpan(float s) { slitSpan_ = s > 0 ? 1.0f / s : 1.0f; }
   // GAP agent29: the frication jet's critical Reynolds number x this for now (1: LINE_RE_CRIT)
   void setFricCritMul(float m) { critMulF_ = m > 0 ? m : 1.0f; }
   void setNoiseLp(float hz, bool asDefault = false);  // the turbulence noise's two-pole low-pass corner (Hz; <= 0: back to the default; BLEND agent28)
@@ -299,8 +311,11 @@ class VocalTractLine {
   float reLp_ = 0;  // LINE_NOISE_RE_MS: the jet's Reynolds number, low-passed
   float reMsNow_ = 0, reKNow_ = -1;  // GAP agent29 (setReMs)
   float slitLogW_ = 0;  // GAP agent29 (setSlitWiden)
+  float slitSpan_ = 1;  // SH agent30 (setSlitSpan; stored inverted)
   float critMulF_ = 1.0f;  // GAP agent29 (setFricCritMul)
   float riseDbMs_ = 0, riseFloorDb_ = 0, riseMul_ = 0, riseFloor_ = 0, riseEnv_ = -1;  // GAP agent29 (setRiseLimit)
+  float fallDbMs_ = 0, fallFloorDb_ = 0, fallMul_ = 0, fallStop_ = 0, fallEnv_ = 0;  // SH agent30 (setFallLimit)
+  bool fallTrack_ = false;
   float reMean_ = 0;  // LINE_NOISE_RE_ENV_MS: ... its mean over about a pitch period, which the lag acts on
   float reA_ = 0; int reK_ = -1;  // ... the constriction's area and place a substep ago (an opening one does not lag)  // LINE_NOISE_MOVE_MS: the source fading out of its old place
   float breathGain_ = 0;  // (setBreath, LINE_BREATH)

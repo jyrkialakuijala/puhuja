@@ -678,7 +678,7 @@ float VocalTractLine::substep(float u0) {
     // log(a / (A0 f)) / log(A1 / A0) as (log a - log(A0 f)) x a constant: one log per substep.
     static const float invLogRatio = 1.0f / std::log(kFricA1 / kFricA0);
     if (fricLogA0_ == 0) fricLogA0_ = std::log(kFricA0 * fricFade_);
-    const float wide = std::clamp((std::log(a) - fricLogA0_ - slitLogW_) * invLogRatio, 0.0f, 1.0f);  // (slitLogW_: GAP agent29)
+    const float wide = std::clamp((std::log(a) - fricLogA0_ - slitLogW_) * (slitSpan_ != 1.0f ? invLogRatio * slitSpan_ : invLogRatio), 0.0f, 1.0f);  // (slitLogW_: GAP agent29; slitSpan_: SH agent30)
     const float slit = 1.0f - wide * wide * (3.0f - 2.0f * wide);
     if (kNoiseAreaExp != 0 && (areaCount_++ & 15) == 0) {
       if (kNoiseAreaTarget > 0 && noiseAreaRef_ >= 0) {
@@ -729,8 +729,21 @@ float VocalTractLine::substep(float u0) {
     const float rcF2 = critMulF_ != 1.0f ? rcF * rcF : reC2;
     fricActive_ = re > rcF && slit > 0;
     if (riseMul_ > 0 && !fricActive_) riseEnv_ = 0.0f;
+    // (SH agent30: setFallLimit) the drive's level tracked; while the limit is on it falls at most fallMul_ per substep
+    bool fallOnly = false;
+    float fallScale = 1.0f;
+    if (fallTrack_) {
+      const float target = fricActive_ ? slit * fricGain_ * areaGain_ * (re * re - rcF2) * invReC2 : 0.0f;
+      if (fallMul_ > 0) {
+        const float lim = fallEnv_ * fallMul_;
+        fallEnv_ = target < lim && lim > fallStop_ ? lim : target;
+        if (!fricActive_ && fallEnv_ > 0) fricActive_ = fallOnly = true;
+        else if (target > 0) fallScale = fallEnv_ / target;
+      } else fallEnv_ = target;
+    }
     if (fricActive_) {
-      float drive = slit * fricGain_ * areaGain_ * (re * re - rcF2) * invReC2 * noiseF;
+      float drive = fallOnly ? fallEnv_ * noiseF : slit * fricGain_ * areaGain_ * (re * re - rcF2) * invReC2 * noiseF;
+      if (fallScale != 1.0f) drive *= fallScale;
       if (riseMul_ > 0) {  // (GAP agent29: setRiseLimit)
         const float target = slit * fricGain_ * areaGain_ * (re * re - rcF2) * invReC2;
         riseEnv_ = riseEnv_ < 0 || target <= riseEnv_ ? (riseEnv_ < 0 ? target * riseFloor_ : target) : std::min(target, std::max(riseEnv_ * riseMul_, target * riseFloor_));

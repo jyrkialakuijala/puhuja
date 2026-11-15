@@ -2161,6 +2161,10 @@ float Gesture::tick() {
     const float x = 0.5f - 0.5f * std::cos(kPi * t);
     // Raised-cosine path plus the carried-over speed (Hermite h10 term).
     v_ = from_ + (to_ - from_) * x + m0_ * t * (1.0f - t) * (1.0f - t);
+    // (SH agent30; 0: off) part of the path geometric: an area glide between a slit and an open tract passes the
+    // frication window (0.12-0.22 cm^2) over ~1 ms on the linear path; geometrically over a share of the glide
+    if (logMix_ > 0 && from_ > 0.002f && to_ > 0.002f)
+      v_ += logMix_ * (from_ * std::pow(to_ / from_, x) - (from_ + (to_ - from_) * x));
   }
   vel_ = v_ - prev;
   return v_;
@@ -6039,6 +6043,41 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // (BLEND agent28 round Z, lab; 0: off) s f's groove closes over LINE_FRIC_ON_MS after a voiced sound (the 20 ms
     // boundary: the hiss came 10-20 ms after the voice had faded, a 12 dB dip at vowel -> s; 11labs' has none)
     static const float kFricOnMs = param("LINE_FRIC_ON_MS", 0.0f);
+    // (SH agent30 round AB, lab; 0: off) the s / ʃ groove's glide partly geometric in area (Gesture logMix): into the
+    // s / ʃ after a voiced sound (SH_LOG_ON_S / _SH) and out of it into a vowel (SH_LOG_OFF_S / _SH). On the linear path
+    // the slit passes the frication window in ~1-2 ms: 11labs' hiss rises over ~19 ms and fades over 13-29 ms, puhuja's
+    // in 6-7 ms. SH_OFF_MS_S / _SH (< 0: as before): that opening's own time.
+    {
+      static const float kLogOnS = param("SH_LOG_ON_S", 0.0f), kLogOnSh = param("SH_LOG_ON_SH", 0.0f);
+      static const float kLogOffS = param("SH_LOG_OFF_S", 0.0f), kLogOffSh = param("SH_LOG_OFF_SH", 0.0f);
+      static const float kOffMsS = param("SH_OFF_MS_S", -1.0f), kOffMsSh = param("SH_OFF_MS_SH", -1.0f);
+      static const float kFallDb = param("SH_FALL_DB_MS", 0.0f), kFallSh = param("SH_FALL_SH_X", 1.0f);
+      const bool afterVoiced = !prevWasPause_ && !prevWasPlosive_ && !inAffricate_;
+      if (tok.ph == Ph::S && kLogOnS > 0 && afterVoiced) e.acLog = kLogOnS;
+      if (tok.ph == Ph::SH && kLogOnSh > 0 && afterVoiced) e.acLog = kLogOnSh;
+      const bool intoV = isVowel(tok.ph) && !lastShFricAffr_;
+      shOffTok_ = intoV && lastPh_ == Ph::S ? 1 : intoV && lastPh_ == Ph::SH ? 2 : 0;
+      // (SH_FALL_LEAD_MS: the fall window opens this long before the vowel: the glottis closes and the hiss falls first)
+      static const float kFallLead = param("SH_FALL_LEAD_MS", 0.0f);
+      static const bool kSpanOn = param("SH_OFF_SPAN", 1.0f) != 1.0f || param("SH_OFF_ASP_DB", 0.0f) != 0 || param("SH_OFF_FRIC_DB", 0.0f) != 0;
+      auto shFallEv = [&](float cls) {
+        if (kFallLead <= 0) { e.shFall = cls; return; }
+        Event fl{std::max(e.t - kFallLead * ms, phonemeStart_ + 1)};
+        fl.shFall = cls;
+        addEventAt(fl);
+      };
+      if (intoV && lastPh_ == Ph::S) {
+        if (kLogOffS > 0) e.acLog = kLogOffS;
+        if (kOffMsS >= 0) e.acMs = kOffMsS;
+        if (kFallDb > 0 || kSpanOn) shFallEv(1.0f);
+      }
+      if (intoV && lastPh_ == Ph::SH) {
+        if (kLogOffSh > 0) e.acLog = kLogOffSh;
+        if (kOffMsSh >= 0) e.acMs = kOffMsSh;
+        if ((kFallDb > 0 && kFallSh > 0) || kSpanOn) shFallEv(1.25f);
+      }
+      lastShFricAffr_ = inAffricate_;
+    }
     if ((tok.ph == Ph::S || tok.ph == Ph::F) && kFricOnMs > 0 && !prevWasPause_ && !prevWasPlosive_ && !inAffricate_) e.acMs = kFricOnMs;
     // v into a vowel or sonorant (V agent, round F; 0: the 20 ms boundary): the lip leaves the teeth over
     // LINE_V_OFF_MS. A quick opening from a hiss-less v is a b's release to Whisper (initial v: B 214 of 467 errors).
@@ -6130,6 +6169,12 @@ void Synth::emit(const Token& tok, const Ph* next) {
     if (tract_ == Tract::Line && tok.ph == Ph::TH && kThAbductMs >= 0 && aero.ag > kAgBreathy) e.agMs = kThAbductMs; }
   { static const float kDhAbductMs = param("LINE_DH_ABDUCT_MS", -1.0f);  // ð's glottal opening time (< 0: as every fricative; DH agent7)
     if (tract_ == Tract::Line && tok.ph == Ph::DH && kDhAbductMs >= 0) e.agMs = kDhAbductMs; }
+  // (SH agent30 round AB, lab; < 0: as above) a ʃ / s after a vowel (not after a pause, a plosive, in an affricate, or
+  // phrase-final): the glottis opens over SH_AB_MS_SH / SH_AB_MS_S. 11labs1's voice runs 6-33 ms under the ʃ's rising
+  // hiss (LF at the hiss's -10 dB point: 0 dB re the vowel); puhuja's has fallen 19 dB there.
+  { static const float kAbSh = param("SH_AB_MS_SH", -1.0f), kAbS = param("SH_AB_MS_S", -1.0f);
+    const float ab = tok.ph == Ph::SH ? kAbSh : tok.ph == Ph::S && next && *next != Ph::Stop ? kAbS : -1.0f;
+    if (tract_ == Tract::Line && ab >= 0 && isVowel(lastPh_) && !prevWasPause_ && !inAffricate_ && aero.ag > kAgBreathy) e.agMs = ab; }
   e.aspGain = in.cls == Cls::H ? hAspirationGain_ * kHGain : kAspirationGain * kAspirationTiltGain;
   if (lineHAsp_ && in.cls != Cls::H) {  // after a voiceless h: the noise gain back
     e.lineAspMul = 1.0f;
@@ -6190,7 +6235,10 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // fricative's opening LINE_FRIC_AB_MID_MS later.
     static const float kFricAbMid = param("LINE_FRIC_AB_MID", 0.0f), kFricAbMidMs = param("LINE_FRIC_AB_MID_MS", 20.0f),
                        kFricAbMidAgMs = param("LINE_FRIC_AB_MID_AGMS", 10.0f);
-    if (tract_ == Tract::Line && kFricAbMid > 0 && lead == 0 && vlFric && sonPrev && !prevWasPlosive_ && !prevWasPause_ &&
+    // (SH agent30, lab; 1: as before) the mid stage for ʃ / for f θ x SH_AB_MID_SH_X / SH_AB_MID_F_X (0: none for them)
+    static const float kMidShX = param("SH_AB_MID_SH_X", 1.0f), kMidFX = param("SH_AB_MID_F_X", 1.0f);
+    const bool midOn = kFricAbMid > 0 && !(tok.ph == Ph::SH && kMidShX <= 0) && !((tok.ph == Ph::F || tok.ph == Ph::TH) && kMidFX <= 0);
+    if (tract_ == Tract::Line && midOn && lead == 0 && vlFric && sonPrev && !prevWasPlosive_ && !prevWasPause_ &&
         !inAffricate_ && e.ag > kFricAbMid) {
       Event ab2{e.t + kFricAbMidMs * ms};
       ab2.ag = e.ag;
@@ -7804,6 +7852,21 @@ void Synth::emit(const Token& tok, const Ph* next) {
       e.ag = -1;
       addEventAt(early);
     }
+  }
+  // (SH agent30 round AB, lab; 0: off) s / ʃ -> vowel: the groove starts opening SH_OFF_AC_LEAD_MS_S / _SH before the
+  // vowel's event (the glottis keeps its time), so the hiss fades before the voice comes back (11labs1's ʃ offset: the
+  // hiss falls 3 -> 10 dB under its plateau over 16-29 ms, puhuja's in 4-7 ms as the voice starts)
+  { static const float kAcLeadS = param("SH_OFF_AC_LEAD_MS_S", 0.0f), kAcLeadSh = param("SH_OFF_AC_LEAD_MS_SH", 0.0f);
+    const float lead = shOffTok_ == 1 ? kAcLeadS : shOffTok_ == 2 ? kAcLeadSh : 0.0f;
+    if (tract_ == Tract::Line && lead > 0 && e.ac >= 0 && !prevWasPlosive_) {
+      Event early{std::max(e.t - lead * ms, phonemeStart_ + 1.0)};
+      early.ac = e.ac;
+      early.acMs = e.acMs;
+      early.acLog = e.acLog;
+      e.ac = -1;
+      addEventAt(early);
+    }
+    shOffTok_ = 0;
   }
   if (!prevWasPlosive_) {
     if (!events_.empty() && e.t < events_.back().t) addEventAt(e); else addEvent(e);
@@ -10962,7 +11025,8 @@ float Synth::tick() {
     planUsed_ += e.planAir;
     if (e.creak >= 0) creakTarget_ = e.creak;
     if (e.aspBurst) aspBurst_ = aspirationGain_ * e.aspBurstGain;
-    if (e.ac >= 0) ac_.start(e.ac, msToSamples(e.acMs, fs_));
+    if (e.ac >= 0) ac_.start(e.ac, msToSamples(e.acMs, fs_), e.acLog);
+    if (e.shFall >= 0) shFallT_ = t_, shFallCls_ = e.shFall;
     if (e.ag >= 0) ag_.start(e.ag, msToSamples(e.agMs, fs_));
     if (e.ag >= 0 && std::getenv("PUHUJA_LINE_TRACE")) std::fprintf(stderr, "agevent t %.3f ag %.3f over %.0f ms\n", t_ / fs_, e.ag, e.agMs);
     if (e.ac >= 0 && std::getenv("PUHUJA_LINE_TRACE")) std::fprintf(stderr, "acevent t %.3f ac %.3f over %.0f ms x %.3f hw %.2f\n", t_ / fs_, e.ac, e.acMs, e.lineX, e.lineHw);
@@ -11431,7 +11495,9 @@ float Synth::tick() {
       static const float kRise = param("GAP_RISE_DB_MS", 2.0f), kRiseFloor = param("GAP_RISE_FLOOR_DB", 14.0f);
       static const float kRiseS = param("GAP_RISE_S_X", 0.0f);  // (the s's rise limit x this; 0: none for s)
       const float riseNow = gapCls_ == 1.0f ? kRise * kRiseS : kRise;
-      if (kRise > 0) line_.setRiseLimit(gapT0_ >= 0 && rel <= kReE && riseNow > 0 ? riseNow : 0.0f, kRiseFloor);
+      // (SH agent30; < 0: GAP_RISE_FLOOR_DB) the s's own floor: its hiss starts this many dB under its target
+      static const float kRiseFloorS = param("SH_RISE_FLOOR_S", -1.0f);
+      if (kRise > 0) line_.setRiseLimit(gapT0_ >= 0 && rel <= kReE && riseNow > 0 ? riseNow : 0.0f, gapCls_ == 1.0f && kRiseFloorS >= 0 ? kRiseFloorS : kRiseFloor);
       // GAP_SLIT_W (> 0, != 1): the frication source's fade-out areas x this in the envelope's window (GAP_RE_E): with
       // 1.6 the closing groove hisses from 0.34 cm^2 instead of 0.22, under the fading vowel
       static const float kSlitW = param("GAP_SLIT_W", 1.0f), kSlitS = param("GAP_SLIT_S", -40.0f);
@@ -11442,6 +11508,30 @@ float Synth::tick() {
       if (kCritX != 1.0f) line_.setFricCritMul(gapT0_ >= 0 && rel >= kSlitS && rel <= kReE ? kCritX : 1.0f);
       if (kReMs > 0) line_.setReMs(gapT0_ >= 0 && rel <= kReE && !(female_ && kReFem == 0) ? kReMs : 0.0f);
     }
+    // (SH agent30 round AB, lab; 0: off) the s / ʃ -> vowel offset: for SH_FALL_E ms from the vowel's event the hiss falls
+    // at most SH_FALL_DB_MS dB per ms (x SH_FALL_SH_X for ʃ) down to SH_FALL_FLOOR_DB under its plateau, then as before
+    { static const float kFallDb = param("SH_FALL_DB_MS", 0.0f), kFallFloor = param("SH_FALL_FLOOR_DB", 20.0f),
+                         kFallE = param("SH_FALL_E", 50.0f), kFallSh = param("SH_FALL_SH_X", 1.0f);
+      // SH_OFF_SPAN (1: off): the frication window this many times as wide (log area) in that window: the opening groove's
+      // hiss fades with the area law instead of switching off as the slit passes 0.12-0.22 cm^2 (x SH_OFF_SPAN_SH_X for ʃ)
+      static const float kSpan = param("SH_OFF_SPAN", 1.0f), kSpanSh = param("SH_OFF_SPAN_SH_X", 1.0f);
+      // SH_OFF_ASP_DB / SH_OFF_FRIC_DB (0: off): the glottal aspiration's / the frication's gain lifted by up to this in
+      // that window (raised cosine 0 .. SH_OFF_P .. SH_FALL_E ms): a breathy voice onset / a longer hiss tail
+      static const float kOffAsp = param("SH_OFF_ASP_DB", 0.0f), kOffFric = param("SH_OFF_FRIC_DB", 0.0f), kOffP = param("SH_OFF_P", 10.0f);
+      if (shFallT_ >= 0 && (kOffAsp != 0 || kOffFric != 0)) {
+        const float r = static_cast<float>((t_ - shFallT_) * 1000.0 / fs_);
+        const float w = r <= 0 || r >= kFallE ? 0.0f : r < kOffP ? 0.5f - 0.5f * std::cos(kPi * r / std::max(kOffP, 0.1f))
+                                                                  : 0.5f + 0.5f * std::cos(kPi * (r - kOffP) / std::max(kFallE - kOffP, 0.1f));
+        if (kOffAsp != 0) gapAsp *= std::pow(10.0f, kOffAsp * w / 20.0f);
+        if (kOffFric != 0) gapFric *= std::pow(10.0f, kOffFric * w / 20.0f);
+      }
+      if (kFallDb > 0 || kSpan != 1.0f || kOffAsp != 0 || kOffFric != 0) {
+        static bool tracked = false;
+        if (!tracked && kFallDb > 0) line_.setFallTrack(), tracked = true;
+        if (shFallT_ >= 0 && (t_ - shFallT_) * 1000.0 / fs_ > kFallE) shFallT_ = -1;
+        if (kFallDb > 0) line_.setFallLimit(shFallT_ >= 0 ? kFallDb * (shFallCls_ > 1.1f ? kFallSh : 1.0f) : 0.0f, kFallFloor);
+        if (kSpan != 1.0f) line_.setSlitSpan(shFallT_ >= 0 ? (shFallCls_ > 1.1f ? 1.0f + (kSpan - 1.0f) * kSpanSh : kSpan) : 1.0f);
+      } }
     if (gapT0_ >= 0 || gapFric != 1.0f || gapAsp != 1.0f)
       line_.setNoise(kLineFric * (kLineFricGlideMs > 0 ? lineFricMulS_ : lineFricMul_) * gapFric, kLineAsp * aspGate * lineAspMul_ * gapAsp, std::max(ag, 0.005f));
     else

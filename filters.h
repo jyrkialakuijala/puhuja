@@ -161,8 +161,9 @@ class Gesture {
     left_ = 0;
     vel_ = m0_ = 0;
   }
-  void start(float to, float samples) {
+  void start(float to, float samples, float logMix = 0.0f) {
     if (left_ >= 1.0f && to == to_) return;  // already moving there
+    logMix_ = logMix;  // (SH agent30: > 0: this share of the path geometric in the value, from_ * (to_ / from_)^x)
     from_ = v_;
     to_ = to;
     len_ = left_ = samples;
@@ -183,6 +184,7 @@ class Gesture {
  private:
   float v_ = 0, from_ = 0, to_ = 0, len_ = 1, left_ = 0;
   float vel_ = 0, m0_ = 0;  // speed per sample; initial slope of a movement
+  float logMix_ = 0;  // SH agent30 (start's logMix)
 };
 
 }  // namespace puhuja

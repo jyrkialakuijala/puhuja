@@ -109,6 +109,8 @@ struct Event {
   // Area targets (cm^2), each with its movement time (ms). < 0: no change.
   float ac = -1, ag = -1, an = -1;
   float acMs = 0, agMs = 0, anMs = 0;
+  float acLog = 0;  // SH agent30: the ac glide's geometric share (0: the raised-cosine path in area)
+  float shFall = -1;  // SH agent30: >= 0: a voiceless s / ʃ -> vowel offset window starts here (its class: 1 s, 1.25 ʃ)
   // Constriction noise: spectrum, strength, and the share of its energy
   // that goes through the vocal tract (the cavity behind the constriction
   // resonating); the rest is added in parallel (the front cavity).
@@ -559,6 +561,10 @@ class Synth {
   float chRelFric_ = -1;  // its release's hiss gain (LINE_CHI_BURST / _RAMP_MS / _DECAY)
   bool jhPressed_ = false;  // LINE_JH_PRESS eased the breath through a ʤ: restore it on the next sound
   double gapT0_ = -1;  // GAP agent29: where the current onset envelope started (samples; < 0: none)
+  double shFallT_ = -1;  // SH agent30: where the current s / ʃ -> vowel offset window started (samples; < 0: none)
+  float shFallCls_ = 0;
+  bool lastShFricAffr_ = false;  // SH agent30: the last token was inside an affricate (tʃ: not an s / ʃ offset)
+  int shOffTok_ = 0;  // SH agent30: this token is a vowel after an s (1) / ʃ (2)
   float gapCls_ = 0;
   double gapAt_ = 0;
   float gapOutMul_ = 1, gapPsMul_ = 1;  // GAP agent29: this sample's output and lung-pressure factors
