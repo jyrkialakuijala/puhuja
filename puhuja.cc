@@ -4753,7 +4753,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // Before an l the ʊ keeps o's shape (above), which held F1 at ~600 Hz (the ə-mixed start) into the l: "whole" ->
     // "hull", "goal" -> "trawl" (Kokoro's F1 falls 500 -> 360-420, F2 to ~900). LINE_OW_L_U: this share of the ʊ end
     // (u's row through owEndShape) mixed in (0: as before).
-    static const float kLineOwLU = param("LINE_OW_L_U", 0.6f);
+    static const float kLineOwLU = param("LINE_OW_L_U", 0.8f);
     if (have && tok.ph == Ph::UH && lastPh_ == Ph::O && shapePh == Ph::O && kLineOwLU > 0) {
       TractShape u;
       if (lineShapeOf(Ph::U, &u)) { owEndShape(&u); sh = lineShapeMix(sh, u, kLineOwLU); }
@@ -4769,7 +4769,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
       // high F3 (488/903/2760). With LINE_OW_RAMP 8 and LINE_OW_L_U 0.8, 0.3 here: male "hole" ʊ 483/1005/2502 Hz
       // (before 520/1058/2414, Kokoro 417/887/2517); oʊ lab (377 hard words) 124 -> 102 / 100 errors on two seeds,
       // hybrid "better" with no veto on both.
-      static const float kOwlAo = param("LINE_OWL_AO", 0.0f);
+      static const float kOwlAo = param("LINE_OWL_AO", 0.3f);
       TractShape ao;
       if (kOwlAo > 0 && lineShapeOf(Ph::AO, &ao)) sh = lineShapeMix(sh, ao, kOwlAo);
     }
@@ -5526,7 +5526,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
             // the straight path from the o start's shape to the ʊ end's, progress x^LINE_OW_RAMP_POW of the diphthong's
             // time (the o taken as LINE_OW_RAMP_SPLIT of it), weight x LINE_OW_RAMP_W. Kokoro's "go", "know": F2 falls
             // steadily 1250 -> 850 over the vowel; puhuja's held ~1250.
-            static const float kOwRamp = param("LINE_OW_RAMP", 0.0f), kOwRampPow = param("LINE_OW_RAMP_POW", 1.0f),
+            static const float kOwRamp = param("LINE_OW_RAMP", 8.0f), kOwRampPow = param("LINE_OW_RAMP_POW", 1.0f),
                                kOwRampSplit = param("LINE_OW_RAMP_SPLIT", 0.6f), kOwRampW = param("LINE_OW_RAMP_W", 1.0f);
             const bool owStart = chainStart && tok.ph == Ph::O && *next == Ph::UH;
             if ((owStart || owGlide) && kOwRamp > 1) {
