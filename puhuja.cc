@@ -8032,7 +8032,7 @@ void Synth::coarticulate(Params& p, Ph ph, const Ph* next) const {
 // ɑ ɔ ʌ o u ʊ, and ɜ when LINE_GF_ER is 1 (0: as before). The dictionary (combo22) heard "Berg" as bird and "Hamburg" as
 // hammered: after ɜ the g closed with F3 at 1.9 kHz and a 1.7 kHz burst centroid (Kokoro am_adam 3.4 / 3.7 kHz).
 static bool gFinBackVowel(Ph v) {
-  static const float kGfEr = param("LINE_GF_ER", 0.0f);
+  static const float kGfEr = param("LINE_GF_ER", 1.0f);
   return v == Ph::AA || v == Ph::AO || v == Ph::AH || v == Ph::OH || v == Ph::O || v == Ph::U || v == Ph::UH ||
          (kGfEr > 0 && v == Ph::ER);
 }
@@ -8124,7 +8124,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // the female's, < 0: LINE_GF_X). The dictionary (combo22) heard it as d ("Blog" -> blood, "Frog" -> fraud, "Og" -> odd);
   // lab (119 final g / d words, 266 targets, seed 5): 0.66 44 -> 34 errors, 0.63 40, 0.72 72 (more d). With LINE_GF_RE
   // (below) 0.64 beats 0.66 and 0.62.
-  static const float kGfX = param("LINE_GF_X", -1.0f), kGfXF = param("LINE_GF_X_F", -1.0f);
+  static const float kGfX = param("LINE_GF_X", 0.64f), kGfXF = param("LINE_GF_X_F", -1.0f);
   // LINE_GF_AH 0: not after ʌ (1: as after ɑ ɔ). Per word (seed 5) the place 0.64 turned "Rug" "Mug" "Hug" "Jug" into rig
   // / meg / head / jig (the ʌ heard fronted); Kokoro's ʌ + g keeps F2 low into the closure (Bug 1573, Mug 1499 Hz; after
   // ɑ ɔ 2430-2630).
@@ -9706,7 +9706,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // -24.7 dB; the female's kept at 1.5. Lab (266 targets, seeds 5 / 7 / 11) with LINE_GF_X 0.64: 44 / 46 / 46 -> 16 /
   // 14 / 16 errors (g heard d 40 -> ~10), words right +12..+22 of 238; male and female 0.7: 7-8 (the release ~10 dB under
   // Kokoro's), 0.3 alone 28. LINE_GF_FRIC (the release's frication gain) is inert here: RE sets the noise.
-  static const float kGfRe = param("LINE_GF_RE", -1.0f), kGfReF = param("LINE_GF_RE_F", -1.0f);
+  static const float kGfRe = param("LINE_GF_RE", 0.85f), kGfReF = param("LINE_GF_RE_F", 1.5f);
   const float gfRe = female_ && kGfReF >= 0 ? kGfReF : kGfRe;
   if (gRelRe && gfBack && gfRe >= 0) rel.lineFricReMul = gfRe;
   if (gRelRe && tok.shape.gctx == 1 && kGiRelRe >= 0) rel.lineFricReMul = kGiRelRe;  // (LINE_GI_REL_RE)
