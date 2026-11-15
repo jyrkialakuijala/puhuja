@@ -1559,6 +1559,12 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
           }
           if (phraseFinal) out[w][i] *= sentenceEnd_ ? kSfinSyl : kCfinSyl;
         }
+        // (PROS3 agent30, lab knobs; 1: off) connected-speech tempo per voice: every phone x EN_MW_TEMPO (male) /
+        // EN_MW_TEMPO_F (female), vowels fully, consonants by the square root (the male Kennedy passage ran 173 s of
+        // speech against the 11labs readers' 155-161, the female 159).
+        static const float kMwTempoM = param("EN_MW_TEMPO", 1.0f), kMwTempoF = param("EN_MW_TEMPO_F", 1.0f);
+        const float mwT = synth_.female() ? kMwTempoF : kMwTempoM;
+        if (mwT != 1.0f && phrase_.size() > 1) out[w][i] *= vowel ? mwT : std::sqrt(mwT);
       }
       // (PROS agent28, lab knob; 1: as before) the phrase's first word x EN_PINIT_LEN (it ran 1.17-1.27x the 11labs
       // readers' relative length).
@@ -2668,6 +2674,23 @@ void EnglishReader::sayPhrase(char end) {
   const float decline = std::clamp(kDeclination * n, kDeclinationMax, kDeclinationMin);
   std::vector<float> wordPitch(phrase_.size(), kPhraseStart);  // each word's accent pitch (for repeats)
   bool firstAccentDone = false;
+  // (PROS3 agent30, lab knobs; EN_GACC_MIX 0: off) accent heights planned per breath group: the 11labs readers' highest
+  // accent sits at ~0.45 of a breath group and the in-group slope is ~-0.5 st/s; puhuja's downstep chain put the peak at
+  // 0.15 (-1.5 st/s). With EN_GACC_MIX > 0 an accent's height mixes the downstep chain with H0 x env(g), g the word's
+  // place in its planned breath group: env rises from EN_GACC_LO0 at g 0 to 1 at EN_GACC_AT and falls to EN_GACC_LO1 at
+  // g 1. The unaccented syllables between accents follow on the line between them (the sag below), so the
+  // content-function contrast is not raised. Connected speech only (2+ words; the dictionary unchanged).
+  static const float kGaccMix = param("EN_GACC_MIX", 0.0f), kGaccAt = param("EN_GACC_AT", 0.45f),
+                     kGaccLo0 = param("EN_GACC_LO0", 0.8f), kGaccLo1 = param("EN_GACC_LO1", 0.6f),
+                     kGaccNuc = param("EN_GACC_NUC", 1.0f), kGaccH = param("EN_GACC_H", 1.0f);
+  std::vector<float> gaccPos;
+  const float gaccH0 = accentHeight;
+  if (kGaccMix > 0 && phrase_.size() > 1) {
+    const float saveElapsed = groupElapsed_;
+    planBreaths();  // (idempotent but for the running group length, restored; planned again below)
+    groupElapsed_ = saveElapsed;
+    gaccPos = wordGroupPos_;
+  }
   for (size_t k = 0; k < syl.size(); ++k) {
     const float base = kPhraseStart + startShift + decline * (n > 1 ? k / (n - 1) : 0.0f);
     float p = base;
@@ -2693,8 +2716,15 @@ void EnglishReader::sayPhrase(char end) {
       // "Let them come to Berlin": the imperative "let" yields to the words
       // that carry the meaning.
       if (w == 0 && text == "let") scale *= kLetScale;
+      float accH = accentHeight;
+      if (!gaccPos.empty() && w < gaccPos.size()) {
+        const float g = gaccPos[w];
+        const float env = g < kGaccAt ? kGaccLo0 + (1.0f - kGaccLo0) * bgStep(0.0f, kGaccAt, g)
+                                      : 1.0f - (1.0f - kGaccLo1) * bgStep(kGaccAt, 1.0f, g);
+        accH = (1.0f - kGaccMix) * accentHeight + kGaccMix * kGaccH * gaccH0 * env;
+      }
       const float height = static_cast<int>(k) == lastAccent && !tag
-                               ? std::max(accentHeight, kNuclearMin + vary) : accentHeight;
+                               ? std::max(accH, (kNuclearMin + vary) * (gaccPos.empty() ? 1.0f : kGaccNuc)) : accH;
       // The nucleus stands on a baseline declined by at most kNucleusDecline
       // (on the full decline a late climax was buried, "...to Berlin").
       const float accentBase = static_cast<int>(k) == lastAccent
@@ -2804,6 +2834,10 @@ void EnglishReader::sayPhrase(char end) {
     // ... maximum danger." ended with a short phrase's weaker fall).
     const size_t sentenceSyl = sentenceSyllables_ + syl.size();
     float statement = end == '!' || sentenceSyl >= kLongSentenceSyllables ? kFinalLow : kFinalLowShort;
+    // (PROS3 agent30, lab knob; 0: off) a short statement's final low + EN_FINAL_LOW_SHORT_MW_D st in phrases of 2+ words
+    // (EN_FINAL_LOW_SHORT also moves single words, the dictionary).
+    { static const float kFlsMw = param("EN_FINAL_LOW_SHORT_MW_D", 0.0f);
+      if (kFlsMw != 0 && phrase_.size() > 1 && statement == kFinalLowShort) statement += kFlsMw; }
     if (end == '.' && sentenceSyl < kLongSentenceSyllables && hash % kLevelEndingEvery == 0)
       statement = kLevelEnding;
     // Endings vary a little (from the words, so repeatable): every full
@@ -2855,6 +2889,14 @@ void EnglishReader::sayPhrase(char end) {
         const float g = wordGroupPos_[y.word];
         float d = kBgSt * (0.5f - g) + kAirSt * (wordAirU_[y.word] - 0.5f) +
                   kBgStartSt * (1.0f - bgStep(0.0f, bgStartTo(), g)) - kBgFinSt * bgStep(bgFinalFrom(), 1.0f, g);
+        // (PROS3 agent30, lab knobs; 1: as before; 2+ words only) the start lift on an accented syllable x
+        // EN_BG_START_ACC, on the others x EN_BG_START_UNACC: the 11labs readers start a group with high function words
+        // ("To those", "And yet") while their first accent is not the group's highest.
+        {
+          static const float kStartAcc = param("EN_BG_START_ACC", 1.0f), kStartUnacc = param("EN_BG_START_UNACC", 1.0f);
+          if ((kStartAcc != 1.0f || kStartUnacc != 1.0f) && phrase_.size() > 1)
+            d += ((y.accent ? kStartAcc : kStartUnacc) - 1.0f) * kBgStartSt * (1.0f - bgStep(0.0f, bgStartTo(), g));
+        }
         // (PROS agent28, lab knobs; 0: as before) a hump of EN_BG_HUMP_ST st peaking at EN_BG_HUMP_AT of the group, EN_BG_HUMP_W
         // wide on each side: the 11labs readers' pitch peak sits at 0.45 of a breath group, puhuja's at 0.14.
         {
