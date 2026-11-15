@@ -3499,6 +3499,10 @@ void Synth::emit(const Token& tok, const Ph* next) {
                        (kCswFirstOnset > 0 || !tok.wordStart) && (!female_ || kCsFemale > 0);
   auto csFor = [&](int bit) { return csLater || (csFirst && (cswMask & bit)); };
   const bool csSpeech = csFor(1);
+  // (CHIRP agent33 round AE, lab; all off by default) the pitch knobs F0_*_CS act only in connected speech (from a
+  // phrase's 2nd word on; F0_CS_FIRST 1: the first word of a 2+ word phrase too, male: CSW_FIRST's gate).
+  static const float kF0CsFirst = param("F0_CS_FIRST", 0.0f);
+  const bool f0Cs = csLater || (csFirst && kF0CsFirst > 0);
   auto csOk = [&](int bit) { return !(kCsMask & bit) || csSpeech; };
   {  // (VOWEL agent31 round AC, lab; 0: everywhere) LINE_VQ_CS 1: the LINE_VQ_* vowel offsets only in connected speech
     static const float kVqCs = param("LINE_VQ_CS", 1.0f);
@@ -7269,7 +7273,17 @@ void Synth::emit(const Token& tok, const Ph* next) {
           // (JH-INITIAL agent15 round N, lab knob; < 0: kOnsetDipVoiced) after a word-initial ʤ (ʧ: 15 of its errors)
           static const float kJhOnsetDip = param("LINE_JH_ONSET_DIP", -1.0f);
           onset[kF0Mul] = p[kF0Mul] * (voicelessBefore ? kOnsetRiseVoiceless : lastPh_ == Ph::Z && kZOnsetDip > 0 ? kZOnsetDip : afterJh_ == 0 && kJhOnsetDip > 0 ? kJhOnsetDip : kOnsetDipVoiced);
-          addKeyframe(onset, t0 + 0.05 * dur, true);
+          // (CHIRP agent33, lab; < -50: unchanged) the consonant's pitch at a vowel onset in connected speech, in
+          // semitones (human CF0: + after a voiceless obstruent, - after a voiced one), F0_ONSET_AT_CS of the vowel.
+          static const float kOnVlCs = param("F0_ONSET_VL_CS", -99.0f), kOnVdCs = param("F0_ONSET_VD_CS", -99.0f);
+          static const float kOnAtCs = param("F0_ONSET_AT_CS", 0.05f);
+          double onAt = 0.05;
+          if (f0Cs) {
+            if (voicelessBefore && kOnVlCs > -50) onset[kF0Mul] = p[kF0Mul] * std::exp2(kOnVlCs / 12.0f);
+            if (voicedBefore && kOnVdCs > -50) onset[kF0Mul] = p[kF0Mul] * std::exp2(kOnVdCs / 12.0f);
+            if (kOnAtCs != 0.05f) onAt = kOnAtCs;  // (0.05f is not the double 0.05: the default stays bit-exact)
+          }
+          addKeyframe(onset, t0 + onAt * dur, true);
           k_.back().f0Mod = onset[kF0Mul] / p[kF0Mul];
           k_.back().edge = kFormantPointTargets;  // pitch only: not a formant point
         }
@@ -7311,8 +7325,20 @@ void Synth::emit(const Token& tok, const Ph* next) {
         // syllables before it.
         if (tok.shape.pitchDip > 0 && pitchAnchorT_ >= 0) {
           static const float kDipAt = param("EN_ACC_DIP_AT", 0.15f);
-          const double td = t0 + kDipAt * dur;
-          const float dv = target * std::exp2(-tok.shape.pitchDip / 12.0f);
+          // (CHIRP agent33, lab) after a voiceless obstruent the dip at F0_DIP_AT_VL_CS of the vowel (< -50: EN_ACC_DIP_AT;
+          // negative: inside the consonant, where the rise is not heard), else the dip x F0_DIP_X_VD_CS (1: as before).
+          static const float kDipAtVl = param("F0_DIP_AT_VL_CS", -99.0f), kDipXVd = param("F0_DIP_X_VD_CS", 1.0f);
+          const bool vlBefore = lastPh_ == Ph::P || lastPh_ == Ph::T || lastPh_ == Ph::K || lastPh_ == Ph::CH ||
+                                lastPh_ == Ph::S || lastPh_ == Ph::SH || lastPh_ == Ph::F || lastPh_ == Ph::TH || lastPh_ == Ph::H;
+          const double td = t0 + (f0Cs && vlBefore && kDipAtVl > -50 ? kDipAtVl : kDipAt) * dur;
+          // (CHIRP agent33, lab; 0: off) F0_DIP_RATE: the dip no deeper than this rise rate (st/s) allows from the dip to
+          // the anchor (a short vowel scooped 6 st in 50 ms, an f0 chirp); F0_DIP_X_SHORT: ... and the rest of the depth
+          // goes to a dip this share earlier (in the onset consonant), keeping the excursion.
+          static const float kDipRate = param("F0_DIP_RATE", 0.0f);
+          float dipSt = tok.shape.pitchDip;
+          if (f0Cs && !vlBefore && kDipXVd != 1.0f) dipSt *= kDipXVd;
+          if (kDipRate > 0 && f0Cs) dipSt = std::min(dipSt, static_cast<float>(kDipRate * (tc - td) / fs_));
+          const float dv = target * std::exp2(-dipSt / 12.0f);
           if (td > pitchAnchorT_ && td < tc) {
             for (Keyframe& kf : k_) {
               if (kf.t <= pitchAnchorT_) continue;
@@ -7328,7 +7354,20 @@ void Synth::emit(const Token& tok, const Ph* next) {
             if (kf.t > tc) kf.p[kF0Mul] = target * kf.f0Mod;  // after the centre
             continue;
           }
-          const float f = kf.t >= tc ? 1.0f : static_cast<float>((kf.t - pitchAnchorT_) / (tc - pitchAnchorT_));
+          float f = kf.t >= tc ? 1.0f : static_cast<float>((kf.t - pitchAnchorT_) / (tc - pitchAnchorT_));
+          // (CHIRP agent33, lab; 1: linear) F0_FALL_SHARP_CS / F0_RISE_SHARP_CS: a fall / rise between two anchors as an
+          // S-curve (f^a / (f^a + (1-f)^a)): the pitch holds near the anchors and moves in the middle, faster.
+          // F0_SHARP_MAX_ST: only moves up to this size (semitones; bigger ones stay linear, no chirp).
+          { static const float kFallSharp = param("F0_FALL_SHARP_CS", 1.0f), kRiseSharp = param("F0_RISE_SHARP_CS", 1.0f);
+            static const float kSharpMax = param("F0_SHARP_MAX_ST", 99.0f);
+            static const float kFallMax = param("F0_FALL_MAX_ST", -1.0f);  // falls' own limit (< 0: F0_SHARP_MAX_ST)
+            const bool fall = target < pitchAnchor_;
+            const float a = fall ? kFallSharp : kRiseSharp;
+            const float mx = fall && kFallMax >= 0 ? kFallMax : kSharpMax;
+            if (a != 1.0f && f0Cs && f > 0 && f < 1 && std::fabs(12.0f * std::log2(target / pitchAnchor_)) <= mx) {
+              const float fa = std::pow(f, a), ga = std::pow(1.0f - f, a);
+              f = fa / (fa + ga);
+            } }
           kf.p[kF0Mul] = (pitchAnchor_ + f * (target - pitchAnchor_)) * kf.f0Mod;
         }
         last_[kF0Mul] = target;
