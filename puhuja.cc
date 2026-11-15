@@ -3976,7 +3976,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
   // 25, 0.85 24; but the female n at 0.83 / 0.85 turns l ("Noon" -> lunar, "Node" -> load: female words 546 -> 510 /
   // 475), so male only (0.83, _X_F 0.80): male m 17 -> 10 / 19 -> 5 (two draws), words unchanged. The forward place
   // fills puhuja's 2-2.6 kHz murmur hole (-49 -> -40 dB re the murmur; Kokoro am_adam -20..-23, 11labs -14..-34).
-  { static const float kLineNiX = param("LINE_NI_X", -1.0f), kLineNiXF = param("LINE_NI_X_F", -1.0f);
+  { static const float kLineNiX = param("LINE_NI_X", 0.83f), kLineNiXF = param("LINE_NI_X_F", 0.8f);
     const float niX = female_ && kLineNiXF >= 0 ? kLineNiXF : kLineNiX;
     if (tok.ph == Ph::N && tok.wordStart && niX >= 0) e.lineX = niX;
     // ... before iː / ɪ / j LINE_NI_HI_X instead (< 0: as above; the female's LINE_NI_HI_X_F, < 0: LINE_NI_HI_X).
@@ -6207,8 +6207,8 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // -26 -> -24 dB; Kokoro am_adam -19 -> -4, af_heart -24 -> -5). Gate-like runs (354 initial-n words, 4 draws, base
     // 1108 right, m 34): REL_MS 20 1124, 15 / 25 / 50 1115 / 1115 / 1113; VEL_LAG_MS 40 1117 (0: 1085); VEL_MS 10 1102
     // (m 46); CLOSE_FRIC 3 1105.
-    static const float kNiVelMs = param("LINE_NI_VEL_MS", -1.0f), kNiVelLagMs = param("LINE_NI_VEL_LAG_MS", -1.0f),
-                       kNiRelMs = param("LINE_NI_REL_MS", -1.0f), kNiCloseFric = param("LINE_NI_CLOSE_FRIC", -1.0f);
+    static const float kNiVelMs = param("LINE_NI_VEL_MS", -1.0f), kNiVelLagMs = param("LINE_NI_VEL_LAG_MS", 40.0f),
+                       kNiRelMs = param("LINE_NI_REL_MS", 20.0f), kNiCloseFric = param("LINE_NI_CLOSE_FRIC", -1.0f);
     const bool ni = lastPh_ == Ph::N && nIni_;
     const float velMs = ni && kNiVelMs >= 0 ? kNiVelMs : nasalKnob(lastPh_, kLineNasalVelMs, kLineNVelMs);
     const float velLagMs = ni && kNiVelLagMs >= 0 ? kNiVelLagMs : nasalKnob(lastPh_, kLineNasalVelLagMs, kLineNVelLagMs);
@@ -7323,7 +7323,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // pause's. Before, the n took no shape of its own there (the demand above needs a vowel next): "Newer" -> Muir,
     // "Niue" -> Muay. A demand over the n alone (ON_MS 0) changes nothing: the closure holds the shape. W 3 / ON_MS 60:
     // initial-n words 1108 -> 1118 (m 34 -> 30), W 2 / 40: 1113.
-    static const float kNiJW = param("LINE_NI_J_W", 0.0f), kNiJOnMs = param("LINE_NI_J_ON_MS", 30.0f);
+    static const float kNiJW = param("LINE_NI_J_W", 3.0f), kNiJOnMs = param("LINE_NI_J_ON_MS", 60.0f);
     if (tract_ == Tract::Line && isN && tok.ph == Ph::N && tok.wordStart && next && *next == Ph::J && kNiJW > 0 &&
         lineShapeOf(Ph::J, &v) && lineShapeOf(Ph::Stop, &o))
       addShapeDemand(e.t, e.t + dur + kNiJOnMs * ms, mixN(o, v, 1.0f), Ph::I, kNiJW);
