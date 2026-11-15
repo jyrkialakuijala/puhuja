@@ -6819,10 +6819,10 @@ void Synth::emit(const Token& tok, const Ph* next) {
     if (tract_ == Tract::Line && csSpeech && in.cls == Cls::Nasal && kNasPortCs != 1.0f) e.an *= kNasPortCs;
     // ... and its oral closure left open by NAS_AC_CS cm^2 (< 0: shut, as before): a lenited, more vowel-like murmur
     // (NAS_AC_CS_F: the female's, < 0: the same)
-    static const float kNasAcCsM = param("NAS_AC_CS", -1.0f), kNasAcCsF = param("NAS_AC_CS_F", -1.0f);
+    static const float kNasAcCsM = param("NAS_AC_CS", 0.1f), kNasAcCsF = param("NAS_AC_CS_F", -1.0f);
     const float kNasAcCs = female_ && kNasAcCsF >= 0 ? kNasAcCsF : kNasAcCsM;
     // (NAS_AC_CS_MX / _NGX: the m's / ŋ's opening x this)
-    static const float kNasAcMx = param("NAS_AC_CS_MX", 1.0f), kNasAcNgx = param("NAS_AC_CS_NGX", 1.0f);
+    static const float kNasAcMx = param("NAS_AC_CS_MX", 0.0f), kNasAcNgx = param("NAS_AC_CS_NGX", 1.0f);
     if (tract_ == Tract::Line && csSpeech && in.cls == Cls::Nasal && kNasAcCs >= 0)
       e.ac = kNasAcCs * (tok.ph == Ph::M ? kNasAcMx : tok.ph == Ph::NG ? kNasAcNgx : 1.0f);
   }
