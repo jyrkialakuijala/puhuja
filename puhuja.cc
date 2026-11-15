@@ -3463,14 +3463,14 @@ void Synth::emit(const Token& tok, const Ph* next) {
   // words render as before), 0: everywhere.
   // LIQ_FEMALE: in the female voice only for these sounds (bits: 1 ɹ, 2 l, 4 w, 8 j; 15 all, 0: the knobs male-only).
   static const float kLiqCs = param("LIQ_CS", 1.0f);
-  static const int kLiqFemale = static_cast<int>(param("LIQ_FEMALE", 15.0f));
+  static const int kLiqFemale = static_cast<int>(param("LIQ_FEMALE", 1.0f));
   const int liqBit = tok.ph == Ph::RR ? 1 : tok.ph == Ph::L ? 2 : tok.ph == Ph::W ? 4 : tok.ph == Ph::J ? 8 : 0;
   const bool liqOn = (kLiqCs == 0.0f || csSpeech) && (!female_ || (kLiqFemale & liqBit));
   const bool liqCoda = !(next && isVowel(*next));
   float liqP = 1.0f;
   {
-    static const float kRP = param("LIQ_R_PRESS", 1.0f), kRCP = param("LIQ_RC_PRESS", 1.0f), kLP = param("LIQ_L_PRESS", 1.0f),
-                       kLCP = param("LIQ_LC_PRESS", 1.0f), kWP = param("LIQ_W_PRESS", 1.0f), kJP = param("LIQ_J_PRESS", 1.0f);
+    static const float kRP = param("LIQ_R_PRESS", 0.8f), kRCP = param("LIQ_RC_PRESS", 0.65f), kLP = param("LIQ_L_PRESS", 1.0f),
+                       kLCP = param("LIQ_LC_PRESS", 1.0f), kWP = param("LIQ_W_PRESS", 0.8f), kJP = param("LIQ_J_PRESS", 1.0f);
     if (liqOn) liqP = tok.ph == Ph::RR ? (liqCoda ? kRCP : kRP) : tok.ph == Ph::L ? (liqCoda ? kLCP : kLP)
                       : tok.ph == Ph::W ? kWP : tok.ph == Ph::J ? kJP : 1.0f;
   }
@@ -3818,7 +3818,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
   // LIQ_L_AC / LIQ_LC_AC, LIQ_W_AC, LIQ_J_AC (LIQ_CS above).
   if (tract_ == Tract::Line && liqOn && e.ac > 0) {
     static const float kRA = param("LIQ_R_AC", 1.0f), kRCA = param("LIQ_RC_AC", 1.0f), kLA = param("LIQ_L_AC", 1.0f),
-                       kLCA = param("LIQ_LC_AC", 1.0f), kWA = param("LIQ_W_AC", 1.0f), kJA = param("LIQ_J_AC", 1.0f);
+                       kLCA = param("LIQ_LC_AC", 1.0f), kWA = param("LIQ_W_AC", 1.0f), kJA = param("LIQ_J_AC", 2.0f);
     const float m = tok.ph == Ph::RR ? (liqCoda ? kRCA : kRA) : tok.ph == Ph::L ? (liqCoda ? kLCA : kLA)
                     : tok.ph == Ph::W ? kWA : tok.ph == Ph::J ? kJA : 1.0f;
     if (m != 1.0f) e.ac *= m;
@@ -3826,7 +3826,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
   // (LIQ agent31, lab; 0: off) the source shelf's dB x (1 + this) through an ɹ (LIQ_R_SHELF; coda LIQ_RC_SHELF, < 0: the
   // same) or l (LIQ_L_SHELF, coda LIQ_LC_SHELF): 11labs' ɹ core is 5-10 dB brighter (2.5-6 kHz re 0-1 kHz, re its vowel).
   if (tract_ == Tract::Line) {
-    static const float kRS = param("LIQ_R_SHELF", 0.0f), kRCS = param("LIQ_RC_SHELF", -1.0f), kLS = param("LIQ_L_SHELF", 0.0f),
+    static const float kRS = param("LIQ_R_SHELF", 1.0f), kRCS = param("LIQ_RC_SHELF", -1.0f), kLS = param("LIQ_L_SHELF", 0.0f),
                        kLCS = param("LIQ_LC_SHELF", -1.0f);
     float v = 0.0f;
     if (liqOn && tok.ph == Ph::RR) v = liqCoda && kRCS >= 0 ? kRCS : kRS;
@@ -5191,12 +5191,13 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // a vowel), RC (ɹ not), L, LC, W, J.
     if (have && liqOn && (tok.ph == Ph::RR || tok.ph == Ph::L || tok.ph == Ph::W || tok.ph == Ph::J)) {
       struct LiqShape { float lipA, lipL, aph, mix; int row; };
-      auto ld = [](const char* p) {
+      // deployed defaults (LIQ agent31 #1): LIQ_R_APH / LIQ_RC_APH 0.6, LIQ_W_MIX 0.5 toward row 11 (ʊ)
+      auto ld = [](const char* p, float aph = 1.0f, float mix = 0.0f, float row = 16.0f) {
         const std::string b = std::string("LIQ_") + p;
-        return LiqShape{param((b + "_LIPA").c_str(), 1.0f), param((b + "_LIPL").c_str(), 1.0f), param((b + "_APH").c_str(), 1.0f),
-                        param((b + "_MIX").c_str(), 0.0f), static_cast<int>(param((b + "_ROW").c_str(), 16.0f))};
+        return LiqShape{param((b + "_LIPA").c_str(), 1.0f), param((b + "_LIPL").c_str(), 1.0f), param((b + "_APH").c_str(), aph),
+                        param((b + "_MIX").c_str(), mix), static_cast<int>(param((b + "_ROW").c_str(), row))};
       };
-      static const LiqShape kR = ld("R"), kRC = ld("RC"), kL = ld("L"), kLC = ld("LC"), kW = ld("W"), kJ = ld("J");
+      static const LiqShape kR = ld("R", 0.6f), kRC = ld("RC", 0.6f), kL = ld("L"), kLC = ld("LC"), kW = ld("W", 1.0f, 0.5f, 11.0f), kJ = ld("J");
       const LiqShape& q = tok.ph == Ph::RR ? (liqCoda ? kRC : kR) : tok.ph == Ph::L ? (liqCoda ? kLC : kL) : tok.ph == Ph::W ? kW : kJ;
       TractShape o;
       if (q.mix != 0.0f && lineShapeOf(static_cast<Ph>(q.row), &o)) sh = lineShapeMix(sh, o, q.mix);
