@@ -7985,7 +7985,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // The closure place: LINE_TV_X (t; LINE_T_X 0.87), LINE_KV_X_ER (k before ɜ; share of the line).
   const bool tvInit = tract_ == Tract::Line && tok.ph == Ph::T && tok.wordStart && next && isVowel(*next);
   const bool kvEr = kvInit && *next == Ph::ER;
-  static const float kTvX = param("LINE_TV_X", -1.0f), kKvXEr = param("LINE_KV_X_ER", -1.0f);
+  static const float kTvX = param("LINE_TV_X", -1.0f), kKvXEr = param("LINE_KV_X_ER", 0.58f);
   const float vlX = vlK ? kVlKX : vlG ? kVlGX : -1.0f;
   // (FINAL-T agent18 round P, lab; < 0: as before) a word-final t's closure place LINE_T_FINAL_X (share of the line;
   // LINE_T_X 0.87): its release resonated at 3-3.5 kHz (centroid 3.7 kHz male, 4.7 female); Kokoro's at 3.5-5 kHz
@@ -9124,7 +9124,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
       if (plInit && kPlAsp != 1.0f) rel.lineAspMul *= kPlAsp;
       // (PK-INITIAL agent19, lab; 1: as before) pvInit / kvInit: the puff noise x LINE_PV_ASP / LINE_KV_ASP, its hold x
       // LINE_PV_VOT / LINE_KV_VOT (below), the adduction into voice over LINE_PV_ADDUCT_MS / _KV_ (< 0: as before).
-      static const float kPvAsp = param("LINE_PV_ASP", 1.0f), kKvAsp = param("LINE_KV_ASP", 1.0f), kPvVot = param("LINE_PV_VOT", 1.0f),
+      static const float kPvAsp = param("LINE_PV_ASP", 1.0f), kKvAsp = param("LINE_KV_ASP", 1.0f), kPvVot = param("LINE_PV_VOT", 0.75f),
                          kKvVot = param("LINE_KV_VOT", 1.0f), kPvAdductMs = param("LINE_PV_ADDUCT_MS", -1.0f), kKvAdductMs = param("LINE_KV_ADDUCT_MS", 30.0f);
       if (pvInit && kPvAsp != 1.0f) rel.lineAspMul *= kPvAsp;
       if (kvInit && kKvAsp != 1.0f) rel.lineAspMul *= kKvAsp;
@@ -9861,7 +9861,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // (PTK-PLACE-2 agent26, lab; < 0: as before) tvInit's slit: length LINE_TV_SLIT_MS, area LINE_TV_SLIT_A (cm^2), place
   // LINE_TV_SLIT_X (share of the line), frication gain LINE_TV_SLIT_FRIC, jet LINE_TV_SLIT_JET_D (cm).
   static const float kTvSlitMs = param("LINE_TV_SLIT_MS", -1.0f), kTvSlitA = param("LINE_TV_SLIT_A", -1.0f), kTvSlitX = param("LINE_TV_SLIT_X", -1.0f),
-                     kTvSlitFric = param("LINE_TV_SLIT_FRIC", -1.0f), kTvSlitJetD = param("LINE_TV_SLIT_JET_D", -1.0f);
+                     kTvSlitFric = param("LINE_TV_SLIT_FRIC", -1.0f), kTvSlitJetD = param("LINE_TV_SLIT_JET_D", 0.1f);
   const float tSlitMs = tFinalSlit ? kTFinalSlitMs : tSlitS ? kTSlitSMs : trInit && kTrSlitMs >= 0 ? kTrSlitMs : tvInit && kTvSlitMs >= 0 ? kTvSlitMs : kLineTBurstMs;
   const bool tSlitPlaced = (trInit && kTrSlitX >= 0) || (twInit && kTwSlitX >= 0);
   const float tSlitJetD = tFinalSlit && kTFinalJetD >= 0 ? kTFinalJetD : kLineTBurstJetD;
@@ -9931,7 +9931,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   static const float kKSlitLiqA = param("LINE_K_SLIT_LIQ_A", -1.0f), kKSlitLiqJetD = param("LINE_K_SLIT_LIQ_JET_D", -1.0f),
                      kKSlitXFront = param("LINE_K_SLIT_X_FRONT", -1.0f), kKBurstMsFront = param("LINE_K_BURST_MS_FRONT", -1.0f);
   // (PK-INITIAL agent19, lab; < 0: LINE_K_SLIT_X_FRONT) the same slit place for a word-initial k only.
-  static const float kKvSlitXFront = param("LINE_KV_SLIT_X_FRONT", 0.8f);
+  static const float kKvSlitXFront = param("LINE_KV_SLIT_X_FRONT", 0.84f);
   const float kSlitXFrontK = kvInit && kKvSlitXFront >= 0 ? kKvSlitXFront : kKSlitXFront;
   // (PTK-PLACE-2 agent26, lab; < 0: as before) kvEr's slit place (share of the line; the closure's, LINE_KV_X_ER / LINE_K_X).
   static const float kKvSlitXEr = param("LINE_KV_SLIT_X_ER", -1.0f);
