@@ -3970,6 +3970,20 @@ void Synth::emit(const Token& tok, const Ph* next) {
   if (tract_ == Tract::Line)
     e.lineFricFade = tok.ph == Ph::ZH && !inAffricate_ && kLineZhFade >= 0 ? kLineZhFade : tok.ph == Ph::Z && kLineZFade >= 0 ? kLineZFade : tok.ph == Ph::DH && kLineDhFade >= 0 ? kLineDhFade : tok.ph == Ph::Z || tok.ph == Ph::ZH || tok.ph == Ph::VV || tok.ph == Ph::DH ? kVFricFade : tok.ph == Ph::SH ? shFade : 1.0f;
   e.lineX = tok.ph == Ph::NG ? lineNgPlace(lastPh_, next) : linePlaceOf(tok.ph);
+  // (N-INIT agent26 round X, lab; < 0: LINE_N_X) a word-initial n's place; LINE_NI_X_F the female voice's (< 0:
+  // LINE_NI_X). The initial n heard as m (combo21 gate: 38 of 1416 initial-n word-draws, iː 18 / 92, ɪ 8 / 128, j 6 / 40,
+  // back vowels 0) follows the place: gate-like runs on the 354 initial-n words (4 draws): 0.75 -> m 109, 0.80 34, 0.83
+  // 25, 0.85 24; but the female n at 0.83 / 0.85 turns l ("Noon" -> lunar, "Node" -> load: female words 546 -> 510 /
+  // 475), so male only (0.83, _X_F 0.80): male m 17 -> 10 / 19 -> 5 (two draws), words unchanged. The forward place
+  // fills puhuja's 2-2.6 kHz murmur hole (-49 -> -40 dB re the murmur; Kokoro am_adam -20..-23, 11labs -14..-34).
+  { static const float kLineNiX = param("LINE_NI_X", -1.0f), kLineNiXF = param("LINE_NI_X_F", -1.0f);
+    const float niX = female_ && kLineNiXF >= 0 ? kLineNiXF : kLineNiX;
+    if (tok.ph == Ph::N && tok.wordStart && niX >= 0) e.lineX = niX;
+    // ... before iː / ɪ / j LINE_NI_HI_X instead (< 0: as above; the female's LINE_NI_HI_X_F, < 0: LINE_NI_HI_X).
+    static const float kLineNiHiX = param("LINE_NI_HI_X", -1.0f), kLineNiHiXF = param("LINE_NI_HI_X_F", -1.0f);
+    const float niHiX = female_ && kLineNiHiXF >= 0 ? kLineNiHiXF : kLineNiHiX;
+    if (tok.ph == Ph::N && tok.wordStart && niHiX >= 0 && next && (*next == Ph::I || *next == Ph::IH || *next == Ph::J))
+      e.lineX = niHiX; }
   { static const float kLineZhX = param("LINE_ZH_X", -1.0f);  // ʒ's own place (ZH agent, round H; < 0: LINE_SH_X)
     if (tok.ph == Ph::ZH && !inAffricate_ && kLineZhX >= 0) e.lineX = kLineZhX; }
   e.lineXClosure = in.cls == Cls::Nasal;
@@ -4006,6 +4020,15 @@ void Synth::emit(const Token& tok, const Ph* next) {
       static const float kLineNgPressF = param("LINE_NG_PRESS_F", -1.0f);
       if (tok.ph == Ph::NG) { e.press = female_ && kLineNgPressF >= 0 ? kLineNgPressF : kLineNgPress; e.pressMs = 20; }
       else if (lastPh_ == Ph::NG && e.press < 0) { e.press = 1.0f; e.pressMs = 20; }
+    }
+  }
+  // The sound after a word-initial n eased by LINE_NI_PRESS (N-INIT agent26 round X, lab) takes the breath back to 1
+  // over 20 ms (LINE_N_PRESS has no such restore: the eased breath held to the next press event).
+  {
+    static const float kLineNiPressR = param("LINE_NI_PRESS", -1.0f);
+    if (tract_ == Tract::Line && kLineNiPressR >= 0 && kLineNiPressR != 1.0f && lastPh_ == Ph::N && nIni_ && e.press < 0) {
+      e.press = 1.0f;
+      e.pressMs = 20;
     }
   }
   // ʒ's breath x LINE_ZH_PRESS over LINE_ZH_PRESS_MS, back to 1 at the next sound (ZH agent, round H; 1: off): more flow
@@ -5931,7 +5954,11 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // LINE_FN_PRESS: the -ən / -ɪn murmur is 1.5-3 dB under its vowel in ElevenLabs' Kennedy readings (n -7..-11 dB re
     // the local peak, 33 / 32 / 26 tokens), in puhuja 2.7 dB over it (-3.1 vs -5.8).
     static const float kLineFnPress = param("LINE_FN_PRESS", -1.0f);
-    const float p = (tok.shape.nctx & 2) && kLineFnPress >= 0 ? kLineFnPress : fin && kLineNFinalPress >= 0 ? kLineNFinalPress : kLineNPress;
+    // ... a word-initial n before a vowel (N-INIT agent26 round X, lab; < 0: as above) eases to LINE_NI_PRESS. Inert
+    // after a pause (the breath onset already set the n's press: 0.8 / 1.2 rendered bit-identical).
+    static const float kLineNiPress = param("LINE_NI_PRESS", -1.0f);
+    const bool niHere = tok.wordStart && next && isVowel(*next) && kLineNiPress >= 0;
+    const float p = niHere ? kLineNiPress : (tok.shape.nctx & 2) && kLineFnPress >= 0 ? kLineFnPress : fin && kLineNFinalPress >= 0 ? kLineNFinalPress : kLineNPress;
     if (tract_ == Tract::Line && tok.ph == Ph::N && p != 1.0f && e.press < 0) {
       e.press = p;
       e.pressMs = static_cast<float>(dur / ms);
@@ -5959,6 +5986,20 @@ void Synth::emit(const Token& tok, const Ph* next) {
       }
     }
   }
+  // A word-initial n before a vowel shuts its velum over its last LINE_NI_VEL_LEAD_MS (N-INIT agent26 round X, lab; 0:
+  // off): the tongue tip then releases a short oral closure, a d-like alveolar transient at the vowel's start (puhuja's
+  // n -> iː had no spectral jump at the release, Kokoro's 8-20 dB). 10 / 20 ms: heard t (initial-n words right 1108 ->
+  // 320 / 412 of 1416, 492 word-draws heard starting with t). Do not use.
+  {
+    static const float kNiVelLeadMs = param("LINE_NI_VEL_LEAD_MS", 0.0f);
+    if (tract_ == Tract::Line && tok.ph == Ph::N && tok.wordStart && kNiVelLeadMs > 0 && next && isVowel(*next)) {
+      const float lead = std::min(kNiVelLeadMs, 0.5f * static_cast<float>(dur / ms));
+      Event shut{e.t + dur - lead * ms};
+      shut.an = 0.0f;
+      shut.anMs = std::min(lead, 10.0f);
+      addEventAt(shut);
+    }
+  }
   // m's own port x LINE_M_PORT_SCALE (round J, M agent; 1: as before).
   {
     static const float kMPort = param("LINE_M_PORT_SCALE", 1.0f);
@@ -5970,6 +6011,9 @@ void Synth::emit(const Token& tok, const Ph* next) {
   {
     static const float kNPort = param("LINE_N_PORT_SCALE", 1.0f);
     if (tract_ == Tract::Line && tok.ph == Ph::N && kNPort != 1.0f) e.an *= kNPort;
+    // ... a word-initial n x LINE_NI_PORT (N-INIT agent26 round X, lab; 1: as before).
+    static const float kNiPort = param("LINE_NI_PORT", 1.0f);
+    if (tract_ == Tract::Line && tok.ph == Ph::N && tok.wordStart && kNiPort != 1.0f) e.an *= kNiPort;
     // ... a word-final n after an unstressed vowel x LINE_FN_PORT as well (Shape::nctx 2; N agent13 round L; 1: as before).
     static const float kFnPort = param("LINE_FN_PORT", 0.6f);
     if (tract_ == Tract::Line && tok.ph == Ph::N && (tok.shape.nctx & 2) && kFnPort != 1.0f) e.an *= kFnPort;
@@ -6099,14 +6143,24 @@ void Synth::emit(const Token& tok, const Ph* next) {
   Event velLag{0}, closeFricBack{0};
   bool hasVelLag = false, hasCloseFricBack = false;
   if (tract_ == Tract::Line && prevWasNasal_ && isVowel(tok.ph)) {
-    const float velMs = nasalKnob(lastPh_, kLineNasalVelMs, kLineNVelMs);
-    const float velLagMs = nasalKnob(lastPh_, kLineNasalVelLagMs, kLineNVelLagMs);
-    e.acMs = nasalKnob(lastPh_, kLineNasalRelMs, kLineNRelMs);
+    // After a word-initial n (N-INIT agent26 round X, lab; < 0: as for every n): the velum closes over LINE_NI_VEL_MS
+    // starting LINE_NI_VEL_LAG_MS after the release, the mouth opens over LINE_NI_REL_MS, the release's frication gain
+    // LINE_NI_CLOSE_FRIC (as LINE_CLOSE_FRIC). Puhuja's n -> iː had no spectral step at the release (0.8-4 / <0.4 kHz
+    // -26 -> -24 dB; Kokoro am_adam -19 -> -4, af_heart -24 -> -5). Gate-like runs (354 initial-n words, 4 draws, base
+    // 1108 right, m 34): REL_MS 20 1124, 15 / 25 / 50 1115 / 1115 / 1113; VEL_LAG_MS 40 1117 (0: 1085); VEL_MS 10 1102
+    // (m 46); CLOSE_FRIC 3 1105.
+    static const float kNiVelMs = param("LINE_NI_VEL_MS", -1.0f), kNiVelLagMs = param("LINE_NI_VEL_LAG_MS", -1.0f),
+                       kNiRelMs = param("LINE_NI_REL_MS", -1.0f), kNiCloseFric = param("LINE_NI_CLOSE_FRIC", -1.0f);
+    const bool ni = lastPh_ == Ph::N && nIni_;
+    const float velMs = ni && kNiVelMs >= 0 ? kNiVelMs : nasalKnob(lastPh_, kLineNasalVelMs, kLineNVelMs);
+    const float velLagMs = ni && kNiVelLagMs >= 0 ? kNiVelLagMs : nasalKnob(lastPh_, kLineNasalVelLagMs, kLineNVelLagMs);
+    e.acMs = ni && kNiRelMs >= 0 ? kNiRelMs : nasalKnob(lastPh_, kLineNasalRelMs, kLineNRelMs);
+    const float closeFric = ni && kNiCloseFric >= 0 ? kNiCloseFric : kLineCloseFric;
     e.anMs = velMs;
-    if (kLineCloseFric != 1.0f) {  // (LINE_CLOSE_FRIC: the oral closure opening into the vowel keeps the closure's gain, then the vowel's own)
+    if (closeFric != 1.0f) {  // (LINE_CLOSE_FRIC: the oral closure opening into the vowel keeps the closure's gain, then the vowel's own)
       closeFricBack = Event{e.t + (e.acMs + 10.0f) * ms};
       closeFricBack.lineFricMul = e.lineFricMul < 0 ? 1.0f : e.lineFricMul;
-      e.lineFricMul = kLineCloseFric;
+      e.lineFricMul = closeFric;
       hasCloseFricBack = true;
     }
     if (velLagMs > 0 && e.an >= 0) {
@@ -7185,13 +7239,36 @@ void Synth::emit(const Token& tok, const Ph* next) {
     if (tract_ == Tract::Line && isN && next && isVowel(*next) && (kNRelAll > 0 || !prevWasVowel_)) {
       const bool backNext = *next == Ph::AO || *next == Ph::AA || *next == Ph::OH || *next == Ph::O || *next == Ph::U ||
                             *next == Ph::UH || *next == Ph::AH;
-      const float rmix = backNext && kNRelBackMix >= 0 ? kNRelBackMix : kNRelMix;
-      if ((rmix > 0 || kNRelLipA > 0) && lineShapeOf(*next, &v) && lineShapeOf(static_cast<Ph>(kNRelRow >= 0 ? kNRelRow : kNPreRow), &o)) {
+      // (N-INIT agent26 round X, lab; < 0: as above) a word-initial n before a front vowel (iː ɪ eɪ ɛ æ): the mix
+      // LINE_NI_FRONT_MIX toward the row LINE_NI_FRONT_ROW, weight LINE_NI_FRONT_W; every word-initial n: the demand
+      // reaches LINE_NI_ON_MS into the vowel.
+      static const float kNiFrontMix = param("LINE_NI_FRONT_MIX", -1.0f), kNiFrontW = param("LINE_NI_FRONT_W", -1.0f),
+                         kNiOnMs = param("LINE_NI_ON_MS", -1.0f);
+      static const int kNiFrontRow = static_cast<int>(param("LINE_NI_FRONT_ROW", -1.0f));
+      const bool ini = tok.ph == Ph::N && tok.wordStart;
+      // LINE_NI_FRONT_HIGH 1: only before iː ɪ (the n -> m cell: before iː 18 of 92 initial-n words heard with m, ɪ 8 / 128,
+      // eɪ ɛ 2 / 120 and 2 / 140, back vowels 0; combo21 gate).
+      static const float kNiFrontHigh = param("LINE_NI_FRONT_HIGH", 0.0f);
+      const bool frontNi = ini && (*next == Ph::I || *next == Ph::IH ||
+                                   (kNiFrontHigh <= 0 && (*next == Ph::E || *next == Ph::EH || *next == Ph::AE)));
+      const float rmix = frontNi && kNiFrontMix >= 0 ? kNiFrontMix : backNext && kNRelBackMix >= 0 ? kNRelBackMix : kNRelMix;
+      const int rrow = frontNi && kNiFrontRow >= 0 ? kNiFrontRow : kNRelRow >= 0 ? kNRelRow : kNPreRow;
+      const float rw = frontNi && kNiFrontW >= 0 ? kNiFrontW : kNRelW, ron = ini && kNiOnMs >= 0 ? kNiOnMs : kNRelOnMs;
+      if ((rmix > 0 || kNRelLipA > 0) && lineShapeOf(*next, &v) && lineShapeOf(static_cast<Ph>(rrow), &o)) {
         TractShape s = mixN(v, o, rmix);
         if (kNRelLipA > 0) s.aLip = std::max(s.aLip, kNRelLipA);
-        addShapeDemand(e.t, e.t + dur + kNRelOnMs * ms, s, *next, kNRelW);
+        addShapeDemand(e.t, e.t + dur + ron * ms, s, *next, rw);
       }
     }
+    // (N-INIT agent26 round X, lab; 0: off) a word-initial n before a j ("new", "neural"): the n and the j's first
+    // LINE_NI_J_ON_MS are asked for the j's (iː's) tongue with weight LINE_NI_J_W, the lips and length staying the
+    // pause's. Before, the n took no shape of its own there (the demand above needs a vowel next): "Newer" -> Muir,
+    // "Niue" -> Muay. A demand over the n alone (ON_MS 0) changes nothing: the closure holds the shape. W 3 / ON_MS 60:
+    // initial-n words 1108 -> 1118 (m 34 -> 30), W 2 / 40: 1113.
+    static const float kNiJW = param("LINE_NI_J_W", 0.0f), kNiJOnMs = param("LINE_NI_J_ON_MS", 30.0f);
+    if (tract_ == Tract::Line && isN && tok.ph == Ph::N && tok.wordStart && next && *next == Ph::J && kNiJW > 0 &&
+        lineShapeOf(Ph::J, &v) && lineShapeOf(Ph::Stop, &o))
+      addShapeDemand(e.t, e.t + dur + kNiJOnMs * ms, mixN(o, v, 1.0f), Ph::I, kNiJW);
   }
   // The full-vowel ʃ's tongue body (SH agent 10, round K; lab knobs, LINE_SH_REL_MIX 0: off). The ʃ had no shape of its
   // own: after a pause the line glided from the pause's ə straight into the vowel, which started at its own F2 (the
@@ -7484,6 +7561,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
   prevWasVowel_ = in.cls == Cls::Vowel;
   jAfterStop_ = tok.ph == Ph::J && prevWasPlosive_;
   jIni_ = jIni;
+  nIni_ = tok.ph == Ph::N && tok.wordStart;
   prevWasPlosive_ = false;
   afterJh_ = -1;
   afterChi_ = false;

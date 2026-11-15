@@ -504,6 +504,7 @@ class Synth {
   bool trInitPrev_ = false;  // the last plosive was a word-initial t / d before ɹ (LINE_TR_*, CL-INIT agent20 round R)
   bool plInitPrev_ = false;  // the last plosive was a word-initial p before l ɹ (LINE_PL_*, PL-INITIAL agent17 round O)
   bool jIni_ = false;  // the last token was an initial j (Y-INIT agent25: LINE_JI_*)
+  bool nIni_ = false;  // the last token was a word-initial n (N-INIT agent26: LINE_NI_*)
   bool jAfterStop_ = false;  // the last token was a j released from a plosive (LINE_U_AFTER_STOP_J)
   bool prevWasNasal_ = false;
   bool prevWasPause_ = false;  // the last emitted phoneme was a pause

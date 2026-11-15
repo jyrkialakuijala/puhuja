@@ -1112,7 +1112,9 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
           static const float kStopJLen = param("EN_STOP_J_LEN", 1.0f);
           whole *= kStopJLen;
         }
-        if (isNasal(b) && wordInitial && vowelAfter) whole *= kOnsetNasalLength;  // (EN_NASAL_ONSET_LEN)
+        // (N-INIT agent26 round X, lab; < 0: EN_NASAL_ONSET_LEN) a word-initial n before a vowel x EN_NI_LEN instead.
+        static const float kNiLen = param("EN_NI_LEN", -1.0f);
+        if (isNasal(b) && wordInitial && vowelAfter) whole *= b == "N" && kNiLen >= 0 ? kNiLen : kOnsetNasalLength;  // (EN_NASAL_ONSET_LEN)
         // A word-final voiceless stop linked to a vowel-initial next word ("not out" as "no-tout"): x EN_LINK_STOP_LEN.
         // Jyrki 2026-11-10: "plan for 'notout' with a little longer t".
         if (wordFinal && vowelBefore && isVoicelessPlosive(b) && w + 1 < phrase_.size() && !phrase_[w + 1].tokens.empty() &&
