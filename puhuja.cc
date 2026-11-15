@@ -2780,6 +2780,7 @@ static uint64_t eventFields(const Event& e) {
   bit(e.lineExpandLp > -1.5f);
   bit(e.lineNoiseLp >= 0);
   bit(e.gapOn > 0);
+  bit(e.liqShelf >= 0);
   return m;
 }
 
@@ -3385,7 +3386,24 @@ void Synth::emit(const Token& tok, const Ph* next) {
   // LINE_R_CODA_PRESS: Kokoro's coda ɹ fades 5-10 dB under its vowel ("Bare", "Hair"), puhuja's stays within 1-3 dB.
   static const float kRCodaPress = param("LINE_R_CODA_PRESS", 1.0f);
   const float rCodaP = tok.ph == Ph::RR && isVowel(lastPh_) && !(next && isVowel(*next)) ? kRCodaPress : 1.0f;
-  const float lineLevelNow = tract_ == Tract::Line && (isVowel(tok.ph) || isSonorant(tok.ph)) ? std::clamp(tok.shape.prosody * rCodaP, 0.3f, 3.0f) : -1.0f;
+  // (LIQ agent31 round AC, lab; 1: as before) the approximants' lung pressure x these: LIQ_R_PRESS (an ɹ before a vowel),
+  // LIQ_RC_PRESS (an ɹ not before a vowel), LIQ_L_PRESS / LIQ_LC_PRESS (l before a vowel / not), LIQ_W_PRESS, LIQ_J_PRESS.
+  // LIQ_CS 1: every LIQ_* knob acts only in connected speech (from a phrase's 2nd word on, as TRANS_CS_MASK; single
+  // words render as before), 0: everywhere.
+  // LIQ_FEMALE: in the female voice only for these sounds (bits: 1 ɹ, 2 l, 4 w, 8 j; 15 all, 0: the knobs male-only).
+  static const float kLiqCs = param("LIQ_CS", 1.0f);
+  static const int kLiqFemale = static_cast<int>(param("LIQ_FEMALE", 15.0f));
+  const int liqBit = tok.ph == Ph::RR ? 1 : tok.ph == Ph::L ? 2 : tok.ph == Ph::W ? 4 : tok.ph == Ph::J ? 8 : 0;
+  const bool liqOn = (kLiqCs == 0.0f || csSpeech) && (!female_ || (kLiqFemale & liqBit));
+  const bool liqCoda = !(next && isVowel(*next));
+  float liqP = 1.0f;
+  {
+    static const float kRP = param("LIQ_R_PRESS", 1.0f), kRCP = param("LIQ_RC_PRESS", 1.0f), kLP = param("LIQ_L_PRESS", 1.0f),
+                       kLCP = param("LIQ_LC_PRESS", 1.0f), kWP = param("LIQ_W_PRESS", 1.0f), kJP = param("LIQ_J_PRESS", 1.0f);
+    if (liqOn) liqP = tok.ph == Ph::RR ? (liqCoda ? kRCP : kRP) : tok.ph == Ph::L ? (liqCoda ? kLCP : kLP)
+                      : tok.ph == Ph::W ? kWP : tok.ph == Ph::J ? kJP : 1.0f;
+  }
+  const float lineLevelNow = tract_ == Tract::Line && (isVowel(tok.ph) || isSonorant(tok.ph)) ? std::clamp(liqP != 1.0f ? tok.shape.prosody * rCodaP * liqP : tok.shape.prosody * rCodaP, 0.3f, 3.0f) : -1.0f;
   if (lineLevelNow > 0 && std::getenv("PUHUJA_LINE_TRACE")) std::fprintf(stderr, "linelevel t %.3f ph %d level %.3f\n", timeline_ / fs_, static_cast<int>(tok.ph), tok.shape.prosody);
   if (!inAffricate_) addLabel(tok);
   if (tok.wordStart) {
@@ -3724,6 +3742,26 @@ void Synth::emit(const Token& tok, const Ph* next) {
     static const float kWStopEAc = param("LINE_W_STOP_EAC", 1.0f), kWSAc = param("LINE_W_S_AC", 1.0f);
     if (prevWasPlosive_) e.ac *= kWStopEAc;
     else if (lastPh_ == Ph::S) e.ac *= kWSAc;
+  }
+  // (LIQ agent31 round AC, lab; 1: as before) the approximants' own area x LIQ_R_AC / LIQ_RC_AC (ɹ before a vowel / not),
+  // LIQ_L_AC / LIQ_LC_AC, LIQ_W_AC, LIQ_J_AC (LIQ_CS above).
+  if (tract_ == Tract::Line && liqOn && e.ac > 0) {
+    static const float kRA = param("LIQ_R_AC", 1.0f), kRCA = param("LIQ_RC_AC", 1.0f), kLA = param("LIQ_L_AC", 1.0f),
+                       kLCA = param("LIQ_LC_AC", 1.0f), kWA = param("LIQ_W_AC", 1.0f), kJA = param("LIQ_J_AC", 1.0f);
+    const float m = tok.ph == Ph::RR ? (liqCoda ? kRCA : kRA) : tok.ph == Ph::L ? (liqCoda ? kLCA : kLA)
+                    : tok.ph == Ph::W ? kWA : tok.ph == Ph::J ? kJA : 1.0f;
+    if (m != 1.0f) e.ac *= m;
+  }
+  // (LIQ agent31, lab; 0: off) the source shelf's dB x (1 + this) through an ɹ (LIQ_R_SHELF; coda LIQ_RC_SHELF, < 0: the
+  // same) or l (LIQ_L_SHELF, coda LIQ_LC_SHELF): 11labs' ɹ core is 5-10 dB brighter (2.5-6 kHz re 0-1 kHz, re its vowel).
+  if (tract_ == Tract::Line) {
+    static const float kRS = param("LIQ_R_SHELF", 0.0f), kRCS = param("LIQ_RC_SHELF", -1.0f), kLS = param("LIQ_L_SHELF", 0.0f),
+                       kLCS = param("LIQ_LC_SHELF", -1.0f);
+    float v = 0.0f;
+    if (liqOn && tok.ph == Ph::RR) v = liqCoda && kRCS >= 0 ? kRCS : kRS;
+    if (liqOn && tok.ph == Ph::L) v = liqCoda && kLCS >= 0 ? kLCS : kLS;
+    if (v != 0.0f) { e.liqShelf = v; liqShelfSet_ = true; }
+    else if (liqShelfSet_) { e.liqShelf = 0.0f; liqShelfSet_ = false; }
   }
   // v voiced through a wider slit (LINE_V_AC) has a weak hiss: its own gain
   // (2026-11-04; 1 = today's).
@@ -5073,6 +5111,24 @@ void Synth::emit(const Token& tok, const Ph* next) {
       static const float kLPreAaMix = param("LINE_L_PRE_AA_MIX", 0.0f), kLAfterAa = param("LINE_L_AFTER_AA", 0.0f);
       if (!coda && *next == Ph::AA && kLPreAaMix > 0 && lineShapeOf(Ph::A, &o)) sh = lineShapeMix(sh, o, kLPreAaMix);
       if (lastPh_ == Ph::AA && kLAfterAa > 0 && lineShapeOf(Ph::Schwa, &o)) sh = lineShapeMix(sh, o, kLAfterAa);
+    }
+    // (LIQ agent31 round AC, lab; 1 / 0: as before; LIQ_CS) the approximants' tract shape: lip area / lip length / pharynx
+    // area x LIQ_<P>_LIPA / _LIPL / _APH, mixed toward the row LIQ_<P>_ROW (Ph number) by LIQ_<P>_MIX, P = R (ɹ before
+    // a vowel), RC (ɹ not), L, LC, W, J.
+    if (have && liqOn && (tok.ph == Ph::RR || tok.ph == Ph::L || tok.ph == Ph::W || tok.ph == Ph::J)) {
+      struct LiqShape { float lipA, lipL, aph, mix; int row; };
+      auto ld = [](const char* p) {
+        const std::string b = std::string("LIQ_") + p;
+        return LiqShape{param((b + "_LIPA").c_str(), 1.0f), param((b + "_LIPL").c_str(), 1.0f), param((b + "_APH").c_str(), 1.0f),
+                        param((b + "_MIX").c_str(), 0.0f), static_cast<int>(param((b + "_ROW").c_str(), 16.0f))};
+      };
+      static const LiqShape kR = ld("R"), kRC = ld("RC"), kL = ld("L"), kLC = ld("LC"), kW = ld("W"), kJ = ld("J");
+      const LiqShape& q = tok.ph == Ph::RR ? (liqCoda ? kRC : kR) : tok.ph == Ph::L ? (liqCoda ? kLC : kL) : tok.ph == Ph::W ? kW : kJ;
+      TractShape o;
+      if (q.mix != 0.0f && lineShapeOf(static_cast<Ph>(q.row), &o)) sh = lineShapeMix(sh, o, q.mix);
+      if (q.lipA != 1.0f) sh.aLip *= q.lipA;
+      if (q.lipL != 1.0f) sh.lLip *= q.lipL;
+      if (q.aph != 1.0f) sh.aPharynx *= q.aph;
     }
     if (have && tok.ph == Ph::E && next && *next == Ph::IH) eyStartShape(&sh, female_, tok.shape.eyctx);
     if (have && tok.ph == Ph::IH && lastPh_ == Ph::E) eyEndShape(&sh, female_, tok.shape.eyctx);
@@ -8002,6 +8058,10 @@ void Synth::emit(const Token& tok, const Ph* next) {
     if (hasVelLag) addEventAt(velLag);
     if (hasVel2) addEventAt(vel2);
     if (hasCloseFricBack) addEventAt(closeFricBack);
+  } else if (e.liqShelf >= 0) {  // (LIQ agent31: after a plosive the release's events stand in for this one; the shelf share still lands)
+    Event q{e.t};
+    q.liqShelf = e.liqShelf;
+    addEventAt(q);
   }
   // f's hiss fades in over LINE_F_RAMP_MS (0: off) in four steps from
   // LINE_F_RAMP0 x its gain: as the lip met the teeth the slit passed the
@@ -11150,6 +11210,10 @@ float Synth::tick() {
     if (e.lineHumpNorm > -1.5f) line_.setHumpNorm(e.lineHumpNorm);
     if (e.lineExpandLp > -1.5f) line_.setExpandLp(e.lineExpandLp);
     if (e.lineGlotFc >= 0) line_.setGlotFcScale(e.lineGlotFc);
+    if (e.liqShelf >= 0) {
+      liqShelfTarget_ = e.liqShelf;
+      if (std::getenv("PUHUJA_LIQ_TRACE")) std::fprintf(stderr, "liqshelf t %.3f %.2f\n", t_, e.liqShelf);
+    }
     if (e.lineHBreath >= 0) lineHBreath_ = e.lineHBreath;
     if (e.lineLip >= 0) lineLip_ = lineLipTarget_ = e.lineLip;
     planUsed_ += e.planAir;
@@ -11798,6 +11862,12 @@ float Synth::tick() {
       if (o > 0) {
         shelfOpen_ += openA * (smoothstep(0.5f * o, o, ac) - shelfOpen_);
         lc.shelfScale = shelfOpen_;
+        if (liqShelfTarget_ != 0.0f || liqShelfNow_ != 0.0f) {  // (LIQ agent31: LIQ_R_SHELF ...)
+          static const float liqA = 1.0f - std::exp(-1.0f / (param("LIQ_SHELF_MS", 15.0f) * 0.001f * fs_));
+          liqShelfNow_ += liqA * (liqShelfTarget_ - liqShelfNow_);
+          if (std::fabs(liqShelfNow_) < 1e-4f && liqShelfTarget_ == 0.0f) liqShelfNow_ = 0.0f;
+          lc.shelfScale = shelfOpen_ + liqShelfNow_;
+        }
       }
     }
     // Round AB (VQ3 agent30): the oral line's HF loss LINE_HF_BW_CONS Hz where the tract is closed, the voice's own

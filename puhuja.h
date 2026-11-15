@@ -127,6 +127,7 @@ struct Event {
   float press = -1, pressMs = 0;
   float aspGain = -1;  // breath-noise strength from now on (< 0: unchanged)
   float lineAspMul = -1;  // the glottal noise gain factor on the line (a stop's puff; < 0: unchanged)
+  float liqShelf = -1;  // LIQ agent31: the source shelf's extra dB share from now on (an ɹ / l; < 0: unchanged)
   float lineGlotFc = -1;  // the glottal noise band's corner x this on the line (an h's breath colour, LINE_H_GFC; < 0: unchanged)
   float lineHBreath = -1;  // an h's unthresholded breath gain on the line (x LINE_ASP; LINE_H_BREATH; < 0: unchanged)
   float lineExpandLp = -2;  // the voiced closure's expansion low-pass (Hz; -1: LINE_EXPAND_LP again; < -1: unchanged; BDG-Z agent20)
@@ -723,6 +724,8 @@ class Synth {
   float kAspGainFollow_ = 0;
   double kLookAheadSamples_ = 0;  // how far ahead the targets are read
   float creakTarget_ = 0, creakNow_ = 0, kCreakFollow_ = 0;  // creaky irregularity
+  float liqShelfNow_ = 0, liqShelfTarget_ = 0;  // LIQ agent31: extra source shelf share in an ɹ / l (LIQ_R_SHELF ...)
+  bool liqShelfSet_ = false;
   float shelfOpen_ = 1;  // round AA VQ2: the source shelf's openness gate (LARYNX_SRC_SHELF_OPEN)
   float hfOpen_ = 1;  // the eased openness for LINE_HF_BW_CONS
   float hpOpen_ = 0; unsigned hpTick_ = 0;  // OUT_HP_HZ_CONS: the eased openness, a coefficient update counter
