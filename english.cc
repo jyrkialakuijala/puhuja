@@ -813,6 +813,11 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
         // and Kokoro's 112-125, while its content words were on the short side
         // (302 against 325-387), 2026-11-02.
         if (!phrase_[w].accent && !phraseFinal) prc *= kFunctionWordVowel;
+        // (PROS2 agent29, lab knob; 1: as before) the same in connected speech only (a phrase of 2+ words): kFunctionWordVowel
+        // 1.0 (round Z rhythm) also lengthened isolated "about", "our" (unaccented there), which re-drew every later word of
+        // the dictionary gate's renders; this one leaves single words bit-identical.
+        { static const float kFuncMw = param("EN_FUNC_VOWEL_MW", 1.0f);
+          if (kFuncMw != 1.0f && !phrase_[w].accent && !phraseFinal && phrase_.size() > 1) prc *= kFuncMw; }
         // Stress timing: accented vowels longer, unstressed ones shorter (the
         // syllables were too even: nPVI 61, the voice-overs about 76).
         if (phrase_[w].accent && name[strlen(name) - 1] == '1') prc *= kAccentedVowelTiming;
@@ -2880,6 +2885,39 @@ void EnglishReader::sayPhrase(char end) {
       }
     }
   }
+  // (PROS2 agent29, lab knobs; 0: as before; connected speech only, 2+ words) the accent's rise (the 11labs readers'
+  // content words rise 1.3-3.5 st into a peak at 0.38-0.52 of the word, puhuja's 0.8 st at 0.27): the unaccented
+  // syllable right before an accented one - EN_ACC_LEAD_ST semitones (a low leading tone, L+H*), the one right after it
+  // + EN_ACC_TRAIL_ST, and the second accent of a phrase + EN_ACC_SECOND_ST (the readers' highest accent sits mid-group).
+  {
+    // (EN_FEMALE_MW_ST, 0: as before) the female voice in connected speech: every syllable + this many semitones (her
+    // passage median sat at ~125 Hz, Kokoro's female Kennedy readings 150-190; single words, the dictionary, unchanged).
+    static const float kFemMwSt = param("EN_FEMALE_MW_ST", 0.0f);
+    if (kFemMwSt != 0 && phrase_.size() > 1 && synth_.female())
+      for (Syl& y : syl) {
+        y.pitch += kFemMwSt;
+        if (y.end != Synth::kNoPitch) y.end += kFemMwSt;
+      }
+    static const float kLeadSt = param("EN_ACC_LEAD_ST", 0.0f), kTrailSt = param("EN_ACC_TRAIL_ST", 0.0f),
+                       kSecondSt = param("EN_ACC_SECOND_ST", 0.0f), kFirstSt = param("EN_ACC_FIRST_ST", 0.0f);
+    if ((kLeadSt != 0 || kTrailSt != 0 || kSecondSt != 0 || kFirstSt != 0) && phrase_.size() > 1) {
+      std::vector<float> d(syl.size(), 0.0f);
+      int nAcc = 0;
+      for (size_t k = 0; k < syl.size(); ++k) {
+        if (!syl[k].accent) continue;
+        ++nAcc;
+        if (nAcc == 1 && static_cast<int>(k) != lastAccent) d[k] += kFirstSt;  // (EN_ACC_FIRST_ST: the first accent, not the nucleus)
+        if (nAcc == 2 && static_cast<int>(k) != lastAccent) d[k] += kSecondSt;
+        if (k > 0 && !syl[k - 1].accent) d[k - 1] += kLeadSt;
+        if (k + 1 < syl.size() && !syl[k + 1].accent && static_cast<int>(k + 1) != static_cast<int>(syl.size()) - 1) d[k + 1] += kTrailSt;
+      }
+      for (size_t k = 0; k < syl.size(); ++k) {
+        if (d[k] == 0) continue;
+        syl[k].pitch += d[k];
+        if (syl[k].end != Synth::kNoPitch) syl[k].end += d[k];
+      }
+    }
+  }
   const std::vector<std::vector<float>> dur = durations();
   // "the" before a vowel sound is "thee" (ði): "the heirs" with ðə ran into
   // one syllable, "theirs". The spelling does not tell (heir, hour, honest,
@@ -3669,6 +3707,18 @@ void EnglishReader::sayPhrase(char end) {
           const char* nx = kEnglishTokens[tokens[i + 2] - 0x80];
           if (en[strlen(en) - 1] == '0' && (kErMed & (nx[strlen(nx) - 1] != '0' ? 1 : 2))) shape.ermStop = true;
         }
+        // (PROS2 agent29, lab knob; < 0: as before) an accented stressed vowel in connected speech (2+ words), not a
+        // falling one: its pitch anchor at EN_ACC_PITCH_AT of the vowel instead of its centre (the peak comes later).
+        { static const float kAccPitchAt = param("EN_ACC_PITCH_AT", -1.0f);
+          if (kAccPitchAt >= 0 && vowel && phrase_.size() > 1 && phrase_[w].accent && pitchEnd == Synth::kNoPitch) {
+            const char* vn = kEnglishTokens[tokens[i] - 0x80];
+            if (vn[strlen(vn) - 1] == '1') shape.pitchAt = kAccPitchAt;
+          } }
+        { static const float kAccDip = param("EN_ACC_DIP_ST", 0.0f);
+          if (kAccDip > 0 && vowel && k == 0 && phrase_.size() > 1 && phrase_[w].accent && pitchEnd == Synth::kNoPitch) {
+            const char* vn = kEnglishTokens[tokens[i] - 0x80];
+            if (vn[strlen(vn) - 1] == '1') shape.pitchDip = kAccDip;
+          } }
         synth_.shapeNext(shape);
         if (first) synth_.setWord(phrase_[w].source), lastSourceWord_ = phrase_[w].source;
         synth_.push(s.ph[k], first);

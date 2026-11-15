@@ -297,8 +297,11 @@ class Synth {
                               // 4 after t or d ("Sutton", "Garden"), 8 after a vowel ("Lions", "Ian")
     unsigned char hnctx = 0;  // the hiatus before a nasal (english.cc, UNSTR-N agent20 round R): 1 an unstressed vowel
                               // after a vowel, before a nasal of its word ("being", "Ian"), 2 that nasal, 4 the vowel before
+    float pitchDip = 0;  // (PROS2 agent29) semitones: the pitch line dips this far under the vowel's pitch at its onset (EN_ACC_DIP_ST)
+    float pitchAt = -1;  // (PROS2 agent29) a vowel's pitch anchor as a share of it (english.cc EN_ACC_PITCH_AT; < 0: 0.5)
   };
   void shapeNext(const Shape& s) { nextShape_ = s; }
+  bool female() const { return female_; }
 
   // Level of fricative noise (not plosive bursts) relative to the
   // per-phoneme levels, which are calibrated to Piper's Finnish voice.

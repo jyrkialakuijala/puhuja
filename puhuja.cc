@@ -6708,8 +6708,25 @@ void Synth::emit(const Token& tok, const Ph* next) {
       if (pitched) {
         // A vowel that falls to a second pitch anchors its first early, so
         // the fall spans most of it (see below).
-        const double tc = t0 + (tok.pitchEnd != kNoPitch ? kFallAnchorAt : 0.5) * dur;
+        const double tc = t0 + (tok.pitchEnd != kNoPitch ? kFallAnchorAt : tok.shape.pitchAt >= 0 ? tok.shape.pitchAt : 0.5) * dur;
         const float target = p[kF0Mul];
+        // (PROS2 agent29, lab; english.cc EN_ACC_DIP_ST, 0: as before) an accented vowel's rise: a low anchor at
+        // EN_ACC_DIP_AT of the vowel, pitchDip semitones under its pitch, then up to its anchor (L+H*), without moving the
+        // syllables before it.
+        if (tok.shape.pitchDip > 0 && pitchAnchorT_ >= 0) {
+          static const float kDipAt = param("EN_ACC_DIP_AT", 0.1f);
+          const double td = t0 + kDipAt * dur;
+          const float dv = target * std::exp2(-tok.shape.pitchDip / 12.0f);
+          if (td > pitchAnchorT_ && td < tc) {
+            for (Keyframe& kf : k_) {
+              if (kf.t <= pitchAnchorT_) continue;
+              const float f = kf.t >= td ? 1.0f : static_cast<float>((kf.t - pitchAnchorT_) / (td - pitchAnchorT_));
+              kf.p[kF0Mul] = (pitchAnchor_ + f * (dv - pitchAnchor_)) * kf.f0Mod;
+            }
+            pitchAnchorT_ = td;
+            pitchAnchor_ = dv;
+          }
+        }
         for (Keyframe& kf : k_) {
           if (pitchAnchorT_ < 0 || kf.t <= pitchAnchorT_) {
             if (kf.t > tc) kf.p[kF0Mul] = target * kf.f0Mod;  // after the centre
