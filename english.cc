@@ -1570,6 +1570,71 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
         const float mwT = synth_.female() ? kMwTempoF : kMwTempoM;
         if (mwT != 1.0f && phrase_.size() > 1) out[w][i] *= vowel ? mwT : std::sqrt(mwT);
       }
+      // (DUR agent33 round AE, lab knobs; 1: off) segment durations in connected speech (phrases of 2+ words; single
+      // words, the dictionary, unchanged) per class against the 11labs Kennedy readings (deployed167 male, tempo-
+      // normalised medians: vowels 1.37x, stops 0.61x, l ɹ w j 0.71x, nasals 0.78x, fricatives 0.81x): stressed /
+      // unstressed vowels, nasals, voiceless / voiced stops (+ affricates), voiceless / voiced fricatives, l ɹ, w j;
+      // DUR_CS_FROM_W: from this word of the phrase on (0: all words). DUR_CS_F: the female's share of each change (in
+      // the log domain). DUR_CS_FUNC_V: the vowels of unaccented words.
+      {
+        static const float kDV1 = param("DUR_CS_V1", 1.0f), kDV0 = param("DUR_CS_V0", 1.0f),
+                           kDNas = param("DUR_CS_NAS", 1.0f), kDVlS = param("DUR_CS_VLSTOP", 1.0f),
+                           kDVdS = param("DUR_CS_VDSTOP", 1.0f), kDVlF = param("DUR_CS_VLFRIC", 1.0f),
+                           kDVdF = param("DUR_CS_VDFRIC", 1.0f), kDLiq = param("DUR_CS_LIQ", 1.0f),
+                           kDGl = param("DUR_CS_GLIDE", 1.0f), kDFem = param("DUR_CS_F", 1.0f),
+                           kDFuncV = param("DUR_CS_FUNC_V", 1.0f), kDFrom = param("DUR_CS_FROM_W", 0.0f),
+                           kDH = param("DUR_CS_H", -1.0f);
+        static const bool kDOn = kDV1 != 1.0f || kDV0 != 1.0f || kDNas != 1.0f || kDVlS != 1.0f || kDVdS != 1.0f ||
+                                 kDVlF != 1.0f || kDVdF != 1.0f || kDLiq != 1.0f || kDGl != 1.0f || kDFuncV != 1.0f ||
+                                 kDH >= 0 || param("DUR_CS_FUNC", 1.0f) != 1.0f || param("DUR_CS_LONGW", 1.0f) != 1.0f ||
+                                 param("DUR_CS_W2", 1.0f) != 1.0f || param("DUR_CS_VDSTOP_FINAL", -1.0f) >= 0 || [] {
+                                   for (const auto& kv : paramFile())
+                                     if (kv.first.compare(0, 9, "DUR_CS_P_") == 0 && kv.second != 1.0f) return true;
+                                   return false;
+                                 }();
+        if (kDOn && phrase_.size() > 1 && static_cast<float>(w) >= kDFrom) {
+          float m = 1.0f;
+          if (vowel) {
+            const char* nm = kEnglishTokens[tok[i] - 0x80];
+            const bool str = nm[strlen(nm) - 1] != '0' && (phrase_[w].accent || phraseFinal);
+            m = str ? kDV1 : kDV0;
+            if (!phrase_[w].accent) m *= kDFuncV;
+          } else {
+            const std::string b = baseName(tok[i]);
+            if (isNasal(b)) m = kDNas;
+            else if (isVoicelessPlosive(b)) m = kDVlS;
+            else if (isVoicedPlosive(b)) {
+              static const float kDVdSFin = param("DUR_CS_VDSTOP_FINAL", -1.0f);  // a word-final one (< 0: DUR_CS_VDSTOP)
+              m = kDVdSFin >= 0 && i + 1 == tok.size() ? kDVdSFin : kDVdS;
+            }
+            else if (b == "HH") m = kDH >= 0 ? kDH : kDVlF;
+            else if (b == "F" || b == "TH" || b == "S" || b == "SH") m = kDVlF;
+            else if (b == "V" || b == "DH" || b == "Z" || b == "ZH") m = kDVdF;
+            else if (b == "L" || b == "R") m = kDLiq;
+            else if (b == "W" || b == "Y") m = kDGl;
+          }
+          // ... and per phoneme: DUR_CS_P_<ARPAbet base name> (e.g. DUR_CS_P_D, DUR_CS_P_OW), on top.
+          {
+            static std::map<std::string, float> perPh;
+            const std::string b = baseName(tok[i]);
+            auto it = perPh.find(b);
+            if (it == perPh.end()) it = perPh.emplace(b, param(("DUR_CS_P_" + b).c_str(), 1.0f)).first;
+            m *= it->second;
+          }
+          // whole words: an unaccented word's every phone x DUR_CS_FUNC, a word of 3+ vowels x DUR_CS_LONGW, of 2 x
+          // DUR_CS_W2 (the phrase-final word excluded: its own rules).
+          {
+            static const float kDFunc = param("DUR_CS_FUNC", 1.0f), kDLongW = param("DUR_CS_LONGW", 1.0f),
+                               kDW2 = param("DUR_CS_W2", 1.0f);
+            const bool finalWord = static_cast<int>(w) == lastWordWithVowel;
+            if (!phrase_[w].accent && !finalWord) m *= kDFunc;
+            if (!finalWord && vowels >= 3) m *= kDLongW;
+            if (!finalWord && vowels == 2) m *= kDW2;
+          }
+          if (synth_.female() && kDFem != 1.0f && m > 0) m = std::pow(m, kDFem);
+          out[w][i] *= m;
+        }
+      }
       // (PROS agent28, lab knob; 1: as before) the phrase's first word x EN_PINIT_LEN (it ran 1.17-1.27x the 11labs
       // readers' relative length).
       {
@@ -3340,6 +3405,7 @@ void EnglishReader::sayPhrase(char end) {
                              kOwhLen = param("EN_OWH_LEN", 1.0f), kOwhShare = param("EN_OWH_SHARE", -1.0f),
                              kOwlLLen = param("EN_OWL_L_LEN", 1.0f), kOwhNextLen = param("EN_OWH_NEXT_LEN", 1.0f);
           const bool ow = s.n == 2 && s.ph[0] == Ph::O && s.ph[1] == Ph::UH;
+          static const float kOwShare = param("EN_OW_SHARE", -1.0f);
           const std::string nb = i + 1 < tokens.size() ? baseName(tokens[i + 1]) : "";
           const char* tn = kEnglishTokens[tokens[i] - 0x80];
           if (ow) {
@@ -3348,7 +3414,6 @@ void EnglishReader::sayPhrase(char end) {
                                                      (i + 1 == tokens.size() ? 16 : 0) | (tn[strlen(tn) - 1] == '0' ? 32 : 0));
             // ... and every other oʊ's split EN_OW_SHARE (11labs' Kennedy oʊ: o 10-130 ms, ʊ 60-260, the ʊ the longer
             // part in most; puhuja 60 / 40).
-            static const float kOwShare = param("EN_OW_SHARE", -1.0f);
             const float sh0 = (shape.owctx & 4) ? kOwlShare : (shape.owctx & 8) ? kOwhShare : kOwShare;
             if (sh0 > 0 && sh0 < 1) shape.ms *= (k == 0 ? sh0 : 1.0f - sh0) / (k == 0 ? firstShare : 1.0f - firstShare);
             if (shape.owctx & 4) shape.ms *= kOwlLen;
@@ -3356,6 +3421,23 @@ void EnglishReader::sayPhrase(char end) {
           } else if (i > 0 && baseName(tokens[i - 1]) == "OW") {
             if (baseName(tokens[i]) == "L") shape.ms *= kOwlLLen;
             if (vowel) { shape.ms *= kOwhNextLen; shape.owctx = 64; }
+          }
+          // (DUR agent33 round AE, lab knobs; < 0: off) in connected speech (phrases of 2+ words) the first part's share
+          // of aʊ / oʊ / eɪ / aɪ: DUR_CS_AW_SHARE, DUR_CS_OW_SHARE, DUR_CS_EY_SHARE, DUR_CS_AY_SHARE (against 11labs
+          // Kennedy, deployed167 male: the first parts a / o / e ran +0 / +26 / +56 cents too long, the ʊ -88).
+          {
+            static const float kCsAw = param("DUR_CS_AW_SHARE", -1.0f), kCsOw = param("DUR_CS_OW_SHARE", -1.0f),
+                               kCsEy = param("DUR_CS_EY_SHARE", -1.0f), kCsAy = param("DUR_CS_AY_SHARE", -1.0f);
+            if (s.n == 2 && phrase_.size() > 1 && (kCsAw > 0 || kCsOw > 0 || kCsEy > 0 || kCsAy > 0)) {
+              const bool aw = s.ph[0] == Ph::A && s.ph[1] == Ph::UH, ay = s.ph[0] == Ph::A && s.ph[1] == Ph::IH;
+              const float want = aw ? kCsAw : ow ? kCsOw : ey ? kCsEy : ay ? kCsAy : -1.0f;
+              float have = firstShare;
+              if (ow) {
+                const float sh0 = (shape.owctx & 4) ? kOwlShare : (shape.owctx & 8) ? kOwhShare : kOwShare;
+                if (sh0 > 0 && sh0 < 1) have = sh0;
+              }
+              if (want > 0 && want < 1) shape.ms *= (k == 0 ? want : 1.0f - want) / (k == 0 ? have : 1.0f - have);
+            }
           }
         }
         // iː lab knobs (IY agent 2026-11-11; 1 = as before): every iː x EN_IY_LEN; an iː right before a vowel in the
