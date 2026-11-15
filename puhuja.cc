@@ -5848,7 +5848,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
     lastShV_ = shV;
     // (F-INIT: 0 / < 0 as before) the vowel after a word-initial f: the lip leaves the teeth over LINE_FI_OFF_MS (the
     // 20 ms boundary: the hiss stopped in a few ms, 4-8 kHz 27 dB down in the vowel's first 20 ms; Kokoro's 0-7 dB).
-    static const float kFiOffMs = param("LINE_FI_OFF_MS", 40.0f);
+    static const float kFiOffMs = param("LINE_FI_OFF_MS", 60.0f);
     afterFi_ = lastPh_ == Ph::F && lastFi_;
     { static const float kFiPress = param("LINE_FI_PRESS", 1.0f), kFiPressMs = param("LINE_FI_PRESS_MS", 30.0f);
       if (afterFi_ && kFiPress != 1.0f) { e.press = 1.0f; e.pressMs = kFiPressMs; } }
