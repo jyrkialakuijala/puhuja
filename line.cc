@@ -678,7 +678,7 @@ float VocalTractLine::substep(float u0) {
     // log(a / (A0 f)) / log(A1 / A0) as (log a - log(A0 f)) x a constant: one log per substep.
     static const float invLogRatio = 1.0f / std::log(kFricA1 / kFricA0);
     if (fricLogA0_ == 0) fricLogA0_ = std::log(kFricA0 * fricFade_);
-    const float wide = std::clamp((std::log(a) - fricLogA0_) * invLogRatio, 0.0f, 1.0f);
+    const float wide = std::clamp((std::log(a) - fricLogA0_ - slitLogW_) * invLogRatio, 0.0f, 1.0f);  // (slitLogW_: GAP agent29)
     const float slit = 1.0f - wide * wide * (3.0f - 2.0f * wide);
     if (kNoiseAreaExp != 0 && (areaCount_++ & 15) == 0) {
       if (kNoiseAreaTarget > 0 && noiseAreaRef_ >= 0) {
@@ -695,7 +695,8 @@ float VocalTractLine::substep(float u0) {
     if (kNoiseReMs > 0) {
       // ... except while the constriction opens (a release: p t k bursts must start at once; LINE_NOISE_RE_REL 1,
       // 0: the lag everywhere, which cost ~100 words1000 at 10 ms)
-      static const float kReK = 1.0f - std::exp(-dt_ * 1000.0f / kNoiseReMs);
+      static const float kReK0 = 1.0f - std::exp(-dt_ * 1000.0f / kNoiseReMs);
+      const float kReK = reKNow_ > 0 ? reKNow_ : kReK0;  // (GAP agent29: setReMs)
       static const bool kReRel = param("LINE_NOISE_RE_REL", 1.0f) > 0;
       const bool opening = kReRel && noiseKc_ == reK_ && a > reA_ * 1.0005f;
       // The lag on Re itself (LINE_NOISE_RE_ENV_MS 0) follows its running minimum: down at once, up over 10 ms, and
@@ -724,9 +725,17 @@ float VocalTractLine::substep(float u0) {
       reA_ = a;
       reK_ = noiseKc_;
     }
-    fricActive_ = re > kReynoldsCrit && slit > 0;
+    const float rcF = critMulF_ != 1.0f ? kReynoldsCrit * critMulF_ : kReynoldsCrit;  // (GAP agent29: setFricCritMul)
+    const float rcF2 = critMulF_ != 1.0f ? rcF * rcF : reC2;
+    fricActive_ = re > rcF && slit > 0;
+    if (riseMul_ > 0 && !fricActive_) riseEnv_ = 0.0f;
     if (fricActive_) {
-      const float drive = slit * fricGain_ * areaGain_ * (re * re - reC2) * invReC2 * noiseF;
+      float drive = slit * fricGain_ * areaGain_ * (re * re - rcF2) * invReC2 * noiseF;
+      if (riseMul_ > 0) {  // (GAP agent29: setRiseLimit)
+        const float target = slit * fricGain_ * areaGain_ * (re * re - rcF2) * invReC2;
+        riseEnv_ = riseEnv_ < 0 || target <= riseEnv_ ? (riseEnv_ < 0 ? target * riseFloor_ : target) : std::min(target, std::max(riseEnv_ * riseMul_, target * riseFloor_));
+        if (target > 0) drive *= riseEnv_ / target;
+      }
       // When the source moves (a new constriction takes over, "forebears fought"), the old place keeps a share that
       // fades over LINE_NOISE_MOVE_MS (0: the source jumps), so the hiss's colour does not switch in one substep.
       static const float kNoiseMoveMs = param("LINE_NOISE_MOVE_MS", 0.0f);

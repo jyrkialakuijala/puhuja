@@ -142,6 +142,8 @@ struct Event {
   float lineHw = -1, lineLip = -1;  // the constriction's half-width and lip cap on the line (< 0: unchanged / none)
   float lineAspHp = -1;  // the aspiration's high-pass on the line (Hz; 0: LINE_ASP_HP; < 0: unchanged)
   float lineNoiseLp = -1;  // the turbulence noise's low-pass on the line (Hz; 0: the voice's default; < 0: unchanged; BLEND agent28)
+  float gapOn = -1;  // > 0: a vowel -> voiceless fricative onset envelope starts here (GAP agent29; its class: 1 s ʃ, 2 f θ)
+  double gapAt = 0;  // ... the fricative's start (samples), the envelope's time origin
   float lineFricLpr = -1;  // the frication band's low-pass ratio on the line (0: LINE_NOISE_LPR; < 0: unchanged)
   float lineJetD = -1;  // the frication jet's thickness for its noise band on the line (cm; 0: slit area / width; < 0: unchanged)
   float lineJetMix = 1;  // ... how much of that fixed thickness the jet uses (1: fixed; 0: the slit's height; between: geometric blend), applied with lineJetD
@@ -553,6 +555,10 @@ class Synth {
   float lastChiFric_ = -1;  // that ʧ release's hiss gain (LINE_CHI_TAIL_MS)
   float chRelFric_ = -1;  // its release's hiss gain (LINE_CHI_BURST / _RAMP_MS / _DECAY)
   bool jhPressed_ = false;  // LINE_JH_PRESS eased the breath through a ʤ: restore it on the next sound
+  double gapT0_ = -1;  // GAP agent29: where the current onset envelope started (samples; < 0: none)
+  float gapCls_ = 0;
+  double gapAt_ = 0;
+  float gapOutMul_ = 1, gapPsMul_ = 1;  // GAP agent29: this sample's output and lung-pressure factors
   float lineFricMulS_ = 1.0f;  // LINE_FRIC_GLIDE_MS: the frication gain on its way to lineFricMul_
   bool closurePressEased_ = false;  // LINE_CLOSURE_PRESS eased the breath for the current closure
   double phonemeStart_ = 0;   // where the previous phoneme started (samples)

@@ -207,6 +207,25 @@ class VocalTractLine {
   void setJetThickness(float d, float mix = 1, float slitScale = 1, float smoothMs = -1, float fcMin = 0, float fcMax = 0) {
     jetD_ = d; jetMix_ = mix; slitScale_ = slitScale; jetSmoothMs_ = smoothMs; jetFcMin_ = fcMin; jetFcMax_ = fcMax;
   }  // mix: 1 fixed d, 0 the slit's height x slitScale, between: geometric blend
+  // GAP agent29: the frication jet's Re rise lag for now (ms; <= 0: LINE_NOISE_RE_MS)
+  void setReMs(float ms) {
+    if (ms == reMsNow_) return;
+    reMsNow_ = ms;
+    reKNow_ = ms > 0 ? 1.0f - std::exp(-dt_ * 1000.0f / ms) : -1.0f;
+  }
+  // GAP agent29: the frication drive's rise limited to this many dB per ms (<= 0: off), from floorDb under its target
+  void setRiseLimit(float dbPerMs, float floorDb) {
+    if (dbPerMs == riseDbMs_ && floorDb == riseFloorDb_) return;
+    riseDbMs_ = dbPerMs;
+    riseFloorDb_ = floorDb;
+    riseMul_ = dbPerMs > 0 ? std::pow(10.0f, dbPerMs * dt_ * 1000.0f / 20.0f) : 0.0f;
+    riseFloor_ = std::pow(10.0f, -floorDb / 20.0f);
+    if (dbPerMs <= 0) riseEnv_ = -1;
+  }
+  // GAP agent29: the frication source's fade-out areas (LINE_FRIC_A0 / A1) x this for now (1: as set)
+  void setSlitWiden(float w) { slitLogW_ = w > 0 && w != 1.0f ? std::log(w) : 0.0f; }
+  // GAP agent29: the frication jet's critical Reynolds number x this for now (1: LINE_RE_CRIT)
+  void setFricCritMul(float m) { critMulF_ = m > 0 ? m : 1.0f; }
   void setNoiseLp(float hz, bool asDefault = false);  // the turbulence noise's two-pole low-pass corner (Hz; <= 0: back to the default; BLEND agent28)
   void setFricLpRatio(float r) { fricLpr_ = r; }  // the frication band's low-pass / its corner (0: LINE_NOISE_LPR)
   void setFricReMul(float m) { fricReMul_ = m; }
@@ -278,6 +297,10 @@ class VocalTractLine {
   float fricGain_ = 0, aspGain_ = 0, glotArea_ = 0.05f;
   int lastNoiseK_ = -1, moveFromK_ = -1; float moveW_ = 0;
   float reLp_ = 0;  // LINE_NOISE_RE_MS: the jet's Reynolds number, low-passed
+  float reMsNow_ = 0, reKNow_ = -1;  // GAP agent29 (setReMs)
+  float slitLogW_ = 0;  // GAP agent29 (setSlitWiden)
+  float critMulF_ = 1.0f;  // GAP agent29 (setFricCritMul)
+  float riseDbMs_ = 0, riseFloorDb_ = 0, riseMul_ = 0, riseFloor_ = 0, riseEnv_ = -1;  // GAP agent29 (setRiseLimit)
   float reMean_ = 0;  // LINE_NOISE_RE_ENV_MS: ... its mean over about a pitch period, which the lag acts on
   float reA_ = 0; int reK_ = -1;  // ... the constriction's area and place a substep ago (an opening one does not lag)  // LINE_NOISE_MOVE_MS: the source fading out of its old place
   float breathGain_ = 0;  // (setBreath, LINE_BREATH)

@@ -2316,6 +2316,7 @@ Synth::Synth(float sampleRate, float baseF0) : fs_(sampleRate), baseF0_(baseF0 >
   voice_ = kMaleVoice;
   pulse_ = &kMalePulse;
   voice_.f0 = baseF0_;
+  { static const float kChinkM = param("GAP_CHINK_M", -1.0f); if (kChinkM >= 0) voice_.glottalGap = kChinkM; }  // (GAP agent29; see setVoice)
   larynx_ = makeLarynx(Carrier::Physical);
   larynx_->init(fs_, voice_.f0, &rng_);
   larynx_->setPulse(*pulse_);
@@ -2400,6 +2401,11 @@ void Synth::setCarrier(Carrier c) {
 void Synth::setVoice(VoicePreset preset) {
   voice_ = preset == VoicePreset::Female ? kFemaleVoice : kMaleVoice;
   female_ = preset == VoicePreset::Female;
+  {  // (GAP agent29 round AA, lab; < 0: the preset's) a posterior glottal chink kept open while voicing (cm^2), per voice
+    static const float kChinkM = param("GAP_CHINK_M", -1.0f), kChinkF = param("GAP_CHINK_F", -1.0f);
+    const float ch = female_ ? kChinkF : kChinkM;
+    if (ch >= 0) voice_.glottalGap = ch;
+  }
   {  // OUT_LOWCUT_HZ_F: the female voice's own output low cut (<= 0: OUT_LOWCUT_HZ; round Z VQ agent28)
     static const float kLowCutHzF = param("OUT_LOWCUT_HZ_F", -1.0f);
     if (kLowCutHzF > 0) lowCut_.highPass(female_ ? kLowCutHzF : kLowCutHz, fs_);
@@ -2766,6 +2772,7 @@ static uint64_t eventFields(const Event& e) {
   bit(e.inhaleMs > 0); bit(e.speech >= 0); bit(e.lineFricReSmooth >= 0); bit(e.lineHumpNorm > -1.5f);
   bit(e.lineExpandLp > -1.5f);
   bit(e.lineNoiseLp >= 0);
+  bit(e.gapOn > 0);
   return m;
 }
 
@@ -6189,6 +6196,24 @@ void Synth::emit(const Token& tok, const Ph* next) {
       e.agMs = kFricAbMidAgMs;
       addEventAt(ab2);
     }
+    // (GAP agent29 round AA, lab; all 0: off) an onset envelope for a voiceless s ʃ f θ after a vowel (after a sonorant
+    // too with GAP_SON 1), starting GAP_LEAD_MS before the sound: tick() lifts the frication / aspiration gains, adds
+    // breath, lifts the output or lowers the lung pressure in raised-cosine windows around the boundary (GAP_*_DB, _S /
+    // _P / _E ms re the sound's start). deployed152, 11labs1 text: the vowel -> s level dips 8 dB (10 ms frames) 10-20 ms
+    // after the boundary (the voice stops when the groove closes, the hiss waits for the glottal flow); 11labs 0-2 dB,
+    // its vowel fading 4-6 dB over its last 30 ms under a rising hiss.
+    static const float kGapLeadMs = param("GAP_LEAD_MS", 0.0f), kGapSon = param("GAP_SON", 1.0f);
+    static const bool kGapAny = param("GAP_FRIC_DB", 0.0f) != 0 || param("GAP_ASP_DB", 0.0f) != 0 || param("GAP_BREATH", 0.0f) != 0 ||
+                                param("GAP_OUT_DB", 0.0f) != 0 || param("GAP_PS_DB", 0.0f) != 0 || param("GAP_RE_MS", 0.0f) > 0 ||
+                                param("GAP_RISE_DB_MS", 0.0f) > 0 || param("GAP_SLIT_W", 1.0f) != 1.0f ||
+                                param("GAP_CRIT_X", 1.0f) != 1.0f;
+    const bool gapPrev = prevWasVowel_ || isVowel(lastPh_) || (kGapSon > 0 && sonPrev);  // (prevWasVowel_ is false across a word boundary)
+    if (tract_ == Tract::Line && kGapAny && vlFric && gapPrev && !prevWasPlosive_ && !prevWasPause_ && !inAffricate_) {
+      Event ge{std::max(e.t - kGapLeadMs * ms, phonemeStart_ + 1.0)};
+      ge.gapOn = tok.ph == Ph::F || tok.ph == Ph::TH ? 2.0f : tok.ph == Ph::SH ? 1.25f : 1.0f;  // (1 s, 1.25 ʃ, 2 f θ)
+      ge.gapAt = e.t;
+      addEventAt(ge);
+    }
   }
   e.an = aero.an;
   e.anMs = kBoundaryMs;
@@ -7654,9 +7679,16 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // lips to the z's place over the m's last 25 ms while the port was open, an n's murmur ("seems" -> scenes, "cams"
     // -> cans; m before z 28 % wrong, heard as n 87 of 120). Lab: worse (m errors +30 alone, +43 with LINE_M_SHAPE).
     static const float kMFricAp = param("LINE_M_FRIC_AP", 1.0f);
-    if (tract_ == Tract::Line && apMs > 0 && fric && sonBefore && !prevWasPlosive_ && !(lastPh_ == Ph::M && kMFricAp <= 0)) {
-      Event ap{std::max(e.t - apMs * ms, phonemeStart_ + 1)};
-      ap.ac = rzAp && kRzApA >= 0 ? kRzApA : tok.ph == Ph::VV && vApA >= 0 ? vApA : frApA;
+    // (GAP agent29 round AA, lab; < 0 / 0: as before) a voiceless s f θ's approach: GAP_AP_MS / GAP_AP_A (a narrower first
+    // stage, so the groove hisses under the vowel's end), GAP_AP_XWORD 1 also after a vowel across a word boundary
+    // (prevWasVowel_ is false there: "free society", "the strength" had no approach)
+    static const float kGapApMs = param("GAP_AP_MS", -1.0f), kGapApA = param("GAP_AP_A", -1.0f), kGapApX = param("GAP_AP_XWORD", 0.0f);
+    const bool vlF = tok.ph == Ph::S || tok.ph == Ph::F || tok.ph == Ph::TH;
+    const bool sonB = sonBefore || (kGapApX > 0 && vlF && isVowel(lastPh_) && !prevWasPause_);
+    const float apMsG = vlF && kGapApMs >= 0 ? kGapApMs : apMs;
+    if (tract_ == Tract::Line && apMsG > 0 && fric && sonB && !prevWasPlosive_ && !(lastPh_ == Ph::M && kMFricAp <= 0)) {
+      Event ap{std::max(e.t - apMsG * ms, phonemeStart_ + 1)};
+      ap.ac = rzAp && kRzApA >= 0 ? kRzApA : tok.ph == Ph::VV && vApA >= 0 ? vApA : vlF && kGapApA >= 0 ? kGapApA : frApA;
       ap.acMs = static_cast<float>((e.t - ap.t) / ms);
       ap.lineX = linePlaceOf(tok.ph);
       addEventAt(ap);
@@ -10896,6 +10928,7 @@ float Synth::tick() {
     if (e.lineJetD >= 0) line_.setJetThickness(e.lineJetD, e.lineJetMix, e.lineSlitScale, e.lineJetSmoothMs, e.lineJetFcMin, e.lineJetFcMax);
     if (e.lineFricLpr >= 0) line_.setFricLpRatio(e.lineFricLpr);
     if (e.lineNoiseLp >= 0) line_.setNoiseLp(e.lineNoiseLp);
+    if (e.gapOn > 0) gapT0_ = t_, gapCls_ = e.gapOn, gapAt_ = e.gapAt;
     if (e.lineAspHp >= 0) {
       static const int tAspPoles = static_cast<int>(param("LINE_T_ASP_HP_POLES", 3.0f));
       line_.setAspHp(e.lineAspHp, tAspPoles);
@@ -11338,11 +11371,60 @@ float Synth::tick() {
     static const float kLineFricGlideMs = param("LINE_FRIC_GLIDE_MS", 0.0f);
     static const float kFricGlideK = kLineFricGlideMs > 0 ? 1.0f - std::exp(-1000.0f / (kLineFricGlideMs * fs_)) : 1.0f;
     lineFricMulS_ += (lineFricMul_ - lineFricMulS_) * kFricGlideK;
+    // (GAP agent29 round AA, lab; 0: off) the vowel -> voiceless fricative onset envelope (see GAP_LEAD_MS)
+    float gapFric = 1.0f, gapAsp = 1.0f, gapBreath = 0.0f;
+    gapOutMul_ = 1.0f, gapPsMul_ = 1.0f;
+    if (gapT0_ >= 0) {
+      static const float kFricDb = param("GAP_FRIC_DB", 0.0f), kFricS = param("GAP_FRIC_S", -10.0f), kFricP = param("GAP_FRIC_P", 5.0f), kFricE = param("GAP_FRIC_E", 30.0f);
+      static const float kAspDb = param("GAP_ASP_DB", 0.0f), kAspS = param("GAP_ASP_S", -10.0f), kAspP = param("GAP_ASP_P", 5.0f), kAspE = param("GAP_ASP_E", 30.0f);
+      static const float kBreath = param("GAP_BREATH", 0.0f), kBrS = param("GAP_BREATH_S", -10.0f), kBrP = param("GAP_BREATH_P", 5.0f), kBrE = param("GAP_BREATH_E", 30.0f);
+      static const float kOutDb = param("GAP_OUT_DB", 0.0f), kOutS = param("GAP_OUT_S", 0.0f), kOutP = param("GAP_OUT_P", 12.0f), kOutE = param("GAP_OUT_E", 30.0f);
+      static const float kPsDb = param("GAP_PS_DB", 0.0f), kPsS = param("GAP_PS_S", -30.0f), kPsP = param("GAP_PS_P", 0.0f), kPsE = param("GAP_PS_E", 15.0f);
+      static const float kFx = param("GAP_F_X", 1.0f), kFemX = param("GAP_FEMALE_X", 1.0f);
+      static const float kEnd = std::max({kFricE, kAspE, kBrE, kOutE, kPsE, param("GAP_RE_E", 40.0f)});
+      const float rel = static_cast<float>((t_ - gapAt_) * 1000.0 / fs_);
+      if (rel > kEnd) gapT0_ = -1;
+      else {
+        auto win = [rel](float s0, float p0, float e0) {
+          if (rel <= s0 || rel >= e0) return 0.0f;
+          return rel < p0 ? 0.5f - 0.5f * std::cos(kPi * (rel - s0) / std::max(p0 - s0, 0.1f))
+                          : 0.5f + 0.5f * std::cos(kPi * (rel - p0) / std::max(e0 - p0, 0.1f));
+        };
+        const float x = (gapCls_ > 1.5f ? kFx : 1.0f) * (female_ ? kFemX : 1.0f);
+        if (kFricDb != 0) gapFric = std::pow(10.0f, x * kFricDb * win(kFricS, kFricP, kFricE) / 20.0f);
+        if (kAspDb != 0) gapAsp = std::pow(10.0f, x * kAspDb * win(kAspS, kAspP, kAspE) / 20.0f);
+        if (kBreath != 0) gapBreath = x * kBreath * win(kBrS, kBrP, kBrE);
+        if (kOutDb != 0) gapOutMul_ = std::pow(10.0f, x * kOutDb * win(kOutS, kOutP, kOutE) / 20.0f);
+        if (kPsDb != 0) gapPsMul_ = std::pow(10.0f, x * kPsDb * win(kPsS, kPsP, kPsE) / 20.0f);
+      }
+      // GAP_RE_MS (> 0): the frication jet's Re rise lag from the envelope's start to GAP_RE_E ms into the sound (the
+      // global LINE_NOISE_RE_MS 10 delays the s's hiss by ~10 ms after the groove narrows: the hole's main cause)
+      static const float kReMs = param("GAP_RE_MS", 0.0f), kReE = param("GAP_RE_E", 40.0f), kReFem = param("GAP_RE_FEMALE", 1.0f);
+      // GAP_RISE_DB_MS (> 0): the frication drive rises at most this many dB per ms in the envelope (from GAP_RISE_FLOOR_DB
+      // under its target): a fast jet without a snap
+      static const float kRise = param("GAP_RISE_DB_MS", 0.0f), kRiseFloor = param("GAP_RISE_FLOOR_DB", 30.0f);
+      static const float kRiseS = param("GAP_RISE_S_X", 1.0f);  // (the s's rise limit x this; 0: none for s)
+      const float riseNow = gapCls_ == 1.0f ? kRise * kRiseS : kRise;
+      if (kRise > 0) line_.setRiseLimit(gapT0_ >= 0 && rel <= kReE && riseNow > 0 ? riseNow : 0.0f, kRiseFloor);
+      // GAP_SLIT_W (> 0, != 1): the frication source's fade-out areas x this in the envelope's window (GAP_RE_E): with
+      // 1.6 the closing groove hisses from 0.34 cm^2 instead of 0.22, under the fading vowel
+      static const float kSlitW = param("GAP_SLIT_W", 1.0f), kSlitS = param("GAP_SLIT_S", -40.0f);
+      if (kSlitW != 1.0f) line_.setSlitWiden(gapT0_ >= 0 && rel >= kSlitS && rel <= kReE ? kSlitW : 1.0f);
+      // GAP_CRIT_X (> 0, != 1): the frication jet's critical Reynolds number x this from GAP_SLIT_S to GAP_RE_E ms (the
+      // voiced flow through the narrowing groove stays under LINE_RE_CRIT, so no hiss rises under the fading vowel)
+      static const float kCritX = param("GAP_CRIT_X", 1.0f);
+      if (kCritX != 1.0f) line_.setFricCritMul(gapT0_ >= 0 && rel >= kSlitS && rel <= kReE ? kCritX : 1.0f);
+      if (kReMs > 0) line_.setReMs(gapT0_ >= 0 && rel <= kReE && !(female_ && kReFem == 0) ? kReMs : 0.0f);
+    }
+    if (gapT0_ >= 0 || gapFric != 1.0f || gapAsp != 1.0f)
+      line_.setNoise(kLineFric * (kLineFricGlideMs > 0 ? lineFricMulS_ : lineFricMul_) * gapFric, kLineAsp * aspGate * lineAspMul_ * gapAsp, std::max(ag, 0.005f));
+    else
     line_.setNoise(kLineFric * (kLineFricGlideMs > 0 ? lineFricMulS_ : lineFricMul_), kLineAsp * aspGate * lineAspMul_, std::max(ag, 0.005f));
     // LINE_BREATH (x LINE_ASP): the continuous breath of a lax voice, fading out as the glottis opens past the voicing range
     // (the thresholded aspiration takes over there).
     static const float kLineBreath = param("LINE_BREATH", 0.0f);
     line_.setBreath(lineHBreath_ > 0 ? lineHBreath_ * kLineAsp : kLineBreath > 0 ? kLineBreath * kLineAsp * lineAspMul_ * (1.0f - smoothstep(kAgVoice, kAgBreathy, ag)) : 0.0f);  // (LINE_H_BREATH: an h's own)
+    if (gapBreath != 0) line_.setBreath((lineHBreath_ > 0 ? lineHBreath_ * kLineAsp : kLineBreath > 0 ? kLineBreath * kLineAsp * lineAspMul_ * (1.0f - smoothstep(kAgVoice, kAgBreathy, ag)) : 0.0f) + gapBreath * kLineAsp);
     // The voiced closure's expansion (expand_ runs 1 -> kVoicedExpansion over
     // the closure and back after the release): as a sink flow, since the line
     // has no compliance knob. The folds stalled 10 ms into every b, d, g
@@ -11421,6 +11503,7 @@ float Synth::tick() {
     const float dropForFolds = tract_ == Tract::Line ? 1.0f : drop;
     lc.ps = runFolds ? kLungPressure * lungFactor * dropForFolds * smoothstep(0.0f, 0.5f * kAgVoice, ag) * press_.tick() : 0.0f;
     if (tract_ == Tract::Line) lc.ps *= std::pow(lineLevel_, kLineLevelExp);  // voice amplitude ~ Ps^1.5: a level factor L needs Ps x L^(1/1.5)
+    if (gapPsMul_ != 1.0f) lc.ps *= gapPsMul_;  // (GAP_PS_DB)
     // Kokoro mode: the reference's level track (dB re its voiced median) through the warp, as a pressure factor.
     // Per word by default (Jyrki 2026-11-06: the 5 ms track made the level "bounce" where Kokoro is "continuous and
     // nicely leveled"), eased over PROSODY_LEVEL_MS; no reference: back to 0 dB.
@@ -11638,7 +11721,7 @@ float Synth::tick() {
     static const float kLineInhaleFirst = param("LINE_INHALE_FIRST", 0.0f);
     cPar = kLineInhaleGain != 0 ? inhale * kLineInhaleGain * (inhaleCount_ <= 1 ? kLineInhaleFirst : 1.0f) : 0.0f;
   }
-  float out = lowCut_.process(outHp_.process(y * kOutGain + cPar));
+  float out = lowCut_.process(outHp_.process((gapOutMul_ != 1.0f ? y * gapOutMul_ : y) * kOutGain + cPar));
   if (voice_.treble != 0) out = trebleShelf_.process(out);
   // Room tone: a faint, dark noise floor, so pauses never fall to digital
   // silence (which sounded like the recording switching off).
