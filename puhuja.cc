@@ -2283,7 +2283,7 @@ Synth::Synth(float sampleRate, float baseF0) : fs_(sampleRate), baseF0_(baseF0 >
   // before a word-initial l, Len -> plan)
   kRoomLp_ = 1.0f - std::exp(-2.0f * kPi * param("LINE_ROOM_TONE_HZ", 300.0f) / fs_);
   kNasLp_ = 1.0f - std::exp(-2.0f * kPi * kNasalLowCutHz / fs_);
-  outHp_.highPass1(kOutputHighPassHz, fs_);
+  outHp_.highPass1(param("OUT_HP_HZ", kOutputHighPassHz), fs_);  // (a knob since round AA VQ2: -3.5 dB on the male H1 at 90 Hz)
   lowCut_.highPass(kLowCutHz, fs_);
   for (int i = 0; i < kNumBodyResonances; ++i)
     body_[i].set(kBodyResonances[i].freq, kBodyResonances[i].bw, fs_);
@@ -2409,6 +2409,9 @@ void Synth::setVoice(VoicePreset preset) {
   {  // OUT_LOWCUT_HZ_F: the female voice's own output low cut (<= 0: OUT_LOWCUT_HZ; round Z VQ agent28)
     static const float kLowCutHzF = param("OUT_LOWCUT_HZ_F", -1.0f);
     if (kLowCutHzF > 0) lowCut_.highPass(female_ ? kLowCutHzF : kLowCutHz, fs_);
+    // OUT_HP_HZ_F: the female voice's own first-order output high-pass (<= 0: OUT_HP_HZ; round AA VQ2 agent29)
+    static const float kOutHpHzF = param("OUT_HP_HZ_F", -1.0f);
+    if (kOutHpHzF > 0) outHp_.highPass1(female_ ? kOutHpHzF : param("OUT_HP_HZ", kOutputHighPassHz), fs_);
     if (tract_ == Tract::Line) line_.setFemale(female_);
   }
   pulse_ = preset == VoicePreset::Female ? &kFemalePulse : &kMalePulse;
@@ -11381,7 +11384,13 @@ float Synth::tick() {
     // between the pulses by noise (its 3-6 kHz harmonic-to-noise ratio -3.4 dB against puhuja's -0.3), a lax voice's breath.
     static const float kLineAspVoiced = param("LINE_ASP_VOICED", 0.15f);
     static const float kLineAspVoicedF = param("LINE_ASP_VOICED_F", -1.0f);  // the female voice's (< 0: LINE_ASP_VOICED; round Z VQ)
-    const float aspV = female_ && kLineAspVoicedF >= 0 ? kLineAspVoicedF : kLineAspVoiced;
+    float aspV = female_ && kLineAspVoicedF >= 0 ? kLineAspVoicedF : kLineAspVoiced;
+    // Round AA (VQ2 agent29): extra voiced aspiration only where the tract is open (ac fading in from half of
+    // LINE_ASP_VOWEL_AC to it): breath in the vowels' high band, the consonants as before. 0: none.
+    static const float kLineAspVowel = param("LINE_ASP_VOWEL", 0.0f), kLineAspVowelF = param("LINE_ASP_VOWEL_F", -1.0f);
+    static const float kLineAspVowelAc = param("LINE_ASP_VOWEL_AC", 0.5f);
+    const float aspVowel = female_ && kLineAspVowelF >= 0 ? kLineAspVowelF : kLineAspVowel;
+    if (aspVowel > 0) aspV += aspVowel * smoothstep(0.5f * kLineAspVowelAc, kLineAspVowelAc, ac);
     const float aspGate = aspV + (1.0f - aspV) * smoothstep(kAgVoice, kAgBreathy, ag);
     // The per-phoneme frication gain glides over LINE_FRIC_GLIDE_MS instead of stepping at the token (0: steps).
     // Jyrki 2026-11-10: "\"forebears fought\" has a snap in between" (the z's and the f's gains differ).
@@ -11536,9 +11545,28 @@ float Synth::tick() {
     creakNow_ += (creakTarget_ - creakNow_) * kCreakFollow_;
     lc.irregular = 1.0f + kCreakJitter * creakNow_;
     lc.gap = voice_.glottalGap;
+    // Round AA (VQ2 agent29): a posterior glottal chink kept open while voicing, per voice (cm^2; 0: none, as before).
+    // Breath in the voice and a stronger fundamental without a whole-voice shelf.
+    {
+      static const float gapM = param("LARYNX_GAP", 0.0f), gapF = param("LARYNX_GAP_F", -1.0f);
+      const float gp = female_ && gapF >= 0 ? gapF : gapM;
+      if (gp > 0) lc.gap += gp;
+    }
     lc.microGain = voice_.microGain;
     lc.cycleJitter = voice_.cycleJitter;
     lc.female = female_;
+    // Round AA (VQ2 agent29): the source shelf only where the tract is open (ac >= LARYNX_SRC_SHELF_OPEN cm^2, fading
+    // in from half of it, eased over LARYNX_SRC_SHELF_OPEN_MS): the vowels brighter, the consonants and their edges as
+    // before (round Z's whole-voice shelf cost Whisper). 0: everywhere (as before).
+    {
+      static const float open = param("LARYNX_SRC_SHELF_OPEN", 0.0f), openF = param("LARYNX_SRC_SHELF_OPEN_F", -1.0f);
+      static const float openA = 1.0f - std::exp(-1.0f / (param("LARYNX_SRC_SHELF_OPEN_MS", 8.0f) * 0.001f * fs_));
+      const float o = female_ && openF >= 0 ? openF : open;
+      if (o > 0) {
+        shelfOpen_ += openA * (smoothstep(0.5f * o, o, ac) - shelfOpen_);
+        lc.shelfScale = shelfOpen_;
+      }
+    }
     lc.cycleShimmer = voice_.cycleShimmer;
     for (int k = 0; k < 3; ++k) lc.formant[k] = p[kF1 + k] * voice_.formant[k];
     lc.bw[0] = p[kB1];

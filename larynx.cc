@@ -73,6 +73,11 @@ const float kSrcShelf2Db = param("LARYNX_SRC_SHELF2_DB", 0.0f), kSrcShelf2Hz = p
 const float kSrcShelfFDb = param("LARYNX_SRC_SHELF_F_DB", -999.0f), kSrcShelfFHz = param("LARYNX_SRC_SHELF_F_HZ", 0.0f);
 const float kSrcShelf2FDb = param("LARYNX_SRC_SHELF2_F_DB", -999.0f), kSrcShelf2FHz = param("LARYNX_SRC_SHELF2_F_HZ", 0.0f);
 const float kCycleJitterF = param("LARYNX_CYCLE_JITTER_F", -1.0f), kCycleShimmerF = param("LARYNX_CYCLE_SHIMMER_F", -1.0f);
+// Round AA (VQ2 agent29): a peaking filter (RBJ, LARYNX_SRC_DIP_DB at LARYNX_SRC_DIP_HZ, Q LARYNX_SRC_DIP_Q) after the
+// shelves, x shelfScale like them: the 1875 Hz shelf lifts 3-4 kHz 6-8 dB over both 11labs and Kokoro onyx (they dip
+// there). 0 dB: none. _F_DB: the female's (< -900: the male's).
+const float kSrcDipDb = param("LARYNX_SRC_DIP_DB", 0.0f), kSrcDipHz = param("LARYNX_SRC_DIP_HZ", 3600.0f);
+const float kSrcDipQ = param("LARYNX_SRC_DIP_Q", 1.0f), kSrcDipFDb = param("LARYNX_SRC_DIP_F_DB", -999.0f);
 constexpr float kMicroHz = 8;
 constexpr int kFoldOversample = 4;
 constexpr float kFoldAntiAliasHz = 18000;
@@ -206,6 +211,17 @@ void FoldLarynx::step(const LarynxControl& c, LarynxOutput& out) {
   // along the cord places it at the posterior end itself.
   if (core_->ownChink()) in.gap = c.gap * smoothstep(0.0f, kAgVoice, ag);
   else in.rest += c.gap * smoothstep(0.0f, kAgVoice, ag);
+  // Round AA (VQ2 agent29): the voicing rest gap x LARYNX_REST_X (male) / LARYNX_REST_X_F (female; < 0: the male's),
+  // fading to x1 as the glottis opens past breathy (a per-voice STRING_REST: the open quotient, H1-H2). 1: as before.
+  {
+    static const float restX = param("LARYNX_REST_X", 1.0f), restXF = param("LARYNX_REST_X_F", -1.0f);
+    const float x = c.female && restXF >= 0 ? restXF : restX;
+    if (x != 1.0f) {
+      const float k = 1.0f + (x - 1.0f) * (1.0f - smoothstep(kAgBreathy, kAgOpen, ag));
+      in.rest *= k;
+      in.gap *= k;
+    }
+  }
   // The folds run kFoldOversample times faster than the output, and their
   // flow is low-passed before it is taken once per sample: the flow drops
   // to zero within a sample at each closure, and sampled directly that
@@ -228,9 +244,12 @@ void FoldLarynx::step(const LarynxControl& c, LarynxOutput& out) {
     }
     const float raw = core_->step(1.0f / (kFoldOversample * fs_), in);
     if (line_) {
-      const float db1 = c.female && kSrcShelfFDb > -900 ? kSrcShelfFDb : kSrcShelfDb;
-      const float db2 = c.female && kSrcShelf2FDb > -900 ? kSrcShelf2FDb : kSrcShelf2Db;
-      if (db1 != 0.0f || db2 != 0.0f) {
+      const float db1Full = c.female && kSrcShelfFDb > -900 ? kSrcShelfFDb : kSrcShelfDb;
+      const float db2Full = c.female && kSrcShelf2FDb > -900 ? kSrcShelf2FDb : kSrcShelf2Db;
+      const float dbDFull = c.female && kSrcDipFDb > -900 ? kSrcDipFDb : kSrcDipDb;
+      if (db1Full != 0.0f || db2Full != 0.0f || dbDFull != 0.0f) {
+        // (the low-passes keep running where shelfScale is 0: no stale state when the shelf fades back in)
+        const float db1 = db1Full * c.shelfScale, db2 = db2Full * c.shelfScale;
         // y = x + (G - 1) (x - lp(x)): unity below the corner, G above it.
         const float hz1 = c.female && kSrcShelfFHz > 0 ? kSrcShelfFHz : kSrcShelfHz;
         const float hz2 = c.female && kSrcShelf2FHz > 0 ? kSrcShelf2FHz : kSrcShelf2Hz;
@@ -240,7 +259,20 @@ void FoldLarynx::step(const LarynxControl& c, LarynxOutput& out) {
         srcLp_ += a1 * (raw - srcLp_);
         const float y1 = raw + g1 * (raw - srcLp_);
         srcLp2_ += a2 * (y1 - srcLp2_);
-        p1_ = line_->substep(y1 + g2 * (y1 - srcLp2_));
+        float y2 = y1 + g2 * (y1 - srcLp2_);
+        if (dbDFull != 0.0f) {
+          const float A = std::pow(10.0f, dbDFull * c.shelfScale / 40.0f);
+          const float w0 = 2.0f * 3.14159265f * kSrcDipHz / (kFoldOversample * fs_);
+          const float cs = std::cos(w0), al = std::sin(w0) / (2.0f * kSrcDipQ);
+          const float ia0 = 1.0f / (1.0f + al / A);
+          const float b0 = (1.0f + al * A) * ia0, b1 = -2.0f * cs * ia0, b2 = (1.0f - al * A) * ia0;
+          const float a1d = -2.0f * cs * ia0, a2d = (1.0f - al / A) * ia0;
+          const float o = b0 * y2 + dipZ1_;
+          dipZ1_ = b1 * y2 - a1d * o + dipZ2_;
+          dipZ2_ = b2 * y2 - a2d * o;
+          y2 = o;
+        }
+        p1_ = line_->substep(y2);
       } else {
         p1_ = line_->substep(raw);
       }

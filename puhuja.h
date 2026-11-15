@@ -716,6 +716,7 @@ class Synth {
   float kAspGainFollow_ = 0;
   double kLookAheadSamples_ = 0;  // how far ahead the targets are read
   float creakTarget_ = 0, creakNow_ = 0, kCreakFollow_ = 0;  // creaky irregularity
+  float shelfOpen_ = 1;  // round AA VQ2: the source shelf's openness gate (LARYNX_SRC_SHELF_OPEN)
   bool aspirating_ = false;  // the last plosive's release is closing the glottis
   Event pendingNoise_{0};  // a voiced fricative's noise, after the glottis closed
   bool hasPendingNoise_ = false;
