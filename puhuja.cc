@@ -4411,30 +4411,30 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // ð of "the" (word-initial ð before ə ɪ i; < 0 / 1: the DH ones); FRIC_CS_F_JET_D / _LPR the f's own jet / noise
     // low-pass (< 0: as before); FRIC_CS_FEMALE 0: male only.
     {
-      static const float kCsF = param("FRIC_CS_FEMALE", 1.0f);
-      static const float kFr[5] = {param("FRIC_CS_F_FRIC", 1.0f), param("FRIC_CS_V_FRIC", 1.0f), param("FRIC_CS_TH_FRIC", 1.0f),
-                                   param("FRIC_CS_DH_FRIC", 1.0f), param("FRIC_CS_Z_FRIC", 1.0f)};
-      static const float kAc[5] = {param("FRIC_CS_F_AC", 1.0f), param("FRIC_CS_V_AC", 1.0f), param("FRIC_CS_TH_AC", 1.0f),
-                                   param("FRIC_CS_DH_AC", 1.0f), param("FRIC_CS_Z_AC", 1.0f)};
+      static const float kCsF = param("FRIC_CS_FEMALE", 0.0f);
+      static const float kFr[5] = {param("FRIC_CS_F_FRIC", 1.0f), param("FRIC_CS_V_FRIC", 1.0f), param("FRIC_CS_TH_FRIC", 4.0f),
+                                   param("FRIC_CS_DH_FRIC", 2.0f), param("FRIC_CS_Z_FRIC", 2.0f)};
+      static const float kAc[5] = {param("FRIC_CS_F_AC", 1.0f), param("FRIC_CS_V_AC", 1.0f), param("FRIC_CS_TH_AC", 1.15f),
+                                   param("FRIC_CS_DH_AC", 2.0f), param("FRIC_CS_Z_AC", 1.0f)};
       static const float kAg[5] = {param("FRIC_CS_F_AG", -1.0f), param("FRIC_CS_V_AG", -1.0f), param("FRIC_CS_TH_AG", -1.0f),
-                                   param("FRIC_CS_DH_AG", -1.0f), param("FRIC_CS_Z_AG", -1.0f)};
+                                   param("FRIC_CS_DH_AG", 0.25f), param("FRIC_CS_Z_AG", 0.15f)};
       static const float kPr[5] = {param("FRIC_CS_F_PRESS", -1.0f), param("FRIC_CS_V_PRESS", -1.0f), param("FRIC_CS_TH_PRESS", -1.0f),
                                    param("FRIC_CS_DH_PRESS", -1.0f), param("FRIC_CS_Z_PRESS", -1.0f)};
       static const float kTheFr = param("FRIC_CS_THE_FRIC", -1.0f), kTheAc = param("FRIC_CS_THE_AC", -1.0f),
-                         kTheAg = param("FRIC_CS_THE_AG", -1.0f), kThePr = param("FRIC_CS_THE_PRESS", -1.0f);
+                         kTheAg = param("FRIC_CS_THE_AG", 0.08f), kThePr = param("FRIC_CS_THE_PRESS", -1.0f);
       static const float kFJetD = param("FRIC_CS_F_JET_D", -1.0f), kFLpr = param("FRIC_CS_F_LPR", -1.0f);
       // FRIC_CS_<X>_RE (0: off) the jet's Reynolds number x this through X (the hiss threshold: a hiss under a voiced, wider
       // slit), X = DH Z V; FRIC_CS_THE_RE the ð of "the" (< 0: the DH one)
-      static const float kRe[5] = {0.0f, param("FRIC_CS_V_RE", 0.0f), 0.0f, param("FRIC_CS_DH_RE", 0.0f), param("FRIC_CS_Z_RE", 0.0f)};
-      static const float kTheRe = param("FRIC_CS_THE_RE", -1.0f);
+      static const float kRe[5] = {0.0f, param("FRIC_CS_V_RE", 0.0f), 0.0f, param("FRIC_CS_DH_RE", 2.0f), param("FRIC_CS_Z_RE", 2.0f)};
+      static const float kTheRe = param("FRIC_CS_THE_RE", 1.7f);
       // FRIC_CS_THE_C_AC / _C_RE / _C_FRIC (< 0: the THE ones): the ð of "the" after an obstruent or a pause (11labs: a
       // weak, stop-like ð, its minimum -33 dB re the vowels where puhuja's is -22)
       static const float kTheCAc = param("FRIC_CS_THE_C_AC", -1.0f), kTheCRe = param("FRIC_CS_THE_C_RE", -1.0f),
                          kTheCFr = param("FRIC_CS_THE_C_FRIC", -1.0f);
       // FRIC_CS_<X>_VV_RE / _VV_FRIC / _VV_AG (< 0: the X ones): X = DH Z between vowels / sonorants (and not "the")
-      static const float kVvRe[5] = {-1.0f, -1.0f, -1.0f, param("FRIC_CS_DH_VV_RE", -1.0f), param("FRIC_CS_Z_VV_RE", -1.0f)};
-      static const float kVvFr[5] = {-1.0f, -1.0f, -1.0f, param("FRIC_CS_DH_VV_FRIC", -1.0f), param("FRIC_CS_Z_VV_FRIC", -1.0f)};
-      static const float kVvAg[5] = {-1.0f, -1.0f, -1.0f, param("FRIC_CS_DH_VV_AG", -1.0f), param("FRIC_CS_Z_VV_AG", -1.0f)};
+      static const float kVvRe[5] = {-1.0f, -1.0f, -1.0f, param("FRIC_CS_DH_VV_RE", 1.5f), param("FRIC_CS_Z_VV_RE", 1.6f)};
+      static const float kVvFr[5] = {-1.0f, -1.0f, -1.0f, param("FRIC_CS_DH_VV_FRIC", 1.0f), param("FRIC_CS_Z_VV_FRIC", 1.5f)};
+      static const float kVvAg[5] = {-1.0f, -1.0f, -1.0f, param("FRIC_CS_DH_VV_AG", 0.08f), param("FRIC_CS_Z_VV_AG", -1.0f)};
       const int xi = tok.ph == Ph::F ? 0 : tok.ph == Ph::VV ? 1 : tok.ph == Ph::TH ? 2 : tok.ph == Ph::DH ? 3 : tok.ph == Ph::Z ? 4 : -1;
       const bool on = tract_ == Tract::Line && csSpeech_ && (!female_ || kCsF > 0.5f);
       if (fricCsPress_ && e.press < 0) { e.press = 1.0f; e.pressMs = 20; }
@@ -7395,7 +7395,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
       // (FRIC agent32 round AD, lab; 0: off) FRIC_CS_H_VL_CTX 1: in connected speech an h after an obstruent ("of human",
       // "is his") is the voiceless, breathy one (LINE_H_AG / LINE_H_ASP), as 11labs1's (2-8 kHz +3 dB re the vowels; puhuja's
       // voiced h there -5); 2: also after a nasal / liquid.
-      { static const float kHVlCtx = param("FRIC_CS_H_VL_CTX", 0.0f), kHVlCtxF = param("FRIC_CS_FEMALE", 1.0f);
+      { static const float kHVlCtx = param("FRIC_CS_H_VL_CTX", 0.0f), kHVlCtxF = param("FRIC_CS_FEMALE", 0.0f);
         if (voicedH && kHVlCtx > 0 && tract_ == Tract::Line && csSpeech_ && !prevWasPause_ && (!female_ || kHVlCtxF > 0.5f) &&
             !isVowel(lastPh_) && (kHVlCtx >= 2 || !isSonorant(lastPh_)))
           voicedH = false; }
@@ -7456,9 +7456,9 @@ void Synth::emit(const Token& tok, const Ph* next) {
       // voiced h's LINE_VH_ASP, the voiceless one's LINE_H_ASP), FRIC_CS_H_AG the voiced h's glottis (< 0: as before),
       // FRIC_CS_H_GFC its glottal noise corner (< 0: as before), FRIC_CS_H_VL_ASP x the voiceless h's noise more.
       {
-        static const float kHAsp = param("FRIC_CS_H_ASP", 1.0f), kHAg = param("FRIC_CS_H_AG", -1.0f),
+        static const float kHAsp = param("FRIC_CS_H_ASP", 2.0f), kHAg = param("FRIC_CS_H_AG", 0.165f),
                            kHGfcCs = param("FRIC_CS_H_GFC", -1.0f), kHVlAsp = param("FRIC_CS_H_VL_ASP", 1.0f),
-                           kHCsF = param("FRIC_CS_FEMALE", 1.0f), kHAspF = param("FRIC_CS_H_ASP_F", -1.0f),
+                           kHCsF = param("FRIC_CS_FEMALE", 0.0f), kHAspF = param("FRIC_CS_H_ASP_F", -1.0f),
                            kHGfcF = param("FRIC_CS_H_GFC_F", -1.0f), kHAgF = param("FRIC_CS_H_AG_F", -1.0f);
         // FRIC_CS_H_ASP_F / _GFC_F / _AG_F (< 0: off): the female's own, also with FRIC_CS_FEMALE 0
         const bool hf = female_ && (kHAspF >= 0 || kHGfcF >= 0 || kHAgF >= 0);
