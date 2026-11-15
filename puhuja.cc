@@ -3685,7 +3685,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
   // HF loss bandwidth (LINE_NASAL_HF_BW) NAS_HF_BW_CS; back to 1 / LINE_NASAL_HF_BW outside it. 11labs' Kennedy murmurs
   // sit 3-4 dB lower in 60-400 Hz re the vowels and are 5 dB brighter (1-4 kHz re 60-400 Hz) than deployed163's.
   if (tract_ == Tract::Line) {
-    static const float kNasRadCs = param("NAS_WALLRAD_CS", -1.0f), kNasHfCs = param("NAS_HF_BW_CS", -1.0f);
+    static const float kNasRadCs = param("NAS_WALLRAD_CS", 0.7f), kNasHfCs = param("NAS_HF_BW_CS", -1.0f);
     static const float kNasHfBase = param("LINE_NASAL_HF_BW", 300.0f);
     if (kNasRadCs >= 0) {
       const float want = csSpeech ? kNasRadCs : 1.0f;
@@ -3705,14 +3705,14 @@ void Synth::emit(const Token& tok, const Ph* next) {
     {
       // ... and the sinuses' volumes x NAS_SIN1_VX_CS / NAS_SIN2_VX_CS, Q x NAS_SIN_QX_CS (1: as before; _F the
       // female's, < 0: the male's): the Helmholtz zeros move (V x4: an octave down)
-      static const bool kSinOn = param("NAS_SIN1_VX_CS", 1.0f) != 1.0f || param("NAS_SIN2_VX_CS", 1.0f) != 1.0f || param("NAS_SIN_QX_CS", 1.0f) != 1.0f ||
+      static const bool kSinOn = param("NAS_SIN1_VX_CS", 3.0f) != 1.0f || param("NAS_SIN2_VX_CS", 3.0f) != 1.0f || param("NAS_SIN_QX_CS", 1.0f) != 1.0f ||
                                  param("NAS_SIN1_VX_CS_F", -1.0f) >= 0 || param("NAS_SIN2_VX_CS_F", -1.0f) >= 0;
       if (kSinOn) {
         const float want = csSpeech ? 1.0f : 0.0f;
         if (want != nasSinNow_) e.lineNasSin = nasSinNow_ = want;
       }
       static const float kKCs = param("NAS_K_CS", -1.0f), kKCsF = param("NAS_K_CS_F", -2.0f);
-      static const float kKM = param("NAS_K_CS_M", -1.0f), kKN = param("NAS_K_CS_N", -1.0f), kKNg = param("NAS_K_CS_NG", -1.0f);
+      static const float kKM = param("NAS_K_CS_M", 0.3f), kKN = param("NAS_K_CS_N", -1.0f), kKNg = param("NAS_K_CS_NG", -1.0f);
       static const bool kKOn = kKCs >= 0 || kKCsF >= 0 || kKM >= 0 || kKN >= 0 || kKNg >= 0;
       if (kKOn) {
         const bool fOff = female_ && kKCsF > -1.5f && kKCsF < 0;
@@ -6867,7 +6867,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
   }
   // NASAL agent32 (round AD, lab; 1: off): a nasal's own port x NAS_PORT_CS in connected speech.
   {
-    static const float kNasPortCs = param("NAS_PORT_CS", 1.0f);
+    static const float kNasPortCs = param("NAS_PORT_CS", 1.3f);
     if (tract_ == Tract::Line && csSpeech && in.cls == Cls::Nasal && kNasPortCs != 1.0f) e.an *= kNasPortCs;
     // ... and its oral closure left open by NAS_AC_CS cm^2 (< 0: shut, as before): a lenited, more vowel-like murmur
     // (NAS_AC_CS_F: the female's, < 0: the same)
@@ -11699,7 +11699,7 @@ float Synth::tick() {
     if (e.lineNasRad >= 0) line_.setNasalRad(e.lineNasRad);
     if (e.lineNasHf >= 0) line_.setNasalHfBw(e.lineNasHf);
     if (e.lineNasSin >= 0) {
-      static const float k1 = param("NAS_SIN1_VX_CS", 1.0f), k2 = param("NAS_SIN2_VX_CS", 1.0f), kq = param("NAS_SIN_QX_CS", 1.0f);
+      static const float k1 = param("NAS_SIN1_VX_CS", 3.0f), k2 = param("NAS_SIN2_VX_CS", 3.0f), kq = param("NAS_SIN_QX_CS", 1.0f);
       static const float k1f = param("NAS_SIN1_VX_CS_F", -1.0f), k2f = param("NAS_SIN2_VX_CS_F", -1.0f);
       if (e.lineNasSin > 0.5f) line_.setSinusScale(female_ && k1f >= 0 ? k1f : k1, female_ && k2f >= 0 ? k2f : k2, kq);
       else line_.setSinusScale(1.0f, 1.0f, 1.0f);
