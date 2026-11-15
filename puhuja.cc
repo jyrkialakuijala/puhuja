@@ -6125,9 +6125,9 @@ void Synth::emit(const Token& tok, const Ph* next) {
     // in 6-7 ms. SH_OFF_MS_S / _SH (< 0: as before): that opening's own time.
     {
       static const float kLogOnS = param("SH_LOG_ON_S", 0.0f), kLogOnSh = param("SH_LOG_ON_SH", 0.0f);
-      static const float kLogOffS = param("SH_LOG_OFF_S", 0.0f), kLogOffSh = param("SH_LOG_OFF_SH", 0.0f);
-      static const float kOffMsS = param("SH_OFF_MS_S", -1.0f), kOffMsSh = param("SH_OFF_MS_SH", -1.0f);
-      static const float kFallDb = param("SH_FALL_DB_MS", 0.0f), kFallSh = param("SH_FALL_SH_X", 1.0f);
+      static const float kLogOffS = param("SH_LOG_OFF_S", 1.0f), kLogOffSh = param("SH_LOG_OFF_SH", 1.0f);
+      static const float kOffMsS = param("SH_OFF_MS_S", 40.0f), kOffMsSh = param("SH_OFF_MS_SH", 40.0f);
+      static const float kFallDb = param("SH_FALL_DB_MS", 1.0f), kFallSh = param("SH_FALL_SH_X", 1.0f);
       const bool afterVoiced = !prevWasPause_ && !prevWasPlosive_ && !inAffricate_;
       if (tok.ph == Ph::S && kLogOnS > 0 && afterVoiced) e.acLog = kLogOnS;
       if (tok.ph == Ph::SH && kLogOnSh > 0 && afterVoiced) e.acLog = kLogOnSh;
@@ -6248,7 +6248,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
   // (SH agent30 round AB, lab; < 0: as above) a ʃ / s after a vowel (not after a pause, a plosive, in an affricate, or
   // phrase-final): the glottis opens over SH_AB_MS_SH / SH_AB_MS_S. 11labs1's voice runs 6-33 ms under the ʃ's rising
   // hiss (LF at the hiss's -10 dB point: 0 dB re the vowel); puhuja's has fallen 19 dB there.
-  { static const float kAbSh = param("SH_AB_MS_SH", -1.0f), kAbS = param("SH_AB_MS_S", -1.0f);
+  { static const float kAbSh = param("SH_AB_MS_SH", 60.0f), kAbS = param("SH_AB_MS_S", -1.0f);
     const float ab = tok.ph == Ph::SH ? kAbSh : tok.ph == Ph::S && next && *next != Ph::Stop ? kAbS : -1.0f;
     if (tract_ == Tract::Line && ab >= 0 && isVowel(lastPh_) && !prevWasPause_ && !inAffricate_ && aero.ag > kAgBreathy) e.agMs = ab; }
   e.aspGain = in.cls == Cls::H ? hAspirationGain_ * kHGain : kAspirationGain * kAspirationTiltGain;
@@ -11640,8 +11640,8 @@ float Synth::tick() {
     }
     // (SH agent30 round AB, lab; 0: off) the s / ʃ -> vowel offset: for SH_FALL_E ms from the vowel's event the hiss falls
     // at most SH_FALL_DB_MS dB per ms (x SH_FALL_SH_X for ʃ) down to SH_FALL_FLOOR_DB under its plateau, then as before
-    { static const float kFallDb = param("SH_FALL_DB_MS", 0.0f), kFallFloor = param("SH_FALL_FLOOR_DB", 20.0f),
-                         kFallE = param("SH_FALL_E", 50.0f), kFallSh = param("SH_FALL_SH_X", 1.0f);
+    { static const float kFallDb = param("SH_FALL_DB_MS", 1.0f), kFallFloor = param("SH_FALL_FLOOR_DB", 20.0f),
+                         kFallE = param("SH_FALL_E", 60.0f), kFallSh = param("SH_FALL_SH_X", 1.0f);
       // SH_OFF_SPAN (1: off): the frication window this many times as wide (log area) in that window: the opening groove's
       // hiss fades with the area law instead of switching off as the slit passes 0.12-0.22 cm^2 (x SH_OFF_SPAN_SH_X for ʃ)
       static const float kSpan = param("SH_OFF_SPAN", 1.0f), kSpanSh = param("SH_OFF_SPAN_SH_X", 1.0f);
