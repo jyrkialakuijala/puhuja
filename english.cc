@@ -1474,6 +1474,10 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
           const char* vn = v < tok.size() ? kEnglishTokens[tok[v] - 0x80] : nullptr;
           const bool fStressed = vn && phrase_[w].accent && vn[strlen(vn) - 1] == '1';
           whole *= fStressed ? fLen : fLenUnstr;
+          // (F-INIT agent26 round X, lab; 1: as before) a word-initial f before a vowel x EN_FI_LEN: puhuja's isolated
+          // initial f 100-115 ms (median, 47 words), Kokoro's 80-95, 11labs' in Kennedy 50-100.
+          static const float kFiLen = param("EN_FI_LEN", 1.0f);
+          if (i == 0 && i + 1 < tok.size() && isVowelToken(tok[i + 1])) whole *= kFiLen;
         }
       }
       // A vowel after a stop + l / r onset in its word ("black", "price", "great") x EN_CLUSTER_VOWEL_LEN (1: as before):

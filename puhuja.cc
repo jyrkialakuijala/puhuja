@@ -3641,6 +3641,16 @@ void Synth::emit(const Token& tok, const Ph* next) {
   // s passes at most 175 cm^3/s at 7 cmH2O where a spoken s runs 300-500, and
   // its hiss sat 18 dB under the vowels (Kokoro 5-7), 2026-11-02.
   if (tract_ == Tract::Line) e.ac = lineSlit(tok.ph, e.ac);
+  // (F-INIT agent26 round X, lab; 1 / < 0: as before) a word-initial f before a vowel: its slit x LINE_FI_AC (its gain,
+  // jet, band, ramp and glottis below, where those are set; the vowel's opening LINE_FI_OFF_MS). The initial f was heard
+  // s / θ / deleted (dict15k-29: f->s 95, del 84, θ 42; the female voice twice the male's s): its hiss sat 5-8 dB over
+  // Kokoro's (median re the word's peak m -19 / f -13 dB; Kokoro adam -24, bella -21, heart -21; 11labs -17..-29) and
+  // peaked at 2-6 kHz (m) where Kokoro's is level or rising to 8-11 kHz. Lab (318 initial-f words among fillers, both
+  // voices, two draws): every brighter variant (LINE_FI_JET_D 0.12, _FC_MIN 2500, _JET_MIX 0.5, _X 0.93) multiplied the s
+  // readings x5-x20; LINE_FI_LPR 4 (the band 4x its corner, not 10x: the 6-8 kHz top gone, level -5 / -8 dB, as Kokoro's)
+  // with LINE_FI_OFF_MS 40: initial-f errors 36 -> 19 / 17, gate-like s 21 + 22 -> 1 + 0 (agent26 #1).
+  const bool fiTok = tract_ == Tract::Line && tok.ph == Ph::F && tok.wordStart && next && isVowel(*next);
+  { static const float kFiAc = param("LINE_FI_AC", 1.0f); if (fiTok && kFiAc != 1.0f && e.ac > 0) e.ac *= kFiAc; }
   // The j after an h ("human") x LINE_HJ_J_AC, reached over LINE_HJ_J_AC_MS (HJ agent16 lab knobs; 1 / < 0: as before):
   // a narrower j keeps a little of the ç's hiss into the voicing, one breathy j instead of hiss, then a separate j.
   { static const float kHjJAc = param("LINE_HJ_J_AC", 1.0f);
@@ -3674,6 +3684,8 @@ void Synth::emit(const Token& tok, const Ph* next) {
   static const float kLineVFric = param("LINE_V_FRIC", 8.0f);
   static const float kLineZFric = param("LINE_Z_FRIC", 1.0f);
   if (tract_ == Tract::Line) e.lineFricMul = tok.ph == Ph::VV ? kLineVFric : tok.ph == Ph::F ? (curStress_ ? kLineFFric : kLineFFricUnstr) : tok.ph == Ph::Z ? kLineZFric : tok.ph == Ph::ZH ? (inAffricate_ && kLineJhFric >= 0 ? kLineJhFric : kLineZhFric) : tok.ph == Ph::S ? kLineSFric : tok.ph == Ph::SH ? kLineShFric * (shFullVowel ? (tok.wordStart || kLineShVowelFricLink < 0 ? kLineShVowelFric : kLineShVowelFricLink) : 1.0f) : 1.0f;
+  { static const float kFiFric = param("LINE_FI_FRIC", 1.0f), kFiFricF = param("LINE_FI_FRIC_F", 1.0f);  // (F-INIT: its gain; x _F more in the female voice)
+    if (fiTok && e.lineFricMul > 0) e.lineFricMul *= kFiFric * (female_ ? kFiFricF : 1.0f); }
   // (VELAR-L agent15 round N, lab; 1 / < 0: as before) the l / ɹ after a word-initial k or g: its own area x LINE_VL_LIQ_AC,
   // its frication gain LINE_VL_LIQ_FRIC. Kokoro's gl / gɹ carry 2-7 kHz at -23..-33 dB re the word's peak through the
   // liquid (a bright, partly fricated l / ɹ); puhuja's l is 20-35 dB darker there (2-3 kHz -48..-57, 4.5-7 kHz -65..-70):
@@ -3974,6 +3986,8 @@ void Synth::emit(const Token& tok, const Ph* next) {
   if (tok.ph == Ph::SH && shFullVowel && kLineShVowelX > 0) e.lineX = kLineShVowelX;  // (LINE_SH_VOWEL_X)
   { static const float kJiX = param("LINE_JI_X", -1.0f);  // (Y-INIT agent25, lab; < 0: LINE_J_X) the initial j's place
     if (jIni && kJiX >= 0) e.lineX = kJiX; }
+  { static const float kFiX = param("LINE_FI_X", -1.0f);  // (F-INIT agent26, lab; < 0: as before) the initial f's place
+    if (fiTok && kFiX >= 0) e.lineX = kFiX; }
   if (tok.ph == Ph::SH && shFullVowel && kLineShVowelAc != 1.0f && e.ac > 0) e.ac *= kLineShVowelAc;  // (LINE_SH_VOWEL_AC)
   // Stress as a push of the diaphragm (Jyrki 2026-11-04: "a soft pulse in
   // the beginning of the syllable rather than ramping up during the
@@ -4023,6 +4037,19 @@ void Synth::emit(const Token& tok, const Ph* next) {
     if (zhOwn && kLineZhSlit >= 0) e.lineSlitScale = kLineZhSlit;
     if (zhOwn && kLineZhJetMix >= 0) e.lineJetMix = kLineZhJetMix;
     e.lineFricLpr = tok.ph == Ph::Z && kLineZLpr > 0 ? kLineZLpr : tok.ph == Ph::ZH && !inAffricate_ && kLineZhLpr >= 0 ? kLineZhLpr : tok.ph == Ph::SH || tok.ph == Ph::ZH ? kLinePostLpr : tok.ph == Ph::F ? kLineFLpr : tok.ph == Ph::VV ? kLineVLpr : 0.0f;  // (not ʧ ʤ: at 3 they lost 39 -> 34, 26 -> 23 of 54, 56)
+    { static const float kFiJetD = param("LINE_FI_JET_D", -1.0f), kFiLpr = param("LINE_FI_LPR", -1.0f), kFiHw = param("LINE_FI_HW", -1.0f);
+      static const float kFiJetDF = param("LINE_FI_JET_D_F", -1.0f);  // (F-INIT: the jet, band and lip-teeth contact; < 0: as before)
+      if (fiTok && kFiJetD >= 0) e.lineJetD = kFiJetD;
+      if (fiTok && female_ && kFiJetDF >= 0) e.lineJetD = kFiJetDF;
+      if (fiTok && kFiLpr >= 0) e.lineFricLpr = kFiLpr;
+      if (fiTok && kFiHw >= 0) e.lineHw = kFiHw;
+      // ... its noise corner's range (Hz; 0: the global 200 / LINE_NOISE_FC_MAX), jet mix and corner smoothing (< 0: as before)
+      static const float kFiFcMin = param("LINE_FI_FC_MIN", -1.0f), kFiFcMax = param("LINE_FI_FC_MAX", -1.0f);
+      static const float kFiJetMix = param("LINE_FI_JET_MIX", -1.0f), kFiSmoothMs = param("LINE_FI_SMOOTH_MS", -1.0f);
+      if (fiTok && kFiFcMin >= 0) e.lineJetFcMin = kFiFcMin;
+      if (fiTok && kFiFcMax >= 0) e.lineJetFcMax = kFiFcMax;
+      if (fiTok && kFiJetMix >= 0) e.lineJetMix = kFiJetMix;
+      if (fiTok && kFiSmoothMs >= 0) e.lineJetSmoothMs = kFiSmoothMs; }
     // The full-vowel ʃ's own groove (SH agent 10, round K; < 0: the shared ʃ ʒ ʧ ʤ values above): lip rounding
     // LINE_SH_V_LIP (cm^2), groove half-width LINE_SH_V_HW, jet thickness LINE_SH_V_JET_D, noise band LINE_SH_V_LPR,
     // slit-height scale LINE_SH_V_SLIT_SCALE, jet mix LINE_SH_V_JET_MIX; its jet's Reynolds number x LINE_SH_V_RE (1: as
@@ -5738,6 +5765,14 @@ void Synth::emit(const Token& tok, const Ph* next) {
     if (shV && !prevWasPause_ && shVOn >= 0) e.acMs = shVOn;
     if (lastPh_ == Ph::SH && lastShV_ && shVOff >= 0) e.acMs = std::max(acMsOwn, shVOff);
     lastShV_ = shV;
+    // (F-INIT: 0 / < 0 as before) the vowel after a word-initial f: the lip leaves the teeth over LINE_FI_OFF_MS (the
+    // 20 ms boundary: the hiss stopped in a few ms, 4-8 kHz 27 dB down in the vowel's first 20 ms; Kokoro's 0-7 dB).
+    static const float kFiOffMs = param("LINE_FI_OFF_MS", -1.0f);
+    afterFi_ = lastPh_ == Ph::F && lastFi_;
+    { static const float kFiPress = param("LINE_FI_PRESS", 1.0f), kFiPressMs = param("LINE_FI_PRESS_MS", 30.0f);
+      if (afterFi_ && kFiPress != 1.0f) { e.press = 1.0f; e.pressMs = kFiPressMs; } }
+    if (afterFi_ && kFiOffMs > 0 && in.cls != Cls::Fricative && in.cls != Cls::Plosive) e.acMs = std::max(e.acMs, kFiOffMs);
+    lastFi_ = fiTok;
     // s f θ into a voiced sound: the groove opens over LINE_FRIC_OFF_MS (0: the
     // 20 ms boundary). Kokoro's s in "save" fades over its last 30 ms before
     // the vowel starts; puhuja's hiss rose 12 dB in its last 10 ms with the
@@ -5798,6 +5833,8 @@ void Synth::emit(const Token& tok, const Ph* next) {
     if (tok.ph == Ph::J && lastPh_ == Ph::H && kHjJAcMs >= 0) e.acMs = kHjJAcMs;
   }
   e.ag = aero.ag;
+  { static const float kFiAg = param("LINE_FI_AG", 1.0f);  // (F-INIT: the initial f's glottis x this)
+    if (fiTok && kFiAg != 1.0f && e.ag > 0) e.ag *= kFiAg; }
   { static const float kJiAg = param("LINE_JI_AG", 1.0f);  // (Y-INIT agent25, lab; 1: as before) the initial j's glottis x this
     if (tract_ == Tract::Line && jIni && kJiAg != 1.0f) e.ag *= kJiAg; }
   if (in.cls == Cls::Vowel) e.ag *= tok.shape.press;  // voice quality by prosody
@@ -5848,6 +5885,10 @@ void Synth::emit(const Token& tok, const Ph* next) {
   // narrow band (puhuja's θ 0.5-2 kHz 12-15 dB under its 2-8 kHz, Kokoro's ~8: flatter). Reset at the next sound.
   { static const float kLineThAsp = param("LINE_TH_ASP", 1.0f);
     if (tract_ == Tract::Line && tok.ph == Ph::TH && kLineThAsp != 1.0f) { e.lineAspMul = kLineThAsp; lineHAsp_ = true; } }
+  // (F-INIT agent26, lab; 1: off) the word-initial f's glottal hiss x LINE_FI_ASP (as θ's above): Kokoro's initial f
+  // carries more below 1 kHz (0.3-1 kHz -19 dB re its total, adam; puhuja -26) - breath under the lip slit's band.
+  { static const float kFiAsp = param("LINE_FI_ASP", 1.0f);
+    if (fiTok && kFiAsp != 1.0f) { e.lineAspMul = kFiAsp; lineHAsp_ = true; } }
   if (lineHSpec_ && in.cls != Cls::H) {  // after an h with its own breath (LINE_H_GFC ...): back to the shared values
     e.lineGlotFc = 1.0f;
     if (kLineHBreath > 0) e.lineHBreath = 0.0f;
@@ -6763,7 +6804,11 @@ void Synth::emit(const Token& tok, const Ph* next) {
     static const float kJhAdductMs = param("LINE_JH_ADDUCT_MS", -1.0f), kJhAdductLeadMs = param("LINE_JH_ADDUCT_LEAD_MS", -1.0f);
     if (afterJh_ == 0 && kJhAdductMs >= 0) e.agMs = kJhAdductMs;
     if (afterChi_ && kChiAdductMs >= 0) e.agMs = kChiAdductMs;  // (LINE_CHI_ADDUCT_MS)
-    const float adductLeadMs = afterChi_ && kChiAdductLeadMs >= 0 ? kChiAdductLeadMs : afterJh_ == 0 && kJhAdductLeadMs >= 0 ? kJhAdductLeadMs : lastPh_ == Ph::TH && kThAdductLeadMs >= 0 ? kThAdductLeadMs : kLineAdductLeadMs;
+    // (F-INIT agent26, lab; < 0: as above) after a word-initial f the folds adduct over LINE_FI_ADDUCT_MS from
+    // LINE_FI_ADDUCT_LEAD_MS before the opening (Kokoro's initial f: its hiss runs on 10-20 ms into the voice).
+    static const float kFiAdductMs = param("LINE_FI_ADDUCT_MS", -1.0f), kFiAdductLeadMs = param("LINE_FI_ADDUCT_LEAD_MS", -1.0f);
+    if (afterFi_ && kFiAdductMs >= 0) e.agMs = kFiAdductMs;
+    const float adductLeadMs = afterFi_ && kFiAdductLeadMs >= 0 ? kFiAdductLeadMs : afterChi_ && kChiAdductLeadMs >= 0 ? kChiAdductLeadMs : afterJh_ == 0 && kJhAdductLeadMs >= 0 ? kJhAdductLeadMs : lastPh_ == Ph::TH && kThAdductLeadMs >= 0 ? kThAdductLeadMs : kLineAdductLeadMs;
     if (adductLeadMs > 0 && e.ag >= 0) {
       Event adduct{std::max(e.t - adductLeadMs * ms, phonemeStart_ + 1.0)};
       adduct.ag = e.ag;
@@ -6779,6 +6824,9 @@ void Synth::emit(const Token& tok, const Ph* next) {
   if (prevWasPause_ && in.cls != Cls::Stop) {  // speaking again: full pressure
     e.press = 1.0f;
     e.pressMs = kPressResumeMs;
+    // (F-INIT agent26, lab; 1: as before) a phrase-initial f's breath x LINE_FI_PRESS (a softer push: less flow through
+    // the lip slit, a weaker and darker hiss); the vowel after it returns to full pressure over LINE_FI_PRESS_MS.
+    { static const float kFiPress = param("LINE_FI_PRESS", 1.0f); if (fiTok && kFiPress != 1.0f) e.press = kFiPress; }
     if (tract_ == Tract::Line) {
       // The lungs push before the first sound: with the breath stopped in the
       // pause, a phrase-initial θ or ð had no pressure for its first 30 ms
@@ -7328,12 +7376,26 @@ void Synth::emit(const Token& tok, const Ph* next) {
   // fades in (2026-11-05).
   {
     static const float fRampMs = param("LINE_F_RAMP_MS", 70.0f), fRamp0 = param("LINE_F_RAMP0", 0.0f);
-    if (tract_ == Tract::Line && fRampMs > 0 && tok.ph == Ph::F && !prevWasPlosive_ && e.lineFricMul >= 0) {
-      const double step = std::min(static_cast<double>(fRampMs) * ms, 0.8 * dur) / 4;
+    // (F-INIT: < 0 as above) the word-initial f's own ramp LINE_FI_RAMP_MS / LINE_FI_RAMP0
+    static const float fiRampMs = param("LINE_FI_RAMP_MS", -1.0f), fiRamp0 = param("LINE_FI_RAMP0", -1.0f);
+    const bool fiInit = tok.ph == Ph::F && tok.wordStart && next && isVowel(*next);
+    const float rMs = fiInit && fiRampMs >= 0 ? fiRampMs : fRampMs, r0 = fiInit && fiRamp0 >= 0 ? fiRamp0 : fRamp0;
+    if (tract_ == Tract::Line && rMs > 0 && tok.ph == Ph::F && !prevWasPlosive_ && e.lineFricMul >= 0) {
+      const double step = std::min(static_cast<double>(rMs) * ms, 0.8 * dur) / 4;
       for (int k = 0; k <= 4; ++k) {
         Event r{e.t + k * step};
-        r.lineFricMul = e.lineFricMul * (fRamp0 + (1.0f - fRamp0) * k / 4.0f);
+        r.lineFricMul = e.lineFricMul * (r0 + (1.0f - r0) * k / 4.0f);
         addEventAt(r);
+      }
+      // (F-INIT: 0 / < 0 off) ... and the initial f's hiss fades to LINE_FI_TAIL0 x its gain over its last LINE_FI_TAIL_MS
+      static const float fiTailMs = param("LINE_FI_TAIL_MS", -1.0f), fiTail0 = param("LINE_FI_TAIL0", 0.5f);
+      if (fiInit && fiTailMs > 0) {
+        const double span = std::min(static_cast<double>(fiTailMs) * ms, 0.5 * dur), t1 = e.t + dur - span;
+        for (int k = 1; k <= 4; ++k) {
+          Event r{t1 + k * span / 4.5};  // (the last one before the vowel's own event)
+          r.lineFricMul = e.lineFricMul * (1.0f + (fiTail0 - 1.0f) * k / 4.0f);
+          addEventAt(r);
+        }
       }
     }
     // ... and the v's the same way (V agent, round F; LINE_V_RAMP_MS 0: off, from LINE_V_RAMP0 x its gain): with the v's
