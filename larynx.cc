@@ -82,11 +82,11 @@ const float kSrcDipQ = param("LARYNX_SRC_DIP_Q", 1.0f), kSrcDipFDb = param("LARY
 // VQCS_ON in puhuja.cc): extra shelf dB (x shelfScale like the shelves: the vowels) VQCS_SHELF_DB / VQCS_SHELF2_DB, the
 // voicing rest gap x (1 + (VQCS_REST_X - 1) cs) (the open quotient). _F: the female's (< -900: the male's); VQCS_SHELF_HZ_F /
 // VQCS_SHELF2_HZ_F: the female's corners while her own shelves are off (0: the male's).
-const float kVqcsShelfDb = param("VQCS_SHELF_DB", 0.0f), kVqcsShelfFDb0 = param("VQCS_SHELF_F_DB", 8.0f);
+const float kVqcsShelfDb = param("VQCS_SHELF_DB", 0.0f), kVqcsShelfFDb0 = param("VQCS_SHELF_F_DB", -999.0f);
 const float kVqcsShelf2Db = param("VQCS_SHELF2_DB", 0.0f), kVqcsShelf2FDb0 = param("VQCS_SHELF2_F_DB", -999.0f);
 const float kVqcsShelfFDb = kVqcsShelfFDb0 > -900 ? kVqcsShelfFDb0 : kVqcsShelfDb;
 const float kVqcsShelf2FDb = kVqcsShelf2FDb0 > -900 ? kVqcsShelf2FDb0 : kVqcsShelf2Db;
-const float kVqcsShelfFHz = param("VQCS_SHELF_HZ_F", 2000.0f), kVqcsShelf2FHz = param("VQCS_SHELF2_HZ_F", 0.0f);
+const float kVqcsShelfFHz = param("VQCS_SHELF_HZ_F", 0.0f), kVqcsShelf2FHz = param("VQCS_SHELF2_HZ_F", 0.0f);
 // VQCS_LOW_DB / _HZ (_F): a low shelf on the source flow in connected speech, + dB below the corner (H1, a rounder pulse).
 const float kVqcsLowDb = param("VQCS_LOW_DB", 0.0f), kVqcsLowFDb0 = param("VQCS_LOW_F_DB", -999.0f);
 const float kVqcsLowFDb = kVqcsLowFDb0 > -900 ? kVqcsLowFDb0 : kVqcsLowDb;

@@ -3524,7 +3524,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
   // (VQCS agent33 round AE, lab; 0: off) VQCS_ON 1: the VQCS_* source knobs (larynx.cc, tick()) act in connected speech:
   // from a phrase's 2nd word on, and with VQCS_FIRST 1 also in the first word of a phrase of 2+ words (the reader's
   // phrase: setPhraseLeft), so a passage keeps one voice; single words (the dictionary) render as before.
-  static const float kVqcsOn = param("VQCS_ON", 1.0f), kVqcsFirst = param("VQCS_FIRST", 1.0f);
+  static const float kVqcsOn = param("VQCS_ON", 0.0f), kVqcsFirst = param("VQCS_FIRST", 1.0f);
   bool vqcsTok = false;
   if (kVqcsOn > 0) {
     const int wb = tok.ph == Ph::Stop ? wordsBefore : wordsSincePause_;
@@ -12293,7 +12293,7 @@ float Synth::tick() {
     float aspV = female_ && kLineAspVoicedF >= 0 ? kLineAspVoicedF : kLineAspVoiced;
     // (VQCS agent33 round AE, lab; 0: off) the connected-speech amount eases toward its target over VQCS_MS; the voiced
     // aspiration share + VQCS_ASP (_F: the female's, < -900: the male's) x it.
-    static const float kVqcsOnT = param("VQCS_ON", 1.0f);
+    static const float kVqcsOnT = param("VQCS_ON", 0.0f);
     static const float kVqcsAsp = param("VQCS_ASP", 0.0f), kVqcsAspF0 = param("VQCS_ASP_F", -999.0f);
     static const float kVqcsAspF = kVqcsAspF0 > -900 ? kVqcsAspF0 : kVqcsAsp;
     if (kVqcsOnT > 0) {
@@ -12527,13 +12527,13 @@ float Synth::tick() {
     // (VQCS agent33 round AE, lab; 0: off) connected-speech voice quality, x the eased amount (VQCS_ON): the posterior chink
     // + VQCS_GAP cm^2, the lung pressure x (1 + VQCS_PS), the abduction x (1 + VQCS_AG), per-cycle jitter / shimmer
     // + VQCS_JIT / VQCS_SHIM (as the creak's). _F: the female's (< -900: the male's). The shelves / rest: larynx.cc.
-    if (static const float kVqcsOnL = param("VQCS_ON", 1.0f); kVqcsOnL > 0) {
+    if (static const float kVqcsOnL = param("VQCS_ON", 0.0f); kVqcsOnL > 0) {
       auto fk = [this](float m, float f) { return female_ && f > -900 ? f : m; };
-      static const float kG = param("VQCS_GAP", 0.02f), kGF = param("VQCS_GAP_F", 0.02f);
+      static const float kG = param("VQCS_GAP", 0.0f), kGF = param("VQCS_GAP_F", -999.0f);
       static const float kP = param("VQCS_PS", 0.0f), kPF = param("VQCS_PS_F", -999.0f);
       static const float kA = param("VQCS_AG", 0.0f), kAF = param("VQCS_AG_F", -999.0f);
       static const float kJ = param("VQCS_JIT", 0.0f), kJF = param("VQCS_JIT_F", -999.0f);
-      static const float kS = param("VQCS_SHIM", 0.05f), kSF = param("VQCS_SHIM_F", 0.03f);
+      static const float kS = param("VQCS_SHIM", 0.0f), kSF = param("VQCS_SHIM_F", -999.0f);
       const float c = vqcsNow_;
       lc.cs = c;
       const float g = fk(kG, kGF), pp = fk(kP, kPF), aa = fk(kA, kAF), j = fk(kJ, kJF), sh = fk(kS, kSF);
@@ -12546,14 +12546,14 @@ float Synth::tick() {
     lc.microGain = voice_.microGain;
     {  // (VQCS agent33, lab; 0: off) the slow micro-variation x (1 + VQCS_MICRO cs) (_F: the female's, < -900: the male's);
        // the oral HF loss bandwidth moves toward VQCS_HFBW Hz (_F) by cs (0: off; updated every 16 samples)
-      static const float kVqOn = param("VQCS_ON", 1.0f);
+      static const float kVqOn = param("VQCS_ON", 0.0f);
       static const float kM = param("VQCS_MICRO", 0.0f), kMF0 = param("VQCS_MICRO_F", -999.0f), kMF = kMF0 > -900 ? kMF0 : kM;
-      static const float kH = param("VQCS_HFBW", 0.0f), kHF0 = param("VQCS_HFBW_F", 60.0f), kHF = kHF0 > -900 ? kHF0 : kH;
+      static const float kH = param("VQCS_HFBW", 0.0f), kHF0 = param("VQCS_HFBW_F", -999.0f), kHF = kHF0 > -900 ? kHF0 : kH;
       if (kVqOn > 0 && vqcsNow_ > 0.0f) {
         const float m = female_ ? kMF : kM, h = female_ ? kHF : kH;
         if (m != 0.0f) lc.microGain *= std::max(0.0f, 1.0f + m * vqcsNow_);
         if (h > 0.0f && tract_ == Tract::Line && (static_cast<long long>(t_) & 15) == 0) line_.setOralHfMix(h, 1.0f - vqcsNow_);
-        static const float kL = param("VQCS_ASP_LP", 9500.0f), kLF0 = param("VQCS_ASP_LP_F", 0.0f), kLF = kLF0 > -900 ? kLF0 : kL;
+        static const float kL = param("VQCS_ASP_LP", 0.0f), kLF0 = param("VQCS_ASP_LP_F", -999.0f), kLF = kLF0 > -900 ? kLF0 : kL;
         const float l = female_ ? kLF : kL;  // (Hz; 0: off) the glottal noise two-pole low-passed at this, x cs
         if (l > 0.0f && tract_ == Tract::Line && (static_cast<long long>(t_) & 15) == 0) line_.setCsAspLp(l, vqcsNow_);
       }
