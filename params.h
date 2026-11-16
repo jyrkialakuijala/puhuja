@@ -17,6 +17,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <map>
+#include <set>
 #include <string>
 
 inline std::string liveParamFile() {
@@ -63,7 +64,17 @@ inline const std::map<std::string, float>& paramFile() {
   return m;
 }
 
+// PUHUJA_PARAM_LOG=file: append "NAME default" for each knob the first time it is read (tools/knob_search.py
+// finds the knobs a text touches this way; the audio does not change).
+inline void paramLog(const char* name, float def) {
+  static FILE* f = [] { const char* p = std::getenv("PUHUJA_PARAM_LOG"); return p ? std::fopen(p, "a") : nullptr; }();
+  if (!f) return;
+  static std::set<std::string> seen;
+  if (seen.insert(name).second) std::fprintf(f, "%s %.9g\n", name, def), std::fflush(f);
+}
+
 inline float param(const char* name, float def) {
+  paramLog(name, def);
   const auto& pf = paramFile();
   const auto it = pf.find(name);
   if (it != pf.end()) return it->second;
