@@ -211,10 +211,15 @@ class Runner:
         self.base = {}  # (voice, seed) -> (md5, errors, sound)
         self.ex = ThreadPoolExecutor(a.procs)
         self.cur = 'base'
+        self.bp = {}
+        if getattr(a, 'base_params', None):
+            for l in open(a.base_params):
+                if l.strip() and not l.startswith('#'):
+                    n, x = l.split()[:2]; self.bp[n] = float(x)
 
     def evaluate(self, params, seeds, name):
         """-> {voice: (errors, sound deltas summed over seeds)} for one candidate, pipelined renders"""
-        jobs = [(v, s, self.ex.submit(render, self.a.bin, params, v, s, self.tmp)) for v in 'mf' for s in seeds]
+        jobs = [(v, s, self.ex.submit(render, self.a.bin, dict(self.bp, **params), v, s, self.tmp)) for v in 'mf' for s in seeds]
         return self.collect(jobs)
 
     def collect(self, jobs):
@@ -269,6 +274,8 @@ def main():
     ap.add_argument('--top', type=int, default=40)
     ap.add_argument('--params', default=None)
     ap.add_argument('--shuffle', type=int, default=1)
+    ap.add_argument('--base-params', default=None, help='start point: every candidate (and the base) renders with these values, a candidate multiplies its knob\'s value here')
+    ap.add_argument('--skip-dead', default=None, help='a screen tsv: leave out knobs that were byte-identical to its base both ways')
     ap.add_argument('--shard', default='0/1', help='k/n: this process takes every n-th candidate (two share the GPU)')
     a = ap.parse_args()
     os.makedirs(os.path.dirname(a.out), exist_ok=True)
@@ -300,6 +307,14 @@ def main():
         f.write(row(os.path.basename(a.params), '*', 1, 0, seeds, res, R.base) + '\n'); f.flush()
         return
     P = pool(a.bin, a.out)
+    P = {n: R.bp.get(n, x) for n, x in P.items()}
+    if a.skip_dead:
+        st = {}
+        for l in open(a.skip_dead):
+            c = l.rstrip('\n').split('\t')
+            if c[0] not in ('name', 'base'):
+                st.setdefault(c[1], []).append(c[7] == 'same' and c[14] == 'same')
+        P = {n: x for n, x in P.items() if not (n in st and all(st[n]))}
     if a.mode == 'screen':
         steps = [float(s) for s in (a.steps or '0.9,1.1').split(',')]
         cands = [(n, m) for n in sorted(P) for m in steps]
@@ -333,7 +348,7 @@ def main():
         while i < len(todo) and len(q) < ahead:
             n, m = todo[i]; i += 1
             p = {n: P[n] * m}
-            q.append((n, m, p, [(v, s, R.ex.submit(render, a.bin, p, v, s, R.tmp)) for v in 'mf' for s in seeds]))
+            q.append((n, m, p, [(v, s, R.ex.submit(render, a.bin, dict(R.bp, **p), v, s, R.tmp)) for v in 'mf' for s in seeds]))
         n, m, p, jobs = q.pop(0)
         R.cur = '%s*%.3f' % (n, m)
         res = R.collect(jobs)
