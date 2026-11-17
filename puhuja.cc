@@ -5918,7 +5918,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
                            kIhoLateAc0 = param("LINE_IHO_LATE_AC", 0.9974227f);
         // (VOWDICT agent36, lab; < 0: LINE_IHO_LATE_AC) LINE_IHO_LATE_AC_W: the value in a phrase of one word. Any value
         // but 1 switches the late-key block below on (the knob search's x0.997 did: "did" -> dead, "bits" -> bates).
-        static const float kIhoLateAcW = param("LINE_IHO_LATE_AC_W", -1.0f);
+        static const float kIhoLateAcW = param("LINE_IHO_LATE_AC_W", 1.0f);
         const float kIhoLateAc = gWord1 && kIhoLateAcW >= 0 ? kIhoLateAcW : kIhoLateAc0;
         if (tok.ph == Ph::IH && lastPh_ != Ph::E && lastPh_ != Ph::A && lastPh_ != Ph::AO && ihoCtx(tok.shape.ihctx) &&
             (kIhoOffSw > 0 || kIhoOffEh > 0 || kIhoLateAc != 1.0f)) {
