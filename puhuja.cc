@@ -583,7 +583,7 @@ const float kLineJhFricX = param("LINE_JH_FRIC_X", 0.7432345f), kLineJhSlit = pa
             kLineJhLip = param("LINE_JH_LIP", -1.0f), kLineJhJetD = param("LINE_JH_JET_D", -1.0f),
             kLineJhLpr = param("LINE_JH_LPR", -1.0f), kLineJhFcMin = param("LINE_JH_FC_MIN", -1.0f),
             kLineJhHw = param("LINE_JH_HW", -1.0f), kLineJhFade = param("LINE_JH_FADE", -1.0f),
-            kLineJhOwnRelFric = param("LINE_JH_OWN_REL_FRIC", -1.0f), kLineJhPress = param("LINE_JH_PRESS", 0.9896907f),
+            kLineJhOwnRelFric = param("LINE_JH_OWN_REL_FRIC", -1.0f), kLineJhPress = param("LINE_JH_PRESS", 1.0f),
             kLineJhFinalExpand = param("LINE_JH_FINAL_EXPAND", 0.9974227f);
 // The hiss's course through the frication (1 / 0: off): LINE_JH_RAMP_MS the release hiss rises from LINE_JH_RAMP0 x its
 // gain to the full gain over this long (Kokoro's initial ʤ hiss rises 20 dB over 20 ms; puhuja's switched on in 5 ms,
@@ -3829,7 +3829,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
   // 2 draws, seed 1; base 104 errors): CTX 1 102, CTX 2 with FRONT 0.4-0.7 90-92, FRONT 0 (the vowel's own shape) 118,
   // FRONT 1 102, CTX 3 101 (final θ -> s 11 -> 22); with EN_MED_TH_LEN 1.2 (FRONT 0.6): 67, words right 451 -> 482.
   static const float kThShape = param("LINE_TH_SHAPE", 2.0103093f), kThFront = param("LINE_TH_FRONT", 0.6015464f),
-                     kThShapeCtx = param("LINE_TH_SHAPE_CTX", 1.9896907f), kThShapeSon = param("LINE_TH_SHAPE_SON", 0.0f);
+                     kThShapeCtx = param("LINE_TH_SHAPE_CTX", 2.0f), kThShapeSon = param("LINE_TH_SHAPE_SON", 0.0f);
   // (LINE_TH_SHAPE_SON 1, with CTX 2: also a θ before ɹ / l / w, "three", "through", in that sound's shape)
   const bool thSonNext = kThShapeSon > 0 && next && (*next == Ph::RR || *next == Ph::L || *next == Ph::W);
   const bool thKey = tract_ == Tract::Line && tok.ph == Ph::TH && kThShape > 0 &&
