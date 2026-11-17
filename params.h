@@ -76,7 +76,11 @@ inline void paramLog(const char* name, float def) {
 }
 
 inline float param(const char* name, float def) {
-  paramLog(name, def);
+  {
+    const auto& td = tunedDefaults();
+    const auto t = td.find(name);
+    paramLog(name, t != td.end() ? t->second : def);  // the default in effect (tuned_defaults.h first)
+  }
   const auto& pf = paramFile();
   const auto it = pf.find(name);
   if (it != pf.end()) return it->second;
