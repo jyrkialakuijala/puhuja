@@ -1344,7 +1344,7 @@ void vowelQuality(Ph ph, TractShape* s, bool colour) {
   if (g == 0 && !fOn) return;
   float v[9];
   // (FEMV agent34, lab; 511: all) LINE_VQF_DIMS: bit j applies dimension j (XC AC ALIP AOR APH HA HL FA FL) of her offsets
-  static const int kVqfDims = static_cast<int>(param("LINE_VQF_DIMS", 513.63402f));
+  static const int kVqfDims = static_cast<int>(param("LINE_VQF_DIMS", 511.0f));
   for (int j = 0; j < 9; ++j) v[j] = g * t.v[static_cast<int>(ph)][j] + (fOn && (kVqfDims >> j & 1) ? vqCsScale * vqfScale * tf.v[static_cast<int>(ph)][j] : 0.0f);
   if (colour) { s->dHypoA += v[5]; s->dHypoL += v[6]; s->dFrontA += v[7]; s->dFrontL += v[8]; return; }
   s->xc = std::clamp(s->xc + v[0], 0.05f, 0.98f);
@@ -3252,7 +3252,7 @@ bool ihsCtx(unsigned char ctx) {
 // ("hit" -> hate, "give" -> gave, "biz" -> base) or ɛ ("did" -> dead, "disc" -> desk). LINE_IHO_CTX 1: on for the lab
 // knobs below (LINE_IHO_*), 2: only before a voiced obstruent (Shape::ihctx 128).
 bool ihoCtx(int ctx) {
-  static const int kIhoCtx = param("LINE_IHO_CTX", 0.9948454);
+  static const int kIhoCtx = param("LINE_IHO_CTX", 1);
   return ctx >= 0 && (ctx & 1) && !(ctx & 30) && kIhoCtx > 0 && (kIhoCtx != 2 || (ctx & 128));
 }
 // Against five Kokoro voices per sex (words1k, these contexts, F1/F2 Hz at 50 / 80 % of the vowel) puhuja's ɪ closes
@@ -3346,7 +3346,7 @@ void ihShape(TractShape* sh, unsigned char ctx, bool female = false) {
 // ("hit" F2 at 80 % 1944 -> 1851 Hz); with LINE_IHO_START_I 0.8 below 122 (seed 11: 195 -> 126, words1000 +8).
 void ihoPreShape(int prevIhCtx, bool female, int* row, float* mix, TractShape* v) {
   static const float kIhoPreShaped = param("LINE_IHO_PRE_SHAPED", 1.0f), kIhoPreMix = param("LINE_IHO_PRE_MIX", -1.0f);
-  static const int kIhoPreRow = static_cast<int>(param("LINE_IHO_PRE_ROW", 7.9793814f));
+  static const int kIhoPreRow = static_cast<int>(param("LINE_IHO_PRE_ROW", 8.0f));
   if (!ihoCtx(prevIhCtx)) return;
   if (kIhoPreMix >= 0) *mix = kIhoPreMix;
   if (kIhoPreRow >= 0) *row = kIhoPreRow;
@@ -3496,7 +3496,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
   // phrase: setPhraseLeft) counts as connected speech too, per feature group: 1 TRANS (TRANS_CS_MASK, TRANS_*_CS),
   // 2 LIQ (LIQ_CS), 4 VOWEL (LINE_VQ_CS, LINE_*_CS vowel knobs), 8 STOP (LINE_*_CS stop knobs). Single words keep
   // the old sound (a phrase of one word has nothing left after it). CSW_FIRST_F: the female's mask (-1: = CSW_FIRST).
-  static const int kCswFirst = static_cast<int>(param("CSW_FIRST", 9.819588f));
+  static const int kCswFirst = static_cast<int>(param("CSW_FIRST", 10.0f));
   static const int kCswFirstF = static_cast<int>(param("CSW_FIRST_F", 0.0f));
   const int cswMask = female_ && kCswFirstF >= 0 ? kCswFirstF : kCswFirst;
   // CSW_FIRST_MIN: only when the phrase has at least this many words (2: any multi-word phrase); CSW_FIRST_ONSET 0:
@@ -3571,7 +3571,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
   // words render as before), 0: everywhere.
   // LIQ_FEMALE: in the female voice only for these sounds (bits: 1 ɹ, 2 l, 4 w, 8 j; 15 all, 0: the knobs male-only).
   static const float kLiqCs = param("LIQ_CS", 1.0f);
-  static const int kLiqFemale = static_cast<int>(param("LIQ_FEMALE", 4.9935567f));
+  static const int kLiqFemale = static_cast<int>(param("LIQ_FEMALE", 5.0f));
   const int liqBit = tok.ph == Ph::RR ? 1 : tok.ph == Ph::L ? 2 : tok.ph == Ph::W ? 4 : tok.ph == Ph::J ? 8 : 0;
   const bool liqOn = (kLiqCs == 0.0f || csFor(2)) && (!female_ || (kLiqFemale & liqBit));
   const bool liqCoda = !(next && isVowel(*next));
@@ -5039,7 +5039,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
     if (have && tok.shape.erctx && tok.shape.erctx <= 2) {
       static const float kEriMix = param("LINE_ERI_MIX", 0.59458765f), kEriAph = param("LINE_ERI_APH", 0.992268f), kEriLipA = param("LINE_ERI_LIPA", 0.9974227f),
                          kEriRAc = param("LINE_ERI_R_AC", 1.0064433f), kEriRLipA = param("LINE_ERI_R_LIPA", 1.0f);
-      static const int kEriRow = static_cast<int>(param("LINE_ERI_ROW", 1.9948454f));
+      static const int kEriRow = static_cast<int>(param("LINE_ERI_ROW", 2.0f));
       if (tok.shape.erctx == 1) {
         const Ph row = kEriRow == 1 ? Ph::AA : kEriRow == 2 ? Ph::A : kEriRow == 3 ? Ph::EH : kEriRow == 4 ? Ph::IH : Ph::AH;
         TractShape o;
@@ -6351,7 +6351,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
                                kWRampMix = param("TRANS_W_RAMP_MIX", 0.5025773f), kWRampW = param("TRANS_W_RAMP_W", 1.0f);
             TractShape wNextSh;
             // (TRANS_W_RAMP_CLS: 1 w (default), 2 j, 4 ɹ, 8 l; the others' ramps end at TRANS_G_RAMP_TO of the glide)
-            static const int kWRampCls = static_cast<int>(param("TRANS_W_RAMP_CLS", 0.9692252f));
+            static const int kWRampCls = static_cast<int>(param("TRANS_W_RAMP_CLS", 1.0f));
             static const float kGRampTo = param("TRANS_G_RAMP_TO", 1.1f);
             const int rampBit = tok.ph == Ph::W ? 1 : tok.ph == Ph::J ? 2 : tok.ph == Ph::RR ? 4 : tok.ph == Ph::L ? 8 : 0;
             const double rampEnd = tok.ph == Ph::W ? dTo : std::max(dTo, static_cast<double>(kGRampTo));
@@ -6649,7 +6649,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
       shOffTok_ = intoV && lastPh_ == Ph::S ? 1 : intoV && lastPh_ == Ph::SH ? 2 : 0;
       // (SH_FALL_LEAD_MS: the fall window opens this long before the vowel: the glottis closes and the hiss falls first)
       static const float kFallLead = param("SH_FALL_LEAD_MS", 0.0f);
-      static const bool kSpanOn = param("SH_OFF_SPAN", 0.992268f) != 1.0f || param("SH_OFF_ASP_DB", 0.0f) != 0 || param("SH_OFF_FRIC_DB", 0.0f) != 0;
+      static const bool kSpanOn = param("SH_OFF_SPAN", 1.0f) != 1.0f || param("SH_OFF_ASP_DB", 0.0f) != 0 || param("SH_OFF_FRIC_DB", 0.0f) != 0;
       auto shFallEv = [&](float cls) {
         if (kFallLead <= 0) { e.shFall = cls; return; }
         Event fl{std::max(e.t - kFallLead * ms, phonemeStart_ + 1)};
@@ -8331,7 +8331,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
     {
       static const float kNfMurMix = param("LINE_NF_MUR_MIX", 0.80206187f), kNfMurW = param("LINE_NF_MUR_W", 2.0103093f),
                          kNfMurWord = param("LINE_NF_MUR_WORD", 0.0f);
-      static const int kNfMurRow = static_cast<int>(param("LINE_NF_MUR_ROW", 15.9381443f));
+      static const int kNfMurRow = static_cast<int>(param("LINE_NF_MUR_ROW", 16.0f));
       TractShape v2, o2;
       const bool nfEnd = !next || *next == Ph::Stop || (kNfMurWord > 0 && (tok.shape.nctx & 8));
       if (tract_ == Tract::Line && tok.ph == Ph::N && kNfMurMix > 0 && prevWasVowel_ && nfEnd &&
@@ -8354,7 +8354,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
     static const float kNRelMix = param("LINE_N_REL_MIX", 0.6092784f), kNRelBackMix = param("LINE_N_REL_BACK_MIX", -1.0f),
                        kNRelOnMs = param("LINE_N_REL_ON_MS", 49.9548969f), kNRelW = param("LINE_N_REL_W", 1.9829897f),
                        kNRelLipA = param("LINE_N_REL_LIPA", 0.0f), kNRelAll = param("LINE_N_REL_ALL", 0.0f);
-    static const int kNRelRow = static_cast<int>(param("LINE_N_REL_ROW", 8.94201f));
+    static const int kNRelRow = static_cast<int>(param("LINE_N_REL_ROW", 9.0f));
     if (tract_ == Tract::Line && isN && next && isVowel(*next) && (kNRelAll > 0 || !prevWasVowel_)) {
       const bool backNext = *next == Ph::AO || *next == Ph::AA || *next == Ph::OH || *next == Ph::O || *next == Ph::U ||
                             *next == Ph::UH || *next == Ph::AH;
@@ -9210,7 +9210,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // LINE_GD_VOICED_CTX (2026-11-06): 1: a voiced fricative before ("of God": v g) is voiced context too, 2: also a
   // voiced plosive. Only sonorants counted, so the g of "hand of God" devoiced after the v: its closure was 50 ms of
   // dead air between the v and the burst (Kokoro: a voice bar 25-30 dB under the vowel, continuous with the v).
-  static const int kGdVoicedCtx = param("LINE_GD_VOICED_CTX", 0.9974227);
+  static const int kGdVoicedCtx = param("LINE_GD_VOICED_CTX", 1);
   const bool voicedBefore = (prevVoiced_ || (kGdVoicedCtx > 0 && prevVoicedObstruent_ > 0 && prevVoicedObstruent_ <= kGdVoicedCtx)) && !prevWasPause_;
   const bool englishGD = kLineEnGdDevoice > 0 && aspirate_ && (tok.ph == Ph::G || tok.ph == Ph::D) && !prevWasVowel_ &&
                          !voicedBefore;
@@ -12381,7 +12381,7 @@ float Synth::tick() {
                          kFallE = param("SH_FALL_E", 60.0f), kFallSh = param("SH_FALL_SH_X", 0.9974227f);
       // SH_OFF_SPAN (1: off): the frication window this many times as wide (log area) in that window: the opening groove's
       // hiss fades with the area law instead of switching off as the slit passes 0.12-0.22 cm^2 (x SH_OFF_SPAN_SH_X for ʃ)
-      static const float kSpan = param("SH_OFF_SPAN", 0.992268f), kSpanSh = param("SH_OFF_SPAN_SH_X", 1.0f);
+      static const float kSpan = param("SH_OFF_SPAN", 1.0f), kSpanSh = param("SH_OFF_SPAN_SH_X", 1.0f);
       // SH_OFF_ASP_DB / SH_OFF_FRIC_DB (0: off): the glottal aspiration's / the frication's gain lifted by up to this in
       // that window (raised cosine 0 .. SH_OFF_P .. SH_FALL_E ms): a breathy voice onset / a longer hiss tail
       static const float kOffAsp = param("SH_OFF_ASP_DB", 0.0f), kOffFric = param("SH_OFF_FRIC_DB", 0.0f), kOffP = param("SH_OFF_P", 10.0f);

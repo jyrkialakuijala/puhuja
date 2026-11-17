@@ -662,7 +662,7 @@ const float kContinuation = param("EN_CONTINUATION", -3.003866f);    // end befo
 // Pauses in 15 ms stops: about 200 ms after a comma (longer when the speaker
 // breathes there); after a sentence 120 ms plus the breath (>= 180 ms).
 const int kCommaPauseStops = static_cast<int>(param("EN_COMMA_PAUSE_STOPS", 13));     // 195 ms after a phrase of 5 syllables, growing:
-const int kCommaPauseMaxStops = static_cast<int>(param("EN_COMMA_PAUSE_MAX_STOPS", 23.972165));  // at most 360 ms
+const int kCommaPauseMaxStops = static_cast<int>(param("EN_COMMA_PAUSE_MAX_STOPS", 24));  // at most 360 ms
 constexpr int kShortPhraseSyllables = 4; // a phrase this short gets the short pause:
 constexpr int kShortCommaPauseStops = 8; // 120 ms
 constexpr int kClausePauseStops = 18;    // after ; and : at least 270 ms
@@ -3417,7 +3417,7 @@ void EnglishReader::sayPhrase(char end) {
       // 3: ɪ); its share EN_ER_MED_SHARE (< 0: as before), the token x EN_ER_MED_LEN, the ɹ part x EN_ER_MED_R_LEN,
       // levels + EN_ER_MED_DB / _R_DB, the first part's pitch x EN_ER_MED_PITCH and voice quality x EN_ER_MED_PRESS;
       // the line shapes them as Shape::erctx 3 / 4 (LINE_ERM_*).
-      static const int kErMed = static_cast<int>(param("EN_ER_MED", 2.992268f)), kErMedPh = static_cast<int>(param("EN_ER_MED_PH", 2.0f));
+      static const int kErMed = static_cast<int>(param("EN_ER_MED", 3.0f)), kErMedPh = static_cast<int>(param("EN_ER_MED_PH", 2.0f));
       static const float kErMedShare = param("EN_ER_MED_SHARE", -1.0f), kErMedLen = param("EN_ER_MED_LEN", 1.0003866f),
                          kErMedRLen = param("EN_ER_MED_R_LEN", 1.0f), kErMedDb = param("EN_ER_MED_DB", 0.0f),
                          kErMedRDb = param("EN_ER_MED_R_DB", -5.0f), kErMedPitch = param("EN_ER_MED_PITCH", 0.9974227f),
