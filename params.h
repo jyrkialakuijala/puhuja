@@ -47,11 +47,14 @@ inline bool paramVoiceFemale() {
   static const bool female = [] {
     bool f = false;
     if (FILE* cf = std::fopen("/proc/self/cmdline", "rb")) {
-      char buf[4096];
-      const size_t got = std::fread(buf, 1, sizeof buf - 1, cf);
+      // The whole command line: a long text before -female must not hide it (a 4 KB buffer did).
+      std::string buf;
+      char chunk[4096];
+      for (size_t n; (n = std::fread(chunk, 1, sizeof chunk, cf)) > 0;) buf.append(chunk, n);
       std::fclose(cf);
+      const size_t got = buf.size();
       for (size_t i = 0; i < got;) {
-        const char* a = buf + i;
+        const char* a = buf.data() + i;
         size_t len = 0;
         while (i + len < got && a[len]) ++len;
         if (std::string(a, len) == "-female") f = true;
