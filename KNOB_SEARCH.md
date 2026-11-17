@@ -88,6 +88,14 @@ threshold - except that it flips it:
 `knob_search.py` now leaves all of these out of the pool (`int_knobs()`, `threshold_knobs()`: 2345 -> 1954 knobs
 for the Kennedy text). Found by the round AH agents ONSET and VOWDICT.
 
+Two more pool exclusions (2026-11-17 evening): inline guards `param("X", d) != c` count as threshold knobs too
+(DUR_CS_FUNC, NAS_SIN_QX_CS, GAP_*, SH_OFF_*: the first filter only saw `kVar != c`), and **knobs with a per-voice
+default** (`NAME@f` / `NAME@m` in tuned_defaults.h, 18 on deployed182) are left out, because a candidate writes one
+plain `NAME value` line and that overrides both voices (a step on DUR_CS_FUNC would undo the female restore of
+deployed181). The `.knobs` cache marks them `voice`; a cache written before this has no marks, so delete it when the
+base has per-voice defaults. When a result found on an older base moves to a base with per-voice defaults, write
+those knobs as `NAME@m` (or `@f`) lines (ref/opt/ksearch/run5-port.sh does this).
+
 **Kennedy alone is not an objective.** A search on one text optimises that text; knobs that also act on single words
 can lose the dictionary. Hence the guard words in every later search, and the full gate before every deploy.
 
