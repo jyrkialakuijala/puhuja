@@ -223,6 +223,32 @@ def int_knobs():
     return names
 
 
+def threshold_knobs(defaults, span=0.15):
+    """Float knobs the code compares with a constant within +-span of their default (`kThShapeCtx >= 2` with
+    default 2: x0.99 turns the θ tongue key off; `kLineJhPress < 1` with default 1: x0.99 turns a ʤ path on - the
+    ONSET agent, 2026-11-17). A step across such a threshold is a switch, not a slope."""
+    import glob
+    var2knob, cmps = {}, []
+    for f in glob.glob(os.path.join(ROOT, '*.cc')) + glob.glob(os.path.join(ROOT, '*.h')):
+        for line in open(f, errors='ignore'):
+            for m in re.finditer(r'\b(k\w+)\s*=\s*(?:static_cast<\w+>\()?\s*param\(\s*"([A-Z0-9_]+)"', line):
+                var2knob.setdefault(m.group(1), set()).add(m.group(2))
+            for m in re.finditer(r'\b(k\w+)\s*(>=|<=|==|>|<)\s*(-?\d+(?:\.\d+)?)f?\b', line):
+                cmps.append((m.group(1), float(m.group(3))))
+            for m in re.finditer(r'(-?\d+(?:\.\d+)?)f?\s*(>=|<=|==|>|<)\s*(k\w+)\b', line):
+                cmps.append((m.group(3), float(m.group(1))))
+    out = set()
+    for v, c in cmps:
+        for n in var2knob.get(v, ()):
+            d = defaults.get(n)
+            if d is None or c == 0:
+                continue
+            lo, hi = sorted((d * (1 - span), d * (1 + span)))
+            if lo <= c <= hi:
+                out.add(n)
+    return out
+
+
 def is_int_knob(n, names):
     return n in names or n.endswith('_ROW') or n.endswith('_DIMS') or n.endswith('_MASK') or n.endswith('_CTX')
 
@@ -246,7 +272,7 @@ def pool(binp, out, with_int=False):
     d = {}
     for l in open(lp):
         n, x = l.split(); d[n] = float(x)
-    ints = set() if with_int else int_knobs()
+    ints = set() if with_int else int_knobs() | threshold_knobs(d)
     return {n: x for n, x in d.items() if x != 0 and x != -1 and abs(x) < 900 and (with_int or not is_int_knob(n, ints))}
 
 
