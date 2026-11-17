@@ -181,6 +181,28 @@ class Judge:
         return tot
 
 
+# --- guard words (Jyrki 2026-11-17: the dictionary words that got worse in a Kennedy-only search are read in every
+# later one, so they cannot get worse again): rendered one per line as the gate does (whisper_batch.render), heard
+# in one batched pass; their wrong words add to the voice's errors (and are kept apart in the _werr columns).
+def render_words(binp, params, voice, seed, lines, tmp):
+    import whisper_batch as WB
+    d = tempfile.mkdtemp(prefix='w', dir=tmp)
+    pf = os.path.join(d, 'p.params')
+    with open(pf, 'w') as f:
+        for k, v in params.items():
+            f.write('%s %.9g\n' % (k, v))
+    env = dict(os.environ, PUHUJA_PARAMS=pf); env.pop('PUHUJA_PARAM_LOG', None)
+    if seed:
+        env['PUHUJA_SEED'] = str(seed)
+    clips = WB.render(binp, lines, voice, 2, d, env)
+    import shutil
+    shutil.rmtree(d, ignore_errors=True)
+    h = hashlib.md5()
+    for c in clips:
+        h.update(np.asarray(c, np.float32).tobytes())
+    return clips, h.hexdigest()
+
+
 # --- the pool
 def pool(binp, out):
     lp = out + '.knobs'
@@ -208,6 +230,15 @@ class Runner:
         self.a = a
         self.tmp = tempfile.mkdtemp(prefix='ks-', dir=os.path.dirname(a.out) or '.')
         self.judge = Judge()
+        self.wlines = None
+        if getattr(a, 'words', None):
+            import whisper_batch as WB
+            import whisper_phonemes as WP
+            from faster_whisper import BatchedInferencePipeline
+            self.WB = WB
+            self.wlines = [l.strip() for l in open(a.words, encoding='utf-8') if l.strip()]
+            self.wref = [' '.join(WP.norm_word(l)) for l in self.wlines]
+            self.pipe = BatchedInferencePipeline(model=self.judge.m)
         self.base = {}  # (voice, seed) -> (md5, errors, sound)
         self.ex = ThreadPoolExecutor(a.procs)
         self.cur = 'base'
@@ -219,22 +250,42 @@ class Runner:
 
     def evaluate(self, params, seeds, name):
         """-> {voice: (errors, sound deltas summed over seeds)} for one candidate, pipelined renders"""
-        jobs = [(v, s, self.ex.submit(render, self.a.bin, dict(self.bp, **params), v, s, self.tmp)) for v in 'mf' for s in seeds]
-        return self.collect(jobs)
+        return self.collect(self.submit(params, seeds))
+
+    def submit(self, params, seeds):
+        p = dict(self.bp, **params)
+        jobs = []
+        for v in 'mf':
+            for s in seeds:
+                fu = self.ex.submit(render, self.a.bin, p, v, s, self.tmp)
+                fw = self.ex.submit(render_words, self.a.bin, p, v, s, self.wlines, self.tmp) if self.wlines else None
+                jobs.append((v, s, (fu, fw)))
+        return jobs
+
+    def word_errors(self, clips):
+        audio, starts, chunks = self.WB.concatenate(clips)
+        heard = self.WB.transcribe(self.pipe, audio, starts, chunks, 16)
+        return sum(h != w for h, w in zip(heard, self.wref))
 
     def collect(self, jobs):
         res = {}
-        for v, s, fu in jobs:
+        for v, s, (fu, fw) in jobs:
             x, W, md5 = fu.result()
             snd = sound(x)
             b = self.base.get((v, s))
-            if b and b[0] == md5:
-                e = b[1]
+            if b and b[0].split(':')[0] == md5:
+                ek = b[1] - b[3]
             else:
-                e = self.judge.errors(clips(x, W))
-            res[(v, s)] = (md5, e, snd)
+                ek = self.judge.errors(clips(x, W))
+            ew, wmd5 = 0, ''
+            if fw is not None:
+                wc, wmd5 = fw.result()
+                ew = b[3] if b and b[4] == wmd5 else self.word_errors(wc)
+                md5 = md5 + ':' + wmd5[:12]
+            e = ek + ew
+            res[(v, s)] = (md5, e, snd, ew, wmd5)
             with open(self.a.out + '.detail.tsv', 'a') as f:
-                f.write('%s\t%s\t%d\t%d\t%s\t%.2f\t%.3f\t%d\t%.2f\n' % (self.cur, v, s, e, md5[:10], snd['level'], snd['peak'], snd['bangs'], snd['bass']))
+                f.write('%s\t%s\t%d\t%d\t%s\t%.2f\t%.3f\t%d\t%.2f\t%d\n' % (self.cur, v, s, e, md5[:10], snd['level'], snd['peak'], snd['bangs'], snd['bass'], ew))
         return res
 
     def ensure_base(self, seeds):
@@ -251,10 +302,13 @@ def row(name, knob, mult, val, seeds, res, base):
         same = all(res[(v, s)][0] == base[(v, s)][0] for s in seeds)
         d = {k: np.mean([res[(v, s)][2][k] - base[(v, s)][2][k] for s in seeds]) for k in ('level', 'peak', 'bangs', 'bass')}
         out += [str(e), str(e - eb), 'same' if same else 'diff', '%.2f' % d['level'], '%.3f' % d['peak'], '%.1f' % d['bangs'], '%.2f' % d['bass']]
+    for v in 'mf':  # guard words, already inside err / derr above
+        w = sum(res[(v, s)][3] for s in seeds); wb = sum(base[(v, s)][3] for s in seeds)
+        out += [str(w), str(w - wb)]
     return '\t'.join(out)
 
 
-HEAD = 'name\tknob\tmult\tvalue\tseeds\t' + '\t'.join('%s_%s' % (v, k) for v in 'mf' for k in ('err', 'derr', 'same', 'dlevel', 'dpeak', 'dbangs', 'dbass'))
+HEAD = 'name\tknob\tmult\tvalue\tseeds\t' + '\t'.join('%s_%s' % (v, k) for v in 'mf' for k in ('err', 'derr', 'same', 'dlevel', 'dpeak', 'dbangs', 'dbass')) + '\tm_werr\tm_dwerr\tf_werr\tf_dwerr'
 
 
 def done_names(path):
@@ -276,6 +330,7 @@ def main():
     ap.add_argument('--shuffle', type=int, default=1)
     ap.add_argument('--base-params', default=None, help='start point: every candidate (and the base) renders with these values, a candidate multiplies its knob\'s value here')
     ap.add_argument('--skip-dead', default=None, help='a screen tsv: leave out knobs that were byte-identical to its base both ways')
+    ap.add_argument('--words', default=None, help='guard word list (one per line), read in both voices and every seed; its wrong words add to the errors')
     ap.add_argument('--shard', default='0/1', help='k/n: this process takes every n-th candidate (two share the GPU)')
     a = ap.parse_args()
     os.makedirs(os.path.dirname(a.out), exist_ok=True)
@@ -348,7 +403,7 @@ def main():
         while i < len(todo) and len(q) < ahead:
             n, m = todo[i]; i += 1
             p = {n: P[n] * m}
-            q.append((n, m, p, [(v, s, R.ex.submit(render, a.bin, dict(R.bp, **p), v, s, R.tmp)) for v in 'mf' for s in seeds]))
+            q.append((n, m, p, R.submit(p, seeds)))
         n, m, p, jobs = q.pop(0)
         R.cur = '%s*%.3f' % (n, m)
         res = R.collect(jobs)
