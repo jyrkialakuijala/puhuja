@@ -226,14 +226,16 @@ def int_knobs():
 def threshold_knobs(defaults, span=0.15):
     """Float knobs the code compares with a constant within +-span of their default (`kThShapeCtx >= 2` with
     default 2: x0.99 turns the θ tongue key off; `kLineJhPress < 1` with default 1: x0.99 turns a ʤ path on - the
-    ONSET agent, 2026-11-17). A step across such a threshold is a switch, not a slope."""
+    ONSET agent, 2026-11-17). A step across such a threshold is a switch, not a slope. `k != 1.0f` guards count too
+    (LINE_IHO_LATE_AC 1 -> 0.997 switched on the stressed ɪ's whole late-key block: did / bits / give opened toward e;
+    VOWDICT agent)."""
     import glob
     var2knob, cmps = {}, []
     for f in glob.glob(os.path.join(ROOT, '*.cc')) + glob.glob(os.path.join(ROOT, '*.h')):
         for line in open(f, errors='ignore'):
             for m in re.finditer(r'\b(k\w+)\s*=\s*(?:static_cast<\w+>\()?\s*param\(\s*"([A-Z0-9_]+)"', line):
                 var2knob.setdefault(m.group(1), set()).add(m.group(2))
-            for m in re.finditer(r'\b(k\w+)\s*(>=|<=|==|>|<)\s*(-?\d+(?:\.\d+)?)f?\b', line):
+            for m in re.finditer(r'\b(k\w+)\s*(>=|<=|==|!=|>|<)\s*(-?\d+(?:\.\d+)?)f?\b', line):
                 cmps.append((m.group(1), float(m.group(3))))
             for m in re.finditer(r'(-?\d+(?:\.\d+)?)f?\s*(>=|<=|==|>|<)\s*(k\w+)\b', line):
                 cmps.append((m.group(3), float(m.group(1))))
