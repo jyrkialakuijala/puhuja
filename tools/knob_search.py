@@ -203,8 +203,32 @@ def render_words(binp, params, voice, seed, lines, tmp):
     return clips, h.hexdigest()
 
 
+# --- integer knobs: a +-10 % step (or a line-search step of 1 %) on a knob the code truncates to an integer flips a
+# switch or a table row instead of moving a value (variant B, 2026-11-17: EN_ER_MED 3 -> 2, LINE_IHO_CTX 1 -> 0,
+# LINE_NF_MUR_ROW 16 -> 15 ... silently, 13 in all; found by the ONSET agent). They are left out of the pool.
+def int_knobs():
+    import glob
+    names = set()
+    for f in glob.glob(os.path.join(ROOT, '*.cc')) + glob.glob(os.path.join(ROOT, '*.h')):
+        for line in open(f, errors='ignore'):
+            for m in re.finditer(r'static_cast<\w+>\(\s*param\(\s*"([A-Z0-9_]+)"', line):
+                names.add(m.group(1))
+            for m in re.finditer(r'\b(?:const\s+)?(?:int|size_t|unsigned|bool|long)\s+\w+\s*=\s*(?:static_cast<\w+>\()?\s*param\("([A-Z0-9_]+)"', line):
+                names.add(m.group(1))
+            for m in re.finditer(r'(?:lround|lrint|std::round|std::floor|std::ceil|\(int\))\s*\(\s*param\("([A-Z0-9_]+)"', line):
+                names.add(m.group(1))
+            if re.search(r'\bconst\s+int\s+\w+\s*=', line):
+                for m in re.finditer(r'param\("([A-Z0-9_]+)"', line):
+                    names.add(m.group(1))
+    return names
+
+
+def is_int_knob(n, names):
+    return n in names or n.endswith('_ROW') or n.endswith('_DIMS') or n.endswith('_MASK') or n.endswith('_CTX')
+
+
 # --- the pool
-def pool(binp, out):
+def pool(binp, out, with_int=False):
     lp = out + '.knobs'
     if not os.path.exists(lp):
         for v in 'mf':
@@ -222,7 +246,8 @@ def pool(binp, out):
     d = {}
     for l in open(lp):
         n, x = l.split(); d[n] = float(x)
-    return {n: x for n, x in d.items() if x != 0 and x != -1 and abs(x) < 900}
+    ints = set() if with_int else int_knobs()
+    return {n: x for n, x in d.items() if x != 0 and x != -1 and abs(x) < 900 and (with_int or not is_int_knob(n, ints))}
 
 
 class Runner:
