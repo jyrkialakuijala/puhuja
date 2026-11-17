@@ -611,7 +611,7 @@ constexpr float kPhraseVariation = 0.5f;     // +- deterministic variation of ac
 // Accent sizes by meaning (see sayPhrase).
 const char* const kEmphatic[] = {"every", "only", "never", "all", "not", "no", "nothing", "none",
                                  "always", "first", "most", "very", "must", "don't", "can't", "cannot"};
-constexpr float kEmphasisBoost = 2.0f;   // st
+const float kEmphasisBoost = param("EN_EMPHASIS_BOOST", 2.0f);   // st (knob 2026-11-17: "not" too high, Jyrki)
 // Loaded, frightening words ("a far more iron tyranny"): EN_EMOTIVE 1 accents them like the emphatic words;
 // EN_EMOTIVE_DB / EN_EMOTIVE_LEN / EN_EMOTIVE_PITCH (st) make them louder, slower, darker (Jyrki 2026-11-10: the
 // raised pitch alone sounded "like question for a recipe for a cake").
@@ -630,7 +630,7 @@ const float kRepeatRise = param("EN_REPEAT_RISE", 2.0051546f), kRepeatSecondAbov
 const int kRepeatPauseStops = static_cast<int>(param("EN_REPEAT_PAUSE_STOPS", 3));  // Jyrki 2026-11-10: "to help them help themselves" confusing
 const float kRepeatSecondLen = param("EN_REPEAT_LEN", 1.0006443f);  // the repeated word's length x this
 constexpr float kQuoteLift = 1.0f;       // st: quoted speech
-constexpr float kEmphaticFloor = 0.8f;   // share of the first accent's height emphasis words reach
+const float kEmphaticFloor = param("EN_EMPHATIC_FLOOR", 0.8f);   // share of the first accent's height emphasis words reach
 constexpr float kLetScale = 0.8f;        // phrase-initial imperative "let"
 constexpr float kGivenScale = 0.7f;      // a word said within the last kRecentWords content words
 constexpr float kPrenuclearScale = 0.8f; // first of two adjacent accented words
@@ -2876,6 +2876,18 @@ void EnglishReader::sayPhrase(char end) {
         scale *= kGivenScale;
       if (w + 1 < phrase_.size() && phrase_[w + 1].accent && static_cast<int>(k) != lastAccent)
         scale *= kPrenuclearScale;
+      // (2026-11-17, knob; 1: as before) EN_EMPH_PREV_SCALE: the accent of the word right before an emphatic word x
+      // this, so the emphasis rises from a lower neighbour instead of the neighbour already being high (Jyrki: "if you
+      // need a 2-semitone boost, then don't bring the surrounding sound already high in pitch"; "come not from").
+      {
+        static const float kEmphPrev = param("EN_EMPH_PREV_SCALE", 1.0f);
+        if (kEmphPrev != 1.0f && w + 1 < phrase_.size()) {
+          const std::string& nt = phrase_[w + 1].text;
+          bool ne = phrase_[w + 1].contrast;
+          for (const char* e : kEmphatic) ne = ne || nt == e;
+          if (ne) scale *= kEmphPrev;
+        }
+      }
       // "Let them come to Berlin": the imperative "let" yields to the words
       // that carry the meaning.
       if (w == 0 && text == "let") scale *= kLetScale;
