@@ -82,12 +82,14 @@ def main():
     ap.add_argument('--validate', default='51,52,53,54,55,56,57,58,61,62,63,64,65,66,67,68')
     ap.add_argument('--keep', default='0.25,0.5')
     ap.add_argument('--procs', type=int, default=28)
+    ap.add_argument('--words', default=None, help='guard word list, as knob_search.py --words (counted in the score)')
+    ap.add_argument('--steps-from', default=None, help='screen tsv to take the gradient from (default <out>.screen.tsv)')
     a = ap.parse_args()
     a.bin = a.bin or a.out + '.bin'
     seeds = [int(s) for s in a.seeds.split(',')]
     keep = [float(x) for x in a.keep.split(',')]
     P = ks.pool(a.bin, a.out)
-    g = {k: v for k, v in gradient(a.out).items() if k in P}
+    g = {k: v for k, v in gradient(a.steps_from[:-len('.screen.tsv')] if a.steps_from else a.out).items() if k in P}
     R = ks.Runner(a)
     tsv = a.out + '.line.tsv'
     seen = {}

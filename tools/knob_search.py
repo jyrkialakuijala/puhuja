@@ -384,6 +384,7 @@ def main():
     ap.add_argument('--base-params', default=None, help='start point: every candidate (and the base) renders with these values, a candidate multiplies its knob\'s value here')
     ap.add_argument('--skip-dead', default=None, help='a screen tsv: leave out knobs that were byte-identical to its base both ways')
     ap.add_argument('--words', default=None, help='guard word list (one per line), read in both voices and every seed; its wrong words add to the errors')
+    ap.add_argument('--only', default=None, help='screen only these candidates: a file of "KNOB MULT" lines')
     ap.add_argument('--shard', default='0/1', help='k/n: this process takes every n-th candidate (two share the GPU)')
     a = ap.parse_args()
     os.makedirs(os.path.dirname(a.out), exist_ok=True)
@@ -426,6 +427,12 @@ def main():
     if a.mode == 'screen':
         steps = [float(s) for s in (a.steps or '0.9,1.1').split(',')]
         cands = [(n, m) for n in sorted(P) for m in steps]
+        if a.only:
+            want = set()
+            for l in open(a.only):
+                if l.strip():
+                    k, m = l.split()[:2]; want.add((k, round(float(m), 3)))
+            cands = [(n, m) for n, m in cands if (n, round(m, 3)) in want]
         random.Random(a.shuffle).shuffle(cands)
     else:  # confirm: the best screened knob-directions, every step on both sides of 1 in that direction
         steps = [float(s) for s in (a.steps or '0.9,0.95,1.05,1.1').split(',')]
