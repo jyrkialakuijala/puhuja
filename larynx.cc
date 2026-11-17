@@ -25,7 +25,7 @@ constexpr float kFoldRestPressed = -0.15f; // ag 0: pressed shut (vibration stop
 // "hands" where readers are 3-13 dB under or voiceless (INPUT.md
 // 2026-10-31). Real folds stop phonating well before 0.3 cm^2. From
 // kAgBreathy (a voiced h) the rest grows smoothly to this.
-const float kFoldRestOpen = param("kFoldRestOpen", 5.0f);  // (1.5 with STRING_REST 0.047 left the folds vibrating in f, a pitch swoop 126 -> 82 Hz through the f of "different", Jyrki: "a swirp", 2026-11-02)
+const float kFoldRestOpen = param("kFoldRestOpen", 4.9935567f);  // (1.5 with STRING_REST 0.047 left the folds vibrating in f, a pitch swoop 126 -> 82 Hz through the f of "different", Jyrki: "a swirp", 2026-11-02)
 // f0 of the fold model at tension 1: the tension mapping q = target / this.
 // 155 is the two-mass model's; the string folds (the default source,
 // STRING_F0 105.7) sound at about 128 Hz at q = 1 under the tract's load and
@@ -38,7 +38,7 @@ const float kFoldRestOpen = param("kFoldRestOpen", 5.0f);  // (1.5 with STRING_R
 // sit at 1.00 / 0.98 of the command (sd 0.27 st, slope 0.98) and the
 // controller stays at 1. To keep today's average pitch with that, lower
 // kMaleF0 / kFemaleF0 by 0.83 / 0.81 (ref/opt/lab/BUG-PITCH/keep.params).
-const float kFoldNaturalF0 = param("PITCH_NATURAL_F0", 126.0f);
+const float kFoldNaturalF0 = param("PITCH_NATURAL_F0", 118.36291f);
 const float kPitchControl = param("PITCH_CONTROL", 0.3f);     // per cycle: share of pitch error corrected
 const float kPitchLearnVib = param("kPitchLearnVib", 100.0f);     // flow fluctuation (cm^3/s) needed to learn (100 before 2026-11-02)
 const float kPitchCorrMin = param("kPitchCorrMin", 0.5f), kPitchCorrMax = param("kPitchCorrMax", 2.0f);  // (0.7-1.4 pinned the string folds half an octave low, 2026-11-02)  // the tension correction's range
@@ -245,7 +245,7 @@ void FoldLarynx::step(const LarynxControl& c, LarynxOutput& out) {
   // Round AA (VQ2 agent29): the voicing rest gap x LARYNX_REST_X (male) / LARYNX_REST_X_F (female; < 0: the male's),
   // fading to x1 as the glottis opens past breathy (a per-voice STRING_REST: the open quotient, H1-H2). 1: as before.
   {
-    static const float restX = param("LARYNX_REST_X", 1.0f), restXF = param("LARYNX_REST_X_F", -1.0f);
+    static const float restX = param("LARYNX_REST_X", 1.015464f), restXF = param("LARYNX_REST_X_F", -1.0f);
     const float x = c.female && restXF >= 0 ? restXF : restX;
     if (x != 1.0f) {
       const float k = 1.0f + (x - 1.0f) * (1.0f - smoothstep(kAgBreathy, kAgOpen, ag));

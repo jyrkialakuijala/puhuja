@@ -20,6 +20,8 @@
 #include <set>
 #include <string>
 
+#include "tuned_defaults.h"
+
 inline std::string liveParamFile() {
   if (FILE* fp = std::fopen("puhuja.params", "r")) {
     std::fclose(fp);
@@ -79,7 +81,10 @@ inline float param(const char* name, float def) {
   const auto it = pf.find(name);
   if (it != pf.end()) return it->second;
   const char* v = std::getenv(name);
-  return v ? std::strtof(v, nullptr) : def;
+  if (v) return std::strtof(v, nullptr);
+  const auto& td = tunedDefaults();
+  const auto t = td.find(name);
+  return t != td.end() ? t->second : def;
 }
 
 #endif  // PUHUJA_PARAMS_H_

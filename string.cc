@@ -30,7 +30,7 @@ constexpr float kSeg = kLength / kMoving, kLayer = kThickness / L;
 // for a string: the light layer would race ahead), tapered along the cord.
 constexpr float kMass = 0.15f;
 const float kTopMass = param("STRING_TOPMASS", 0.464394f) /* cost 1814 whisper-run1-phon_err */ /* 2026-11-04 LF fit (tools/lf_fit.py, ref/lf/fit2) 0.358205, then 15 % back toward the earlier 0.7614 (Jyrki: the more trained voice) */;  // the superior layer's share
-const float kTaper = param("STRING_TAPER", 0.502621f) /* cost 1814 whisper-run1-phon_err */ /* 2026-11-04 LF fit (tools/lf_fit.py, ref/lf/fit2) 0.185574, then 15 % back toward the earlier 0.1888 (Jyrki: the more trained voice) */;        // half-sine taper, 1 - kTaper at the anchors
+const float kTaper = param("STRING_TAPER", 0.5045641f) /* cost 1814 whisper-run1-phon_err */ /* 2026-11-04 LF fit (tools/lf_fit.py, ref/lf/fit2) 0.185574, then 15 % back toward the earlier 0.1888 (Jyrki: the more trained voice) */;        // half-sine taper, 1 - kTaper at the anchors
 // Natural frequency (Hz) of the fold's lowest mode at tension 1: the wall
 // spring and the string's first mode together. The driver's pitch controller
 // takes up the rest, as for the other fold models.
@@ -50,7 +50,7 @@ const float kTopStiff = param("STRING_TOPSTIFF", 1.123f) /* cost Whisper 852 com
 const float kShearRel = param("STRING_SHEAR", 6.899f) /* cost Whisper 852 composite 23.90/26.04 92b-cheap9 */ /* 2026-11-04 LF fit (tools/lf_fit.py, ref/lf/fit2) 3.4412, then 15 % back toward the earlier 2.275 (Jyrki: the more trained voice) */;
 // Damping ratios while open per layer; extra while touching the wall.
 constexpr float kZeta[L] = {0.1f, 0.4f};
-const float kZetaClosed = param("STRING_ZCLOSED", 0.0823445f) /* cost 5.3123456789012345 schwa-run2-kokoro-dB */ /* 2026-11-04 LF fit (tools/lf_fit.py, ref/lf/fit2) 0.207612, then 15 % back toward the earlier 0.1868 (Jyrki: the more trained voice) */;
+const float kZetaClosed = param("STRING_ZCLOSED", 0.08202616f) /* cost 5.3123456789012345 schwa-run2-kokoro-dB */ /* 2026-11-04 LF fit (tools/lf_fit.py, ref/lf/fit2) 0.207612, then 15 % back toward the earlier 0.1868 (Jyrki: the more trained voice) */;
 const float kCollision = param("STRING_COLLISION", 3.0f);  // collision stiffness / the lane's total stiffness (a knob since 2026-11-07: the closing phase)
 // The share of the air pressure on the surface that drives it.
 // The oral pressure's slow part on the folds' superior surface (2026-11-11,
@@ -72,17 +72,17 @@ const float kCollision = param("STRING_COLLISION", 3.0f);  // collision stiffnes
 const float kP1Sup = param("STRING_P1SUP", 0.0f), kP1SupHz = param("STRING_P1SUP_HZ", 10.0f);
 const float kKappa = param("STRING_KAPPA", 0.4327f) /* cost Whisper 852 composite 23.90/26.04 92b-cheap9 */ /* 2026-11-04 LF fit (tools/lf_fit.py, ref/lf/fit2) 2.24987, then 15 % back toward the earlier 3 (Jyrki: the more trained voice) */;
 // The cords' own sound: surface area times lateral velocity, both folds.
-const float kSurface = param("STRING_SURFACE", 0.0868495f) /* cost 5.3123456789012345 schwa-run2-kokoro-dB */;
+const float kSurface = param("STRING_SURFACE", 0.08718526f) /* cost 5.3123456789012345 schwa-run2-kokoro-dB */;
 // The abduction rest area scaled for this model's own amplitude.
-const float kRestScale = param("STRING_REST", 0.02173f) /* cost Whisper 852 composite 23.90/26.04 92b-cheap9 */ /* 2026-11-04 LF fit (tools/lf_fit.py, ref/lf/fit2) 0.0539805, then 15 % back toward the earlier 0.04671 (Jyrki: the more trained voice) */;
+const float kRestScale = param("STRING_REST", 0.021814008f) /* cost Whisper 852 composite 23.90/26.04 92b-cheap9 */ /* 2026-11-04 LF fit (tools/lf_fit.py, ref/lf/fit2) 0.0539805, then 15 % back toward the earlier 0.04671 (Jyrki: the more trained voice) */;
 // Rest width along the cord relative to the mean: front (anterior) against back.
-const float kRestFront = param("STRING_RESTFRONT", 1.544f) /* cost 1814 whisper-run1-phon_err */ /* 2026-11-04 LF fit (tools/lf_fit.py, ref/lf/fit2) 1.58689, then 15 % back toward the earlier 1.51 (Jyrki: the more trained voice) */, kRestBack = 2.0f - kRestFront;
+const float kRestFront = param("STRING_RESTFRONT", 1.5280825f) /* cost 1814 whisper-run1-phon_err */ /* 2026-11-04 LF fit (tools/lf_fit.py, ref/lf/fit2) 1.58689, then 15 % back toward the earlier 1.51 (Jyrki: the more trained voice) */, kRestBack = 2.0f - kRestFront;
 constexpr float kRho = 0.00113f;      // air density (g/cm^3)
 // 2026-11-07: 0.005 -> 0.035 (x7, Jyrki's number) with kRound 0.0005 -> 0.000125: the flow lags the area, the pulse
 // skews and its cut-off sharpens; the voiced spectrum's 9 dB deficit against Kokoro at 1-3 kHz closes to 0 and the
 // brightness is harmonic (HNR up in every band), where the fold-knob fits had made noise (ref/opt/zopt3/
 // ZIMTOHRLI_PROGRESS.md sections 11-13). Jyrki: "p12-i7r.25.wav was the best of these". 4-5 dB louder.
-const float kInertance = param("STRING_INERTANCE", 0.009f) /* cost Whisper 874 composite 24.40/27.30 94e-inert040 */;  // as folds.cc (a knob since 2026-11-06: it smooths the flow's cut-off, the return phase)
+const float kInertance = param("STRING_INERTANCE", 0.0090347934f) /* cost Whisper 874 composite 24.40/27.30 94e-inert040 */;  // as folds.cc (a knob since 2026-11-06: it smooths the flow's cut-off, the return phase)
 // Discharge coefficient of the glottal orifice (vena contracta): the flow
 // through a slit of area a is that of an ideal orifice of kDischarge x a.
 // Without it the folds passed ~2x a real glottis's flow and the pressure
@@ -107,10 +107,10 @@ constexpr int kMembranousEnd = kLast;
 // constants (ms; 0 = off), the forces mix (1 - s) of their own and s of the
 // neighbours' mean; a touching lane's velocity relaxes toward its layer's
 // mean velocity with kClosedSmoothMs.
-const float kSmoothMs = param("STRING_SMOOTHMS", 43.4f) /* cost 1814 whisper-run1-phon_err */, kVSmoothMs = param("STRING_VSMOOTHMS", 43.49f) /* cost 1814 whisper-run1-phon_err */;
-const float kForceSmooth = param("STRING_FSMOOTH", 0.0009277f) /* cost 1814 whisper-run1-phon_err */, kClosedSmoothMs = param("STRING_CSMOOTHMS", 1.528f) /* cost 1814 whisper-run1-phon_err */;
+const float kSmoothMs = param("STRING_SMOOTHMS", 43.4f) /* cost 1814 whisper-run1-phon_err */, kVSmoothMs = param("STRING_VSMOOTHMS", 43.433958f) /* cost 1814 whisper-run1-phon_err */;
+const float kForceSmooth = param("STRING_FSMOOTH", 0.00092411355f) /* cost 1814 whisper-run1-phon_err */, kClosedSmoothMs = param("STRING_CSMOOTHMS", 1.53981443f) /* cost 1814 whisper-run1-phon_err */;
 // The other layer's weight in the neighbour mean (the two along the cord weigh 1 each).
-const float kMixLayer = param("STRING_MIXLAYER", 0.007245f) /* cost 1814 whisper-run1-phon_err */;
+const float kMixLayer = param("STRING_MIXLAYER", 0.007273009f) /* cost 1814 whisper-run1-phon_err */;
 
 // The share of the way a value moves toward its target in one step of h
 // seconds with a time constant in milliseconds (the 0.001 is ms -> s).
