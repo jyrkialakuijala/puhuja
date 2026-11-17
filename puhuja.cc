@@ -247,6 +247,60 @@ static const struct {
     {15, param("LINE_V15_XC", 0.19639252f), param("LINE_V15_AC", 0.29998377f), param("LINE_V15_WC", 1.039115f), param("LINE_V15_ALIP", 0.8479923f), param("LINE_V15_APH", 13.4877544f), param("LINE_V15_AOR", 9.62903f), param("LINE_V15_LLIP", 0.6944f), param("LINE_V15_ALAR", 2.9446401f), param("LINE_V15_LEN", 17.636054f), 327.0f, 838.0f, 1515.0f},  // ɒ: the onset r (Kokoro "read", "right": F2 815-930, F3 1440-1530), not a vowel of English here
     {16, param("LINE_V16_XC", 0.7417f), param("LINE_V16_AC", 0.6857f), param("LINE_V16_WC", 2.048f), param("LINE_V16_ALIP", 1.46f), param("LINE_V16_APH", 5.422884f), param("LINE_V16_AOR", 6.945939f), param("LINE_V16_LLIP", 1.0030674f), param("LINE_V16_ALAR", 3.0f), param("LINE_V16_LEN", 17.53f), 318.0f, 1403.0f, 1725.0f},  // ɜ
 };
+// (VOWDICT agent36 round AH, lab; VOWW_MIX 0: off) single words keep deployed176's vowel shapes: the knob search's
+// variant B (deployed177) refit the LINE_V<n>_* rows on the Kennedy reading and the dictionary lost words ("did" ->
+// dead, "give" -> gave). In a word that is a phrase of its own (VOWW_CTX 1; 2: outside connected speech, csFor(4)
+// false; 3: every word) the rows in VOWW_MASK (bit n: row n) move VOWW_MIX of the way back to these values (log
+// space for the areas); VOWW_F x the mix in the female voice.
+static const struct { int ph; float v[9]; } kLineVowelsOld[] = {
+    {0, {0.534699976f, 1.995f, 4.296f, 8.93999958f, 0.753300011f, 6.26399994f, 1.58200002f, 0.300000012f, 17.3799992f}},
+    {1, {0.1426f, 3.41000009f, 1.77499998f, 3.6170001f, 4.76599979f, 3.45499992f, 3.72099996f, 0.914399981f, 17.4787006f}},
+    {2, {0.528699994f, 2.00300002f, 2.45000005f, 3.57500005f, 10.8599997f, 0.674799979f, 1.75899994f, 0.613900006f, 17.4400005f}},
+    {3, {0.488000005f, 2.76200008f, 3.87299991f, 2.74300003f, 1.02199996f, 7.84299994f, 0.599300027f, 2.78399992f, 17.5499992f}},
+    {4, {0.323399991f, 1.63100004f, 1.648f, 1.54999995f, 11.9300003f, 2.52699995f, 1.65400004f, 0.704200029f, 17.5300007f}},
+    {6, {0.579599977f, 2.36199999f, 6.0f, 4.87400007f, 1.33000004f, 4.75199986f, 1.35699999f, 0.300000012f, 17.4799995f}},
+    {8, {0.296900004f, 2.1559999f, 0.801699996f, 2.0f, 9.09399986f, 2.24600005f, 1.29799998f, 2.64100003f, 17.5499992f}},
+    {9, {0.374199986f, 5.94500017f, 3.34699988f, 8.14400005f, 3.95499992f, 0.792400002f, 2.75600004f, 0.573800027f, 17.4599991f}},
+    {10, {0.1734f, 1.40199995f, 1.95899999f, 10.2700005f, 3.99000001f, 2.227f, 2.54099989f, 0.30340001f, 17.3899994f}},
+    {11, {0.577099979f, 1.48199999f, 1.25800002f, 2.19899988f, 3.9059999f, 5.91599989f, 1.49100006f, 0.735000014f, 17.5f}},
+    {12, {0.3935f, 1.12100005f, 4.34899998f, 2.61599994f, 3.43600011f, 8.74100018f, 2.15700006f, 2.41199994f, 17.5100002f}},
+    {13, {0.914099991f, 2.89299989f, 2.79999995f, 2.98000002f, 2.28500009f, 4.13800001f, 0.968100011f, 1.07700002f, 17.5f}},
+    {14, {0.644800007f, 3.2650001f, 1.16400003f, 3.57800007f, 0.5f, 8.58399963f, 0.468499988f, 0.621500015f, 17.5100002f}},
+    {15, {0.196899995f, 0.303900003f, 1.04180002f, 0.854600012f, 13.5401001f, 9.66639996f, 0.694400012f, 2.93330002f, 17.6406002f}},
+    {16, {0.741699994f, 0.685699999f, 2.0480001f, 1.46000004f, 5.40199995f, 6.9369998f, 0.994099975f, 3.0f, 17.5300007f}},
+};
+using LineVowelRow = std::remove_const_t<std::remove_reference_t<decltype(kLineVowels[0])>>;
+constexpr int kLineVowelN = sizeof(kLineVowels) / sizeof(kLineVowels[0]);
+// mix: the share of the way back to the old rows (masked rows only)
+static void lineVowelsWord(float mix, LineVowelRow* out) {
+  static const int kMask = static_cast<int>(param("VOWW_MASK", 131071.0f));
+  for (int i = 0; i < kLineVowelN; ++i) {
+    LineVowelRow r = kLineVowels[i];
+    if ((kMask >> r.ph & 1) && mix != 0) {
+      for (const auto& o : kLineVowelsOld) {
+        if (o.ph != r.ph) continue;
+        auto lin = [&](float& x, float y) { x += mix * (y - x); };
+        auto lg = [&](float& x, float y) { x = std::exp(std::log(x) + mix * (std::log(y) - std::log(x))); };
+        lin(r.xc, o.v[0]); lg(r.ac, o.v[1]); lin(r.wc, o.v[2]); lg(r.aLip, o.v[3]); lg(r.aPharynx, o.v[4]);
+        lg(r.aOral, o.v[5]); lin(r.lLip, o.v[6]); lg(r.aLarynx, o.v[7]); lin(r.length, o.v[8]);
+      }
+    }
+    out[i] = r;
+  }
+}
+// The rows in use: kLineVowels, or in a single word (vowWordSel 1: male, 2: female; Synth::emit sets it per token)
+// the blended rows.
+int vowWordSel = 0;
+// (VOWDICT agent36) the current token belongs to a phrase of one word (Synth::emit sets it per token; the _W knobs)
+bool gWord1 = false;
+static const LineVowelRow* lineVowelRows() {
+  if (vowWordSel == 0) return kLineVowels;
+  static const float kMix = param("VOWW_MIX", 0.0f), kF = param("VOWW_F", 1.0f);
+  static LineVowelRow m[kLineVowelN], f[kLineVowelN];
+  static const bool init = (lineVowelsWord(kMix, m), lineVowelsWord(kMix * kF, f), true);
+  (void)init;
+  return vowWordSel == 2 ? f : m;
+}
 // The line's output level, and its turbulence gains (noise pressure per unit
 // of Reynolds number past critical, at the constriction and at the glottis).
 const float kLineGain = param("LINE_GAIN", 9.2e-6f) /* 2026-11-05: M90 = 90 % G1 + 10 % old defaults (geometric) */ /* 2026-11-05: x3.4 after the schwa fit to Kokoro (the vowels 10.6 dB weaker; G1, with LINE_FRIC 22 -> 11.5) */ /* 2026-11-04: x2.55 for the LF-fitted folds (7 dB weaker) with the noise at -7 dB: Kennedy rms -23.6 dB as before the fit */;  // vowels ~-20 dB rms, kennedy.txt peaks under 1.0
@@ -1184,8 +1238,9 @@ TractShape lineShapeFor(float f1, float f2, float f3) {
   const int n = sizeof(kLineVowels) / sizeof(kLineVowels[0]);
   const float l1 = std::log(std::max(f1, 100.0f)), l2 = std::log(std::max(f2, 300.0f)), l3 = std::log(std::max(f3, 1000.0f));
   float w[32], sum = 0, best = 1e9f;
+  const LineVowelRow* rows = lineVowelRows();
   for (int i = 0; i < n; ++i) {
-    const auto& v = kLineVowels[i];
+    const auto& v = rows[i];
     const float d1 = l1 - std::log(v.f1), d2 = l2 - std::log(v.f2), d3 = 0.5f * (l3 - std::log(v.f3));
     const float d2s = d1 * d1 + d2 * d2 + d3 * d3;
     w[i] = d2s;
@@ -1196,7 +1251,7 @@ TractShape lineShapeFor(float f1, float f2, float f3) {
   TractShape s;
   float xc = 0, lac = 0, wc = 0, sc = 0, lLip = 0, lPh = 0, lOr = 0, ll = 0, lLar = 0, len = 0;
   for (int i = 0; i < n; ++i) {
-    const auto& v = kLineVowels[i];
+    const auto& v = rows[i];
     const float g = w[i] / sum, gs = g * lineVowelStrength(v.xc, v.wc, v.length);
     // The bump's place, area and width by the weight of the bumps that exist.
     sc += gs; xc += gs * v.xc; lac += gs * std::log(v.ac); wc += gs * v.wc;
@@ -1382,7 +1437,9 @@ bool lineShapeOf(Ph ph, TractShape* out) {
     cavityColour(ph, out);
     return true;
   }
-  for (const auto& v : kLineVowels) {
+  const LineVowelRow* rows = lineVowelRows();
+  for (int vi = 0; vi < kLineVowelN; ++vi) {
+    const auto& v = rows[vi];
     if (v.ph != static_cast<int>(look)) continue;
     out->xc = v.xc; out->ac = v.ac; out->wc = v.wc; out->aLip = v.aLip; out->aPharynx = v.aPharynx;
     out->aOral = v.aOral; out->lLip = v.lLip; out->aLarynx = v.aLarynx; out->length = v.length;
@@ -3252,7 +3309,10 @@ bool ihsCtx(unsigned char ctx) {
 // ("hit" -> hate, "give" -> gave, "biz" -> base) or ɛ ("did" -> dead, "disc" -> desk). LINE_IHO_CTX 1: on for the lab
 // knobs below (LINE_IHO_*), 2: only before a voiced obstruent (Shape::ihctx 128).
 bool ihoCtx(int ctx) {
-  static const int kIhoCtx = param("LINE_IHO_CTX", 1);
+  static const int kIhoCtx0 = param("LINE_IHO_CTX", 1);
+  // (VOWDICT agent36, lab; < 0: LINE_IHO_CTX) LINE_IHO_CTX_W: the value in a phrase of one word
+  static const int kIhoCtxW = static_cast<int>(std::floor(param("LINE_IHO_CTX_W", -1.0f) + 0.5f));
+  const int kIhoCtx = gWord1 && kIhoCtxW >= 0 ? kIhoCtxW : kIhoCtx0;
   return ctx >= 0 && (ctx & 1) && !(ctx & 30) && kIhoCtx > 0 && (kIhoCtx != 2 || (ctx & 128));
 }
 // Against five Kokoro voices per sex (words1k, these contexts, F1/F2 Hz at 50 / 80 % of the vowel) puhuja's ɪ closes
@@ -3346,7 +3406,10 @@ void ihShape(TractShape* sh, unsigned char ctx, bool female = false) {
 // ("hit" F2 at 80 % 1944 -> 1851 Hz); with LINE_IHO_START_I 0.8 below 122 (seed 11: 195 -> 126, words1000 +8).
 void ihoPreShape(int prevIhCtx, bool female, int* row, float* mix, TractShape* v) {
   static const float kIhoPreShaped = param("LINE_IHO_PRE_SHAPED", 1.0f), kIhoPreMix = param("LINE_IHO_PRE_MIX", -1.0f);
-  static const int kIhoPreRow = static_cast<int>(param("LINE_IHO_PRE_ROW", 8.0f));
+  static const int kIhoPreRow0 = static_cast<int>(param("LINE_IHO_PRE_ROW", 8.0f));
+  // (VOWDICT agent36, lab; < -1.5: LINE_IHO_PRE_ROW) LINE_IHO_PRE_ROW_W: the value in a phrase of one word
+  static const float kIhoPreRowW = param("LINE_IHO_PRE_ROW_W", -2.0f);
+  const int kIhoPreRow = gWord1 && kIhoPreRowW > -1.5f ? static_cast<int>(std::floor(kIhoPreRowW + 0.5f)) : kIhoPreRow0;
   if (!ihoCtx(prevIhCtx)) return;
   if (kIhoPreMix >= 0) *mix = kIhoPreMix;
   if (kIhoPreRow >= 0) *row = kIhoPreRow;
@@ -3519,6 +3582,16 @@ void Synth::emit(const Token& tok, const Ph* next) {
     static const float kVqCs = param("LINE_VQ_CS", 1.0f);
     vqCsScale = kVqCs > 0 && !csFor(4) ? 0.0f : !csLater && kVqCs > 0 ? kCswFirstVqX : 1.0f;
     vqCsNow = csFor(4);
+  }
+  {  // (VOWDICT agent36 round AH, lab; VOWW_MIX 0: off) the single word's vowel rows (lineVowelRows)
+    static const float kVowwMix = param("VOWW_MIX", 0.0f);
+    static const int kVowwCtx = static_cast<int>(param("VOWW_CTX", 1.0f));
+    const int wb = tok.ph == Ph::Stop ? wordsBefore : wordsSincePause_, lb = tok.ph == Ph::Stop ? leftBefore : curPhraseLeft_;
+    gWord1 = wb == 1 && lb < 2;
+    if (kVowwMix != 0) {
+      const bool on = kVowwCtx == 1 ? wb == 1 && lb < 2 : kVowwCtx == 2 ? !csFor(4) : true;
+      vowWordSel = on ? (female_ ? 2 : 1) : 0;
+    }
   }
   csSpeech_ = csFor(8);
   // (VQCS agent33 round AE, lab; 0: off) VQCS_ON 1: the VQCS_* source knobs (larynx.cc, tick()) act in connected speech:
@@ -5039,7 +5112,10 @@ void Synth::emit(const Token& tok, const Ph* next) {
     if (have && tok.shape.erctx && tok.shape.erctx <= 2) {
       static const float kEriMix = param("LINE_ERI_MIX", 0.59458765f), kEriAph = param("LINE_ERI_APH", 0.992268f), kEriLipA = param("LINE_ERI_LIPA", 0.9974227f),
                          kEriRAc = param("LINE_ERI_R_AC", 1.0064433f), kEriRLipA = param("LINE_ERI_R_LIPA", 1.0f);
-      static const int kEriRow = static_cast<int>(param("LINE_ERI_ROW", 2.0f));
+      static const int kEriRow0 = static_cast<int>(param("LINE_ERI_ROW", 2.0f));
+      // (VOWDICT agent36, lab; < 0: LINE_ERI_ROW) LINE_ERI_ROW_W: the value in a phrase of one word
+      static const int kEriRowW = static_cast<int>(std::floor(param("LINE_ERI_ROW_W", -1.0f) + 0.5f));
+      const int kEriRow = gWord1 && kEriRowW >= 0 ? kEriRowW : kEriRow0;
       if (tok.shape.erctx == 1) {
         const Ph row = kEriRow == 1 ? Ph::AA : kEriRow == 2 ? Ph::A : kEriRow == 3 ? Ph::EH : kEriRow == 4 ? Ph::IH : Ph::AH;
         TractShape o;
@@ -5820,7 +5896,11 @@ void Synth::emit(const Token& tok, const Ph* next) {
         // when >= 0), its opening x LINE_IHS_LATE_AC. Kokoro's "Mill" holds F2 ~1800 Hz for 40-50 ms, then falls into
         // the l over ~100 ms (F1 rising 430 -> 550); puhuja's holds 1880-1910 for 130 ms (F1 ~410): a long front vowel.
         static const float kIhsLOff = param("LINE_IHS_L_OFF", 0.0f), kIhsOffSw = param("LINE_IHS_OFF_SCHWA", 0.0f),
-                           kIhsNOffSw = param("LINE_IHS_N_OFF_SCHWA", -1.0f), kIhsLateAc = param("LINE_IHS_LATE_AC", 0.992268f);
+                           kIhsNOffSw = param("LINE_IHS_N_OFF_SCHWA", -1.0f), kIhsLateAc0 = param("LINE_IHS_LATE_AC", 0.992268f);
+        // (VOWDICT agent36, lab; < 0: LINE_IHS_LATE_AC) LINE_IHS_LATE_AC_W: the value in a phrase of one word (any value
+        // but 1 switches the late-key block on, as LINE_IHO_LATE_AC_W)
+        static const float kIhsLateAcW = param("LINE_IHS_LATE_AC_W", -1.0f);
+        const float kIhsLateAc = gWord1 && kIhsLateAcW >= 0 ? kIhsLateAcW : kIhsLateAc0;
         if (tok.ph == Ph::IH && ihsCtx(tok.shape.ihctx) && lastPh_ != Ph::E && lastPh_ != Ph::A && lastPh_ != Ph::AO &&
             (kIhsLOff > 0 || kIhsOffSw > 0 || kIhsNOffSw >= 0 || kIhsLateAc != 1.0f)) {
           const bool nas = next && (*next == Ph::N || *next == Ph::M);
@@ -5835,7 +5915,11 @@ void Synth::emit(const Token& tok, const Ph* next) {
         // toward ə by LINE_IHO_OFF_SCHWA, ɛ by LINE_IHO_OFF_EH, opening x LINE_IHO_LATE_AC. Kokoro's ɪ centralises over
         // its last third (male "h_t" words F2 1790 -> 1718 Hz, F1 455 -> 449); puhuja's closes (1890 -> 1944, 424 -> 381).
         static const float kIhoOffSw = param("LINE_IHO_OFF_SCHWA", 0.0f), kIhoOffEh = param("LINE_IHO_OFF_EH", 0.0f),
-                           kIhoLateAc = param("LINE_IHO_LATE_AC", 0.9974227f);
+                           kIhoLateAc0 = param("LINE_IHO_LATE_AC", 0.9974227f);
+        // (VOWDICT agent36, lab; < 0: LINE_IHO_LATE_AC) LINE_IHO_LATE_AC_W: the value in a phrase of one word. Any value
+        // but 1 switches the late-key block below on (the knob search's x0.997 did: "did" -> dead, "bits" -> bates).
+        static const float kIhoLateAcW = param("LINE_IHO_LATE_AC_W", -1.0f);
+        const float kIhoLateAc = gWord1 && kIhoLateAcW >= 0 ? kIhoLateAcW : kIhoLateAc0;
         if (tok.ph == Ph::IH && lastPh_ != Ph::E && lastPh_ != Ph::A && lastPh_ != Ph::AO && ihoCtx(tok.shape.ihctx) &&
             (kIhoOffSw > 0 || kIhoOffEh > 0 || kIhoLateAc != 1.0f)) {
           TractShape o;
