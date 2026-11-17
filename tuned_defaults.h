@@ -92,6 +92,21 @@ inline const std::map<std::string, float>& tunedDefaults() {
     {"RED_S_P_R", 0.0989690732f},
     {"RED_S_P_V", 0.492912371f},
     {"RED_S_P_W", 0.603092808f},
+    {"DUR_CS_FUNC@f", 1.0f},  // VOWDICT agent36 #2: female only, the pre-search value
+    {"DUR_CS_H@f", 1.0f},  // VOWDICT agent36 #2: female only, the pre-search value
+    {"EN_ACC_WORD_LEN@f", 1.0f},  // VOWDICT agent36 #2: female only, the pre-search value
+    {"EN_LONG_WORD_LEN@f", 1.0f},  // VOWDICT agent36 #2: female only, the pre-search value
+    {"EN_UNACC_CONS_LEN@f", 1.0f},  // VOWDICT agent36 #2: female only, the pre-search value
+    {"EN_UNACC_WORD_LEN@f", 1.0f},  // VOWDICT agent36 #2: female only, the pre-search value
+    {"EN_IH_LEN@f", 1.0f},  // VOWDICT agent36 #2: female only, the pre-search value
+    {"EN_PRE_FINAL_T_VOWEL@f", 1.0f},  // VOWDICT agent36 #2: female only, the pre-search value
+    {"TRANS_G_W@f", 1.0f},  // VOWDICT agent36 #2: female only, the pre-search value
+    {"TRANS_V_W@f", 1.0f},  // VOWDICT agent36 #2: female only, the pre-search value
+    {"TRANS_PAUSE_REL_W@f", 1.0f},  // VOWDICT agent36 #2: female only, the pre-search value
+    {"LINE_ANTICIP_M_SCALE@f", 1.0f},  // VOWDICT agent36 #2: female only, the pre-search value
+    {"LINE_ANTICIP_N_SCALE@f", 1.0f},  // VOWDICT agent36 #2: female only, the pre-search value
+    {"LINE_EH_W@f", 1.0f},  // VOWDICT agent36 #2: female only, the pre-search value
+    {"LINE_SCHWA_W@f", 1.0f},  // VOWDICT agent36 #2: female only, the pre-search value
   };
   return m;
 }
