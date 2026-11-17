@@ -1533,6 +1533,11 @@ float linePlaceOf(Ph ph) {
 // k's place by the vowel it releases into (or, final or before a consonant, the vowel before it): LINE_K_X_FRONT before
 // i ɪ e ɛ æ y ø j, LINE_K_X_BACK before u ʊ o ɔ ʌ ɑ ɒ w (lab knobs 2026-11-10, K agent 2; < 0: LINE_K_X). English k is
 // fronted before front vowels (its burst at the next vowel's F2/F3); one place for all gave a low burst before æ eɪ.
+// (ONSET agent36, LINE_TR_D_SEX) whether the LINE_TR_D_* knobs act in this voice.
+static bool trDSexOn(bool female) {
+  static const int sex = static_cast<int>(param("LINE_TR_D_SEX", 0.0f));
+  return sex == 0 || (sex == 1) == female;
+}
 float lineKPlace(Ph ph, Ph vowel) {
   static const float front = param("LINE_K_X_FRONT", 0.6712371f), back = param("LINE_K_X_BACK", -1.0f);
   static const float tFront = param("LINE_T_X_FRONT", -1.0f), tBack = param("LINE_T_X_BACK", -1.0f);  // (t's by vowel, T agent 3; < 0: LINE_T_X)
@@ -3905,7 +3910,13 @@ void Synth::emit(const Token& tok, const Ph* next) {
                      kThShapeCtx = param("LINE_TH_SHAPE_CTX", 2.0f), kThShapeSon = param("LINE_TH_SHAPE_SON", 0.0f);
   // (LINE_TH_SHAPE_SON 1, with CTX 2: also a θ before ɹ / l / w, "three", "through", in that sound's shape)
   const bool thSonNext = kThShapeSon > 0 && next && (*next == Ph::RR || *next == Ph::L || *next == Ph::W);
-  const bool thKey = tract_ == Tract::Line && tok.ph == Ph::TH && kThShape > 0 &&
+  // (ONSET agent36 round AH, lab; 0: off) LINE_TH_SHAPE_SKIP: no θ key before these next vowels (bit 1 ɪ, bit 2 iː,
+  // bit 4 ʌ, bit 8 æ): with the key (CTX 2) the dictionary heard "Thin" pin / in, "Thing" king, "Thinking" finking.
+  static const int kThShapeSkip = static_cast<int>(param("LINE_TH_SHAPE_SKIP", 0.0f));
+  const bool thSkip = kThShapeSkip != 0 && next &&
+                      (((kThShapeSkip & 1) && *next == Ph::IH) || ((kThShapeSkip & 2) && *next == Ph::I) ||
+                       ((kThShapeSkip & 4) && *next == Ph::AH) || ((kThShapeSkip & 8) && *next == Ph::AE));
+  const bool thKey = tract_ == Tract::Line && tok.ph == Ph::TH && kThShape > 0 && !thSkip &&
                      (kThShapeCtx >= 3 || (next && (isVowel(*next) || (thSonNext && kThShapeCtx >= 2)) && (kThShapeCtx >= 2 || vmMed)));
   static const float kVmDhAg = param("LINE_VM_DH_AG", -1.0f), kVmDhPress = param("LINE_VM_DH_PRESS", 0.9935567f),
                      kVmVAg = param("LINE_VM_V_AG", -1.0f), kVmZAg = param("LINE_VM_Z_AG", -1.0f);
@@ -10663,7 +10674,11 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     // (CL-INIT agent20 round R, lab; < 0: as before) a word-initial dɹ's breath LINE_TR_D_PRESS (as LINE_DI_PRESS: at 0.7
     // the pause-initial closure built no jet, the slit hissed nothing; female "Drain" burst 0.6 -> 3.5 kHz with the d's
     // slit fronted). Lab: 1 alone dɹ errors 16 -> 11 and 15.5 -> 8 (seed 1001); dɹ clip snap m 8.1 -> 10.9, f 12.6 -> 17.0.
-    static const float kTrDPress = param("LINE_TR_D_PRESS", -1.0f);
+    // (ONSET agent36 round AH, lab; 0: both voices) LINE_TR_D_SEX: the LINE_TR_D_* knobs in 1 the female voice only,
+    // 2 the male only (male dɹ with PRESS 1 + SLIT_X 0.83 + FRIC 3: 4 bangs on 58 dɹ words, the female none).
+    static const int kTrDSex = static_cast<int>(param("LINE_TR_D_SEX", 0.0f));
+    static const bool kTrDOn = kTrDSex == 0 || (kTrDSex == 1) == female_;
+    static const float kTrDPress = kTrDOn ? param("LINE_TR_D_PRESS", -1.0f) : -1.0f;
     const float kVstopPress = trInit && tok.ph == Ph::D && kTrDPress >= 0 ? kTrDPress : vlG && kVlGPress >= 0 ? kVlGPress : tok.ph == Ph::G && tok.shape.gctx == 1 && kGiPress >= 0 ? kGiPress : dInit && kDiPress >= 0 ? kDiPress : dMed && kDmPress >= 0 ? kDmPress : tok.ph == Ph::G && kGPress >= 0 ? kGPress : kVstopPress0;  // (LINE_GI_PRESS)
     if (tract_ == Tract::Line && kVstopPress != 1.0f && pi.voiced && tok.ph != Ph::JH && !unreleased && next && !nextIsPause &&
         info(*next).cls != Cls::Fricative && rel.press < 0) {
@@ -11209,11 +11224,11 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   static const float kTrSlitX = param("LINE_TR_SLIT_X", -1.0f), kTrSlitMs = param("LINE_TR_SLIT_MS", -1.0f),
                      kTrSlitA = param("LINE_TR_SLIT_A", -1.0f), kTrFric = param("LINE_TR_FRIC", -1.0f),
                      kTrJetD = param("LINE_TR_JET_D", -1.0f), kTwSlitX = param("LINE_TW_SLIT_X", -1.0f),
-                     kTrDFric = param("LINE_TR_D_FRIC", -1.0f),  // (the d's own LINE_TR_FRIC; < 0: LINE_TR_FRIC)
+                     kTrDFric = trDSexOn(female_) ? param("LINE_TR_D_FRIC", -1.0f) : -1.0f,  // (the d's own LINE_TR_FRIC; < 0: LINE_TR_FRIC)
                      kTwSlitA = param("LINE_TW_SLIT_A", -1.0f),  // (twInit's t slit area, cm^2)
                      kTrSlitAcMs = param("LINE_TR_SLIT_AC_MS", -1.0f),  // (trInit / twInit: the slit's opening time, ms; < 0: 3)
                      kTrOpenMs = param("LINE_TR_OPEN_MS", -1.0f),  // (trInit: the slit's opening on to the ɹ, ms; < 0: the release's)
-                     kTrDSlitX = param("LINE_TR_D_SLIT_X", -1.0f);  // (the d's own LINE_TR_SLIT_X; < 0: LINE_TR_SLIT_X)
+                     kTrDSlitX = trDSexOn(female_) ? param("LINE_TR_D_SLIT_X", -1.0f) : -1.0f;  // (the d's own LINE_TR_SLIT_X; < 0: LINE_TR_SLIT_X)
   // (PTK-PLACE-2 agent26, lab; < 0: as before) tvInit's slit: length LINE_TV_SLIT_MS, area LINE_TV_SLIT_A (cm^2), place
   // LINE_TV_SLIT_X (share of the line), frication gain LINE_TV_SLIT_FRIC, jet LINE_TV_SLIT_JET_D (cm).
   static const float kTvSlitMs = param("LINE_TV_SLIT_MS", -1.0f), kTvSlitA = param("LINE_TV_SLIT_A", -1.0f), kTvSlitX = param("LINE_TV_SLIT_X", -1.0f),
