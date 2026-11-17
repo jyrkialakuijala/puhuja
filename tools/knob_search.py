@@ -239,6 +239,10 @@ def threshold_knobs(defaults, span=0.15):
                 cmps.append((m.group(1), float(m.group(3))))
             for m in re.finditer(r'(-?\d+(?:\.\d+)?)f?\s*(>=|<=|==|>|<)\s*(k\w+)\b', line):
                 cmps.append((m.group(3), float(m.group(1))))
+            # inline guards: `param("DUR_CS_FUNC", 1.0f) != 1.0f` (english.cc), `param("X", 1.0f) > 0`
+            for m in re.finditer(r'param\(\s*"([A-Z0-9_]+)"[^)]*\)\s*(>=|<=|==|!=|>|<)\s*(-?\d+(?:\.\d+)?)f?\b', line):
+                var2knob.setdefault('@' + m.group(1), set()).add(m.group(1))
+                cmps.append(('@' + m.group(1), float(m.group(3))))
     out = set()
     for v, c in cmps:
         for n in var2knob.get(v, ()):
@@ -263,19 +267,28 @@ def pool(binp, out, with_int=False):
             env = dict(os.environ, PUHUJA_PARAM_LOG=lp + '.' + v); env.pop('PUHUJA_PARAMS', None)
             subprocess.run([binp, '-en'] + (['-female'] if v == 'f' else []) + ['-r', TEXT], env=env, check=True,
                            stdout=subprocess.DEVNULL)
-        d = {}
+        d, per_voice = {}, set()
         for v in 'mf':
             for l in open(lp + '.' + v):
-                n, x = l.split(); d.setdefault(n, float(x))
+                n, x = l.split()
+                if n in d and d[n] != float(x):
+                    per_voice.add(n)
+                d.setdefault(n, float(x))
             os.remove(lp + '.' + v)
         with open(lp, 'w') as f:
             for n in sorted(d):
-                f.write('%s %.9g\n' % (n, d[n]))
-    d = {}
+                f.write('%s %.9g%s\n' % (n, d[n], ' voice' if n in per_voice else ''))
+    d, per_voice = {}, set()
     for l in open(lp):
-        n, x = l.split(); d[n] = float(x)
+        w = l.split(); d[w[0]] = float(w[1])
+        if len(w) > 2:
+            per_voice.add(w[0])
+    # Knobs with a per-voice default (tuned_defaults.h NAME@f / NAME@m, 2026-11-17) are left out: a candidate writes
+    # one plain "NAME value" line, which overrides both voices' defaults (DUR_CS_FUNC x0.9 from the male's 1.0015
+    # would switch the female's restored != 1 path back on).
     ints = set() if with_int else int_knobs() | threshold_knobs(d)
-    return {n: x for n, x in d.items() if x != 0 and x != -1 and abs(x) < 900 and (with_int or not is_int_knob(n, ints))}
+    return {n: x for n, x in d.items() if x != 0 and x != -1 and abs(x) < 900 and n not in per_voice and
+            (with_int or not is_int_knob(n, ints))}
 
 
 class Runner:
