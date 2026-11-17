@@ -107,6 +107,9 @@ inline const std::map<std::string, float>& tunedDefaults() {
     {"LINE_ANTICIP_N_SCALE@f", 1.0f},  // VOWDICT agent36 #2: female only, the pre-search value
     {"LINE_EH_W@f", 1.0f},  // VOWDICT agent36 #2: female only, the pre-search value
     {"LINE_SCHWA_W@f", 1.0f},  // VOWDICT agent36 #2: female only, the pre-search value
+    {"LINE_TR_D_PRESS@f", 1.0f},  // ONSET agent36 #1: female word-initial dɹ, CL agent20's fricated alveolar slit
+    {"LINE_TR_D_SLIT_X@f", 0.83f},
+    {"LINE_TR_D_FRIC@f", 3.0f},
   };
   return m;
 }

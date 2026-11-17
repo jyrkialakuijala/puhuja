@@ -3912,7 +3912,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
   const bool thSonNext = kThShapeSon > 0 && next && (*next == Ph::RR || *next == Ph::L || *next == Ph::W);
   // (ONSET agent36 round AH, lab; 0: off) LINE_TH_SHAPE_SKIP: no θ key before these next vowels (bit 1 ɪ, bit 2 iː,
   // bit 4 ʌ, bit 8 æ): with the key (CTX 2) the dictionary heard "Thin" pin / in, "Thing" king, "Thinking" finking.
-  static const int kThShapeSkip = static_cast<int>(param("LINE_TH_SHAPE_SKIP", 0.0f));
+  static const int kThShapeSkip = static_cast<int>(param("LINE_TH_SHAPE_SKIP", 1.0f));
   const bool thSkip = kThShapeSkip != 0 && next &&
                       (((kThShapeSkip & 1) && *next == Ph::IH) || ((kThShapeSkip & 2) && *next == Ph::I) ||
                        ((kThShapeSkip & 4) && *next == Ph::AH) || ((kThShapeSkip & 8) && *next == Ph::AE));
