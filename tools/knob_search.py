@@ -263,21 +263,23 @@ def is_int_knob(n, names):
 def pool(binp, out, with_int=False):
     lp = out + '.knobs'
     if not os.path.exists(lp):
+        tmpl = lp + '.%d.' % os.getpid()  # two shards starting together must not share these (run6 shard 1 crashed)
         for v in 'mf':
-            env = dict(os.environ, PUHUJA_PARAM_LOG=lp + '.' + v); env.pop('PUHUJA_PARAMS', None)
+            env = dict(os.environ, PUHUJA_PARAM_LOG=tmpl + v); env.pop('PUHUJA_PARAMS', None)
             subprocess.run([binp, '-en'] + (['-female'] if v == 'f' else []) + ['-r', TEXT], env=env, check=True,
                            stdout=subprocess.DEVNULL)
         d, per_voice = {}, set()
         for v in 'mf':
-            for l in open(lp + '.' + v):
+            for l in open(tmpl + v):
                 n, x = l.split()
                 if n in d and d[n] != float(x):
                     per_voice.add(n)
                 d.setdefault(n, float(x))
-            os.remove(lp + '.' + v)
-        with open(lp, 'w') as f:
+            os.remove(tmpl + v)
+        with open(tmpl + 'w', 'w') as f:
             for n in sorted(d):
                 f.write('%s %.9g%s\n' % (n, d[n], ' voice' if n in per_voice else ''))
+        os.replace(tmpl + 'w', lp)
     d, per_voice = {}, set()
     for l in open(lp):
         w = l.split(); d[w[0]] = float(w[1])
