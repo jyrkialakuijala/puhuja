@@ -117,6 +117,11 @@ def main():
         bg = sum(res[(v, s)][2]['bangs'] for v in 'mf' for s in seeds)
         sound_ok = d('m', 'level') > -0.3 and d('f', 'level') > -0.3 and d('m', 'bass') < 0.3 and d('f', 'bass') < 0.3 \
             and pk < 1.3 and bg < 1.5 * bbg + 5
+        # the duration cheat (run5 2026-11-18: kVowelLength50 read the text 4.7 % slower and won the male's Whisper gain)
+        slow = np.mean([res[(v, s)][2]['n'] / R.base[(v, s)][2]['n'] for v in 'mf' for s in seeds])
+        if slow > 1.01:
+            print('  length x%.3f: rejected' % slow, flush=True)
+            sound_ok = False
         better = m + fe < best['m'] + best['f'] and m < best['m'] + 20 and fe < best['f'] + 20 and sound_ok
         verdict = 'better' if better else ('sound' if not sound_ok else 'worse')
         f.write('%d\t%d\t%g\t%d\t%d\t%d\t%.2f\t%.2f\t%.2f\t%.2f\t%.2f\t%d\t%d\t%s\n' % (

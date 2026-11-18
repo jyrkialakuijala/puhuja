@@ -159,7 +159,7 @@ def sound(x):
     act = r > -40
     e = lambda z: 10 * np.log10((z ** 2).mean() + 1e-20)
     return dict(level=float(10 * np.log10((fr[act] ** 2).mean() + 1e-20)), peak=float(abs(x).max()),
-                bangs=int(((r - median_filter(r, 21) > 15) & (r > -30)).sum()), bass=float(band_db(x)))
+                bangs=int(((r - median_filter(r, 21) > 15) & (r > -30)).sum()), bass=float(band_db(x)), n=len(x))
 
 
 # --- Whisper
