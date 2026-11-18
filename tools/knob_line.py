@@ -28,6 +28,7 @@ and two-paragraph listening clips go to <out>.listen/. Resumable: points already
 """
 import argparse
 import os
+import re
 import sys
 
 import numpy as np
@@ -84,12 +85,22 @@ def main():
     ap.add_argument('--procs', type=int, default=28)
     ap.add_argument('--words', default=None, help='guard word list, as knob_search.py --words (counted in the score)')
     ap.add_argument('--steps-from', default=None, help='screen tsv to take the gradient from (default <out>.screen.tsv)')
+    ap.add_argument('--with-timing', action='store_true', help='let timing knobs (durations, tempo, pauses, kVowelLength*) into the gradient')
     a = ap.parse_args()
     a.bin = a.bin or a.out + '.bin'
     seeds = [int(s) for s in a.seeds.split(',')]
     keep = [float(x) for x in a.keep.split(',')]
     P = ks.pool(a.bin, a.out)
     g = {k: v for k, v in gradient(a.steps_from[:-len('.screen.tsv')] if a.steps_from else a.out).items() if k in P}
+    if not a.with_timing:
+        # Timing knobs stay out: slower speech pleases Whisper (run1: half the male gain; run5: kVowelLength50 alone
+        # +4.7 % length), and one of them in the gradient would trip the 1 % length check at every step. The
+        # vocal-tract lengths (LINE_V<n>_LEN, LINE_LARYNX_LEN) are timbre, not timing.
+        tre = re.compile(r'LEN|DUR|TEMPO|PAUSE|_MS|RATE|SPEED|HOLD|TIMING|Length')
+        tract = re.compile(r'^LINE_V\d+_LEN$|^LINE_LARYNX_LEN$')
+        ng = len(g)
+        g = {k: v for k, v in g.items() if not tre.search(k) or tract.search(k)}
+        print('%d timing knobs left out of the gradient' % (ng - len(g)), flush=True)
     R = ks.Runner(a)
     tsv = a.out + '.line.tsv'
     seen = {}
