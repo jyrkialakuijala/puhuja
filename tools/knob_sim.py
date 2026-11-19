@@ -113,6 +113,8 @@ def main():
     ap.add_argument('--out', default=None)
     ap.add_argument('--procs', type=int, default=4)
     ap.add_argument('--shard', default='0/1')
+    ap.add_argument('--knobs', default=None, help='a knob_search .knobs file: candidate value = its value x mult (the --screen '
+                    'tsv then only gives the candidate list, e.g. an earlier run\'s screen on another base)')
     a = ap.parse_args()
     seeds = [int(s) for s in a.seeds.split(',')]
     bp = read_params(a.base_params)
@@ -150,7 +152,17 @@ def main():
             print('base m %.3f f %.3f' % (base['m']['sim'], base['f']['sim']), flush=True)
             todo = [c for c in cands if c[0] not in done]
             futs = []
+            kv = {}
+            if a.knobs:
+                for l in open(a.knobs):
+                    c = l.split()
+                    if len(c) >= 2 and (len(c) < 3 or c[2] != 'voice'):
+                        kv[c[0]] = float(c[1])
             for name, knob, mult, val in todo:
+                if a.knobs:
+                    if knob not in kv:
+                        continue
+                    val = kv[knob] * mult
                 p = dict(bp, **{knob: val})
                 futs.append((name, knob, mult, {v: ex.submit(job, a.bin, p, v, 0, tmp) for v in 'mf'}))
             for name, knob, mult, fu in futs:

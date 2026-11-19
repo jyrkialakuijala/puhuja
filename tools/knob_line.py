@@ -60,7 +60,7 @@ def sim_lambda(out, S):
     return float(np.median(w) / max(np.median(s), 1e-6))
 
 
-def gradient(out, S=None, lam=0.0):
+def gradient(out, S=None, lam=0.0, fbass=True):
     E = {}
     snd = {}
     for l in open(out + '.screen.tsv'):
@@ -74,7 +74,7 @@ def gradient(out, S=None, lam=0.0):
             ns = len(c[4].split(','))
             e = e + lam * ns * S.get(k, {}).get(m, 0.0)
         E.setdefault(k, {})[m] = (e, dead)
-        s = max(abs(float(c[8])), abs(float(c[15])), float(c[11]), float(c[18]))
+        s = max(abs(float(c[8])), abs(float(c[15])), float(c[11]), float(c[18]) if fbass else 0.0)
         snd[k] = max(snd.get(k, 0), s)
     g = {}
     for k, d in E.items():
@@ -116,6 +116,8 @@ def main():
                     'Zimtohrli similarity to 11labs / Kokoro), each point scored by knob_sim.py eval as well')
     ap.add_argument('--sim-lambda', type=float, default=None, help='errors per seed per similarity unit (default: from the screens)')
     ap.add_argument('--sim-seeds', default='0,11')
+    ap.add_argument('--no-female-bass', action='store_true', help='the female bass rise is not checked (Jyrki 2026-11-19: '
+                    '"let\'s ignore problems if there is too much bass for the female speaker")')
     ap.add_argument('--with-timing', action='store_true', help='let timing knobs (durations, tempo, pauses, kVowelLength*) into the gradient')
     a = ap.parse_args()
     a.bin = a.bin or a.out + '.bin'
@@ -128,7 +130,7 @@ def main():
     if S is not None:
         lam = a.sim_lambda if a.sim_lambda is not None else sim_lambda(gsrc, S)
         print('similarity weight: %.3f errors per seed per unit' % lam, flush=True)
-    g = {k: v for k, v in gradient(gsrc, S, lam).items() if k in P}
+    g = {k: v for k, v in gradient(gsrc, S, lam, not a.no_female_bass).items() if k in P}
     if not a.with_timing:
         # Timing knobs stay out: slower speech pleases Whisper (run1: half the male gain; run5: kVowelLength50 alone
         # +4.7 % length), and one of them in the gradient would trip the 1 % length check at every step. The
@@ -187,7 +189,7 @@ def main():
         d = lambda v, k: np.mean([res[(v, s)][2][k] - R.base[(v, s)][2][k] for s in seeds])
         pk = np.mean([res[(v, s)][2]['peak'] for v in 'mf' for s in seeds]) / bpk
         bg = sum(res[(v, s)][2]['bangs'] for v in 'mf' for s in seeds)
-        sound_ok = d('m', 'level') > -0.3 and d('f', 'level') > -0.3 and d('m', 'bass') < 0.3 and d('f', 'bass') < 0.3 \
+        sound_ok = d('m', 'level') > -0.3 and d('f', 'level') > -0.3 and d('m', 'bass') < 0.3 and (a.no_female_bass or d('f', 'bass') < 0.3) \
             and pk < 1.3 and bg < 1.5 * bbg + 5
         # the duration cheat (run5 2026-11-18: kVowelLength50 read the text 4.7 % slower and won the male's Whisper gain)
         slow = np.mean([res[(v, s)][2]['n'] / R.base[(v, s)][2]['n'] for v in 'mf' for s in seeds])
