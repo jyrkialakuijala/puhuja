@@ -437,7 +437,7 @@ constexpr float kAwGlide[3] = {470, 1120, 2400};  // the end of aʊ (450 1300: t
 // F2 930-1230 and F3 1440-1650 (puhuja 1380/1690, with the ɹ only 20 ms);
 // before i or ɪ ("century", "every") it stays schwa-like (F2 1240-1600).
 // (EN_ER_ONSET_SHARE / EN_ER_ONSET_PULL: ER agent 2026-11-11 lab knobs, 0.5 / 0.5 as before.)
-const float kErOnsetShare = param("EN_ER_ONSET_SHARE", 0.5f), kErOnsetPull = param("EN_ER_ONSET_PULL", 0.5f);
+const float kErOnsetShare = param("EN_ER_ONSET_SHARE", 0.49831323f), kErOnsetPull = param("EN_ER_ONSET_PULL", 0.5f);
 constexpr float kErOnsetFrontF2 = 1900.0f;
 constexpr float kGlideFallShare = 0.5f;  // a final diphthong's fall done by its glide's centre
 // Start of ɔɪ ("boy"): open, back and rounded, so the two vowels stay distinct
@@ -601,7 +601,7 @@ bool isFunctionWord(const std::string& w) {
 // Baseline at the phrase start, below the voice's base pitch: accents rise
 // above it and endings fall below, so the speaking pitch centres on the
 // base (at +1.9 every variation went up: a 92 Hz voice spoke at ~126 Hz; now ~95).
-const float kPhraseStart = param("EN_PHRASE_START", -4.5f);  // (PROS agent28: knob)
+const float kPhraseStart = param("EN_PHRASE_START", -4.666174f);  // (PROS agent28: knob)
 const float kDeclination = param("EN_DECLINATION", -0.19461107f);  // (PROS agent28: knob)    // baseline change per syllable,
 constexpr float kDeclinationMin = -2.0f, kDeclinationMax = -6.5f;  // in total over a phrase
 constexpr float kParagraphStartLift = 0.67f;  // first sentence of a paragraph (st)
@@ -626,7 +626,7 @@ bool isEmotiveWord(const std::string& t) {
 // st, the second at least kRepeatSecondAbove above it, falling kRepeatFall
 // within its vowel, after a pause of kRepeatPauseStops (~15 ms each).
 constexpr size_t kRepeatWithin = 5;
-const float kRepeatRise = param("EN_REPEAT_RISE", 2.0051546f), kRepeatSecondAbove = param("EN_REPEAT_ABOVE", 1.0012887f), kRepeatFall = param("EN_REPEAT_FALL", 2.9884021f);
+const float kRepeatRise = param("EN_REPEAT_RISE", 2.0119736f), kRepeatSecondAbove = param("EN_REPEAT_ABOVE", 1.0012887f), kRepeatFall = param("EN_REPEAT_FALL", 2.9884021f);
 const int kRepeatPauseStops = static_cast<int>(param("EN_REPEAT_PAUSE_STOPS", 3));  // Jyrki 2026-11-10: "to help them help themselves" confusing
 const float kRepeatSecondLen = param("EN_REPEAT_LEN", 1.0006443f);  // the repeated word's length x this
 constexpr float kQuoteLift = 1.0f;       // st: quoted speech
@@ -644,16 +644,16 @@ constexpr float kRepeatLift = 1.5f, kRepeatLiftMax = 4.5f;  // st per repetition
 constexpr size_t kRecentPhrases = 12;
 constexpr float kExclaimLift = 3.0f;  // st on the accents of an exclamation
 constexpr float kExclaimDb = 2.0f;    // and louder
-const float kFirstAccent = param("EN_FIRST_ACCENT", 11.0f);      // first accent above the baseline
+const float kFirstAccent = param("EN_FIRST_ACCENT", 10.597039f);      // first accent above the baseline
 const float kDownstep = param("EN_DOWNSTEP", 0.85f);         // each further accent: this much of the last
 constexpr float kMinAccent = 5.5f;
 const float kPostAccent = param("EN_POST_ACCENT", 0.20206186f);       // syllable after an accent keeps this share
 // Unaccented syllables between two accents: a single quick one sits on the
 // line, a longer run sags into a valley (st per syllable of the run, capped).
-const float kInterAccentSagPerSyl = param("EN_SAG_PER_SYL", 2.0f), kInterAccentSagMax = param("EN_SAG_MAX", 4.9226804f);
+const float kInterAccentSagPerSyl = param("EN_SAG_PER_SYL", 2.0f), kInterAccentSagMax = param("EN_SAG_MAX", 4.9238187f);
 constexpr float kSecondary = 1.0f;        // secondary stress in a content word
 const float kFinalLow = param("EN_FINAL_LOW", -7.072165f);        // end of a long or exclaimed statement
-const float kFinalLowShort = param("EN_FINAL_LOW_SHORT", -4.98067f);   // end of a short statement
+const float kFinalLowShort = param("EN_FINAL_LOW_SHORT", -5.029813f);   // end of a short statement
 constexpr float kLevelEnding = -5.0f;     // a level ending (near the baseline)
 constexpr unsigned kLevelEndingEvery = 5;
 constexpr size_t kLongSentenceSyllables = 12;
@@ -670,7 +670,7 @@ const float kPauseVariation = param("EN_PAUSE_VARIATION", 0.15f); // +- share
 const float kFinalLengthSentence = param("kFinalLengthSentence", 1.3f) /* 1.17: the sentence-final word was 1.18x a content word, goog 1.41, 11labs 1.21 */, kFinalLengthPhrase = param("kFinalLengthPhrase", 1.1501482f);  // final lengthening
 constexpr float kFinalLengthClause = 1.25f;  // before ; or :
 const float kFunctionWordVowel = param("kFunctionWordVowel", 0.8f);  // vowel length in a function word inside the phrase
-const float kFinalCodaSonorant = param("EN_FINAL_CODA_SON", 3.5f);  // a phrase-final l m n ŋ coda
+const float kFinalCodaSonorant = param("EN_FINAL_CODA_SON", 3.461864f);  // a phrase-final l m n ŋ coda
 const float kFinalCodaFricative = param("EN_FINAL_CODA_FRIC", 2.7f);  // a phrase-final s ʃ f θ after a vowel or sonorant
 const int kSentencePauseStops = static_cast<int>(param("EN_SENTENCE_PAUSE_STOPS", 10));  // + the breath before the next sentence
 constexpr int kDashPauseStops = 8;        // parenthesis: ~120 ms
@@ -801,7 +801,7 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
         // the same vowel inside the phrase (both voices), the 11labs readers' 1.19 (1.12-1.25).
         { static const float kFinVowelLen = param("EN_FINAL_VOWEL_LEN", 1.0f); if (phraseFinal && kFinVowelLen != 1.0f) prc *= kFinVowelLen; }
         // (PROS agent28: knobs EN_NONFINAL_SYL_VOWEL / EN_POLY_VOWEL; long words ran 1.3-1.4x the 11labs readers' relative length)
-        { static const float kNonFinSyl = param("EN_NONFINAL_SYL_VOWEL", 0.82624847f), kPoly = param("EN_POLY_VOWEL", 0.8f);
+        { static const float kNonFinSyl = param("EN_NONFINAL_SYL_VOWEL", 0.80915328f), kPoly = param("EN_POLY_VOWEL", 0.8f);
         if (!inLastSyllable) prc *= kNonFinSyl;
         if (vowels > 1) prc *= kPoly; }
         if (!stressed) {
@@ -827,7 +827,7 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
           const std::string n = baseName(tok[i + 1]);
           // (EN_PRE_ZH_VOWEL: before a ʒ the vowel x this instead of 1.4; "television", "decision": the stressed ɪ ran
           // 240-310 ms against a 50 ms ʒ, Jyrki 2026-11-09: "the vi could be shorter, the ci could be shorter")
-          static const float kPreZhVowel = param("EN_PRE_ZH_VOWEL", 0.49871134f);
+          static const float kPreZhVowel = param("EN_PRE_ZH_VOWEL", 0.5149883f);
           // (EN_AA_PRE_VLESS: the ɑ before a voiceless plosive x this instead of 0.75; 2026-11-10 AA agent: "not, got, hot, stop")
           static const float kAaPreVless = param("EN_AA_PRE_VLESS", 0.78554255f);
           // (EN_PRE_T_VOWEL, T agent 10 round K, lab; < 0: as the other voiceless plosives) the vowel before a t x this.
@@ -841,7 +841,7 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
           // (EN_PRE_G_VOWEL, G agent 7 round H, lab; < 0: the voiced plosives' 1.2) the vowel before a g of the same word.
           static const float kPreGVowel = param("EN_PRE_G_VOWEL", -1.0f);
           // (EN_PRE_JH_VOWEL: before a ʤ x this instead of the voiced plosives' 1.2; JH agent round H: a final ʤ is heard as ʧ)
-          static const float kPreJhVowel = param("EN_PRE_JH_VOWEL", 1.2015464f);
+          static const float kPreJhVowel = param("EN_PRE_JH_VOWEL", 1.2075994f);
           // (EN_PRE_D_VOWEL: before a d x this instead of the voiced plosives' 1.2; < 0: 1.2. D agent9 round J: the d is
           // heard as t 519 times in the dictionary, "beads" -> beats, "trader" -> traitor: the vowel's length is the
           // listener's voicing cue. EN_PRE_D_VOWEL_VV: only before a d between vowels; EN_PRE_D_VOWEL_DZ: before a d + s/z.)
@@ -876,7 +876,7 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
           // made it worse (162, 150: the nasal deleted). The murmur's own level re the vowel peak is unchanged.
           static const float kPreFinalNgVowel = param("EN_PRE_FINAL_NG_VOWEL", 1.0f), kPreFinalMVowel = param("EN_PRE_FINAL_M_VOWEL", 1.0f);
           // (FN-PLACE agent27 round Y, lab; 1: as before) EN_PRE_FINAL_N_VOWEL the same before a word-final n.
-          static const float kPreFinalNVowel = param("EN_PRE_FINAL_N_VOWEL", 0.9866659f);
+          static const float kPreFinalNVowel = param("EN_PRE_FINAL_N_VOWEL", 0.9552728f);
           if (i + 2 == tok.size()) prc *= n == "NG" ? kPreFinalNgVowel : n == "M" ? kPreFinalMVowel : n == "N" ? kPreFinalNVowel : 1.0f;
         }
         // (T agent 10 round K, lab; 1: as before) the vowel before a word-final t (also t + s, and with an ɹ l n between:
@@ -1656,8 +1656,8 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
             // RED_FW_LEN), its vowels x RED_FW_V more, its consonants x RED_FW_C more. 11labs' "the" "to" "a" "in" "and"
             // "that" "is" take 1.3-1.9 / 1000 of the passage's phone time each, puhuja's 0.6-1.2 (Kokoro 1.0-1.6).
             static const float kFw = param("RED_FW_LEN", 1.0005155f), kFwF = param("RED_FW_LEN_F", -1.0f),
-                               kFwV = param("RED_FW_V", 0.8f), kFwC = param("RED_FW_C", 1.16185565f),
-                               kFwVF = param("RED_FW_V_F", 1.0f), kFwCF = param("RED_FW_C_F", 1.0f);  // (the female's; < 0: as the male's)
+                               kFwV = param("RED_FW_V", 0.8f), kFwC = param("RED_FW_C", 1.1427109f),
+                               kFwVF = param("RED_FW_V_F", 1.0f), kFwCF = param("RED_FW_C_F", 0.9779405f);  // (the female's; < 0: as the male's)
             if (!phrase_[w].accent && static_cast<int>(w) != lastWordWithVowel) {
               const bool fem = synth_.female();
               // (RED_FW_VL: its long vowels and diphthongs uː ɑː iː ɔː ɝ aɪ aʊ ɔɪ eɪ oʊ instead, < 0: RED_FW_V; RED_FW_H: its h
@@ -2141,11 +2141,11 @@ void applyForeign(std::vector<EnglishReader::Word>& phrase, const ForeignWord (&
 }
 
 // Loudness shape of a phrase (dB, vowels).
-const float kArcStartDb = param("EN_ARC_START_DB", 1.0090206f), kArcEndDb = param("EN_ARC_END_DB", -2.0456279f);  // (-3: with the end release too steep)
+const float kArcStartDb = param("EN_ARC_START_DB", 1.0090206f), kArcEndDb = param("EN_ARC_END_DB", -2.0399976f);  // (-3: with the end release too steep)
 static const float kCreakBelow = param("EN_CREAK_BELOW", -6.5f);  // st: statement endings this low get creaky voice (-5: nearly all)
 constexpr float kPressedAccent = 0.9f, kLaxUnstressed = 1.08f, kLaxFinal = 1.12f;  // glottal opening
-const float kAccentDb = param("EN_ACCENT_DB", 1.5f), kFunctionWordDb = param("EN_FUNC_WORD_DB", -1.5f);
-const float kSecondaryDb = param("kSecondaryDb", -4.1151878f), kUnstressedDb = param("kUnstressedDb", 1.9917388f);
+const float kAccentDb = param("EN_ACCENT_DB", 1.5050943f), kFunctionWordDb = param("EN_FUNC_WORD_DB", -1.5f);
+const float kSecondaryDb = param("kSecondaryDb", -4.1151878f), kUnstressedDb = param("kUnstressedDb", 1.9911789f);
 const float kSecondaryPreDb = param("kSecondaryPreDb", 2.9884021f);  // a secondary stress before the primary (see the level rule; Jyrki 2026-11-06: "gen-sp4 is the best, but probably sp3 would be better", then "sp3 is better"; kennedy Whisper 788 vs 798)
 const float kSecondaryVowelLength = param("kSecondaryVowelLength", 1.3609469f) /* cost 0.0307218938484690 wobble */ /* 1.19 from the timing search made the secondary-stress syllable as long as the primary */, kInitialRLength = 1.0f;
 // A word-initial ɹ before a vowel ("revolution", "republics", "rights") is a
@@ -2271,7 +2271,7 @@ float bgStep(float a, float b, float x) {
   return t * t * (3.0f - 2.0f * t);
 }
 float bgStartTo() { static const float v = param("EN_BG_START_TO", 0.14945877f); return v; }
-float bgFinalFrom() { static const float v = param("EN_BG_FINAL_FROM", 0.69909793f); return v; }
+float bgFinalFrom() { static const float v = param("EN_BG_FINAL_FROM", 0.705906956f); return v; }
 }  // namespace
 
 void EnglishReader::planBreaths() {
@@ -2843,8 +2843,8 @@ void EnglishReader::sayPhrase(char end) {
   // place in its planned breath group: env rises from EN_GACC_LO0 at g 0 to 1 at EN_GACC_AT and falls to EN_GACC_LO1 at
   // g 1. The unaccented syllables between accents follow on the line between them (the sag below), so the
   // content-function contrast is not raised. Connected speech only (2+ words; the dictionary unchanged).
-  static const float kGaccMix = param("EN_GACC_MIX", 1.003866f), kGaccAt = param("EN_GACC_AT", 0.45f),
-                     kGaccLo0 = param("EN_GACC_LO0", 0.95f), kGaccLo1 = param("EN_GACC_LO1", 0.6007732f),
+  static const float kGaccMix = param("EN_GACC_MIX", 1.003866f), kGaccAt = param("EN_GACC_AT", 0.44968576f),
+                     kGaccLo0 = param("EN_GACC_LO0", 0.946446211f), kGaccLo1 = param("EN_GACC_LO1", 0.6007732f),
                      kGaccNuc = param("EN_GACC_NUC", 1.0025773f), kGaccH = param("EN_GACC_H", 1.25f);
   std::vector<float> gaccPos;
   const float gaccH0 = accentHeight;
@@ -3065,7 +3065,7 @@ void EnglishReader::sayPhrase(char end) {
     // off its last part (from EN_BG_FINAL_FROM): the readers' 7.5 st sit in a high start and a final drop, the middle
     // declines only ~0.5 st/s.
     static const float kBgSt = param("EN_BG_ST", 0.0f), kAirSt = param("EN_AIR_ST", 0.0f),
-                       kBgStartSt = param("EN_BG_START_ST", 5.0515464f), kBgFinSt = param("EN_BG_FINAL_ST", 2.5f);
+                       kBgStartSt = param("EN_BG_START_ST", 5.0515464f), kBgFinSt = param("EN_BG_FINAL_ST", 2.4932325f);
     if ((kBgSt != 0 || kAirSt != 0 || kBgStartSt != 0 || kBgFinSt != 0) && !wordGroupPos_.empty())
       for (Syl& y : syl) {
         if (y.word >= wordGroupPos_.size()) continue;
@@ -3397,8 +3397,8 @@ void EnglishReader::sayPhrase(char end) {
       // agent13 round L). EN_ER_INIT 1: the first part is the English ə (2: ʌ, 3: ɪ); its share of the token
       // EN_ER_INIT_SHARE, the token's length x EN_ER_INIT_LEN, the ə's level + EN_ER_INIT_DB, the ɹ's + EN_ER_INIT_R_DB,
       // the shape is the line's (Shape::erctx, LINE_ERI_*). 0: as before (one ɜ).
-      static const float kErInit = param("EN_ER_INIT", 2.0f), kErInitShare = param("EN_ER_INIT_SHARE", 0.48960814f),
-                         kErInitLen = param("EN_ER_INIT_LEN", 1.0475734f), kErInitDb = param("EN_ER_INIT_DB", 0.97290786f),
+      static const float kErInit = param("EN_ER_INIT", 2.0f), kErInitShare = param("EN_ER_INIT_SHARE", 0.4816826f),
+                         kErInitLen = param("EN_ER_INIT_LEN", 1.0475734f), kErInitDb = param("EN_ER_INIT_DB", 0.97544444f),
                          kErInitRDb = param("EN_ER_INIT_R_DB", 0.0f), kErInitPitch = param("EN_ER_INIT_PITCH", 1.0f);
       bool erInit = false;
       if (kErInit > 0 && i == 0 && s.n == 2 && s.ph[0] == Ph::ER && s.ph[1] == Ph::RR && tokens.size() > 1 &&
@@ -3420,7 +3420,7 @@ void EnglishReader::sayPhrase(char end) {
       static const int kErMed = static_cast<int>(param("EN_ER_MED", 3.0f)), kErMedPh = static_cast<int>(param("EN_ER_MED_PH", 2.0f));
       static const float kErMedShare = param("EN_ER_MED_SHARE", -1.0f), kErMedLen = param("EN_ER_MED_LEN", 1.0003866f),
                          kErMedRLen = param("EN_ER_MED_R_LEN", 1.0f), kErMedDb = param("EN_ER_MED_DB", 0.0f),
-                         kErMedRDb = param("EN_ER_MED_R_DB", -5.0f), kErMedPitch = param("EN_ER_MED_PITCH", 0.9974227f),
+                         kErMedRDb = param("EN_ER_MED_R_DB", -5.0073456f), kErMedPitch = param("EN_ER_MED_PITCH", 0.9974227f),
                          kErMedPress = param("EN_ER_MED_PRESS", 1.0025773f);
       bool erMed = false;
       if (kErMed > 0 && i > 0 && i + 1 < tokens.size() && s.n == 2 && s.ph[0] == Ph::ER && s.ph[1] == Ph::RR &&
@@ -3516,7 +3516,7 @@ void EnglishReader::sayPhrase(char end) {
         // aʊ's own split (EN_AW_FIRST_SHARE): Jyrki 2026-11-05, "now" as "naauu",
         // the ʊ part too long (a 203, ʊ 171 ms with 0.6: the short-vowel
         // lengthening below favours the shorter half).
-        static const float kAwFirstShare = param("EN_AW_FIRST_SHARE", 0.574552f);
+        static const float kAwFirstShare = param("EN_AW_FIRST_SHARE", 0.56462617f);
         // ɔɪ's own split and length (EN_OY_FIRST_SHARE, EN_OY_LEN; OY agent 2026-11-10, lab: 0.6 and 1 = as before).
         static const float kOyFirstShare = param("EN_OY_FIRST_SHARE", 0.603866f), kOyLen = param("EN_OY_LEN", 1.0f);
         const bool oy = s.n == 2 && s.ph[0] == Ph::AO && s.ph[1] == Ph::IH;
@@ -3536,7 +3536,7 @@ void EnglishReader::sayPhrase(char end) {
         if (ey) shape.eyctx = (eyClosed ? 1 : 0) | (eyClosed && isNasal(baseName(tokens[i + 1])) ? 2 : 0) | (i == 0 ? 4 : 0);
         // ɜ+ɹ: the vowel's share (EN_ER_SHARE), the whole ɜ x EN_ER_LEN, a stressed one x EN_ER_LONG_LEN as well (ER agent
         // 2026-11-11 lab knobs; 0.8 / 1 / 1 as before).
-        static const float kErShare = param("EN_ER_SHARE", 0.7689751f), kErLen = param("EN_ER_LEN", 1.0f), kErLongLen = param("EN_ER_LONG_LEN", 1.0f);
+        static const float kErShare = param("EN_ER_SHARE", 0.76387392f), kErLen = param("EN_ER_LEN", 1.0f), kErLongLen = param("EN_ER_LONG_LEN", 1.0f);
         const float firstShare = erInit ? kErInitShare : erMed && kErMedShare >= 0 ? kErMedShare : s.ph[0] == Ph::ER ? (erOnset ? kErOnsetShare : kErShare)
                                  : s.n == 2 && s.ph[0] == Ph::A && s.ph[1] == Ph::UH ? kAwFirstShare : oy ? kOyFirstShare : ey ? (eyClosed && kEyClosedShare >= 0 ? kEyClosedShare : kEyFirstShare)
                                  : s.n == 2 && s.ph[0] == Ph::A && s.ph[1] == Ph::IH && kAyFirstShare >= 0 ? kAyFirstShare : 0.6f;

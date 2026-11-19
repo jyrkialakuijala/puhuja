@@ -25,7 +25,7 @@ constexpr float kFoldRestPressed = -0.15f; // ag 0: pressed shut (vibration stop
 // "hands" where readers are 3-13 dB under or voiceless (INPUT.md
 // 2026-10-31). Real folds stop phonating well before 0.3 cm^2. From
 // kAgBreathy (a voiced h) the rest grows smoothly to this.
-const float kFoldRestOpen = param("kFoldRestOpen", 4.9935567f);  // (1.5 with STRING_REST 0.047 left the folds vibrating in f, a pitch swoop 126 -> 82 Hz through the f of "different", Jyrki: "a swirp", 2026-11-02)
+const float kFoldRestOpen = param("kFoldRestOpen", 5.0327052f);  // (1.5 with STRING_REST 0.047 left the folds vibrating in f, a pitch swoop 126 -> 82 Hz through the f of "different", Jyrki: "a swirp", 2026-11-02)
 // f0 of the fold model at tension 1: the tension mapping q = target / this.
 // 155 is the two-mass model's; the string folds (the default source,
 // STRING_F0 105.7) sound at about 128 Hz at q = 1 under the tract's load and
@@ -38,9 +38,9 @@ const float kFoldRestOpen = param("kFoldRestOpen", 4.9935567f);  // (1.5 with ST
 // sit at 1.00 / 0.98 of the command (sd 0.27 st, slope 0.98) and the
 // controller stays at 1. To keep today's average pitch with that, lower
 // kMaleF0 / kFemaleF0 by 0.83 / 0.81 (ref/opt/lab/BUG-PITCH/keep.params).
-const float kFoldNaturalF0 = param("PITCH_NATURAL_F0", 118.36291f);
-const float kPitchControl = param("PITCH_CONTROL", 0.3f);     // per cycle: share of pitch error corrected
-const float kPitchLearnVib = param("kPitchLearnVib", 96.80853f);     // flow fluctuation (cm^3/s) needed to learn (100 before 2026-11-02)
+const float kFoldNaturalF0 = param("PITCH_NATURAL_F0", 124.28105f);
+const float kPitchControl = param("PITCH_CONTROL", 0.30141608f);     // per cycle: share of pitch error corrected
+const float kPitchLearnVib = param("kPitchLearnVib", 97.619733f);     // flow fluctuation (cm^3/s) needed to learn (100 before 2026-11-02)
 const float kPitchCorrMin = param("kPitchCorrMin", 0.5f), kPitchCorrMax = param("kPitchCorrMax", 2.0f);  // (0.7-1.4 pinned the string folds half an octave low, 2026-11-02)  // the tension correction's range
 // Tract load on the folds: each formant mode turns the flow into pressure
 // above the glottis (physically the coupling is 30-100x stronger; see
@@ -60,13 +60,13 @@ constexpr float kMicro2Gain = 3.0f;
 constexpr float kTensionJitter = 0.4f, kRestJitter = 0.12f, kPressureShimmer = 1.6f;
 // Per-cycle gaussian deviations (off: they cost HNR). Knobs since round Z (VQ agent28, 2026-11-15): puhuja's
 // frame-to-frame f0 jitter 0.19 % (m) / 0.27 % (f) against 11labs 0.38 %, Kokoro 0.30-0.57 %.
-const float kCycleJitter = param("LARYNX_CYCLE_JITTER", 0.006f), kCycleShimmer = param("LARYNX_CYCLE_SHIMMER", 0.03f);
+const float kCycleJitter = param("LARYNX_CYCLE_JITTER", 0.006f), kCycleShimmer = param("LARYNX_CYCLE_SHIMMER", 0.029724675f);
 // The slow micro-variation x this (1: as before).
 const float kMicroX = param("LARYNX_MICRO_X", 1.0f);
 // Round Z (VQ agent28): a first-order high shelf on the folds' flow as the line tract receives it (dB above
 // LARYNX_SRC_SHELF_HZ; 0: none). A sharper effective closure (the mucosal wave's abrupt cut-off): puhuja's voiced
 // 4-8 kHz is 12-18 dB under 11labs / Kokoro, tilt -12.3 dB/oct vs -9.4; only the voice, not the jets' noise.
-const float kSrcShelfDb = param("LARYNX_SRC_SHELF_DB", 8.0f), kSrcShelfHz = param("LARYNX_SRC_SHELF_HZ", 1875.0f);
+const float kSrcShelfDb = param("LARYNX_SRC_SHELF_DB", 7.9333636f), kSrcShelfHz = param("LARYNX_SRC_SHELF_HZ", 1875.0f);
 // ... a second shelf after it (a negative one above the first makes a broad mid lift), and the female voice's own
 // values (_F_; < -900 dB or <= 0 Hz: the male's). Cycle jitter for the female voice: LARYNX_CYCLE_JITTER_F (< 0: the male's).
 const float kSrcShelf2Db = param("LARYNX_SRC_SHELF2_DB", 0.0f), kSrcShelf2Hz = param("LARYNX_SRC_SHELF2_HZ", 4000.0f);

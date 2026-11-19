@@ -23,56 +23,56 @@ inline const std::map<std::string, float>& tunedDefaults() {
     {"DUR_CS_P_ZH", 0.999742268f},
     {"LINE_AG_FRIC", 0.30038661f},
     {"LINE_CAV_0_FL", -0.06297732f},
-    {"LINE_CAV_10_FA", 0.486494842f},
-    {"LINE_CAV_10_FL", 0.618739678f},
-    {"LINE_CAV_11_FA", -0.163076437f},
-    {"LINE_CAV_11_FL", -0.586005159f},
-    {"LINE_CAV_11_HA", 0.210907214f},
+    {"LINE_CAV_10_FA", 0.4903861f},
+    {"LINE_CAV_10_FL", 0.63324444f},
+    {"LINE_CAV_11_FA", -0.16652888f},
+    {"LINE_CAV_11_FL", -0.5827714f},
+    {"LINE_CAV_11_HA", 0.21440927f},
     {"LINE_CAV_12_FA", -0.416922693f},
-    {"LINE_CAV_12_FL", -0.704350519f},
-    {"LINE_CAV_12_HA", -0.60002325f},
-    {"LINE_CAV_13_FA", 0.08866365f},
-    {"LINE_CAV_13_FL", -0.0414046386f},
-    {"LINE_CAV_13_HA", -0.205092777f},
-    {"LINE_CAV_14_FA", -0.197974228f},
+    {"LINE_CAV_12_FL", -0.71321f},
+    {"LINE_CAV_12_HA", -0.60543746f},
+    {"LINE_CAV_13_FA", 0.08960601f},
+    {"LINE_CAV_13_FL", -0.041502452f},
+    {"LINE_CAV_13_HA", -0.20134969f},
+    {"LINE_CAV_14_FA", -0.19633148f},
     {"LINE_CAV_14_FL", -0.0179536074f},
-    {"LINE_CAV_14_HL", 0.84290341f},
-    {"LINE_CAV_16_FA", -0.167069582f},
-    {"LINE_CAV_16_FL", -0.844206171f},
-    {"LINE_CAV_16_HA", -0.410866972f},
-    {"LINE_CAV_1_FL", 0.176984543f},
-    {"LINE_CAV_1_HA", -0.0621141f},
-    {"LINE_CAV_2_FL", 1.1075816f},
-    {"LINE_CAV_2_HL", -0.277894322f},
+    {"LINE_CAV_14_HL", 0.8393643f},
+    {"LINE_CAV_16_FA", -0.1660575f},
+    {"LINE_CAV_16_FL", -0.8396854f},
+    {"LINE_CAV_16_HA", -0.40852145f},
+    {"LINE_CAV_1_FL", 0.17473272f},
+    {"LINE_CAV_1_HA", -0.06268274f},
+    {"LINE_CAV_2_FL", 1.1130055f},
+    {"LINE_CAV_2_HL", -0.2820185f},
     {"LINE_CAV_3_FA", -0.169653351f},
-    {"LINE_CAV_3_FL", -0.679070854f},
+    {"LINE_CAV_3_FL", -0.664475765f},
     {"LINE_CAV_3_HA", -0.6342864f},
-    {"LINE_CAV_3_HL", -0.130469071f},
-    {"LINE_CAV_4_FA", -0.621069583f},
-    {"LINE_CAV_4_HA", -0.293737105f},
+    {"LINE_CAV_3_HL", -0.12945272f},
+    {"LINE_CAV_4_FA", -0.60531899f},
+    {"LINE_CAV_4_HA", -0.296329f},
     {"LINE_CAV_6_FA", -0.247680408f},
     {"LINE_CAV_6_FL", -0.434329895f},
-    {"LINE_CAV_6_HA", 0.673211321f},
+    {"LINE_CAV_6_HA", 0.6796431f},
     {"LINE_CAV_6_HL", -0.0465760293f},
-    {"LINE_CAV_8_FA", -0.116298966f},
+    {"LINE_CAV_8_FA", -0.117088917f},
     {"LINE_CAV_8_HA", -0.720757758f},
-    {"LINE_CAV_8_HL", 0.134881438f},
-    {"LINE_CAV_9_FA", 0.118386601f},
+    {"LINE_CAV_8_HL", 0.13495544f},
+    {"LINE_CAV_9_FA", 0.118091899f},
     {"LINE_CAV_9_FL", 0.45569025f},
-    {"LINE_CAV_9_HA", 0.646136618f},
+    {"LINE_CAV_9_HA", 0.6408806f},
     {"LINE_ROOM_TONE", 0.0376572153f},
-    {"LIQ_J_APH", 1.00773196f},
+    {"LIQ_J_APH", 1.0046613f},
     {"LIQ_J_LIPL", 0.992268041f},
-    {"LIQ_LC_APH", 1.0128866f},
-    {"LIQ_LC_LIPA", 0.996134021f},
-    {"LIQ_LC_LIPL", 1.00515464f},
+    {"LIQ_LC_APH", 1.007683f},
+    {"LIQ_LC_LIPA", 0.98758375f},
+    {"LIQ_LC_LIPL", 1.0065812f},
     {"LIQ_L_APH", 0.99871134f},
     {"LIQ_L_LIPA", 1.01159794f},
-    {"LIQ_L_LIPL", 0.988402062f},
-    {"LIQ_RC_APH", 0.605412395f},
-    {"LIQ_RC_LIPA", 1.00257732f},
+    {"LIQ_L_LIPL", 0.9951919f},
+    {"LIQ_RC_APH", 0.6089756f},
+    {"LIQ_RC_LIPA", 1.0014272f},
     {"LIQ_RC_LIPL", 1.00773196f},
-    {"LIQ_R_LIPL", 0.992268041f},
+    {"LIQ_R_LIPL", 0.9874403f},
     {"LIQ_W_APH", 0.992268041f},
     {"LIQ_W_LIPA", 1.01675258f},
     {"LIQ_W_LIPL", 1.0257999f},
@@ -84,8 +84,8 @@ inline const std::map<std::string, float>& tunedDefaults() {
     {"RED_I_P_R", 0.808247435f},
     {"RED_I_P_W", 0.50064433f},
     {"RED_S_N_COR", 0.451159782f},
-    {"RED_S_N_L", 0.99742268f},
-    {"RED_S_N_PAL", 0.34960834f},
+    {"RED_S_N_L", 0.9909689f},
+    {"RED_S_N_PAL", 0.3494736f},
     {"RED_S_N_V", 1.00773196f},
     {"RED_S_N_VEL", 0.0988402072f},
     {"RED_S_P_COR", 0.297293826f},
@@ -110,14 +110,22 @@ inline const std::map<std::string, float>& tunedDefaults() {
     {"LINE_TR_D_PRESS@f", 1.0f},  // ONSET agent36 #1: female word-initial dɹ, CL agent20's fricated alveolar slit
     {"LINE_TR_D_SLIT_X@f", 0.83f},
     {"LINE_TR_D_FRIC@f", 3.0f},
-    {"LINE_CAV_0_HA", 0.4486754f},  // run7
-    {"LINE_CAV_10_HA", 0.62072f},  // run7
-    {"LINE_CAV_10_HL", 0.09176978f},  // run7
-    {"LINE_CAV_11_HL", 0.032907444f},  // run7
+    {"BREATH_PUNCT", 0.299971446f},  // run8
+    {"LINE_CAV_0_FA", 0.15164436f},  // run8
+    {"LINE_CAV_12_HL", -0.27835777f},  // run8
+    {"LINE_CAV_14_HA", -0.0261667f},  // run8
+    {"LINE_CAV_1_HL", 0.35288771f},  // run8
+    {"LINE_CAV_8_FL", -0.19120417f},  // run8
+    {"LIQ_J_LIPA", 1.0059581f},  // run8
+    {"LIQ_W_MIX", 0.49846286f},  // run8
+    {"LINE_CAV_0_HA", 0.44590856f},  // run7
+    {"LINE_CAV_10_HA", 0.6265658f},  // run7
+    {"LINE_CAV_10_HL", 0.091369476f},  // run7
+    {"LINE_CAV_11_HL", 0.033550404f},  // run7
     {"LINE_CAV_1_FA", -0.28113738f},  // run7
-    {"LINE_CAV_2_HA", -0.7597092f},  // run7
-    {"LINE_CAV_4_FL", -0.7558158f},  // run7
-    {"LINE_CAV_9_HL", -0.11636275f},  // run7
+    {"LINE_CAV_2_HA", -0.749368f},  // run7
+    {"LINE_CAV_4_FL", -0.77026794f},  // run7
+    {"LINE_CAV_9_HL", -0.11514974f},  // run7
   };
   return m;
 }
