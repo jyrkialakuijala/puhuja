@@ -37,7 +37,30 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import knob_search as ks  # noqa: E402
 
 
-def gradient(out):
+def sim_screen(path):
+    """knob_sim.py screen rows -> {knob: {mult: m_dsim + f_dsim}}"""
+    S = {}
+    for l in open(path):
+        c = l.rstrip('\n').split('\t')
+        if c[0] == 'name':
+            continue
+        S.setdefault(c[1], {})[float(c[2])] = float(c[5]) + float(c[6])
+    return S
+
+
+def sim_lambda(out, S):
+    """errors per seed per similarity unit: the screens' typical knob effects (median |delta|) made equal"""
+    w, s = [], []
+    for l in open(out + '.screen.tsv'):
+        c = l.rstrip('\n').split('\t')
+        if c[0] in ('name', 'base') or c[1] not in S or float(c[2]) not in S[c[1]]:
+            continue
+        w.append(abs(int(c[6]) + int(c[13])) / len(c[4].split(',')))
+        s.append(abs(S[c[1]][float(c[2])]))
+    return float(np.median(w) / max(np.median(s), 1e-6))
+
+
+def gradient(out, S=None, lam=0.0):
     E = {}
     snd = {}
     for l in open(out + '.screen.tsv'):
@@ -46,7 +69,11 @@ def gradient(out):
             continue
         k, m = c[1], float(c[2])
         dead = c[7] == 'same' and c[14] == 'same'
-        E.setdefault(k, {})[m] = (int(c[6]) + int(c[13]), dead)
+        e = int(c[6]) + int(c[13])
+        if S is not None:  # combined: per-seed errors (screen seeds) + lam * similarity, scaled back to the screen's sum
+            ns = len(c[4].split(','))
+            e = e + lam * ns * S.get(k, {}).get(m, 0.0)
+        E.setdefault(k, {})[m] = (e, dead)
         s = max(abs(float(c[8])), abs(float(c[15])), float(c[11]), float(c[18]))
         snd[k] = max(snd.get(k, 0), s)
     g = {}
@@ -58,7 +85,7 @@ def gradient(out):
             b = min(d[1.1][0], d[0.9][0])
             if b < 0:
                 g[k] = (-b / 2 / 2) * (1 if d[0.9][0] < d[1.1][0] else -1)
-    if os.path.exists(out + '.confirm.tsv'):
+    if S is None and os.path.exists(out + '.confirm.tsv'):
         pts = {}
         for l in open(out + '.confirm.tsv'):
             c = l.rstrip('\n').split('\t')
@@ -85,13 +112,23 @@ def main():
     ap.add_argument('--procs', type=int, default=28)
     ap.add_argument('--words', default=None, help='guard word list, as knob_search.py --words (counted in the score)')
     ap.add_argument('--steps-from', default=None, help='screen tsv to take the gradient from (default <out>.screen.tsv)')
+    ap.add_argument('--sim', default=None, help='knob_sim.py screen tsv: the objective becomes Whisper errors + lam * nseeds * (m + f '
+                    'Zimtohrli similarity to 11labs / Kokoro), each point scored by knob_sim.py eval as well')
+    ap.add_argument('--sim-lambda', type=float, default=None, help='errors per seed per similarity unit (default: from the screens)')
+    ap.add_argument('--sim-seeds', default='0,11')
     ap.add_argument('--with-timing', action='store_true', help='let timing knobs (durations, tempo, pauses, kVowelLength*) into the gradient')
     a = ap.parse_args()
     a.bin = a.bin or a.out + '.bin'
     seeds = [int(s) for s in a.seeds.split(',')]
     keep = [float(x) for x in a.keep.split(',')]
     P = ks.pool(a.bin, a.out)
-    g = {k: v for k, v in gradient(a.steps_from[:-len('.screen.tsv')] if a.steps_from else a.out).items() if k in P}
+    gsrc = a.steps_from[:-len('.screen.tsv')] if a.steps_from else a.out
+    S = sim_screen(a.sim) if a.sim else None
+    lam = 0.0
+    if S is not None:
+        lam = a.sim_lambda if a.sim_lambda is not None else sim_lambda(gsrc, S)
+        print('similarity weight: %.3f errors per seed per unit' % lam, flush=True)
+    g = {k: v for k, v in gradient(gsrc, S, lam).items() if k in P}
     if not a.with_timing:
         # Timing knobs stay out: slower speech pleases Whisper (run1: half the male gain; run5: kVowelLength50 alone
         # +4.7 % length), and one of them in the gradient would trip the 1 % length check at every step. The
@@ -111,17 +148,41 @@ def main():
                 seen[(int(c[0]), float(c[2]))] = c
     f = open(tsv, 'a')
     if not seen:
-        f.write('stage\tndims\talpha\tm_err\tf_err\ttotal\tdlevel_m\tdlevel_f\tdbass_m\tdbass_f\tpeak_x\tbangs\tbase_bangs\tverdict\n')
+        f.write('stage\tndims\talpha\tm_err\tf_err\ttotal\tdlevel_m\tdlevel_f\tdbass_m\tdbass_f\tpeak_x\tbangs\tbase_bangs\tverdict\tm_sim\tf_sim\tobj\n')
+    sim_seeds = a.sim_seeds
+    pdir = a.out + '.simp'
+    os.makedirs(pdir, exist_ok=True)
+
+    def sim_eval(params, tag):
+        import json
+        import subprocess
+        pf = os.path.join(pdir, tag + '.params')
+        with open(pf, 'w') as o:
+            for k in sorted(params):
+                o.write('%s %.9g\n' % (k, params[k]))
+        r = subprocess.run([os.path.join(ks.ROOT, 'tools/venv/bin/python'), '-I', '-W', 'ignore', os.path.join(ks.ROOT, 'tools/knob_sim.py'),
+                            'eval', '--bin', a.bin, '--params', pf, '--seeds', sim_seeds, '--procs', '4'],
+                           check=True, capture_output=True, text=True)
+        return json.loads(r.stdout.strip().split('\n')[-1])
+    from concurrent.futures import ThreadPoolExecutor
+    SX = ThreadPoolExecutor(2)
+    bsim = sim_eval({}, 'base') if S is not None else None
+    if bsim:
+        print('base similarity m %.3f f %.3f' % (bsim['m'], bsim['f']), flush=True)
     R.ensure_base(seeds)
     bm = sum(R.base[('m', s)][1] for s in seeds); bf = sum(R.base[('f', s)][1] for s in seeds)
     bpk = np.mean([R.base[(v, s)][2]['peak'] for v in 'mf' for s in seeds])
     bbg = sum(R.base[(v, s)][2]['bangs'] for v in 'mf' for s in seeds)
-    best = dict(params={}, m=bm, f=bf)
+    nsd = len(seeds)
+    best = dict(params={}, m=bm, f=bf, sm=bsim['m'] if bsim else 0.0, sf=bsim['f'] if bsim else 0.0)
+    obj = lambda m, fe, sm, sf: m + fe + lam * nsd * (sm + sf)
     print('base m %d f %d on %s; %d knobs in the gradient' % (bm, bf, a.seeds, len(g)), flush=True)
 
     def score(params, stage, alpha, nd):
         R.cur = 'line-s%d-a%g' % (stage, alpha)
+        sfu = SX.submit(sim_eval, params, R.cur) if S is not None else None
         res = R.evaluate(params, seeds, R.cur)
+        sim = sfu.result() if sfu else {'m': 0.0, 'f': 0.0}
         m = sum(res[('m', s)][1] for s in seeds); fe = sum(res[('f', s)][1] for s in seeds)
         d = lambda v, k: np.mean([res[(v, s)][2][k] - R.base[(v, s)][2][k] for s in seeds])
         pk = np.mean([res[(v, s)][2]['peak'] for v in 'mf' for s in seeds]) / bpk
@@ -133,14 +194,21 @@ def main():
         if slow > 1.01:
             print('  length x%.3f: rejected' % slow, flush=True)
             sound_ok = False
-        better = m + fe < best['m'] + best['f'] and m < best['m'] + 20 and fe < best['f'] + 20 and sound_ok
+        better = obj(m, fe, sim['m'], sim['f']) < obj(best['m'], best['f'], best['sm'], best['sf']) and m < best['m'] + 20 \
+            and fe < best['f'] + 20 and sound_ok
+        if S is not None:
+            # both objectives: Whisper not worse than the base by more than its noise (8 seeds x 2 voices, sd ~14),
+            # similarity not worse than the base in either voice (seed sd ~0.08)
+            better = better and m + fe <= bm + bf + 10 and sim['m'] <= bsim['m'] + 0.1 and sim['f'] <= bsim['f'] + 0.1
         verdict = 'better' if better else ('sound' if not sound_ok else 'worse')
-        f.write('%d\t%d\t%g\t%d\t%d\t%d\t%.2f\t%.2f\t%.2f\t%.2f\t%.2f\t%d\t%d\t%s\n' % (
-            stage, nd, alpha, m, fe, m + fe, d('m', 'level'), d('f', 'level'), d('m', 'bass'), d('f', 'bass'), pk, bg, bbg, verdict))
+        f.write('%d\t%d\t%g\t%d\t%d\t%d\t%.2f\t%.2f\t%.2f\t%.2f\t%.2f\t%d\t%d\t%s\t%.3f\t%.3f\t%.1f\n' % (
+            stage, nd, alpha, m, fe, m + fe, d('m', 'level'), d('f', 'level'), d('m', 'bass'), d('f', 'bass'), pk, bg, bbg, verdict,
+            sim['m'], sim['f'], obj(m, fe, sim['m'], sim['f'])))
         f.flush()
-        print('stage %d dims %d alpha %g: m %d f %d total %d (best %d) %s' % (stage, nd, alpha, m, fe, m + fe,
-                                                                           best['m'] + best['f'], verdict), flush=True)
-        return better, m, fe
+        print('stage %d dims %d alpha %g: m %d f %d total %d sim m %.3f f %.3f obj %.1f (best %.1f) %s' % (
+            stage, nd, alpha, m, fe, m + fe, sim['m'], sim['f'], obj(m, fe, sim['m'], sim['f']),
+            obj(best['m'], best['f'], best['sm'], best['sf']), verdict), flush=True)
+        return better, m, fe, sim
 
     dims = sorted(g, key=lambda k: -abs(g[k]))
     stage = 0
@@ -158,9 +226,9 @@ def main():
         improved = False
         for i, al in enumerate(alphas):
             p = point(al)
-            ok, m, fe = score(p, stage, al, len(dims))
+            ok, m, fe, sm = score(p, stage, al, len(dims))
             if ok:
-                best.update(params=p, m=m, f=fe); improved = True
+                best.update(params=p, m=m, f=fe, sm=sm['m'], sf=sm['f']); improved = True
                 with open(a.out + '.line.best.params', 'w') as bf_:
                     bf_.write('# stage %d alpha %g m %d f %d (base m %d f %d, seeds %s)\n' % (stage, al, m, fe, bm, bf, a.seeds))
                     for k in sorted(p):
@@ -168,9 +236,9 @@ def main():
             elif improved or i > 0:
                 break
             elif al == 0.25:
-                ok, m, fe = score(point(0.125), stage, 0.125, len(dims))
+                ok, m, fe, sm = score(point(0.125), stage, 0.125, len(dims))
                 if ok:
-                    best.update(params=point(0.125), m=m, f=fe); improved = True
+                    best.update(params=point(0.125), m=m, f=fe, sm=sm['m'], sf=sm['f']); improved = True
                 break
         if len(dims) <= 2:
             break
@@ -187,6 +255,9 @@ def main():
     vbm = sum(R.base[('m', s)][1] for s in vs); vbf = sum(R.base[('f', s)][1] for s in vs)
     msg = 'validation on %d fresh seeds: base m %d f %d -> best m %d f %d (%+d / %+d); best changes %d knobs' % (
         len(vs), vbm, vbf, vm, vf, vm - vbm, vf - vbf, len(best['params']))
+    if S is not None:
+        sb = sim_eval(best['params'], 'validate')
+        msg += '; similarity (seeds %s) base m %.3f f %.3f -> best m %.3f f %.3f' % (sim_seeds, bsim['m'], bsim['f'], sb['m'], sb['f'])
     print(msg, flush=True)
     f.write('# ' + msg + '\n'); f.flush()
     # listening clips: the first two paragraphs, base and best, both voices
