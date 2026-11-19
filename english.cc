@@ -801,7 +801,7 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
         // the same vowel inside the phrase (both voices), the 11labs readers' 1.19 (1.12-1.25).
         { static const float kFinVowelLen = param("EN_FINAL_VOWEL_LEN", 1.0f); if (phraseFinal && kFinVowelLen != 1.0f) prc *= kFinVowelLen; }
         // (PROS agent28: knobs EN_NONFINAL_SYL_VOWEL / EN_POLY_VOWEL; long words ran 1.3-1.4x the 11labs readers' relative length)
-        { static const float kNonFinSyl = param("EN_NONFINAL_SYL_VOWEL", 0.85f), kPoly = param("EN_POLY_VOWEL", 0.8f);
+        { static const float kNonFinSyl = param("EN_NONFINAL_SYL_VOWEL", 0.82624847f), kPoly = param("EN_POLY_VOWEL", 0.8f);
         if (!inLastSyllable) prc *= kNonFinSyl;
         if (vowels > 1) prc *= kPoly; }
         if (!stressed) {
@@ -837,7 +837,7 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
           const bool tVv = n == "T" && i + 2 < tok.size() && isVowelToken(tok[i + 2]) &&
                            kEnglishTokens[tok[i + 2] - 0x80][strlen(kEnglishTokens[tok[i + 2] - 0x80]) - 1] == '0';
           // (EN_PRE_Z_VOWEL: before a z x this instead of 1.4; lab 2026-11-11, the z heard as s: "his" ɪ 237 ms vs "hiss" 158)
-          static const float kPreZVowel = param("EN_PRE_Z_VOWEL", 1.4f);
+          static const float kPreZVowel = param("EN_PRE_Z_VOWEL", 1.444828f);
           // (EN_PRE_G_VOWEL, G agent 7 round H, lab; < 0: the voiced plosives' 1.2) the vowel before a g of the same word.
           static const float kPreGVowel = param("EN_PRE_G_VOWEL", -1.0f);
           // (EN_PRE_JH_VOWEL: before a ʤ x this instead of the voiced plosives' 1.2; JH agent round H: a final ʤ is heard as ʧ)
@@ -876,7 +876,7 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
           // made it worse (162, 150: the nasal deleted). The murmur's own level re the vowel peak is unchanged.
           static const float kPreFinalNgVowel = param("EN_PRE_FINAL_NG_VOWEL", 1.0f), kPreFinalMVowel = param("EN_PRE_FINAL_M_VOWEL", 1.0f);
           // (FN-PLACE agent27 round Y, lab; 1: as before) EN_PRE_FINAL_N_VOWEL the same before a word-final n.
-          static const float kPreFinalNVowel = param("EN_PRE_FINAL_N_VOWEL", 1.0f);
+          static const float kPreFinalNVowel = param("EN_PRE_FINAL_N_VOWEL", 0.9866659f);
           if (i + 2 == tok.size()) prc *= n == "NG" ? kPreFinalNgVowel : n == "M" ? kPreFinalMVowel : n == "N" ? kPreFinalNVowel : 1.0f;
         }
         // (T agent 10 round K, lab; 1: as before) the vowel before a word-final t (also t + s, and with an ɹ l n between:
@@ -2141,11 +2141,11 @@ void applyForeign(std::vector<EnglishReader::Word>& phrase, const ForeignWord (&
 }
 
 // Loudness shape of a phrase (dB, vowels).
-const float kArcStartDb = param("EN_ARC_START_DB", 1.0090206f), kArcEndDb = param("EN_ARC_END_DB", -2.0206186f);  // (-3: with the end release too steep)
+const float kArcStartDb = param("EN_ARC_START_DB", 1.0090206f), kArcEndDb = param("EN_ARC_END_DB", -2.0456279f);  // (-3: with the end release too steep)
 static const float kCreakBelow = param("EN_CREAK_BELOW", -6.5f);  // st: statement endings this low get creaky voice (-5: nearly all)
 constexpr float kPressedAccent = 0.9f, kLaxUnstressed = 1.08f, kLaxFinal = 1.12f;  // glottal opening
 const float kAccentDb = param("EN_ACCENT_DB", 1.5f), kFunctionWordDb = param("EN_FUNC_WORD_DB", -1.5f);
-const float kSecondaryDb = param("kSecondaryDb", -4.0f), kUnstressedDb = param("kUnstressedDb", 1.9664948f);
+const float kSecondaryDb = param("kSecondaryDb", -4.1151878f), kUnstressedDb = param("kUnstressedDb", 1.9917388f);
 const float kSecondaryPreDb = param("kSecondaryPreDb", 2.9884021f);  // a secondary stress before the primary (see the level rule; Jyrki 2026-11-06: "gen-sp4 is the best, but probably sp3 would be better", then "sp3 is better"; kennedy Whisper 788 vs 798)
 const float kSecondaryVowelLength = param("kSecondaryVowelLength", 1.3609469f) /* cost 0.0307218938484690 wobble */ /* 1.19 from the timing search made the secondary-stress syllable as long as the primary */, kInitialRLength = 1.0f;
 // A word-initial ɹ before a vowel ("revolution", "republics", "rights") is a
@@ -3397,8 +3397,8 @@ void EnglishReader::sayPhrase(char end) {
       // agent13 round L). EN_ER_INIT 1: the first part is the English ə (2: ʌ, 3: ɪ); its share of the token
       // EN_ER_INIT_SHARE, the token's length x EN_ER_INIT_LEN, the ə's level + EN_ER_INIT_DB, the ɹ's + EN_ER_INIT_R_DB,
       // the shape is the line's (Shape::erctx, LINE_ERI_*). 0: as before (one ɜ).
-      static const float kErInit = param("EN_ER_INIT", 2.0f), kErInitShare = param("EN_ER_INIT_SHARE", 0.4954897f),
-                         kErInitLen = param("EN_ER_INIT_LEN", 1.0475734f), kErInitDb = param("EN_ER_INIT_DB", 1.0090206f),
+      static const float kErInit = param("EN_ER_INIT", 2.0f), kErInitShare = param("EN_ER_INIT_SHARE", 0.48960814f),
+                         kErInitLen = param("EN_ER_INIT_LEN", 1.0475734f), kErInitDb = param("EN_ER_INIT_DB", 0.97290786f),
                          kErInitRDb = param("EN_ER_INIT_R_DB", 0.0f), kErInitPitch = param("EN_ER_INIT_PITCH", 1.0f);
       bool erInit = false;
       if (kErInit > 0 && i == 0 && s.n == 2 && s.ph[0] == Ph::ER && s.ph[1] == Ph::RR && tokens.size() > 1 &&
@@ -3516,7 +3516,7 @@ void EnglishReader::sayPhrase(char end) {
         // aʊ's own split (EN_AW_FIRST_SHARE): Jyrki 2026-11-05, "now" as "naauu",
         // the ʊ part too long (a 203, ʊ 171 ms with 0.6: the short-vowel
         // lengthening below favours the shorter half).
-        static const float kAwFirstShare = param("EN_AW_FIRST_SHARE", 0.59458765f);
+        static const float kAwFirstShare = param("EN_AW_FIRST_SHARE", 0.574552f);
         // ɔɪ's own split and length (EN_OY_FIRST_SHARE, EN_OY_LEN; OY agent 2026-11-10, lab: 0.6 and 1 = as before).
         static const float kOyFirstShare = param("EN_OY_FIRST_SHARE", 0.603866f), kOyLen = param("EN_OY_LEN", 1.0f);
         const bool oy = s.n == 2 && s.ph[0] == Ph::AO && s.ph[1] == Ph::IH;
@@ -3525,7 +3525,7 @@ void EnglishReader::sayPhrase(char end) {
         static const float kAyFirstShare = param("EN_AY_FIRST_SHARE", -1.0f), kAyLen = param("EN_AY_LEN", 1.0f);
         // eɪ's own split and length (EN_EY_FIRST_SHARE, EN_EY_LEN; a word-final eɪ x EN_EY_FINAL_LEN as well; EY agent
         // 2026-11-10 lab knobs, 0.6 / 1 / 1 as before).
-        static const float kEyFirstShare = param("EN_EY_FIRST_SHARE", 0.6007732f), kEyLen = param("EN_EY_LEN", 1.0016753f), kEyFinalLen = param("EN_EY_FINAL_LEN", 1.0010309f);
+        static const float kEyFirstShare = param("EN_EY_FIRST_SHARE", 0.5935432f), kEyLen = param("EN_EY_LEN", 1.0016753f), kEyFinalLen = param("EN_EY_FINAL_LEN", 1.0010309f);
         const bool ey = s.n == 2 && s.ph[0] == Ph::E && s.ph[1] == Ph::IH;
         // eɪ's context for the line (Shape::eyctx) and its length / split in a closed syllable (EN_EY_CLOSED_LEN,
         // EN_EY_CLOSED_SHARE, < 0: EN_EY_FIRST_SHARE) and word-initially (EN_EY_INIT_LEN). EY agent10 round K lab knobs
@@ -3536,7 +3536,7 @@ void EnglishReader::sayPhrase(char end) {
         if (ey) shape.eyctx = (eyClosed ? 1 : 0) | (eyClosed && isNasal(baseName(tokens[i + 1])) ? 2 : 0) | (i == 0 ? 4 : 0);
         // ɜ+ɹ: the vowel's share (EN_ER_SHARE), the whole ɜ x EN_ER_LEN, a stressed one x EN_ER_LONG_LEN as well (ER agent
         // 2026-11-11 lab knobs; 0.8 / 1 / 1 as before).
-        static const float kErShare = param("EN_ER_SHARE", 0.8f), kErLen = param("EN_ER_LEN", 1.0f), kErLongLen = param("EN_ER_LONG_LEN", 1.0f);
+        static const float kErShare = param("EN_ER_SHARE", 0.7689751f), kErLen = param("EN_ER_LEN", 1.0f), kErLongLen = param("EN_ER_LONG_LEN", 1.0f);
         const float firstShare = erInit ? kErInitShare : erMed && kErMedShare >= 0 ? kErMedShare : s.ph[0] == Ph::ER ? (erOnset ? kErOnsetShare : kErShare)
                                  : s.n == 2 && s.ph[0] == Ph::A && s.ph[1] == Ph::UH ? kAwFirstShare : oy ? kOyFirstShare : ey ? (eyClosed && kEyClosedShare >= 0 ? kEyClosedShare : kEyFirstShare)
                                  : s.n == 2 && s.ph[0] == Ph::A && s.ph[1] == Ph::IH && kAyFirstShare >= 0 ? kAyFirstShare : 0.6f;

@@ -40,7 +40,7 @@ const float kFoldRestOpen = param("kFoldRestOpen", 4.9935567f);  // (1.5 with ST
 // kMaleF0 / kFemaleF0 by 0.83 / 0.81 (ref/opt/lab/BUG-PITCH/keep.params).
 const float kFoldNaturalF0 = param("PITCH_NATURAL_F0", 118.36291f);
 const float kPitchControl = param("PITCH_CONTROL", 0.3f);     // per cycle: share of pitch error corrected
-const float kPitchLearnVib = param("kPitchLearnVib", 100.0f);     // flow fluctuation (cm^3/s) needed to learn (100 before 2026-11-02)
+const float kPitchLearnVib = param("kPitchLearnVib", 96.80853f);     // flow fluctuation (cm^3/s) needed to learn (100 before 2026-11-02)
 const float kPitchCorrMin = param("kPitchCorrMin", 0.5f), kPitchCorrMax = param("kPitchCorrMax", 2.0f);  // (0.7-1.4 pinned the string folds half an octave low, 2026-11-02)  // the tension correction's range
 // Tract load on the folds: each formant mode turns the flow into pressure
 // above the glottis (physically the coupling is 30-100x stronger; see
