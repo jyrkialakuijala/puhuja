@@ -116,6 +116,8 @@ def main():
                     'Zimtohrli similarity to 11labs / Kokoro), each point scored by knob_sim.py eval as well')
     ap.add_argument('--sim-lambda', type=float, default=None, help='errors per seed per similarity unit (default: from the screens)')
     ap.add_argument('--sim-seeds', default='0,11')
+    ap.add_argument('--base-params', default=None, help='start point (an undeployed earlier result): the base and every point '
+                    'render with these values on top; the screen must have been made with the same --base-params')
     ap.add_argument('--no-female-bass', action='store_true', help='the female bass rise is not checked (Jyrki 2026-11-19: '
                     '"let\'s ignore problems if there is too much bass for the female speaker")')
     ap.add_argument('--with-timing', action='store_true', help='let timing knobs (durations, tempo, pauses, kVowelLength*) into the gradient')
@@ -168,7 +170,7 @@ def main():
         return json.loads(r.stdout.strip().split('\n')[-1])
     from concurrent.futures import ThreadPoolExecutor
     SX = ThreadPoolExecutor(2)
-    bsim = sim_eval({}, 'base') if S is not None else None
+    bsim = sim_eval(dict(R.bp), 'base') if S is not None else None
     if bsim:
         print('base similarity m %.3f f %.3f' % (bsim['m'], bsim['f']), flush=True)
     R.ensure_base(seeds)
@@ -176,7 +178,7 @@ def main():
     bpk = np.mean([R.base[(v, s)][2]['peak'] for v in 'mf' for s in seeds])
     bbg = sum(R.base[(v, s)][2]['bangs'] for v in 'mf' for s in seeds)
     nsd = len(seeds)
-    best = dict(params={}, m=bm, f=bf, sm=bsim['m'] if bsim else 0.0, sf=bsim['f'] if bsim else 0.0)
+    best = dict(params=dict(R.bp), m=bm, f=bf, sm=bsim['m'] if bsim else 0.0, sf=bsim['f'] if bsim else 0.0)
     obj = lambda m, fe, sm, sf: m + fe + lam * nsd * (sm + sf)
     print('base m %d f %d on %s; %d knobs in the gradient' % (bm, bf, a.seeds, len(g)), flush=True)
 

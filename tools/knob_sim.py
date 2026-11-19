@@ -162,7 +162,7 @@ def main():
                 if a.knobs:
                     if knob not in kv:
                         continue
-                    val = kv[knob] * mult
+                    val = bp.get(knob, kv[knob]) * mult
                 p = dict(bp, **{knob: val})
                 futs.append((name, knob, mult, {v: ex.submit(job, a.bin, p, v, 0, tmp) for v in 'mf'}))
             for name, knob, mult, fu in futs:
