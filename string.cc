@@ -30,7 +30,7 @@ constexpr float kSeg = kLength / kMoving, kLayer = kThickness / L;
 // for a string: the light layer would race ahead), tapered along the cord.
 constexpr float kMass = 0.15f;
 const float kTopMass = param("STRING_TOPMASS", 0.464394f) /* cost 1814 whisper-run1-phon_err */ /* 2026-11-04 LF fit (tools/lf_fit.py, ref/lf/fit2) 0.358205, then 15 % back toward the earlier 0.7614 (Jyrki: the more trained voice) */;  // the superior layer's share
-const float kTaper = param("STRING_TAPER", 0.47547668f) /* cost 1814 whisper-run1-phon_err */ /* 2026-11-04 LF fit (tools/lf_fit.py, ref/lf/fit2) 0.185574, then 15 % back toward the earlier 0.1888 (Jyrki: the more trained voice) */;        // half-sine taper, 1 - kTaper at the anchors
+const float kTaper = param("STRING_TAPER", 0.490146f) /* cost 1814 whisper-run1-phon_err */ /* 2026-11-04 LF fit (tools/lf_fit.py, ref/lf/fit2) 0.185574, then 15 % back toward the earlier 0.1888 (Jyrki: the more trained voice) */;        // half-sine taper, 1 - kTaper at the anchors
 // Natural frequency (Hz) of the fold's lowest mode at tension 1: the wall
 // spring and the string's first mode together. The driver's pitch controller
 // takes up the rest, as for the other fold models.
@@ -51,7 +51,7 @@ const float kShearRel = param("STRING_SHEAR", 6.899f) /* cost Whisper 852 compos
 // Damping ratios while open per layer; extra while touching the wall.
 constexpr float kZeta[L] = {0.1f, 0.4f};
 const float kZetaClosed = param("STRING_ZCLOSED", 0.08202616f) /* cost 5.3123456789012345 schwa-run2-kokoro-dB */ /* 2026-11-04 LF fit (tools/lf_fit.py, ref/lf/fit2) 0.207612, then 15 % back toward the earlier 0.1868 (Jyrki: the more trained voice) */;
-const float kCollision = param("STRING_COLLISION", 2.851875f);  // collision stiffness / the lane's total stiffness (a knob since 2026-11-07: the closing phase)
+const float kCollision = param("STRING_COLLISION", 2.7773027f);  // collision stiffness / the lane's total stiffness (a knob since 2026-11-07: the closing phase)
 // The share of the air pressure on the surface that drives it.
 // The oral pressure's slow part on the folds' superior surface (2026-11-11,
 // review voice.md B1): the layers took the absolute tract pressure P1 as an
@@ -107,7 +107,7 @@ constexpr int kMembranousEnd = kLast;
 // constants (ms; 0 = off), the forces mix (1 - s) of their own and s of the
 // neighbours' mean; a touching lane's velocity relaxes toward its layer's
 // mean velocity with kClosedSmoothMs.
-const float kSmoothMs = param("STRING_SMOOTHMS", 43.4f) /* cost 1814 whisper-run1-phon_err */, kVSmoothMs = param("STRING_VSMOOTHMS", 43.972203f) /* cost 1814 whisper-run1-phon_err */;
+const float kSmoothMs = param("STRING_SMOOTHMS", 43.212888f) /* cost 1814 whisper-run1-phon_err */, kVSmoothMs = param("STRING_VSMOOTHMS", 43.972203f) /* cost 1814 whisper-run1-phon_err */;
 const float kForceSmooth = param("STRING_FSMOOTH", 0.00094663794f) /* cost 1814 whisper-run1-phon_err */, kClosedSmoothMs = param("STRING_CSMOOTHMS", 1.5224563f) /* cost 1814 whisper-run1-phon_err */;
 // The other layer's weight in the neighbour mean (the two along the cord weigh 1 each).
 const float kMixLayer = param("STRING_MIXLAYER", 0.007317233f) /* cost 1814 whisper-run1-phon_err */;

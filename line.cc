@@ -26,7 +26,7 @@ const float kNoiseLpRatio = param("LINE_NOISE_LPR", 10.3959664f);  // (2.5 -> 10
 const float kNoiseStSmoothGMs = param("LINE_NOISE_ST_SMOOTH_G_MS", 15.001933f);  // 2026-11-05: the glottal jet's corner smoothed over this alone (ms; < 0: LINE_NOISE_ST_SMOOTH_MS). Its corner zips 200 <-> 12000 Hz once per pitch period in every voiced sound.
 const float kNoiseStSmoothFMs = param("LINE_NOISE_ST_SMOOTH_F_MS", -1.0f);  // ... the constriction's jet's
 const float kNoiseFcMax = param("LINE_NOISE_FC_MAX", 8000.0f);  // the corners' ceiling (Hz; a closing constriction sat at the clamp: 8-12 ms pings at 12 kHz in d, t, m)
-const float kNoiseUMax = param("LINE_NOISE_U_MAX", 0.9831555f);  // > 0: the jet speed behind the corners and the constriction's Reynolds number capped at this x the Bernoulli speed sqrt(2 Ps / rho) (the line's flow lags a closing area: 1.3-1.4 x the limit into a p)
+const float kNoiseUMax = param("LINE_NOISE_U_MAX", 0.9847058f);  // > 0: the jet speed behind the corners and the constriction's Reynolds number capped at this x the Bernoulli speed sqrt(2 Ps / rho) (the line's flow lags a closing area: 1.3-1.4 x the limit into a p)
 const float kNoiseAreaExp = param("LINE_NOISE_AREA_EXP", 1.5155573f);  // 2026-11-05: the constriction noise drive x (LINE_NOISE_AREA_REF / area)^this. The Re^2 law (U^2 d^2 ~ u^2 / a) grows as a groove opens on the glottis-limited flow (u ~ a): the s of "save" rose 12 dB over its last 13 ms as its groove opened and its corner fell 8.8 -> 2.1 kHz, then the fade cut it (Kokoro: a 20 dB fade over the last 30 ms). Stevens: the source goes as U^3 / A^2.5. 0: as before.
 const float kNoiseAreaRef = param("LINE_NOISE_AREA_REF", 0.05f);  // cm^2 (an s groove): no change there
 const float kNoiseAreaTarget = param("LINE_NOISE_AREA_TARGET", 0.0009813799f);  // > 0: the reference is instead the constriction's own area (the smaller end of its glide, at least this many cm^2), and the factor never exceeds 1: every steady fricative keeps its level, only the glides out of and into a groove or a closure are damped (the absolute law cut z v ð by 15 dB and lifted f ʃ by 8: Whisper -45)
@@ -402,8 +402,8 @@ void VocalTractLine::init(float fs, float nasalScale) {
   // sphenoid ones near 1-1.5 kHz; without them the line's n carried 1-2 kHz
   // only 17 dB under its low band, Kokoro 27-45, and "known" was "whole").
   {
-    static const float v1 = param("LINE_SINUS1_V", 22.949625f), a1 = param("LINE_SINUS1_A", 0.106172813f), l1 = param("LINE_SINUS1_L", 0.60069922f);
-    static const float v2 = param("LINE_SINUS2_V", 3.87639129f), a2 = param("LINE_SINUS2_A", 0.0992268f), l2 = param("LINE_SINUS2_L", 0.515922f);
+    static const float v1 = param("LINE_SINUS1_V", 22.9135714f), a1 = param("LINE_SINUS1_A", 0.106172813f), l1 = param("LINE_SINUS1_L", 0.60069922f);
+    static const float v2 = param("LINE_SINUS2_V", 3.87113703f), a2 = param("LINE_SINUS2_A", 0.0992268f), l2 = param("LINE_SINUS2_L", 0.5142507f);
     static const float q = param("LINE_SINUS_Q", 5.0f);
     // The maxillary pair as two cavities, one LINE_SINUS1_SPLIT times the other's volume (0: one cavity for both).
     // Jyrki 2026-11-10: "make one sinus 12 % larger in volume than the other". Each half gets half the neck, so the
@@ -951,8 +951,8 @@ void VocalTractLine::setNasalGeom(float portA, float cavA, float nostA, float en
 }
 
 void VocalTractLine::setSinusScale(float vx1, float vx2, float qx) {  // (NASAL2 agent33; the init's sinus layout)
-  const float v1 = param("LINE_SINUS1_V", 22.949625f), a1 = param("LINE_SINUS1_A", 0.106172813f), l1 = param("LINE_SINUS1_L", 0.60069922f);
-  const float v2 = param("LINE_SINUS2_V", 3.87639129f), a2 = param("LINE_SINUS2_A", 0.0992268f), l2 = param("LINE_SINUS2_L", 0.515922f);
+  const float v1 = param("LINE_SINUS1_V", 22.9135714f), a1 = param("LINE_SINUS1_A", 0.106172813f), l1 = param("LINE_SINUS1_L", 0.60069922f);
+  const float v2 = param("LINE_SINUS2_V", 3.87113703f), a2 = param("LINE_SINUS2_A", 0.0992268f), l2 = param("LINE_SINUS2_L", 0.5142507f);
   const float q = param("LINE_SINUS_Q", 5.0f) * qx;
   const float split = param("LINE_SINUS1_SPLIT", 1.12f);
   int i = 0;
