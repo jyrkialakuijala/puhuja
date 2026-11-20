@@ -72,7 +72,7 @@ const float kCollision = param("STRING_COLLISION", 2.7773027f);  // collision st
 const float kP1Sup = param("STRING_P1SUP", 0.0f), kP1SupHz = param("STRING_P1SUP_HZ", 10.0f);
 const float kKappa = param("STRING_KAPPA", 0.4327f) /* cost Whisper 852 composite 23.90/26.04 92b-cheap9 */ /* 2026-11-04 LF fit (tools/lf_fit.py, ref/lf/fit2) 2.24987, then 15 % back toward the earlier 3 (Jyrki: the more trained voice) */;
 // The cords' own sound: surface area times lateral velocity, both folds.
-const float kSurface = param("STRING_SURFACE", 0.086561043f) /* cost 5.3123456789012345 schwa-run2-kokoro-dB */;
+const float kSurface = param("STRING_SURFACE", 0.086025414f) /* cost 5.3123456789012345 schwa-run2-kokoro-dB */;
 // The abduction rest area scaled for this model's own amplitude.
 const float kRestScale = param("STRING_REST", 0.021620734f) /* cost Whisper 852 composite 23.90/26.04 92b-cheap9 */ /* 2026-11-04 LF fit (tools/lf_fit.py, ref/lf/fit2) 0.0539805, then 15 % back toward the earlier 0.04671 (Jyrki: the more trained voice) */;
 // Rest width along the cord relative to the mean: front (anterior) against back.

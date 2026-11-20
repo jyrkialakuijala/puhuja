@@ -3516,7 +3516,7 @@ void EnglishReader::sayPhrase(char end) {
         // aʊ's own split (EN_AW_FIRST_SHARE): Jyrki 2026-11-05, "now" as "naauu",
         // the ʊ part too long (a 203, ʊ 171 ms with 0.6: the short-vowel
         // lengthening below favours the shorter half).
-        static const float kAwFirstShare = param("EN_AW_FIRST_SHARE", 0.56462617f);
+        static const float kAwFirstShare = param("EN_AW_FIRST_SHARE", 0.5706525f);
         // ɔɪ's own split and length (EN_OY_FIRST_SHARE, EN_OY_LEN; OY agent 2026-11-10, lab: 0.6 and 1 = as before).
         static const float kOyFirstShare = param("EN_OY_FIRST_SHARE", 0.603866f), kOyLen = param("EN_OY_LEN", 1.0f);
         const bool oy = s.n == 2 && s.ph[0] == Ph::AO && s.ph[1] == Ph::IH;

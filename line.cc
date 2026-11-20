@@ -402,7 +402,7 @@ void VocalTractLine::init(float fs, float nasalScale) {
   // sphenoid ones near 1-1.5 kHz; without them the line's n carried 1-2 kHz
   // only 17 dB under its low band, Kokoro 27-45, and "known" was "whole").
   {
-    static const float v1 = param("LINE_SINUS1_V", 22.9135714f), a1 = param("LINE_SINUS1_A", 0.106172813f), l1 = param("LINE_SINUS1_L", 0.60069922f);
+    static const float v1 = param("LINE_SINUS1_V", 22.753038f), a1 = param("LINE_SINUS1_A", 0.106172813f), l1 = param("LINE_SINUS1_L", 0.60069922f);
     static const float v2 = param("LINE_SINUS2_V", 3.87113703f), a2 = param("LINE_SINUS2_A", 0.0992268f), l2 = param("LINE_SINUS2_L", 0.5142507f);
     static const float q = param("LINE_SINUS_Q", 5.0f);
     // The maxillary pair as two cavities, one LINE_SINUS1_SPLIT times the other's volume (0: one cavity for both).
@@ -951,7 +951,7 @@ void VocalTractLine::setNasalGeom(float portA, float cavA, float nostA, float en
 }
 
 void VocalTractLine::setSinusScale(float vx1, float vx2, float qx) {  // (NASAL2 agent33; the init's sinus layout)
-  const float v1 = param("LINE_SINUS1_V", 22.9135714f), a1 = param("LINE_SINUS1_A", 0.106172813f), l1 = param("LINE_SINUS1_L", 0.60069922f);
+  const float v1 = param("LINE_SINUS1_V", 22.753038f), a1 = param("LINE_SINUS1_A", 0.106172813f), l1 = param("LINE_SINUS1_L", 0.60069922f);
   const float v2 = param("LINE_SINUS2_V", 3.87113703f), a2 = param("LINE_SINUS2_A", 0.0992268f), l2 = param("LINE_SINUS2_L", 0.5142507f);
   const float q = param("LINE_SINUS_Q", 5.0f) * qx;
   const float split = param("LINE_SINUS1_SPLIT", 1.12f);
