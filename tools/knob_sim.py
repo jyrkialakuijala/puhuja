@@ -29,6 +29,11 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import knob_search as ks  # noqa: E402
+try:
+    import zimtohrli  # noqa: F401
+except ImportError:  # imported from stt/venv (knob_search.py --sim): Zimtohrli is in tools/venv (same Python 3.14)
+    import glob
+    sys.path += glob.glob(os.path.join(ks.ROOT, 'tools/venv/lib/python3*/site-packages'))
 import zimt_words as zw  # noqa: E402
 
 GOLD = {'m': ['11labs1', '11labs3'], 'f': ['11labs2']}
@@ -45,7 +50,7 @@ _Z = None
 
 
 def _cuts(wav, tsv):
-    x = zw.read_wav(wav)
+    x = ks.read_wav(open(wav, 'rb').read()).astype(np.float32)  # 48 kHz mono references; no scipy (works in stt/venv too)
     rows = zw.read_tsv(tsv)
     m = zw.match_words(TEXT_WORDS, rows)
     return [zw.cut(x, rows[m[i]][0], rows[m[i]][1]) if i in m else None for i in range(len(TEXT_WORDS))]

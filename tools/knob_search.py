@@ -105,6 +105,13 @@ def render(binp, params, voice, seed, tmp):
     return x, W, hashlib.md5(raw).hexdigest()
 
 
+def render_sim(binp, params, voice, seed, tmp, simex):
+    """render() and the knob_sim.py similarity of that render, scored in a worker process (Zimtohrli holds the GIL)"""
+    import knob_sim
+    x, W, md5 = render(binp, params, voice, seed, tmp)
+    return x, W, md5, simex.submit(knob_sim.score, x, W, voice).result()
+
+
 def read_wav(data):
     pos, fmt = 12, 1
     while pos + 8 <= len(data):
@@ -309,6 +316,10 @@ class Runner:
             self.pipe = BatchedInferencePipeline(model=self.judge.m)
         self.base = {}  # (voice, seed) -> (md5, errors, sound)
         self.ex = ThreadPoolExecutor(a.procs)
+        self.simex = None
+        if getattr(a, 'sim_inline', False):  # knob_sim.py similarity on the first seed's renders
+            from concurrent.futures import ProcessPoolExecutor
+            self.simex = ProcessPoolExecutor(3)
         self.cur = 'base'
         self.bp = {}
         if getattr(a, 'base_params', None):
@@ -325,7 +336,10 @@ class Runner:
         jobs = []
         for v in 'mf':
             for s in seeds:
-                fu = self.ex.submit(render, self.a.bin, p, v, s, self.tmp)
+                if self.simex is not None and s == seeds[0]:
+                    fu = self.ex.submit(render_sim, self.a.bin, p, v, s, self.tmp, self.simex)
+                else:
+                    fu = self.ex.submit(render, self.a.bin, p, v, s, self.tmp)
                 fw = self.ex.submit(render_words, self.a.bin, p, v, s, self.wlines, self.tmp) if self.wlines else None
                 jobs.append((v, s, (fu, fw)))
         return jobs
@@ -338,8 +352,11 @@ class Runner:
     def collect(self, jobs):
         res = {}
         for v, s, (fu, fw) in jobs:
-            x, W, md5 = fu.result()
+            r = fu.result()
+            x, W, md5 = r[:3]
             snd = sound(x)
+            if len(r) > 3:
+                snd['sim'], snd['simg'], snd['simk'] = r[3]
             b = self.base.get((v, s))
             if b and b[0].split(':')[0] == md5:
                 ek = b[1] - b[3]
@@ -400,6 +417,8 @@ def main():
     ap.add_argument('--skip-dead', default=None, help='a screen tsv: leave out knobs that were byte-identical to its base both ways')
     ap.add_argument('--words', default=None, help='guard word list (one per line), read in both voices and every seed; its wrong words add to the errors')
     ap.add_argument('--only', default=None, help='screen only these candidates: a file of "KNOB MULT" lines')
+    ap.add_argument('--sim', dest='sim_inline', action='store_true', help='also score the knob_sim.py similarity (Zimtohrli to '
+                    '11labs / Kokoro) on the first seed\'s renders; rows to <out>.sim.tsv in knob_sim.py screen format')
     ap.add_argument('--shard', default='0/1', help='k/n: this process takes every n-th candidate (two share the GPU)')
     a = ap.parse_args()
     os.makedirs(os.path.dirname(a.out), exist_ok=True)
@@ -483,6 +502,16 @@ def main():
         R.cur = '%s*%.3f' % (n, m)
         res = R.collect(jobs)
         f.write(row('%s*%.3f' % (n, m), n, m, p[n], seeds, res, R.base) + '\n'); f.flush()
+        if a.sim_inline:
+            r0 = {v: res[(v, seeds[0])][2] for v in 'mf'}; b0 = {v: R.base[(v, seeds[0])][2] for v in 'mf'}
+            st = a.out + '.sim.tsv'
+            new = not os.path.exists(st)
+            with open(st, 'a') as g:
+                if new:
+                    g.write('name\tknob\tmult\tm_sim\tf_sim\tm_dsim\tf_dsim\tm_gold\tf_gold\tm_koko\tf_koko\tm_len\tf_len\n')
+                g.write('%s*%.3f\t%s\t%.3f\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\n' % (
+                    n, m, n, m, r0['m']['sim'], r0['f']['sim'], r0['m']['sim'] - b0['m']['sim'], r0['f']['sim'] - b0['f']['sim'],
+                    r0['m']['simg'], r0['f']['simg'], r0['m']['simk'], r0['f']['simk'], r0['m']['n'] / b0['m']['n'], r0['f']['n'] / b0['f']['n']))
         k = len(done_names(tsv))
         el = time.time() - t0
         print('%5d / %d  %s  %.0f s/cand' % (k, len(cands), '%s*%.3f' % (n, m), el / max(1, i - len(q))), flush=True)
