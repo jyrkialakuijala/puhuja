@@ -46,6 +46,10 @@ def screen_scores(prefix, lam):
     return sc, {k: all(v) for k, v in dead.items()}
 
 
+def mean(l):
+    return sum(v * w for v, w in l) / sum(w for v, w in l)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--bin', required=True)
@@ -55,25 +59,39 @@ def main():
     ap.add_argument('--rand', type=float, default=0.05)
     ap.add_argument('--seed', type=int, default=0)
     ap.add_argument('--lam', type=float, default=60.0)
+    ap.add_argument('--ntop', type=int, default=None, help='number of top knobs (instead of --top)')
+    ap.add_argument('--nrand', type=int, default=None, help='number of random knobs (instead of --rand)')
+    ap.add_argument('--halflife', type=float, default=0, help='weight of a screen halves every H screens back '
+                    '(the --screens order is chronological; 0 = plain mean)')
+    ap.add_argument('--skip-recent', type=int, default=0, help='leave out of the top the knobs of the last K screens\' '
+                    '.only files (they just had their line search)')
     a = ap.parse_args()
     P = ks.pool(a.bin, a.out)
     elig = {k for k in P if not (TIMING.search(k) and not TRACT.search(k))}
     tot = {}
     alive = {}
-    for s in a.screens.split(','):
+    scr = a.screens.split(',')
+    for si, s in enumerate(scr):
+        w = 0.5 ** ((len(scr) - 1 - si) / a.halflife) if a.halflife > 0 else 1.0
         pre = s if os.sep in s else os.path.join(ks.ROOT, 'ref/opt/ksearch', s)
         if not os.path.exists(pre + '.screen.tsv'):
             continue
         sc, dead = screen_scores(pre, a.lam)
         for k, v in sc.items():
-            tot.setdefault(k, []).append(v)
+            tot.setdefault(k, []).append((v, w))
         for k, d in dead.items():
             alive[k] = alive.get(k, False) or not d
     elig = {k for k in elig if alive.get(k, True)}
-    ranked = sorted((k for k in elig if k in tot), key=lambda k: sum(tot[k]) / len(tot[k]))
-    ntop = max(1, int(round(a.top * len(elig))))
-    nrand = max(1, int(round(a.rand * len(elig))))
-    top = [k for k in ranked[:ntop] if sum(tot[k]) < 0]
+    ranked = sorted((k for k in elig if k in tot), key=lambda k: mean(tot[k]))
+    ntop = a.ntop if a.ntop is not None else max(1, int(round(a.top * len(elig))))
+    nrand = a.nrand if a.nrand is not None else max(1, int(round(a.rand * len(elig))))
+    recent = set()
+    for s in scr[-a.skip_recent:] if a.skip_recent > 0 else []:
+        pre = s if os.sep in s else os.path.join(ks.ROOT, 'ref/opt/ksearch', s)
+        if os.path.exists(pre + '.only'):
+            recent |= {l.split()[0] for l in open(pre + '.only') if l.strip()}
+    ranked = [k for k in ranked if k not in recent]
+    top = [k for k in ranked[:ntop] if mean(tot[k]) < 0]
     rest = sorted(elig - set(top))
     rnd = random.Random(a.seed).sample(rest, min(nrand, len(rest)))
     with open(a.out + '.only', 'w') as f:
@@ -83,9 +101,9 @@ def main():
     with open(a.out + '.dims.tsv', 'w') as f:
         f.write('knob\tkind\tscore\tnscreens\n')
         for k in top:
-            f.write('%s\ttop\t%.2f\t%d\n' % (k, sum(tot[k]) / len(tot[k]), len(tot[k])))
+            f.write('%s\ttop\t%.2f\t%d\n' % (k, mean(tot[k]), len(tot[k])))
         for k in rnd:
-            f.write('%s\trandom\t%s\t%d\n' % (k, '%.2f' % (sum(tot[k]) / len(tot[k])) if k in tot else '-', len(tot.get(k, []))))
+            f.write('%s\trandom\t%s\t%d\n' % (k, '%.2f' % (mean(tot[k])) if k in tot else '-', len(tot.get(k, []))))
     print('%d eligible knobs; %d top + %d random -> %d candidates in %s' % (len(elig), len(top), len(rnd), 2 * (len(top) + len(rnd)),
                                                                           a.out + '.only'))
 
