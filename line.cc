@@ -339,7 +339,7 @@ const float kNostrilArea = param("LINE_NOSTRIL_A", 1.53975054f) /* cost 1814 whi
 
 void VocalTractLine::setFemale(bool female) {
   // LINE_HF_BW_F: the female voice's oral HF loss (< 0: LINE_HF_BW; round Z VQ agent28)
-  static const float kHfBwF = param("LINE_HF_BW_F", 197.75712f);
+  static const float kHfBwF = param("LINE_HF_BW_F", 197.193336f);
   if (kHfBwF >= 0) oral_.setHfLoss(female ? kHfBwF : kHfBandwidth, kHfCorner);
   if (kHfBwF >= 0) sub_.setHfLoss(female ? kHfBwF : kHfBandwidth, kHfCorner);  // (the trachea's from the same knob)
   oralHfBw_ = kHfBwF >= 0 && female ? kHfBwF : kHfBandwidth;

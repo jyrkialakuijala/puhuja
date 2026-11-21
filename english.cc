@@ -2844,7 +2844,7 @@ void EnglishReader::sayPhrase(char end) {
   // g 1. The unaccented syllables between accents follow on the line between them (the sag below), so the
   // content-function contrast is not raised. Connected speech only (2+ words; the dictionary unchanged).
   static const float kGaccMix = param("EN_GACC_MIX", 1.003866f), kGaccAt = param("EN_GACC_AT", 0.444892605f),
-                     kGaccLo0 = param("EN_GACC_LO0", 0.946446211f), kGaccLo1 = param("EN_GACC_LO1", 0.6007732f),
+                     kGaccLo0 = param("EN_GACC_LO0", 0.94472928f), kGaccLo1 = param("EN_GACC_LO1", 0.6007732f),
                      kGaccNuc = param("EN_GACC_NUC", 1.0025773f), kGaccH = param("EN_GACC_H", 1.25f);
   std::vector<float> gaccPos;
   const float gaccH0 = accentHeight;
@@ -3525,7 +3525,7 @@ void EnglishReader::sayPhrase(char end) {
         static const float kAyFirstShare = param("EN_AY_FIRST_SHARE", -1.0f), kAyLen = param("EN_AY_LEN", 1.0f);
         // eɪ's own split and length (EN_EY_FIRST_SHARE, EN_EY_LEN; a word-final eɪ x EN_EY_FINAL_LEN as well; EY agent
         // 2026-11-10 lab knobs, 0.6 / 1 / 1 as before).
-        static const float kEyFirstShare = param("EN_EY_FIRST_SHARE", 0.5935432f), kEyLen = param("EN_EY_LEN", 1.0016753f), kEyFinalLen = param("EN_EY_FINAL_LEN", 1.0010309f);
+        static const float kEyFirstShare = param("EN_EY_FIRST_SHARE", 0.5964503f), kEyLen = param("EN_EY_LEN", 1.0016753f), kEyFinalLen = param("EN_EY_FINAL_LEN", 1.0010309f);
         const bool ey = s.n == 2 && s.ph[0] == Ph::E && s.ph[1] == Ph::IH;
         // eɪ's context for the line (Shape::eyctx) and its length / split in a closed syllable (EN_EY_CLOSED_LEN,
         // EN_EY_CLOSED_SHARE, < 0: EN_EY_FIRST_SHARE) and word-initially (EN_EY_INIT_LEN). EY agent10 round K lab knobs

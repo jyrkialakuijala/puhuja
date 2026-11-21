@@ -21,7 +21,7 @@ inline const std::map<std::string, float>& tunedDefaults() {
     {"DUR_CS_P_UW", 1.00115979f},
     {"DUR_CS_P_Y", 1.00090206f},
     {"DUR_CS_P_ZH", 0.999742268f},
-    {"LINE_AG_FRIC", 0.30038661f},
+    {"LINE_AG_FRIC", 0.314004579f},
     {"LINE_CAV_0_FL", -0.06297732f},
     {"LINE_CAV_10_FA", 0.4903861f},
     {"LINE_CAV_10_FL", 0.63324444f},
@@ -39,7 +39,7 @@ inline const std::map<std::string, float>& tunedDefaults() {
     {"LINE_CAV_14_HL", 0.8393643f},
     {"LINE_CAV_16_FA", -0.1660575f},
     {"LINE_CAV_16_FL", -0.8396854f},
-    {"LINE_CAV_16_HA", -0.40852145f},
+    {"LINE_CAV_16_HA", -0.44856977f},
     {"LINE_CAV_1_FL", 0.17473272f},
     {"LINE_CAV_1_HA", -0.0621364918f},
     {"LINE_CAV_2_FL", 1.1130055f},
@@ -49,10 +49,10 @@ inline const std::map<std::string, float>& tunedDefaults() {
     {"LINE_CAV_3_HA", -0.693245104f},
     {"LINE_CAV_3_HL", -0.12945272f},
     {"LINE_CAV_4_FA", -0.60531899f},
-    {"LINE_CAV_4_HA", -0.296329f},
+    {"LINE_CAV_4_HA", -0.294007263f},
     {"LINE_CAV_6_FA", -0.247680408f},
     {"LINE_CAV_6_FL", -0.434329895f},
-    {"LINE_CAV_6_HA", 0.6796431f},
+    {"LINE_CAV_6_HA", 0.6764734f},
     {"LINE_CAV_6_HL", -0.0465760293f},
     {"LINE_CAV_8_FA", -0.117088917f},
     {"LINE_CAV_8_HA", -0.72061518f},
@@ -84,7 +84,7 @@ inline const std::map<std::string, float>& tunedDefaults() {
     {"RED_I_P_R", 0.808247435f},
     {"RED_I_P_W", 0.50064433f},
     {"RED_S_N_COR", 0.451159782f},
-    {"RED_S_N_L", 0.937297637f},
+    {"RED_S_N_L", 0.94101161f},
     {"RED_S_N_PAL", 0.349212502f},
     {"RED_S_N_V", 1.00773196f},
     {"RED_S_N_VEL", 0.0988402072f},
@@ -112,7 +112,7 @@ inline const std::map<std::string, float>& tunedDefaults() {
     {"LINE_TR_D_FRIC@f", 3.0f},
     {"BREATH_PUNCT", 0.299971446f},  // run8
     {"LINE_CAV_0_FA", 0.152569975f},  // run8
-    {"LIQ_R_APH", 0.603949351f},  // run11
+    {"LIQ_R_APH", 0.588596656f},  // run11
     {"LINE_CAV_13_HL", 0.499041781f},  // run14
     {"LINE_CAV_12_HL", -0.285784361f},  // run8
     {"LINE_CAV_14_HA", -0.0261667f},  // run8
