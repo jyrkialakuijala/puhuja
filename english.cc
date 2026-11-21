@@ -644,7 +644,7 @@ constexpr float kRepeatLift = 1.5f, kRepeatLiftMax = 4.5f;  // st per repetition
 constexpr size_t kRecentPhrases = 12;
 constexpr float kExclaimLift = 3.0f;  // st on the accents of an exclamation
 constexpr float kExclaimDb = 2.0f;    // and louder
-const float kFirstAccent = param("EN_FIRST_ACCENT", 10.59028f);      // first accent above the baseline
+const float kFirstAccent = param("EN_FIRST_ACCENT", 10.241455f);      // first accent above the baseline
 const float kDownstep = param("EN_DOWNSTEP", 0.85f);         // each further accent: this much of the last
 constexpr float kMinAccent = 5.5f;
 const float kPostAccent = param("EN_POST_ACCENT", 0.20206186f);       // syllable after an accent keeps this share
@@ -652,7 +652,7 @@ const float kPostAccent = param("EN_POST_ACCENT", 0.20206186f);       // syllabl
 // line, a longer run sags into a valley (st per syllable of the run, capped).
 const float kInterAccentSagPerSyl = param("EN_SAG_PER_SYL", 2.0046303f), kInterAccentSagMax = param("EN_SAG_MAX", 4.9238187f);
 constexpr float kSecondary = 1.0f;        // secondary stress in a content word
-const float kFinalLow = param("EN_FINAL_LOW", -7.072165f);        // end of a long or exclaimed statement
+const float kFinalLow = param("EN_FINAL_LOW", -7.033971f);        // end of a long or exclaimed statement
 const float kFinalLowShort = param("EN_FINAL_LOW_SHORT", -5.029813f);   // end of a short statement
 constexpr float kLevelEnding = -5.0f;     // a level ending (near the baseline)
 constexpr unsigned kLevelEndingEvery = 5;
@@ -2141,11 +2141,11 @@ void applyForeign(std::vector<EnglishReader::Word>& phrase, const ForeignWord (&
 }
 
 // Loudness shape of a phrase (dB, vowels).
-const float kArcStartDb = param("EN_ARC_START_DB", 1.0090206f), kArcEndDb = param("EN_ARC_END_DB", -2.0399976f);  // (-3: with the end release too steep)
+const float kArcStartDb = param("EN_ARC_START_DB", 1.0090206f), kArcEndDb = param("EN_ARC_END_DB", -2.0244407f);  // (-3: with the end release too steep)
 static const float kCreakBelow = param("EN_CREAK_BELOW", -6.5f);  // st: statement endings this low get creaky voice (-5: nearly all)
 constexpr float kPressedAccent = 0.9f, kLaxUnstressed = 1.08f, kLaxFinal = 1.12f;  // glottal opening
 const float kAccentDb = param("EN_ACCENT_DB", 1.5050943f), kFunctionWordDb = param("EN_FUNC_WORD_DB", -1.5f);
-const float kSecondaryDb = param("kSecondaryDb", -4.1151878f), kUnstressedDb = param("kUnstressedDb", 2.1330686f);
+const float kSecondaryDb = param("kSecondaryDb", -4.1151878f), kUnstressedDb = param("kUnstressedDb", 2.071088f);
 const float kSecondaryPreDb = param("kSecondaryPreDb", 2.9884021f);  // a secondary stress before the primary (see the level rule; Jyrki 2026-11-06: "gen-sp4 is the best, but probably sp3 would be better", then "sp3 is better"; kennedy Whisper 788 vs 798)
 const float kSecondaryVowelLength = param("kSecondaryVowelLength", 1.3609469f) /* cost 0.0307218938484690 wobble */ /* 1.19 from the timing search made the secondary-stress syllable as long as the primary */, kInitialRLength = 1.0f;
 // A word-initial ɹ before a vowel ("revolution", "republics", "rights") is a
@@ -2843,7 +2843,7 @@ void EnglishReader::sayPhrase(char end) {
   // place in its planned breath group: env rises from EN_GACC_LO0 at g 0 to 1 at EN_GACC_AT and falls to EN_GACC_LO1 at
   // g 1. The unaccented syllables between accents follow on the line between them (the sag below), so the
   // content-function contrast is not raised. Connected speech only (2+ words; the dictionary unchanged).
-  static const float kGaccMix = param("EN_GACC_MIX", 1.003866f), kGaccAt = param("EN_GACC_AT", 0.44968576f),
+  static const float kGaccMix = param("EN_GACC_MIX", 1.003866f), kGaccAt = param("EN_GACC_AT", 0.444892605f),
                      kGaccLo0 = param("EN_GACC_LO0", 0.946446211f), kGaccLo1 = param("EN_GACC_LO1", 0.6007732f),
                      kGaccNuc = param("EN_GACC_NUC", 1.0025773f), kGaccH = param("EN_GACC_H", 1.25f);
   std::vector<float> gaccPos;
@@ -3516,7 +3516,7 @@ void EnglishReader::sayPhrase(char end) {
         // aʊ's own split (EN_AW_FIRST_SHARE): Jyrki 2026-11-05, "now" as "naauu",
         // the ʊ part too long (a 203, ʊ 171 ms with 0.6: the short-vowel
         // lengthening below favours the shorter half).
-        static const float kAwFirstShare = param("EN_AW_FIRST_SHARE", 0.5706525f);
+        static const float kAwFirstShare = param("EN_AW_FIRST_SHARE", 0.5652596f);
         // ɔɪ's own split and length (EN_OY_FIRST_SHARE, EN_OY_LEN; OY agent 2026-11-10, lab: 0.6 and 1 = as before).
         static const float kOyFirstShare = param("EN_OY_FIRST_SHARE", 0.603866f), kOyLen = param("EN_OY_LEN", 1.0f);
         const bool oy = s.n == 2 && s.ph[0] == Ph::AO && s.ph[1] == Ph::IH;

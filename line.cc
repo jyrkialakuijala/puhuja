@@ -241,7 +241,7 @@ const float kVelumScale = param("LINE_VELUM", 6.1606793f) /* cost 1814 whisper-r
 // than the oral one (Jyrki 2026-11-02: "the nasal tract may be longer,
 // perhaps 3 cm, than the mouth tract"); anatomical values 12-12.5 cm would
 // make it 4-4.6 cm longer.
-const float kNasalLength = param("LINE_NASAL_CM", 11.5041698f);
+const float kNasalLength = param("LINE_NASAL_CM", 11.7144543f);
 const float kReynoldsCrit = param("LINE_RE_CRIT", 1400.0f);  // 1800 until 2026-11-06: the voiced z's jet (Re 800-1600) never hissed, "is" heard as "in"; 1400 with LINE_AG_Z 0.16, LINE_Z_AC 1 (zA): Whisper 801 -> 853, Jyrki "sounded good"
 const float kFricA0 = param("LINE_FRIC_A0", 0.11673874f);  // the frication source at full strength below this constriction area (cm^2; the widest slit, ð, is 0.084) ...
 const float kFricA1 = param("LINE_FRIC_A1", 0.2156f) /* cost 1814 whisper-run1-phon_err */;  // ... and silent above this (the approximants: 0.25-0.35; at 0.3 the r after a vowel, 0.25 cm^2, still hissed +17 dB)
@@ -388,7 +388,7 @@ void VocalTractLine::init(float fs, float nasalScale) {
   nasal_.setHfLoss(kNasalHfBw, kNasalHfFc);
   nasHfFc_ = kNasalHfFc;
   nasalScale_ = nasalScale;
-  static const float kNasalVisc = param("LINE_NASAL_VISC", 4.210121f);
+  static const float kNasalVisc = param("LINE_NASAL_VISC", 4.2286265f);
   nasal_.setViscLoss(kNasalVisc);  // (30: the m of "his mortal", starting from the voiceless z, fell to -26 dB)  // the turbinates: far more surface per volume than a tube
   // The nasal passage: the port and nasopharynx, the cavity, the nostrils.
   std::vector<float> na(nasal_.sections());
@@ -403,7 +403,7 @@ void VocalTractLine::init(float fs, float nasalScale) {
   // only 17 dB under its low band, Kokoro 27-45, and "known" was "whole").
   {
     static const float v1 = param("LINE_SINUS1_V", 22.398915f), a1 = param("LINE_SINUS1_A", 0.106172813f), l1 = param("LINE_SINUS1_L", 0.60069922f);
-    static const float v2 = param("LINE_SINUS2_V", 3.87113703f), a2 = param("LINE_SINUS2_A", 0.0992268f), l2 = param("LINE_SINUS2_L", 0.5142507f);
+    static const float v2 = param("LINE_SINUS2_V", 3.87113703f), a2 = param("LINE_SINUS2_A", 0.0992268f), l2 = param("LINE_SINUS2_L", 0.49725544f);
     static const float q = param("LINE_SINUS_Q", 5.0f);
     // The maxillary pair as two cavities, one LINE_SINUS1_SPLIT times the other's volume (0: one cavity for both).
     // Jyrki 2026-11-10: "make one sinus 12 % larger in volume than the other". Each half gets half the neck, so the
@@ -952,7 +952,7 @@ void VocalTractLine::setNasalGeom(float portA, float cavA, float nostA, float en
 
 void VocalTractLine::setSinusScale(float vx1, float vx2, float qx) {  // (NASAL2 agent33; the init's sinus layout)
   const float v1 = param("LINE_SINUS1_V", 22.398915f), a1 = param("LINE_SINUS1_A", 0.106172813f), l1 = param("LINE_SINUS1_L", 0.60069922f);
-  const float v2 = param("LINE_SINUS2_V", 3.87113703f), a2 = param("LINE_SINUS2_A", 0.0992268f), l2 = param("LINE_SINUS2_L", 0.5142507f);
+  const float v2 = param("LINE_SINUS2_V", 3.87113703f), a2 = param("LINE_SINUS2_A", 0.0992268f), l2 = param("LINE_SINUS2_L", 0.49725544f);
   const float q = param("LINE_SINUS_Q", 5.0f) * qx;
   const float split = param("LINE_SINUS1_SPLIT", 1.12f);
   int i = 0;
