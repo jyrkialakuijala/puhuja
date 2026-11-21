@@ -31,7 +31,7 @@ inline const std::map<std::string, float>& tunedDefaults() {
     {"LINE_CAV_12_FA", -0.416063333f},
     {"LINE_CAV_12_FL", -0.71321f},
     {"LINE_CAV_12_HA", -0.60543746f},
-    {"LINE_CAV_13_FA", 0.0888472111f},
+    {"LINE_CAV_13_FA", 0.0896623503f},
     {"LINE_CAV_13_FL", -0.041502452f},
     {"LINE_CAV_13_HA", -0.20134969f},
     {"LINE_CAV_14_FA", -0.196425988f},
@@ -46,7 +46,7 @@ inline const std::map<std::string, float>& tunedDefaults() {
     {"LINE_CAV_2_HL", -0.2820185f},
     {"LINE_CAV_3_FA", -0.169653351f},
     {"LINE_CAV_3_FL", -0.664475765f},
-    {"LINE_CAV_3_HA", -0.636622085f},
+    {"LINE_CAV_3_HA", -0.665388184f},
     {"LINE_CAV_3_HL", -0.12945272f},
     {"LINE_CAV_4_FA", -0.60531899f},
     {"LINE_CAV_4_HA", -0.296329f},
@@ -63,7 +63,7 @@ inline const std::map<std::string, float>& tunedDefaults() {
     {"LINE_ROOM_TONE", 0.0376572153f},
     {"LIQ_J_APH", 1.0046613f},
     {"LIQ_J_LIPL", 0.992268041f},
-    {"LIQ_LC_APH", 1.007683f},
+    {"LIQ_LC_APH", 0.980244948f},
     {"LIQ_LC_LIPA", 0.98758375f},
     {"LIQ_LC_LIPL", 1.0065812f},
     {"LIQ_L_APH", 0.99871134f},
@@ -84,7 +84,7 @@ inline const std::map<std::string, float>& tunedDefaults() {
     {"RED_I_P_R", 0.808247435f},
     {"RED_I_P_W", 0.50064433f},
     {"RED_S_N_COR", 0.451159782f},
-    {"RED_S_N_L", 0.9909689f},
+    {"RED_S_N_L", 0.937297637f},
     {"RED_S_N_PAL", 0.349212502f},
     {"RED_S_N_V", 1.00773196f},
     {"RED_S_N_VEL", 0.0988402072f},
@@ -113,7 +113,8 @@ inline const std::map<std::string, float>& tunedDefaults() {
     {"BREATH_PUNCT", 0.299971446f},  // run8
     {"LINE_CAV_0_FA", 0.152569975f},  // run8
     {"LIQ_R_APH", 0.603949351f},  // run11
-    {"LINE_CAV_12_HL", -0.27835777f},  // run8
+    {"LINE_CAV_13_HL", 0.499041781f},  // run14
+    {"LINE_CAV_12_HL", -0.285784361f},  // run8
     {"LINE_CAV_14_HA", -0.0261667f},  // run8
     {"LINE_CAV_1_HL", 0.35288771f},  // run8
     {"LINE_CAV_8_FL", -0.19120417f},  // run8
@@ -121,7 +122,7 @@ inline const std::map<std::string, float>& tunedDefaults() {
     {"LIQ_W_MIX", 0.49846286f},  // run8
     {"LINE_CAV_0_HA", 0.44590856f},  // run7
     {"LINE_CAV_10_HA", 0.6265658f},  // run7
-    {"LINE_CAV_10_HL", 0.091369476f},  // run7
+    {"LINE_CAV_10_HL", 0.095587698f},  // run7
     {"LINE_CAV_11_HL", 0.033550404f},  // run7
     {"LINE_CAV_1_FA", -0.28113738f},  // run7
     {"LINE_CAV_2_HA", -0.749368f},  // run7

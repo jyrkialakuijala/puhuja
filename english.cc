@@ -602,7 +602,7 @@ bool isFunctionWord(const std::string& w) {
 // above it and endings fall below, so the speaking pitch centres on the
 // base (at +1.9 every variation went up: a 92 Hz voice spoke at ~126 Hz; now ~95).
 const float kPhraseStart = param("EN_PHRASE_START", -4.6914862f);  // (PROS agent28: knob)
-const float kDeclination = param("EN_DECLINATION", -0.19461107f);  // (PROS agent28: knob)    // baseline change per syllable,
+const float kDeclination = param("EN_DECLINATION", -0.197976385f);  // (PROS agent28: knob)    // baseline change per syllable,
 constexpr float kDeclinationMin = -2.0f, kDeclinationMax = -6.5f;  // in total over a phrase
 constexpr float kParagraphStartLift = 0.67f;  // first sentence of a paragraph (st)
 constexpr float kSentenceStep = 0.33f, kSentenceStepMax = 0.67f;  // later sentences: lower
@@ -2145,7 +2145,7 @@ const float kArcStartDb = param("EN_ARC_START_DB", 1.0090206f), kArcEndDb = para
 static const float kCreakBelow = param("EN_CREAK_BELOW", -6.5f);  // st: statement endings this low get creaky voice (-5: nearly all)
 constexpr float kPressedAccent = 0.9f, kLaxUnstressed = 1.08f, kLaxFinal = 1.12f;  // glottal opening
 const float kAccentDb = param("EN_ACCENT_DB", 1.5050943f), kFunctionWordDb = param("EN_FUNC_WORD_DB", -1.5f);
-const float kSecondaryDb = param("kSecondaryDb", -4.1151878f), kUnstressedDb = param("kUnstressedDb", 2.0472495f);
+const float kSecondaryDb = param("kSecondaryDb", -4.1151878f), kUnstressedDb = param("kUnstressedDb", 2.1330686f);
 const float kSecondaryPreDb = param("kSecondaryPreDb", 2.9884021f);  // a secondary stress before the primary (see the level rule; Jyrki 2026-11-06: "gen-sp4 is the best, but probably sp3 would be better", then "sp3 is better"; kennedy Whisper 788 vs 798)
 const float kSecondaryVowelLength = param("kSecondaryVowelLength", 1.3609469f) /* cost 0.0307218938484690 wobble */ /* 1.19 from the timing search made the secondary-stress syllable as long as the primary */, kInitialRLength = 1.0f;
 // A word-initial ɹ before a vowel ("revolution", "republics", "rights") is a
