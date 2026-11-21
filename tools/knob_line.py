@@ -254,6 +254,15 @@ def main():
 
     # validation on fresh seeds
     vs = [int(s) for s in a.validate.split(',')]
+    if best['params'] == dict(R.bp):  # no point beat the base: nothing to validate (saves ~10 min in a 30-min run)
+        msg = 'validation skipped: no point better than the base; best changes %d knobs' % len(best['params'])
+        print(msg, flush=True)
+        f.write('# ' + msg + '\n'); f.flush()
+        os.makedirs(a.out + '.listen', exist_ok=True)
+        with open(os.path.join(a.out + '.listen', 'best.params'), 'w') as o:
+            for k in sorted(best['params']):
+                o.write('%s %.9g\n' % (k, best['params'][k]))
+        return
     R.ensure_base(vs)
     R.cur = 'line-validate'
     res = R.evaluate(best['params'], vs, R.cur)
@@ -276,7 +285,8 @@ def main():
             o.write('%s %.9g\n' % (k, best['params'][k]))
     import subprocess
     for v in 'mf':
-        for nm, env in (('base', {}), ('best', {'PUHUJA_PARAMS': pf})):
+        # the base clip is the run's start point (--base-params), not the bare binary
+        for nm, env in (('base', {'PUHUJA_PARAMS': os.path.abspath(a.base_params)} if a.base_params else {}), ('best', {'PUHUJA_PARAMS': pf})):
             e = dict(os.environ, **env)
             if not env:
                 e.pop('PUHUJA_PARAMS', None)
