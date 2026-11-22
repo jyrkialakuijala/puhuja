@@ -644,7 +644,7 @@ constexpr float kRepeatLift = 1.5f, kRepeatLiftMax = 4.5f;  // st per repetition
 constexpr size_t kRecentPhrases = 12;
 constexpr float kExclaimLift = 3.0f;  // st on the accents of an exclamation
 constexpr float kExclaimDb = 2.0f;    // and louder
-const float kFirstAccent = param("EN_FIRST_ACCENT", 9.933916f);      // first accent above the baseline
+const float kFirstAccent = param("EN_FIRST_ACCENT", 10.050043f);      // first accent above the baseline
 const float kDownstep = param("EN_DOWNSTEP", 0.85f);         // each further accent: this much of the last
 constexpr float kMinAccent = 5.5f;
 const float kPostAccent = param("EN_POST_ACCENT", 0.20206186f);       // syllable after an accent keeps this share
@@ -1657,7 +1657,7 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
             // "that" "is" take 1.3-1.9 / 1000 of the passage's phone time each, puhuja's 0.6-1.2 (Kokoro 1.0-1.6).
             static const float kFw = param("RED_FW_LEN", 1.0005155f), kFwF = param("RED_FW_LEN_F", -1.0f),
                                kFwV = param("RED_FW_V", 0.8f), kFwC = param("RED_FW_C", 1.1327834f),
-                               kFwVF = param("RED_FW_V_F", 1.01509526f), kFwCF = param("RED_FW_C_F", 0.9779405f);  // (the female's; < 0: as the male's)
+                               kFwVF = param("RED_FW_V_F", 1.00186772f), kFwCF = param("RED_FW_C_F", 0.9779405f);  // (the female's; < 0: as the male's)
             if (!phrase_[w].accent && static_cast<int>(w) != lastWordWithVowel) {
               const bool fem = synth_.female();
               // (RED_FW_VL: its long vowels and diphthongs uː ɑː iː ɔː ɝ aɪ aʊ ɔɪ eɪ oʊ instead, < 0: RED_FW_V; RED_FW_H: its h
@@ -2844,7 +2844,7 @@ void EnglishReader::sayPhrase(char end) {
   // g 1. The unaccented syllables between accents follow on the line between them (the sag below), so the
   // content-function contrast is not raised. Connected speech only (2+ words; the dictionary unchanged).
   static const float kGaccMix = param("EN_GACC_MIX", 1.003866f), kGaccAt = param("EN_GACC_AT", 0.444892605f),
-                     kGaccLo0 = param("EN_GACC_LO0", 0.94472928f), kGaccLo1 = param("EN_GACC_LO1", 0.6294815f),
+                     kGaccLo0 = param("EN_GACC_LO0", 0.94472928f), kGaccLo1 = param("EN_GACC_LO1", 0.6326082f),
                      kGaccNuc = param("EN_GACC_NUC", 1.0025773f), kGaccH = param("EN_GACC_H", 1.25f);
   std::vector<float> gaccPos;
   const float gaccH0 = accentHeight;
@@ -3096,7 +3096,7 @@ void EnglishReader::sayPhrase(char end) {
   // a comma phrase's last word + EN_CFINAL_ST (semitones): puhuja's phrase-initial words sat 0.7 st under the 11labs
   // readers' and its sentence-final words 1.6 st over them (comma-final 0.5).
   {
-    static const float kPinitSt = param("EN_PINIT_ST", 0.6982544f), kSfinSt = param("EN_SFINAL_ST", -2.0051546f),
+    static const float kPinitSt = param("EN_PINIT_ST", 0.7017376f), kSfinSt = param("EN_SFINAL_ST", -2.0051546f),
                        kCfinSt = param("EN_CFINAL_ST", -0.7985567f);
     if ((kPinitSt != 0 || kSfinSt != 0 || kCfinSt != 0) && phrase_.size() > 1) {
       const bool sentEnd = end == '.' || end == '!';
