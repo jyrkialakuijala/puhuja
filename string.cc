@@ -51,7 +51,7 @@ const float kShearRel = param("STRING_SHEAR", 6.899f) /* cost Whisper 852 compos
 // Damping ratios while open per layer; extra while touching the wall.
 constexpr float kZeta[L] = {0.1f, 0.4f};
 const float kZetaClosed = param("STRING_ZCLOSED", 0.08202616f) /* cost 5.3123456789012345 schwa-run2-kokoro-dB */ /* 2026-11-04 LF fit (tools/lf_fit.py, ref/lf/fit2) 0.207612, then 15 % back toward the earlier 0.1868 (Jyrki: the more trained voice) */;
-const float kCollision = param("STRING_COLLISION", 2.7773027f);  // collision stiffness / the lane's total stiffness (a knob since 2026-11-07: the closing phase)
+const float kCollision = param("STRING_COLLISION", 2.7015212f);  // collision stiffness / the lane's total stiffness (a knob since 2026-11-07: the closing phase)
 // The share of the air pressure on the surface that drives it.
 // The oral pressure's slow part on the folds' superior surface (2026-11-11,
 // review voice.md B1): the layers took the absolute tract pressure P1 as an
@@ -74,7 +74,7 @@ const float kKappa = param("STRING_KAPPA", 0.4327f) /* cost Whisper 852 composit
 // The cords' own sound: surface area times lateral velocity, both folds.
 const float kSurface = param("STRING_SURFACE", 0.086025414f) /* cost 5.3123456789012345 schwa-run2-kokoro-dB */;
 // The abduction rest area scaled for this model's own amplitude.
-const float kRestScale = param("STRING_REST", 0.021620734f) /* cost Whisper 852 composite 23.90/26.04 92b-cheap9 */ /* 2026-11-04 LF fit (tools/lf_fit.py, ref/lf/fit2) 0.0539805, then 15 % back toward the earlier 0.04671 (Jyrki: the more trained voice) */;
+const float kRestScale = param("STRING_REST", 0.0212255146f) /* cost Whisper 852 composite 23.90/26.04 92b-cheap9 */ /* 2026-11-04 LF fit (tools/lf_fit.py, ref/lf/fit2) 0.0539805, then 15 % back toward the earlier 0.04671 (Jyrki: the more trained voice) */;
 // Rest width along the cord relative to the mean: front (anterior) against back.
 const float kRestFront = param("STRING_RESTFRONT", 1.5406134f) /* cost 1814 whisper-run1-phon_err */ /* 2026-11-04 LF fit (tools/lf_fit.py, ref/lf/fit2) 1.58689, then 15 % back toward the earlier 1.51 (Jyrki: the more trained voice) */, kRestBack = 2.0f - kRestFront;
 constexpr float kRho = 0.00113f;      // air density (g/cm^3)
