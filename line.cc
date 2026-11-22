@@ -59,7 +59,7 @@ constexpr float kMu = 1.86e-4f;
 // whistling between phonemes (2026-11-03). A resistance on the high-passed
 // flow, du/dt = -2 pi B u_hp: B Hz of bandwidth well above the corner, half of
 // it at the corner, little at F1. Passive (Re{s/(s+wc)} >= 0), so stable.
-const float kHfBandwidth = param("LINE_HF_BW", 101.086493f) /* cost 5.3123456789012345 schwa-run2-kokoro-dB */;  // Hz added well above the corner
+const float kHfBandwidth = param("LINE_HF_BW", 101.453446f) /* cost 5.3123456789012345 schwa-run2-kokoro-dB */;  // Hz added well above the corner
 const float kHfCorner = param("LINE_HF_FC", 3000.0f) /* cost 1814 whisper-run1-phon_err */;    // Hz
 
 void TransmissionLine::hfLoss(int nb) {

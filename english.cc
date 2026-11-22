@@ -827,7 +827,7 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
           const std::string n = baseName(tok[i + 1]);
           // (EN_PRE_ZH_VOWEL: before a ʒ the vowel x this instead of 1.4; "television", "decision": the stressed ɪ ran
           // 240-310 ms against a 50 ms ʒ, Jyrki 2026-11-09: "the vi could be shorter, the ci could be shorter")
-          static const float kPreZhVowel = param("EN_PRE_ZH_VOWEL", 0.5137991f);
+          static const float kPreZhVowel = param("EN_PRE_ZH_VOWEL", 0.5155732f);
           // (EN_AA_PRE_VLESS: the ɑ before a voiceless plosive x this instead of 0.75; 2026-11-10 AA agent: "not, got, hot, stop")
           static const float kAaPreVless = param("EN_AA_PRE_VLESS", 0.79217225f);
           // (EN_PRE_T_VOWEL, T agent 10 round K, lab; < 0: as the other voiceless plosives) the vowel before a t x this.
@@ -2144,7 +2144,7 @@ void applyForeign(std::vector<EnglishReader::Word>& phrase, const ForeignWord (&
 const float kArcStartDb = param("EN_ARC_START_DB", 1.0090206f), kArcEndDb = param("EN_ARC_END_DB", -2.0244407f);  // (-3: with the end release too steep)
 static const float kCreakBelow = param("EN_CREAK_BELOW", -6.5f);  // st: statement endings this low get creaky voice (-5: nearly all)
 constexpr float kPressedAccent = 0.9f, kLaxUnstressed = 1.08f, kLaxFinal = 1.12f;  // glottal opening
-const float kAccentDb = param("EN_ACCENT_DB", 1.5050943f), kFunctionWordDb = param("EN_FUNC_WORD_DB", -1.5f);
+const float kAccentDb = param("EN_ACCENT_DB", 1.5126486f), kFunctionWordDb = param("EN_FUNC_WORD_DB", -1.5f);
 const float kSecondaryDb = param("kSecondaryDb", -4.1151878f), kUnstressedDb = param("kUnstressedDb", 2.071088f);
 const float kSecondaryPreDb = param("kSecondaryPreDb", 2.9884021f);  // a secondary stress before the primary (see the level rule; Jyrki 2026-11-06: "gen-sp4 is the best, but probably sp3 would be better", then "sp3 is better"; kennedy Whisper 788 vs 798)
 const float kSecondaryVowelLength = param("kSecondaryVowelLength", 1.3609469f) /* cost 0.0307218938484690 wobble */ /* 1.19 from the timing search made the secondary-stress syllable as long as the primary */, kInitialRLength = 1.0f;
@@ -3397,7 +3397,7 @@ void EnglishReader::sayPhrase(char end) {
       // agent13 round L). EN_ER_INIT 1: the first part is the English ə (2: ʌ, 3: ɪ); its share of the token
       // EN_ER_INIT_SHARE, the token's length x EN_ER_INIT_LEN, the ə's level + EN_ER_INIT_DB, the ɹ's + EN_ER_INIT_R_DB,
       // the shape is the line's (Shape::erctx, LINE_ERI_*). 0: as before (one ɜ).
-      static const float kErInit = param("EN_ER_INIT", 2.0f), kErInitShare = param("EN_ER_INIT_SHARE", 0.48521016f),
+      static const float kErInit = param("EN_ER_INIT", 2.0f), kErInitShare = param("EN_ER_INIT_SHARE", 0.49085478f),
                          kErInitLen = param("EN_ER_INIT_LEN", 1.0475734f), kErInitDb = param("EN_ER_INIT_DB", 0.97544444f),
                          kErInitRDb = param("EN_ER_INIT_R_DB", 0.0f), kErInitPitch = param("EN_ER_INIT_PITCH", 1.0f);
       bool erInit = false;

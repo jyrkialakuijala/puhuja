@@ -25,7 +25,7 @@ inline const std::map<std::string, float>& tunedDefaults() {
     {"LINE_CAV_0_FL", -0.06297732f},
     {"LINE_CAV_10_FA", 0.4903861f},
     {"LINE_CAV_10_FL", 0.63324444f},
-    {"LINE_CAV_11_FA", -0.16652888f},
+    {"LINE_CAV_11_FA", -0.166973007f},
     {"LINE_CAV_11_FL", -0.5827714f},
     {"LINE_CAV_11_HA", 0.214639121f},
     {"LINE_CAV_12_FA", -0.416063333f},
@@ -72,7 +72,7 @@ inline const std::map<std::string, float>& tunedDefaults() {
     {"LIQ_RC_APH", 0.6089756f},
     {"LIQ_RC_LIPA", 1.0014272f},
     {"LIQ_RC_LIPL", 1.00773196f},
-    {"LIQ_R_LIPL", 0.9874403f},
+    {"LIQ_R_LIPL", 0.996833166f},
     {"LIQ_W_APH", 0.992268041f},
     {"LIQ_W_LIPA", 1.01675258f},
     {"LIQ_W_LIPL", 1.0238227f},
@@ -84,9 +84,9 @@ inline const std::map<std::string, float>& tunedDefaults() {
     {"RED_I_P_R", 0.808247435f},
     {"RED_I_P_W", 0.50064433f},
     {"RED_S_N_COR", 0.451159782f},
-    {"RED_S_N_L", 0.94101161f},
+    {"RED_S_N_L", 0.942558033f},
     {"RED_S_N_PAL", 0.349212502f},
-    {"RED_S_N_V", 1.00773196f},
+    {"RED_S_N_V", 1.02032856f},
     {"RED_S_N_VEL", 0.0988402072f},
     {"RED_S_P_COR", 0.297293826f},
     {"RED_S_P_R", 0.09769999f},
@@ -111,7 +111,7 @@ inline const std::map<std::string, float>& tunedDefaults() {
     {"LINE_TR_D_SLIT_X@f", 0.83f},
     {"LINE_TR_D_FRIC@f", 3.0f},
     {"BREATH_PUNCT", 0.299971446f},  // run8
-    {"LINE_CAV_0_FA", 0.152569975f},  // run8
+    {"LINE_CAV_0_FA", 0.157638865f},  // run8
     {"LIQ_R_APH", 0.588596656f},  // run11
     {"LINE_CAV_13_HL", 0.499041781f},  // run14
     {"LINE_CAV_12_HL", -0.285784361f},  // run8
@@ -120,9 +120,9 @@ inline const std::map<std::string, float>& tunedDefaults() {
     {"LINE_CAV_8_FL", -0.19120417f},  // run8
     {"LIQ_J_LIPA", 1.0059581f},  // run8
     {"LIQ_W_MIX", 0.49846286f},  // run8
-    {"LINE_CAV_0_HA", 0.44590856f},  // run7
+    {"LINE_CAV_0_HA", 0.430510662f},  // run7
     {"LINE_CAV_10_HA", 0.6265658f},  // run7
-    {"LINE_CAV_10_HL", 0.095587698f},  // run7
+    {"LINE_CAV_10_HL", 0.0936515866f},  // run7
     {"LINE_CAV_11_HL", 0.033550404f},  // run7
     {"LINE_CAV_1_FA", -0.28113738f},  // run7
     {"LINE_CAV_2_HA", -0.749368f},  // run7
