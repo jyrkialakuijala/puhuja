@@ -122,6 +122,12 @@ def main():
                     'bass check off, too")')
     ap.add_argument('--no-female-bass', action='store_true', help='the female bass rise is not checked (Jyrki 2026-11-19: '
                     '"let\'s ignore problems if there is too much bass for the female speaker")')
+    ap.add_argument('--spsa', type=int, default=0, help='K: instead of a screen gradient, estimate it from K random-sign '
+                    'pairs (SPSA): every knob of --spsa-knobs moves by +-c at once, g_k = mean((obj+ - obj-) * sign_k) / 2c '
+                    '(Jyrki 2026-11-22: "keep improving"; single-knob screens had reached the noise)')
+    ap.add_argument('--spsa-c', type=float, default=0.03, help='relative perturbation per knob')
+    ap.add_argument('--spsa-knobs', default=None, help='file with the knobs to perturb (first column; default the whole pool)')
+    ap.add_argument('--spsa-seed', type=int, default=0)
     ap.add_argument('--with-timing', action='store_true', help='let timing knobs (durations, tempo, pauses, kVowelLength*) into the gradient')
     a = ap.parse_args()
     a.bin = a.bin or a.out + '.bin'
@@ -129,12 +135,16 @@ def main():
     keep = [float(x) for x in a.keep.split(',')]
     P = ks.pool(a.bin, a.out)
     gsrc = a.steps_from[:-len('.screen.tsv')] if a.steps_from else a.out
-    S = sim_screen(a.sim) if a.sim else None
+    S = sim_screen(a.sim) if a.sim else ({} if a.spsa else None)  # SPSA: similarity in the objective, no screen
     lam = 0.0
     if S is not None:
         lam = a.sim_lambda if a.sim_lambda is not None else sim_lambda(gsrc, S)
         print('similarity weight: %.3f errors per seed per unit' % lam, flush=True)
-    g = {k: v for k, v in gradient(gsrc, S, lam, not (a.no_female_bass or a.no_bass), not a.no_bass).items() if k in P}
+    if a.spsa:
+        names = [l.split()[0] for l in open(a.spsa_knobs) if l.strip()] if a.spsa_knobs else list(P)
+        g = {k: 1.0 for k in dict.fromkeys(names) if k in P}  # the knob set; values come from the pairs below
+    else:
+        g = {k: v for k, v in gradient(gsrc, S, lam, not (a.no_female_bass or a.no_bass), not a.no_bass).items() if k in P}
     if not a.with_timing:
         # Timing knobs stay out: slower speech pleases Whisper (run1: half the male gain; run5: kVowelLength50 alone
         # +4.7 % length), and one of them in the gradient would trip the 1 % length check at every step. The
@@ -216,6 +226,33 @@ def main():
             obj(best['m'], best['f'], best['sm'], best['sf']), verdict), flush=True)
         return better, m, fe, sim
 
+    if a.spsa:
+        import random
+        rnd = random.Random(a.spsa_seed)
+        names = sorted(g)
+        acc = dict.fromkeys(names, 0.0)
+        sx = open(a.out + '.spsa.tsv', 'a')
+        for i in range(a.spsa):
+            sg = {k: rnd.choice((-1, 1)) for k in names}
+            r = {}
+            for sgn in (1, -1):
+                p = dict(R.bp)
+                for k in names:
+                    p[k] = R.bp.get(k, P[k]) * (1 + sgn * a.spsa_c * sg[k])
+                R.cur = 'spsa%d%s' % (i, '+' if sgn > 0 else '-')
+                sfu = SX.submit(sim_eval, p, R.cur)
+                res = R.evaluate(p, seeds, R.cur)
+                sim = sfu.result()
+                m = sum(res[('m', s_)][1] for s_ in seeds); fe = sum(res[('f', s_)][1] for s_ in seeds)
+                r[sgn] = (obj(m, fe, sim['m'], sim['f']), m, fe, sim['m'], sim['f'])
+            dlt = r[1][0] - r[-1][0]
+            for k in names:
+                acc[k] += dlt * sg[k] / (2 * a.spsa_c) / a.spsa
+            msg = 'spsa pair %d: + m %d f %d sim %.3f %.3f obj %.1f | - m %d f %d sim %.3f %.3f obj %.1f | diff %.1f' % (
+                i, r[1][1], r[1][2], r[1][3], r[1][4], r[1][0], r[-1][1], r[-1][2], r[-1][3], r[-1][4], r[-1][0], dlt)
+            print(msg, flush=True)
+            sx.write(msg + '\n'); sx.flush()
+        g = {k: v for k, v in acc.items() if v != 0}
     dims = sorted(g, key=lambda k: -abs(g[k]))
     stage = 0
     while dims:
