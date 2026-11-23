@@ -63,6 +63,17 @@ const float kHfBandwidth = param("LINE_HF_BW", 101.453446f) /* cost 5.3123456789
 const float kHfCorner = param("LINE_HF_FC", 3000.0f) /* cost 1814 whisper-run1-phon_err */;    // Hz
 
 void TransmissionLine::hfLoss(int nb) {
+  // (setHfF2: a loss whose bandwidth grows as f^2, the flow diffusing along the line: u_k += D (u_{k-1} - 2 u_k + u_{k+1});
+  // a mode of wavenumber 2 pi f / c decays at D (2 pi f dx / c)^2 per substep; no effect on a steady flow)
+  if (hfF2Bw_ > 0) {
+    const float w = 2.0f * kPiL * 8000.0f * dx_ / kC, d = std::min(0.4f, hfF2Bw_ * kPiL * dt_ / (w * w));
+    float prev = u_[0];
+    for (int k = 1; k < nb; ++k) {
+      const float cur = u_[k];
+      u_[k] = cur + d * (prev - 2.0f * cur + u_[k + 1]);
+      prev = cur;
+    }
+  }
   if (hfK_ <= 0) return;
   for (int k = 1; k <= nb; ++k) {
     const float hp = u_[k] - uLp_[k];
@@ -129,6 +140,8 @@ void TransmissionLine::coefficients() {
   const float dtComp = dt_ * comp * invDx_;
   for (int k = 0; k < kMaxSections + kBlock; ++k) { cU_[k] = 0; gU_[k] = 1; oriInv_[k] = 0; }
   // Interfaces 1..n-1 (0 is the glottis, n the lips: set each substep).
+  static const float kJetSep = param("LINE_JET_SEP", 0.0f);
+  float jetMin = a_[0];
   for (int k = 1; k < n_; ++k) {
     const float ah = std::min(a_[k], a_[k - 1]);
     const float aw = std::max(a_[k], a_[k - 1]);
@@ -146,6 +159,20 @@ void TransmissionLine::coefficients() {
     // with the section count, review 2026-11-01.)
     const float contraction = 1.0f - ah / aw;
     oriInv_[k] = halfDtOverDx * invAh * contraction * contraction;
+    // LINE_JET_SEP (0: off, 1: full; 2026-11-23): the jet out of a narrowing stays separated while the tract widens, so
+    // an expansion loses (1/Amin - 1/Aend)^2 of rho u^2 / 2 whatever the number of sections it is drawn over: at each
+    // widening interface the difference of (1/Amin - 1/a)^2 across it (it telescopes; the first one after the minimum is
+    // the term above). Step by step the sh's exit (0.07 -> 1.7 cm^2 over ten sections of ratio ~0.75) lost a small part
+    // of one head where the s's (two sections) lost all of it: too much flow through the sh, and so little differential
+    // resistance that the back cavity rang through it (the hiss a comb, notches every 1.05 kHz from 4.8 to 11.4 kHz).
+    if (kJetSep > 0) {
+      if (a_[k] < a_[k - 1]) jetMin = a_[k];
+      else if (a_[k] > a_[k - 1] && jetMin > 0) {
+        const float i0 = 1.0f / jetMin, d1 = i0 - 1.0f / a_[k], d0 = std::max(0.0f, i0 - 1.0f / a_[k - 1]);
+        const float sep = halfDtOverDx * ah * (d1 * d1 - d0 * d0);
+        oriInv_[k] += kJetSep * (sep - oriInv_[k]);
+      }
+    }
   }
   for (int k = 0; k < kMaxSections; ++k) {
     if (k < n_) {
@@ -343,6 +370,11 @@ void VocalTractLine::setFemale(bool female) {
   if (kHfBwF >= 0) oral_.setHfLoss(female ? kHfBwF : kHfBandwidth, kHfCorner);
   if (kHfBwF >= 0) sub_.setHfLoss(female ? kHfBwF : kHfBandwidth, kHfCorner);  // (the trachea's from the same knob)
   oralHfBw_ = kHfBwF >= 0 && female ? kHfBwF : kHfBandwidth;
+  // LINE_HF_F2_BW (Hz at 8 kHz, 0: off; _F the female's, < 0: the male's): the oral line's loss ~ f^2 (radiation, the
+  // boundary layers, and above 4-5 kHz the cross modes that scatter what a 1-D line keeps as sharp whole-tract modes).
+  // 2026-11-23: the sh's hiss showed those modes as a comb, teeth every c / 2L = 1.05 kHz from 6 to 10 kHz, 4-11 dB.
+  static const float kF2 = param("LINE_HF_F2_BW", 0.0f), kF2F = param("LINE_HF_F2_BW_F", -1.0f);
+  oral_.setHfF2(female && kF2F >= 0 ? kF2F : kF2);
   // Round AB (VQ3 agent30): the piriform fossae as a Helmholtz side branch on the oral line LINE_PIRIFORM_AT cm above
   // the glottis, tuned to LINE_PIRIFORM_HZ (0: none; _F: the female's, < 0: the male's): its zero makes the trough that
   // real voices have between F3 / F4 and the 5 kHz region (Dang & Honda 1997). deployed156's male LTAS sat 6-9 dB over
@@ -495,6 +527,16 @@ void VocalTractLine::setShapeAreas(std::vector<float> a, float length, float x, 
     // a faint hiss in each closure; 0.002 leaks 7 cm^3/s, below the gate)
     const float acEff = std::max(acH, kClosureMin);
     const float xc = x * shapeLength;
+    // LINE_POST_CH_HW (cm, 0: off; 2026-11-23): the post-alveolar groove (the hump of LINE_POST_HW, 4 cm each way) as a
+    // channel instead: this half-width, its middle share LINE_POST_CH_FLAT at the constriction's area, cos^2 ends. The
+    // 8 cm log-area hump is an exponential horn (flare 1.45 / cm, cutoff m c / 4 pi = 4 kHz): above 4-5 kHz nothing
+    // reflects at it, the sh's hiss took the whole tract's modes (a comb every c / 2L = 1.05 kHz up to 12 kHz) and its
+    // source, at the hump's edge, sat at the lips.
+    static const float kPostChHw = param("LINE_POST_CH_HW", 3.9524796f), kPostChFlat = param("LINE_POST_CH_FLAT", 0.55f);
+    // (by how far the half-width, which glides, is on its way from 1 cm to the groove's: no step where a sh meets an n)
+    static const float kPostHwRef = param("LINE_POST_HW", 3.9524796f);
+    const float postW = kPostChHw > 0 && kPostHwRef > 1.0f ? std::clamp((humpHw_ - 1.0f) / (kPostHwRef - 1.0f), 0.0f, 1.0f) : 0.0f;
+    const float hwEff = postW > 0 ? 1.0f + postW * (kPostChHw - 1.0f) : humpHw_, flatEff = postW * kPostChFlat;
     float gNorm = 1.0f;  // LINE_HUMP_NORM: 1 / (the largest sampled cos)^k
     const float humpNorm = humpNorm_ >= 0 ? humpNorm_ : kHumpNorm;  // (setHumpNorm: a p's release into l ɹ, LINE_P_LIQ_NORM)
     if (humpNorm > 0) {
@@ -503,8 +545,9 @@ void VocalTractLine::setShapeAreas(std::vector<float> a, float length, float x, 
       if (gmax > 1e-3f) gNorm = std::pow(gmax, -humpNorm);
     }
     for (int k = 0; k < oral_.sections(); ++k) {
-      const float d = ((k + 0.5f) * oral_.dx() - xc) / humpHw_;
+      float d = ((k + 0.5f) * oral_.dx() - xc) / hwEff;
       if (std::fabs(d) >= 1.0f) continue;
+      if (flatEff > 0) d = std::max(0.0f, std::fabs(d) - flatEff) / (1.0f - flatEff);
       const float g = humpNorm > 0 ? std::min(1.0f, std::cos(0.5f * kPiL * d) * gNorm) : std::cos(0.5f * kPiL * d);
       const float lnA = std::log(a[k]);
       const float lnC = std::log(acEff);
@@ -516,11 +559,20 @@ void VocalTractLine::setShapeAreas(std::vector<float> a, float length, float x, 
     // The Reynolds number is the constriction's own (flow through its centre).
     // The lips rounded over the last 1.5 cm (ʃ: its front cavity needs the
     // rounding to sit near 2.5-3.5 kHz; open-lipped the hiss peaked at 10 kHz).
-    if (lipCap_ > 0) {
+    // LINE_LIP_CAP_GLIDE_MS (0: at once; 2026-11-23): the rounding comes and goes over this long (in log area). At once,
+    // the lips of a sh went 1.5 -> 5.7 cm^2 in one step where it met an n, under the hiss: a 4 ms full-band click.
+    static const float kLipGlideMs = param("LINE_LIP_CAP_GLIDE_MS", 0.0f);
+    float lipCap = lipCap_;
+    if (kLipGlideMs > 0) {
+      const float target = std::log(lipCap_ > 0 ? lipCap_ : 8.0f);
+      lipCapLn_ += (target - lipCapLn_) * std::min(1.0f, step / kLipGlideMs);
+      lipCap = lipCapLn_ < 2.07f ? std::exp(lipCapLn_) : -1.0f;  // (ln 8 = 2.079: open)
+    }
+    if (lipCap > 0) {
       const float round = depth;
       for (int k = 0; k < oral_.sections(); ++k) {
         if ((k + 0.5f) * oral_.dx() < shapeLength - 1.5f) continue;
-        const float lnA = std::log(a[k]), lnC = std::log(lipCap_);
+        const float lnA = std::log(a[k]), lnC = std::log(lipCap);
         if (lnC < lnA) a[k] = std::exp(lnA + (lnC - lnA) * round);
       }
     }
@@ -530,7 +582,7 @@ void VocalTractLine::setShapeAreas(std::vector<float> a, float length, float x, 
       const int k1 = std::min(oral_.sections(), static_cast<int>((xc + humpHw_) / oral_.dx()) + 1);
       oral_.setSectionLoss(k0, k1, depth > 0.5f ? closureSoft_ : 1.0f);
     }
-    noiseK_ = std::min(oral_.sections() - 2, static_cast<int>((xc + kNoiseDx + humpHw_) / oral_.dx()));  // (-1: at the last interface, the lip load took the drive: "votes" lost its s)
+    noiseK_ = std::min(oral_.sections() - 2, static_cast<int>((xc + kNoiseDx + hwEff) / oral_.dx()));  // (-1: at the last interface, the lip load took the drive: "votes" lost its s)
     noiseKc_ = std::min(oral_.sections() - 1, static_cast<int>(xc / oral_.dx()));
   }
   if (!(x >= 0 && depth > 0)) oral_.setSectionLoss(0, 0, 1.0f);
@@ -721,6 +773,7 @@ float VocalTractLine::substep(float u0) {
     float re = fricReMul_ * kReRoundFactor * std::fabs(u) / std::sqrt(kPiL * a);
     // (= rho U d / mu with d = 2 sqrt(a / pi); LINE_NOISE_U_MAX caps U at the Bernoulli speed)
     if (kNoiseUMax > 0) re = std::min(re, kReRoundFactor * kNoiseUMax * std::sqrt(2.0f * std::max(lungPressure_, 1.0f) / TransmissionLine::kRho) * std::sqrt(a / kPiL));
+    const float reRaw = re;  // (LINE_NOISE_SOFT)
     // Only a fricative-sized slit makes a jet that hisses: the source fades out
     // as the constriction widens past kFricA0..kFricA1 (log scale). The Re^2
     // law alone barely depends on the area at a given flow (Stevens' measured
@@ -780,6 +833,79 @@ float VocalTractLine::substep(float u0) {
     const float rcF = critMulF_ != 1.0f ? kReynoldsCrit * critMulF_ : kReynoldsCrit;  // (GAP agent29: setFricCritMul)
     const float rcF2 = critMulF_ != 1.0f ? rcF * rcF : reC2;
     fricActive_ = re > rcF && slit > 0;
+    // LINE_NOISE_SOFT (0: off; 2026-11-22). The hiss as a hard gate was the root of the "tsirps" and "klumbgns" (Jyrki):
+    // (Re^2 - Rc^2) on the instantaneous flow is zero under the threshold and steep just over it, so a groove forming
+    // switched the hiss on by 30-40 dB within 10 ms (11labs / Google: 5-12 dB), off by 38 dB in 5 ms, and in a voiced
+    // fricative every glottal pulse crossed the threshold on its own: full-band ticks 45 dB deep (the ð of "which this").
+    // With it: the jet's Re is averaged over about a pitch period (two poles of LINE_NOISE_SOFT_RE_MS), the law has a
+    // knee instead of a threshold, r^4 / (1 + r^2) with r = Re / Rc (-> r^2 - 1 well over it, a U^4 tail under it), the
+    // drive's envelope has two poles of LINE_NOISE_SOFT_ATT_MS up (LINE_NOISE_SOFT_REL_ATT_MS while the constriction
+    // opens: a release) and LINE_NOISE_SOFT_DEC_MS down, and the pulses modulate it by (Re / mean)^LINE_NOISE_SOFT_MOD
+    // within 1/3..3 only.
+    static const float kSoft = param("LINE_NOISE_SOFT", 1.0f);
+    float softDrive = 0.0f;
+    if (kSoft > 0) {
+      static const float kSoftReMs = param("LINE_NOISE_SOFT_RE_MS", 8.0f), kSoftAttMs = param("LINE_NOISE_SOFT_ATT_MS", 3.0f),
+                         kSoftRelAttMs = param("LINE_NOISE_SOFT_REL_ATT_MS", 3.0f), kSoftDecMs = param("LINE_NOISE_SOFT_DEC_MS", 10.0f),
+                         kSoftMod = param("LINE_NOISE_SOFT_MOD", 0.5f);
+      static const float kRe = 1.0f - std::exp(-dt_ * 1000.0f / kSoftReMs), kAtt = 1.0f - std::exp(-dt_ * 1000.0f / kSoftAttMs),
+                         kRelAtt = 1.0f - std::exp(-dt_ * 1000.0f / kSoftRelAttMs), kDec = 1.0f - std::exp(-dt_ * 1000.0f / kSoftDecMs);
+      softRe_[0] += kRe * (reRaw - softRe_[0]);
+      softRe_[1] += kRe * (softRe_[0] - softRe_[1]);
+      // LINE_NOISE_SOFT_TROUGH (0..1): the share of the law's Re taken from the pulses' troughs (a running minimum: down at
+      // once, up over 15 ms) rather than their mean. A voiceless jet is steady (trough = mean, nothing changes); in a
+      // voiced fricative only the steady part of the jet keeps the turbulence up: on the mean alone the ð of "which this"
+      // hissed as loud as the ʧ before it.
+      static const float kSoftTrough = param("LINE_NOISE_SOFT_TROUGH", 0.7f);
+      static const float kTroughUp = 1.0f - std::exp(-dt_ * 1000.0f / param("LINE_NOISE_SOFT_TROUGH_MS", 8.0f));
+      softMin_ = reRaw < softMin_ ? reRaw : softMin_ + kTroughUp * (reRaw - softMin_);
+      float reEff = softRe_[1] + kSoftTrough * (std::min(softMin_, softRe_[1]) - softRe_[1]);
+      // LINE_NOISE_SOFT_WIN_MS (> 0): the mean and the trough over a true window of this length (1 ms blocks) instead of
+      // the poles: a steady jet counts in full once it has lasted the window, where the poles took 30-40 ms and left a
+      // silent gap between a vowel and its sh (11labs: the hiss is at its level while the voice still fades).
+      static const float kSoftWinMs = param("LINE_NOISE_SOFT_WIN_MS", 0.0f);
+      if (kSoftWinMs > 0) {
+        static const int kBlk = std::max(1, (int)std::lround(0.001f / dt_)), kNb = std::clamp((int)std::lround(kSoftWinMs), 1, 31);
+        if (winN_ == 0) { winMin_[winI_] = reRaw; winSum_[winI_] = 0; }
+        winMin_[winI_] = std::min(winMin_[winI_], reRaw); winSum_[winI_] += reRaw;
+        float mn = winMin_[winI_], sum = winSum_[winI_];
+        if (++winN_ >= kBlk) {
+          winN_ = 0; winI_ = (winI_ + 1) & 31;
+          float m2 = 1e30f, s2 = 0;
+          for (int i = 1; i < kNb; ++i) { m2 = std::min(m2, winMin_[(winI_ - i) & 31]); s2 += winSum_[(winI_ - i) & 31]; }
+          winMinOld_ = m2; winSumOld_ = s2;
+        }
+        mn = std::min(mn, winMinOld_); 
+        const float mean = (sum + winSumOld_) / (float)((kNb - 1) * kBlk + std::max(winN_, 1));
+        reEff = mean + kSoftTrough * (std::min(mn, mean) - mean);
+      }
+      const float r = reEff / rcF, r2 = r * r;
+      static const float kSoftGain = param("LINE_NOISE_SOFT_GAIN", 1.0f);  // (the hiss's level under the new law, x)
+      const float target = kSoftGain * slit * fricGain_ * areaGain_ * r2 * r2 / (1.0f + r2);
+      const bool opens = noiseKc_ == softK_ && a > softA_ * 1.0005f;
+      softA_ = a; softK_ = noiseKc_;
+      const float k = target > softEnv_[1] ? (opens ? kRelAtt : kAtt) : kDec;
+      softEnv_[0] += k * (target - softEnv_[0]);
+      softEnv_[1] += k * (softEnv_[0] - softEnv_[1]);
+      float mod = 1.0f;
+      if (kSoftMod > 0 && softRe_[1] > 1.0f) mod = std::pow(std::clamp(reRaw / softRe_[1], 0.3333f, 3.0f), kSoftMod);
+      softDrive = softEnv_[1] * mod;
+      // LINE_NOISE_SOFT_HOLD (1; 0: off): the envelope's tail is only as strong as the jet that is left. While the envelope
+      // is fed the constriction's area and the jet's mean Re are noted; while it decays the drive is scaled by
+      // (area / noted) (a pressure source put in as a flow: ~ the jet's area; without it the tail went into a tract sealing
+      // for the n of "nation" at the full flow drive, +12 dB over the sh itself, 2.7 kHz, 20 ms: Jyrki, "tion ... very
+      // strange") and by (Re / noted)^2 (no flow, no turbulence), each at most 1.
+      static const bool kSoftHold = param("LINE_NOISE_SOFT_HOLD", 1.0f) > 0;
+      static const bool kSoftHoldRaw = param("LINE_NOISE_SOFT_HOLD_RAW", 1.0f) > 0;
+      if (kSoftHold) {
+        if (target >= 0.7f * softEnv_[1]) { softHoldA_ = a; softHoldRe_ = softRe_[0]; }
+        else if (softHoldA_ > 0) {
+          const float fa = std::min(1.0f, a / softHoldA_), fr = softHoldRe_ > 1.0f ? std::min(1.0f, (kSoftHoldRaw ? reRaw : softRe_[0]) / softHoldRe_) : 1.0f;
+          softDrive *= fa * fr * fr;
+        }
+      }
+      fricActive_ = softDrive > 1e-5f;
+    }
     if (riseMul_ > 0 && !fricActive_) riseEnv_ = 0.0f;
     // (SH agent30: setFallLimit) the drive's level tracked; while the limit is on it falls at most fallMul_ per substep
     bool fallOnly = false;
@@ -794,9 +920,9 @@ float VocalTractLine::substep(float u0) {
       } else fallEnv_ = target;
     }
     if (fricActive_) {
-      float drive = fallOnly ? fallEnv_ * noiseF : slit * fricGain_ * areaGain_ * (re * re - rcF2) * invReC2 * noiseF;
-      if (fallScale != 1.0f) drive *= fallScale;
-      if (riseMul_ > 0) {  // (GAP agent29: setRiseLimit)
+      float drive = kSoft > 0 ? softDrive * noiseF : fallOnly ? fallEnv_ * noiseF : slit * fricGain_ * areaGain_ * (re * re - rcF2) * invReC2 * noiseF;
+      if (fallScale != 1.0f && !(kSoft > 0)) drive *= fallScale;
+      if (riseMul_ > 0 && !(kSoft > 0)) {  // (GAP agent29: setRiseLimit)
         const float target = slit * fricGain_ * areaGain_ * (re * re - rcF2) * invReC2;
         riseEnv_ = riseEnv_ < 0 || target <= riseEnv_ ? (riseEnv_ < 0 ? target * riseFloor_ : target) : std::min(target, std::max(riseEnv_ * riseMul_, target * riseFloor_));
         if (target > 0) drive *= riseEnv_ / target;

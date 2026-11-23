@@ -93,6 +93,7 @@ class TransmissionLine {
   void setSectionLoss(int k0, int k1, float mul) { for (int k = 0; k < kMaxSections; ++k) lossMul_[k] = (k >= k0 && k < k1) ? mul : 1.0f; }
   void setViscLoss(float mul) { viscLoss_ = mul; }
   void setHfLoss(float bandwidthHz, float cornerHz);  // the losses that grow with frequency (after init)
+  void setHfF2(float bwHzAt8k) { hfF2Bw_ = bwHzAt8k; }  // a loss ~ f^2: this many Hz of bandwidth at 8 kHz (0: none)
   void setSubglottal(bool on) { subglottal_ = on; }
   float substepSubglottal(float lungPressure, float uGlottis);
   // The sound: the radiated flow's rate of change (cm^3/s^2).
@@ -122,6 +123,7 @@ class TransmissionLine {
   void hfLoss(int nb);  // the losses that grow with frequency (line.cc)
   alignas(64) float uLp_[kMaxSections + kBlock] = {};  // the flow low-passed at LINE_HF_FC, per interface
   float hfK_ = 0, hfA_ = 0;
+  float hfF2Bw_ = 0;  // (setHfF2)
   int n_ = 0, blocks_ = 0;
   float fs_ = 48000, dt_ = 0, dx_ = 0, invDx_ = 0;  // invDx_ = 1 / dx_ (divisions in the per-substep loops are multiplications)
   alignas(64) float a_[kMaxSections] = {};      // areas (cm^2)
@@ -305,6 +307,7 @@ class VocalTractLine {
   float fs_ = 48000, dt_ = 0;
   float lungPressure_ = 0, pSub_ = 0;   // the lung pressure set per sample; the pressure under the folds
   float humpHw_ = 1.0f, lipCap_ = -1.0f;
+  float lipCapLn_ = 2.0794415f;  // (LINE_LIP_CAP_GLIDE_MS: the rounding now, ln cm^2; ln 8: none)
   float humpNorm_ = -1.0f;  // (setHumpNorm)
   float expandLpHz_ = -1.0f;  // (setExpandLp)
   float jetD_ = 0, jetMix_ = 1, slitScale_ = 1, jetSmoothMs_ = -1, jetFcMin_ = 0, jetFcMax_ = 0;
@@ -368,6 +371,13 @@ class VocalTractLine {
   int subCount_ = 0;
   // The frication noise's state. Unsigned: the generator's signed form overflowed (UB; review cpp.md B4, dsp.md B4).
   uint64_t rng_ = 1611686018427387904ull;
+  // LINE_NOISE_SOFT (2026-11-22, the tsirp / klumbgn root cause): the slit jet's Reynolds number averaged over about a
+  // pitch period (two poles) and the drive's envelope (two poles, attack / release). Last, so the members before keep their place.
+  float softRe_[2] = {}, softEnv_[2] = {};
+  float softMin_ = 0;  // the jet's Re, its running minimum (LINE_NOISE_SOFT_TROUGH)
+  float softHoldA_ = -1.0f, softHoldRe_ = 0;  // the area and the mean Re while the envelope was last fed (LINE_NOISE_SOFT_HOLD)
+  float winMin_[32] = {}, winSum_[32] = {}, winMinOld_ = 0, winSumOld_ = 0; int winI_ = 0, winN_ = 0;  // (LINE_NOISE_SOFT_WIN_MS)
+  float softA_ = -1.0f; int softK_ = -1;  // the area and place a substep ago (is the constriction opening?)
 };
 
 }  // namespace puhuja
