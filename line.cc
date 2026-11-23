@@ -1010,7 +1010,15 @@ float VocalTractLine::substep(float u0) {
       if (on) expOn_ += (1.0f - expOn_) * std::min(1.0f, dt_ / (0.001f * std::max(kExpOnMs, 0.01f))); else expOn_ = 0.0f;
       const float r = on ? kExpR / std::max(expOn_, 1e-3f) : kExpR * kExpRet;
       // implicit in U, in the volume and in the section's own pressure drop (cP U)
-      float u = (expU_ + dt_ / kExpM * (oral_.pressureAt(k) - expV_ / expC_)) / (1.0f + dt_ / kExpM * (r + oral_.cPAt(k) + dt_ / expC_));
+      // The return follows the section's slow pressure only (LINE_EXPAND_RET_LP_MS): on the instantaneous one the
+      // emptying element was a one-way leak of 1 / (R RET) at mid-tract for ~200 ms after every b d g, and the vowels
+      // after it lost 2.3-2.7 dB ("Bad. Hat.": both vowels; "Hat." alone was bit-identical). Dictionary gate with
+      // that leak: 47362 vs 48285, a quarter of the loss in words without b d g j.
+      static const float kExpRetLpMs = param("LINE_EXPAND_RET_LP_MS", 20.0f);
+      const float pk = oral_.pressureAt(k);
+      expPs_ += (pk - expPs_) * std::min(1.0f, dt_ / (0.001f * std::max(kExpRetLpMs, 0.01f)));
+      const float pDrive = on || kExpRetLpMs <= 0 ? pk : expPs_;
+      float u = (expU_ + dt_ / kExpM * (pDrive - expV_ / expC_)) / (1.0f + dt_ / kExpM * (r + (on ? oral_.cPAt(k) : 0.0f) + dt_ / expC_));
       if (!on && u > 0) u = 0;
       expV_ += dt_ * u;
       if (expV_ <= 0) { expV_ = 0; if (u < 0) u = 0; }
