@@ -280,7 +280,7 @@ class VocalTractLine {
   // A volume sink in the mouth (cm^3/s): the cavity expanding behind a voiced
   // closure (cheeks, larynx lowering), which keeps the pressure down so the
   // folds go on vibrating (the voice bar of b d g).
-  void setExpansion(float flow, bool slow = false) { expandFlow_ = flow; expandSlow_ = slow; }
+  void setExpansion(float flow, bool slow = false, bool closure = true) { expandFlow_ = flow; expandSlow_ = slow; expandClosure_ = closure; }
   void setExpandOffAllowed(bool on) { expandOffAllowed_ = on; }  // LINE_EXPAND_OFF_FRIC: this closure ends into a fricative  // slow: a planned (expanding) voiced closure, LINE_EXPAND_LP applies
   // Turbulence: gains for the constriction and the glottis, and the glottal
   // area the flow passes (cm^2).
@@ -323,6 +323,7 @@ class VocalTractLine {
   bool expandOffAllowed_ = true;  // expandLast_: the flow the sink had (LINE_EXPAND_OFF_MS)
   float expandPc_ = 0;  // the cavity pressure the expansion sees, low-passed (LINE_EXPAND_LP)
   bool expandSlow_ = false;
+  bool expandClosure_ = true;  // the flow is a closure's (LINE_EXPAND_PHYS), not a fricative's sink
   float humpAc_ = 2.0f;  // the constriction's own area: closes at once, releases slowly
   float closureSoft_ = 1.0f, closureExtra_ = 0.0f;
   int velumK_ = 0, noiseK_ = -1, noiseKc_ = 0;  // noiseK_: where the turbulence drives; noiseKc_: the constriction's centre

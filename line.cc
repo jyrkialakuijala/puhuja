@@ -994,10 +994,15 @@ float VocalTractLine::substep(float u0) {
   // the voice's AC (the servo's low-pass did that), the pressure rises as it fills and the voice bar decays with it.
   // Outside a closure it only gives its volume back, through R x LINE_EXPAND_RET.
   static const float kExpPhys = param("LINE_EXPAND_PHYS", 1.0f);
+  bool physOn = false;
   if (kExpPhys > 0) {
     static const float kExpC = param("LINE_EXPAND_C", 3.0e-3f), kExpR = param("LINE_EXPAND_R", 15.0f), kExpM = param("LINE_EXPAND_M", 0.002f),
                        kExpRet = param("LINE_EXPAND_RET", 5.0f), kExpAmin = param("LINE_EXPAND_AMIN", 0.5f), kExpFRef = param("LINE_EXPAND_FREF", 0.0f);
-    const bool on = expandFlow_ > 0;
+    // (a closure only: through a z or ð the sink stays the servo's relief valve above LINE_EXPAND_HOLD of the lungs;
+    // the element there drew 3-5 cm^3 out of the fricative, "Fees." "These." "Cruise.": the dictionary's final z)
+    const bool on = expandFlow_ > 0 && expandClosure_;
+    physOn = on;
+    if (on) expandShare_ = 0.0f;
     if (on || expV_ > 0) {
       // at the old sink section, or behind the closure (a g closes at the servo's own section, where the area is ~0)
       int k = std::max(velumK_ - 4, 1);
@@ -1026,7 +1031,7 @@ float VocalTractLine::substep(float u0) {
       oral_.sink(k, u);
     }
   }
-  if (!(kExpPhys > 0) && expandFlow_ > 0) {
+  if (!physOn && expandFlow_ > 0) {
     // The expanding cavity behind a voiced closure (cheeks, larynx lowering):
     // a leak that holds the cavity near kExpandHold of the lung pressure, so
     // less pressure gathers for b than for p (Jyrki 2026-11-03).
@@ -1069,8 +1074,7 @@ float VocalTractLine::substep(float u0) {
   // LINE_EXPAND_OFF_FRIC 1: only for a closure released into a fricative ("hardship"; expandOffAllowed_, set by the
   // synth per closure); the fade on every voiced stop cost g 161 -> 211 errors of 604 in the lab (2026-11-11).
   static const bool kExpandOffFric = param("LINE_EXPAND_OFF_FRIC", 0.0f) > 0;
-  if (kExpPhys > 0) {
-  } else if (!(expandFlow_ > 0) && kExpandOffMs > 0 && expandShare_ > 1e-4f && (!kExpandOffFric || expandOffAllowed_)) {
+  if (!(expandFlow_ > 0) && kExpandOffMs > 0 && expandShare_ > 1e-4f && (!kExpandOffFric || expandOffAllowed_)) {
     expandShare_ *= std::exp(-dt_ / (0.001f * kExpandOffMs));
     oral_.sink(std::max(velumK_ - 4, 1), expandLast_ * expandShare_);
   } else if (!(expandFlow_ > 0)) {

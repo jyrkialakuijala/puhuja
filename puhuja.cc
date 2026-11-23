@@ -12549,7 +12549,7 @@ float Synth::tick() {
     // (a sink wins over a voiced closure's flow once the closure has opened to a slit: the z after a d of "beds" sits at
     // 0.044 cm^2, under the closure's 0.05, with the d's softness still set; LINE_FZ_SINK_FLOW)
     const bool sink = (!voicedClosure || ac >= 0.005f) && !vbarClosure && lineSink_ > 0.0f;
-    line_.setExpansion(voicedClosure && !sink ? expandFlow : sink ? lineSink_ : vbarFlow, expand > 1.0f || vbarClosure || sink);  // a voiced closure (lineSoft_ marks it); the line holds the cavity at LINE_EXPAND_HOLD of the lung pressure
+    line_.setExpansion(voicedClosure && !sink ? expandFlow : sink ? lineSink_ : vbarFlow, expand > 1.0f || vbarClosure || sink, !sink);  // a voiced closure (lineSoft_ marks it); the line holds the cavity at LINE_EXPAND_HOLD of the lung pressure
   }
   {
     LarynxControl lc;
