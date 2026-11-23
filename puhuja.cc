@@ -10130,6 +10130,14 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // pressure has fallen.
   Event rel{release};
   if (dPress) { rel.press = 1.0f; rel.pressMs = 20; }  // (LINE_D_PRESS, above)
+  {
+    // (LINE_SOFT_REL_RESET) A voiced stop's soft closure (LINE_VOICED_SOFT: its hump's sections lose twice as much) ends
+    // at its release. It stayed on until the next token that sets it, and a fricative after the stop sets none: the sh
+    // of "hardship" ran its whole length through the d's lossy slit (flow 195 cm^3/s against 245 after r n t, 10 dB
+    // under the sh of "nation"). 1: b d g; 2: the j too; 0: as before.
+    static const float kSoftRelReset = param("LINE_SOFT_REL_RESET", 1.0f);
+    if (pi.voiced && (kSoftRelReset >= 2 || (kSoftRelReset >= 1 && tok.ph != Ph::JH))) rel.lineSoft = 1.0f;
+  }
   bool dzRel = false;  // (LINE_DZ_REL_FRIC, below)
   float dzBackFric = 1.0f;
   {
@@ -11927,6 +11935,7 @@ float Synth::tick() {
     if (e.lineFricReSmooth >= 0) line_.setFricReSmooth(e.lineFricReSmooth);
     if (e.lineFricReBoth >= 0) line_.setFricReBoth(e.lineFricReBoth > 0);
     if (e.lineSoft >= 0) lineSoft_ = e.lineSoft;
+    if (e.lineSoft >= 0 && std::getenv("PUHUJA_LINE_TRACE")) std::fprintf(stderr, "softevent t %.3f soft %.3f\n", t_ / fs_, e.lineSoft);
     if (e.lineExtra >= 0) lineExtra_ = e.lineExtra;
     if (e.lineRaise >= 0) lineRaiseTgt_ = e.lineRaise;
     if (e.lineSqueeze >= 0) line_.setSqueeze(e.lineSqueeze);
