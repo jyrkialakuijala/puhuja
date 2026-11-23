@@ -613,7 +613,7 @@ const float kLineJhAg = param("LINE_JH_AG", 0.3956982f);  // (0.4 for an hour on
 const float kLineJhExpandFlow = param("LINE_JH_EXPAND_FLOW", 770.102f) /* vil-J4, Jyrki 2026-11-05 */;
 const float kLineJhCloseFric = param("LINE_JH_CLOSE_FRIC", 0.30524272f);
 const float kLineZhFric = param("LINE_ZH_FRIC", 2.6166054f);
-const float kLineJhFric = param("LINE_JH_FRIC", 4.0f);  // the ʤ's frication gain (< 0: LINE_ZH_FRIC; the ʤ's frication is an emitted ʒ) (2026-11-12: inert for the ʤ: after the closure the ʒ's own event is not queued, the release carries its hiss: LINE_JH_REL_FRIC)
+const float kLineJhFric = param("LINE_JH_FRIC", 2.0f);  // the ʤ's frication gain (< 0: LINE_ZH_FRIC; the ʤ's frication is an emitted ʒ) (2026-11-12: inert for the ʤ: after the closure the ʒ's own event is not queued, the release carries its hiss: LINE_JH_REL_FRIC)
 // ʤ lab knobs (JH agent, round H, 2026-11-12; every default reproduces the deployed sound). The dictionary's ʤ errors
 // by place: initial 21.5 % (heard t, ʧ, ɹ), medial 11.6 % (t, ʧ), final 15.5 % (ʧ 47 of 64: stressed final 31 %).
 // Against Kokoro (am_adam / af_heart, "job", "major", "page"): puhuja's ʤ frication is 3.3-4 kHz (Kokoro 4.5-5.5),
@@ -872,6 +872,7 @@ const float kLineXSnapArea = param("LINE_X_SNAP_AREA", 0.9959796f);  // the cons
 // 30-50 ms an n's murmur (nasal review 1.2, 2026-11-11). Proposed 8: at 0
 // guards.py found 26 clicks / bangs, at 4 "Napkin" n -> p snapped (snap.py
 // 0 -> 10.9 / 8); at 8 the snap list is 6.33 dB (base 6.55).
+const float kLineXArticOpenArea = param("LINE_X_ARTIC_OPEN_AREA", 0.0f);  // cm^2; 0: off
 const float kLineXArticMs = param("LINE_X_ARTIC_MS", 8.0f);
 // LINE_X_SNAP_AREA only for a closure's place (a stop's, a nasal's; 1; 0: every place). The fricatives
 // keep their glide from the vowel: at their own place from the vowel on (the snap), the v of "revolutionary"
@@ -4673,6 +4674,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
     e.lineSoft = voicedStop ? kLineVoicedSoft : 1.0f;
     e.lineExtra = tok.ph == Ph::B ? kLineVoicedExtraCm : 0.0f;
     e.lineRaise = lineRaiseOf(tok.ph);
+    e.lineSqueeze = 0.0f;
     e.lineExpand = 0.0f;
   }
   if (tract_ == Tract::Line) {
@@ -9846,6 +9848,16 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     if (pi.voiced && dInit && kDiSoft >= 0) close.lineSoft = kDiSoft;  // (LINE_DI_SOFT)
     if (pi.voiced && dMed && kDmSoft >= 0) close.lineSoft = kDmSoft;  // (LINE_DM_SOFT)
     close.lineRaise = lineRaiseOf(tok.ph);
+    {
+      // A stop before a pause can be said on the mouth's own pressure (owner 2026-11-23: "the larynx can close the throat
+      // and then create tension and build a pressure reservoir big enough to say a word ending consonant or two"): the
+      // sealed cavity squeezed by LINE_SQUEEZE_FLOW cm^3/s, up to LINE_SQUEEZE_CC (line.cc). 0: off.
+      static const float kSqueezeFlow = param("LINE_SQUEEZE_FLOW", 0.0f);
+      if (kSqueezeFlow > 0) close.lineSqueeze = nextIsPause ? kSqueezeFlow : 0.0f;
+      // ... with the throat closed: the glottis at LINE_SQUEEZE_AG x the voicing area through the closure (< 0: as it is)
+      static const float kSqueezeAg = param("LINE_SQUEEZE_AG", -1.0f);
+      if (kSqueezeFlow > 0 && nextIsPause && kSqueezeAg >= 0) close.ag = kSqueezeAg * kAgVoice;
+    }
     close.lineExtra = tok.ph == Ph::B ? kLineVoicedExtraCm : 0.0f;  // the lips only: they move forward off the teeth for b
     // LINE_G_EXPAND_FLOW (lab knob 2026-11-11, G agent 5; < 0: the shared LINE_EXPAND_FLOW): the g's own cavity
     // expansion. The velar closure leaves the smallest cavity behind it, so its voicing stops soonest and the pressure
@@ -10967,7 +10979,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   // cm^3/s flowing through it ("the generosity" heard as "denerosity", Jyrki
   // 2026-11-07). The release restores the gain (LINE_JH_REL_FRIC).
   if (tract_ == Tract::Line && (tok.ph == Ph::JH || tok.ph == Ph::CH) && rel.lineFricMul < 0) {
-    static const float kLineJhRelFric = param("LINE_JH_REL_FRIC", 4.925386f);  // 2026-11-07, Jyrki: "pledge-l20vr5.wav is the best" (voiced ʤ, the hiss x5: -8..-15 dB re the s through the frication)
+    static const float kLineJhRelFric = param("LINE_JH_REL_FRIC", 2.5f);  // 2026-11-07, Jyrki: "pledge-l20vr5.wav is the best" (voiced ʤ, the hiss x5: -8..-15 dB re the s through the frication)
     rel.lineFricMul = tok.ph == Ph::JH && kLineJhOwnRelFric >= 0 ? kLineJhOwnRelFric : kLineJhRelFric;
     if (tok.ph == Ph::JH && jhPos_ >= 0) rel.lineFricMul *= kLineJhPosFric[jhPos_];  // (LINE_JH_INIT_FRIC ...)
     if (tok.ph == Ph::JH && jhPos_ >= 0) jhRelFric_ = rel.lineFricMul;  // (LINE_JH_RAMP_MS, LINE_JH_DECAY)
@@ -11917,6 +11929,7 @@ float Synth::tick() {
     if (e.lineSoft >= 0) lineSoft_ = e.lineSoft;
     if (e.lineExtra >= 0) lineExtra_ = e.lineExtra;
     if (e.lineRaise >= 0) lineRaiseTgt_ = e.lineRaise;
+    if (e.lineSqueeze >= 0) line_.setSqueeze(e.lineSqueeze);
     if (e.lineExpand >= 0) lineExpand_ = e.lineExpand;
     if (e.lineSink >= 0) lineSink_ = e.lineSink;
     // The constriction's width glides to its new value over LINE_HW_GLIDE_MS (0: set at once). Jyrki 2026-11-11: "\"torch
@@ -12290,11 +12303,18 @@ float Synth::tick() {
     // the "blib" at the end of "of" in "hand of God" (Jyrki 2026-11-05). Two
     // articulators would release one place and close the other.
     if (kLineXSnapArea > 0 && ac > kLineXSnapArea && lineXSnapOk_) lineX_ = lineXTarget_, lineXArtic_ = false;
+    else if (lineXArtic_ && kLineXArticOpenArea > 0 && ac < kLineXArticOpenArea && ac > lineAcPrev_) {
+      // (LINE_X_ARTIC_OPEN_AREA) a constriction that is opening opens where it is: the place waits until the opening
+      // is this wide. An f into an r slid its lip slit back to the palate in 8 ms with the f's air still rushing
+      // through, the hiss sweeping down from the lips' flat noise to a 2-3 kHz band 17 dB over the f (owner
+      // 2026-11-23: "a strange frequency sweeping whistle" in the f of "different").
+    }
     else if (lineXArtic_) {  // (LINE_X_ARTIC_MS) the other articulator: fast, until it has arrived
       static const float kArticK = kLineXArticMs > 0 ? 1.0f - std::exp(-1000.0f / (kLineXArticMs * fs_)) : 1.0f;
       lineX_ += (lineXTarget_ - lineX_) * kArticK;
       if (std::fabs(lineXTarget_ - lineX_) < 0.002f) lineX_ = lineXTarget_, lineXArtic_ = false;
     } else lineX_ += (lineXTarget_ - lineX_) * lineXFollow_;
+    lineAcPrev_ = ac;
     lineLevel_ += (lineLevelTarget_ - lineLevel_) * lineXFollow_;
     {
       static const float kHwGlideMs = param("LINE_HW_GLIDE_MS", 9.993557f);

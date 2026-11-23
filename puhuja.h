@@ -140,6 +140,7 @@ struct Event {
   float lineFricReMul = -1;  // the frication jet's Reynolds number x this (LINE_Z_RE_SCALE; < 0: unchanged)
   float lineFricMul = -1;  // the slit noise gain factor on the line (v; < 0: unchanged)
   float lineLevel = -1;  // the prosodic level as a lung-pressure factor on the line (< 0: unchanged)
+  float lineSqueeze = -1;  // the sealed cavity squeezed: this inflow (cm^3/s) behind the closure (0: none; < 0: unchanged)
   float lineRaise = -1;  // the larynx raised by this many cm from this token on (< 0: unchanged)
   float lineSoft = -1, lineExtra = -1;  // a voiced closure's softness and extra length on the line (< 0: unchanged)
   float lineExpand = -1;  // a voiced closure's expansion flow on the line (cm^3/s; 0: the shared knobs; < 0: unchanged)
@@ -673,6 +674,7 @@ class Synth {
   float lineHBreath_ = 0;
   bool lineHAsp_ = false;  // a voiceless h set lineAspMul: the next sound resets it
   float lineLevel_ = 1.0f, lineLevelTarget_ = 1.0f;  // the prosodic level (shape.level) as a lung-pressure factor on the line
+  float lineAcPrev_ = 0.0f;  // the constriction area a sample ago (LINE_X_ARTIC_OPEN_AREA)
   float lineRaise_ = 0.0f, lineRaiseTgt_ = 0.0f;  // the larynx raised (cm, eased) and its target
   float lineSoft_ = 1.0f, lineExtra_ = 0.0f, lineExpand_ = 0.0f, lineSink_ = 0.0f;
   double lineVbarFrom_ = -1;  // when the current voiced closure began (LINE_VBAR_MS; < 0: none)

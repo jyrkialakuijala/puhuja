@@ -993,6 +993,16 @@ float VocalTractLine::substep(float u0) {
   // takes air only while the pressure exceeds what it already holds, so it cannot make a vacuum; M keeps it out of
   // the voice's AC (the servo's low-pass did that), the pressure rises as it fills and the voice bar decays with it.
   // Outside a closure it only gives its volume back, through R x LINE_EXPAND_RET.
+  if (squeeze_ > 0 || squeezeU_ > 0) {
+    static const float kSqCc = param("LINE_SQUEEZE_CC", 1.0f), kSqMs = param("LINE_SQUEEZE_ON_MS", 10.0f), kSqAmin = param("LINE_EXPAND_AMIN", 0.5f);
+    const float tgt = squeezeV_ < kSqCc ? squeeze_ : 0.0f;
+    squeezeU_ += (tgt - squeezeU_) * std::min(1.0f, dt_ / (0.001f * std::max(kSqMs, 0.01f)));
+    if (tgt <= 0 && squeezeU_ < 1e-3f) squeezeU_ = 0.0f;
+    squeezeV_ += dt_ * squeezeU_;
+    int k = std::max(velumK_ - 4, 1);
+    while (k > 1 && oral_.areaAt(k) < kSqAmin) --k;
+    oral_.sink(k, -squeezeU_);
+  }
   static const float kExpPhys = param("LINE_EXPAND_PHYS", 1.0f);
   bool physOn = false;
   if (kExpPhys > 0) {
@@ -1008,7 +1018,9 @@ float VocalTractLine::substep(float u0) {
       int k = std::max(velumK_ - 4, 1);
       while (k > 1 && oral_.areaAt(k) < kExpAmin) --k;  // (to the nearest open section behind it)
       const float c = kExpC * (kExpFRef > 0 && on ? expandFlow_ / kExpFRef : 1.0f);
-      if (on) expC_ = c;
+      // (LINE_SQUEEZE_TENSE) the wall tensed while the cavity is squeezed: its compliance x this
+      static const float kSqTense = param("LINE_SQUEEZE_TENSE", 1.0f);
+      if (on) expC_ = squeeze_ > 0 ? c * kSqTense : c;
       // the element comes in over LINE_EXPAND_PHYS_ON_MS (its conductance eased from zero): switched on at once into a
       // cavity already at 5000 dyn/cm^2 it took 360 cm^3/s in a step, a click at the seal ("Judge.": 0.25 re the vowel's 0.15)
       static const float kExpOnMs = param("LINE_EXPAND_PHYS_ON_MS", 8.0f);
@@ -1093,6 +1105,10 @@ float VocalTractLine::substep(float u0) {
   // (-50 dB re the word while the folds swung; the readers' -18..-24 dB,
   // 2026-11-04).
   float wall = kWallRadiate > 0 ? kWallRadiate * oral_.wallFlow() : 0.0f;
+  // The yielding wall behind a voiced closure (LINE_EXPAND_PHYS) is the cheeks and the neck: what flows into it moves
+  // them, and that is the voice bar's sound. LINE_EXPAND_RADIATE: its flow radiated like the walls' (0: silent).
+  static const float kExpRadiate = param("LINE_EXPAND_RADIATE", 0.0f);
+  if (kExpRadiate != 0) wall += kExpRadiate * expU_;
   // ... and the tissue around the other airways (Jyrki 2026-11-05: "some
   // sound leaks through facial tissue directly, through throat, through
   // cheeks, through chest, forehead"): the trachea's walls through the neck
