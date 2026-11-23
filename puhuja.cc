@@ -692,6 +692,14 @@ const float kChiFricX = param("LINE_CHI_FRIC_X", -1.0f), kChiLip = param("LINE_C
 // ʒ's own jet thickness / band low-pass / frication fade window (< 0: the ʃ ʒ ʧ ʤ LINE_POST_JET_D, LINE_POST_LPR, LINE_VFRIC_FADE; ʒ lab 2026-11-09)
 const float kLineZhJetD = param("LINE_ZH_JET_D", 0.05450571f), kLineZhLpr = param("LINE_ZH_LPR", 4.0699445f), kLineZhFade = param("LINE_ZH_FADE", -1.0f);
 const float kLineVoicedSoft = param("LINE_VOICED_SOFT", 1.97789386f);     // a voiced stop's closure: its sections lose this many times more (soft tissue; 6 -> 2 on 2026-11-04 with the wall radiation, Whisper on d words)
+// The larynx rises a millimetre or two with the tongue in s, k, r and g (owner on his own larynx, 2026-11-23: "in c, s,
+// k, q, x, r and g I see that my larynx raises a bit, a millimeter or two, perhaps most in g"): the tract is this many
+// cm shorter in the consonant (the whole tube, not the pharynx alone), eased over LINE_RAISE_MS. 0: off.
+const float kLineRaiseS = param("LINE_RAISE_S", 0.15f), kLineRaiseK = param("LINE_RAISE_K", 0.15f), kLineRaiseG = param("LINE_RAISE_G", 0.2f),
+            kLineRaiseR = param("LINE_RAISE_R", 0.15f), kLineRaiseMs = param("LINE_RAISE_MS", 40.0f);
+static float lineRaiseOf(Ph ph) {
+  return ph == Ph::S || ph == Ph::Z ? kLineRaiseS : ph == Ph::K ? kLineRaiseK : ph == Ph::G ? kLineRaiseG : ph == Ph::RR ? kLineRaiseR : 0.0f;
+}
 const float kLineVoicedExtraCm = param("LINE_VOICED_EXTRA_CM", 0.15110351f);  // b: the lip tube is this much longer (the lips move forward off the teeth; Jyrki: "perhaps 1.5 mm is correct")
 const float kLineLabialO = param("LINE_LABIAL_O", 1.0f);  // 0: labial stops keep the vowel's shape; 1: b takes o's; 2: b and p
 const float kLineBExtraMs = param("LINE_B_EXTRA_MS", 0.0f);  /* 30 until 2026-11-06: Jyrki chose the 46 ms closure (beliefs-vb0bx0; Kokoro 20 ms); kennedy Whisper 856 -> 812 */  // b holds its closure this much longer than the table says
@@ -4664,6 +4672,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
     const bool voicedStop = tok.ph == Ph::B || tok.ph == Ph::D || tok.ph == Ph::G;
     e.lineSoft = voicedStop ? kLineVoicedSoft : 1.0f;
     e.lineExtra = tok.ph == Ph::B ? kLineVoicedExtraCm : 0.0f;
+    e.lineRaise = lineRaiseOf(tok.ph);
     e.lineExpand = 0.0f;
   }
   if (tract_ == Tract::Line) {
@@ -9836,6 +9845,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     if (pi.voiced && tok.ph == Ph::G && tok.shape.gctx == 1 && kGiSoft >= 0) close.lineSoft = kGiSoft;  // (LINE_GI_SOFT)
     if (pi.voiced && dInit && kDiSoft >= 0) close.lineSoft = kDiSoft;  // (LINE_DI_SOFT)
     if (pi.voiced && dMed && kDmSoft >= 0) close.lineSoft = kDmSoft;  // (LINE_DM_SOFT)
+    close.lineRaise = lineRaiseOf(tok.ph);
     close.lineExtra = tok.ph == Ph::B ? kLineVoicedExtraCm : 0.0f;  // the lips only: they move forward off the teeth for b
     // LINE_G_EXPAND_FLOW (lab knob 2026-11-11, G agent 5; < 0: the shared LINE_EXPAND_FLOW): the g's own cavity
     // expansion. The velar closure leaves the smallest cavity behind it, so its voicing stops soonest and the pressure
@@ -11906,6 +11916,7 @@ float Synth::tick() {
     if (e.lineFricReBoth >= 0) line_.setFricReBoth(e.lineFricReBoth > 0);
     if (e.lineSoft >= 0) lineSoft_ = e.lineSoft;
     if (e.lineExtra >= 0) lineExtra_ = e.lineExtra;
+    if (e.lineRaise >= 0) lineRaiseTgt_ = e.lineRaise;
     if (e.lineExpand >= 0) lineExpand_ = e.lineExpand;
     if (e.lineSink >= 0) lineSink_ = e.lineSink;
     // The constriction's width glides to its new value over LINE_HW_GLIDE_MS (0: set at once). Jyrki 2026-11-11: "\"torch
@@ -12297,6 +12308,8 @@ float Synth::tick() {
       // The shape at this time: between the two vowel shapes around it.
       while (lineKeys_.size() >= 2 && lineKeys_[1].t <= t_) lineKeys_.pop_front();
       TractShape sh;
+      static const float kLineRaiseK1 = kLineRaiseMs > 0 ? 1.0f - std::exp(-4000.0f / (kLineRaiseMs * fs_)) : 1.0f;
+      lineRaise_ += (lineRaiseTgt_ - lineRaise_) * kLineRaiseK1;
       if (motion_ == FormantMotion::Planned && shapePlanAt(t_, &sh)) goto lineShapePlanned;
       if (std::getenv("PUHUJA_LINE_TRACE") && (lineCount_ % 400) == 1)
         std::fprintf(stderr, "lineshape t %.3f keys %zu first %.3f %s\n", t_ / fs_, lineKeys_.size(), lineKeys_.empty() ? -1.0 : lineKeys_[0].t / fs_,
@@ -12317,8 +12330,8 @@ float Synth::tick() {
           // "the teeth stay in their place and the transmission line only
           // extends its length where the lips are"): the lip tube and the
           // length grow by lineExtra_, everything behind stays put.
-          a.lLip += lineExtra_; a.length += lineExtra_;
-          b.lLip += lineExtra_; b.length += lineExtra_;
+          a.lLip += lineExtra_; a.length += lineExtra_ - lineRaise_;
+          b.lLip += lineExtra_; b.length += lineExtra_ - lineRaise_;
           epilarynx(a, female_);
           epilarynx(b, female_);
           cavity(a, female_, lineX_, ac);
@@ -12334,7 +12347,7 @@ float Synth::tick() {
     lineShapePlanned:
       // The female voice: a shorter tract in place of the formant multipliers.
       sh.length /= (voice_.formant[0] + voice_.formant[1] + voice_.formant[2]) / 3.0f;
-      sh.lLip += lineExtra_; sh.length += lineExtra_;  // (as above)
+      sh.lLip += lineExtra_; sh.length += lineExtra_ - lineRaise_;  // (as above; the larynx raised: LINE_RAISE_*)
       epilarynx(sh, female_);
       cavity(sh, female_, lineX_, ac);
       static const bool kCavTrace = std::getenv("PUHUJA_CAVITY_TRACE") != nullptr;
