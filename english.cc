@@ -644,7 +644,7 @@ constexpr float kRepeatLift = 1.5f, kRepeatLiftMax = 4.5f;  // st per repetition
 constexpr size_t kRecentPhrases = 12;
 constexpr float kExclaimLift = 3.0f;  // st on the accents of an exclamation
 constexpr float kExclaimDb = 2.0f;    // and louder
-const float kFirstAccent = param("EN_FIRST_ACCENT", 10.050043f);      // first accent above the baseline
+const float kFirstAccent = param("EN_FIRST_ACCENT", 9.6020971f);      // first accent above the baseline
 const float kDownstep = param("EN_DOWNSTEP", 0.85f);         // each further accent: this much of the last
 constexpr float kMinAccent = 5.5f;
 const float kPostAccent = param("EN_POST_ACCENT", 0.20206186f);       // syllable after an accent keeps this share
@@ -3096,7 +3096,7 @@ void EnglishReader::sayPhrase(char end) {
   // a comma phrase's last word + EN_CFINAL_ST (semitones): puhuja's phrase-initial words sat 0.7 st under the 11labs
   // readers' and its sentence-final words 1.6 st over them (comma-final 0.5).
   {
-    static const float kPinitSt = param("EN_PINIT_ST", 0.7017376f), kSfinSt = param("EN_SFINAL_ST", -2.0051546f),
+    static const float kPinitSt = param("EN_PINIT_ST", 0.7008888f), kSfinSt = param("EN_SFINAL_ST", -2.0051546f),
                        kCfinSt = param("EN_CFINAL_ST", -0.7985567f);
     if ((kPinitSt != 0 || kSfinSt != 0 || kCfinSt != 0) && phrase_.size() > 1) {
       const bool sentEnd = end == '.' || end == '!';
