@@ -714,9 +714,9 @@ const float kLineFinalNasalOpen = param("LINE_FINAL_NASAL_MS", 100.0f);  // a pa
 // 20 -> 40 ms (2026-11-04): after the gentler folds the initial m's murmur was
 // ~60 ms (Kokoro ~80); Whisper heard initial m as m 19 -> 25 of 32.
 const float kLineNasalLeadMs = param("LINE_NASAL_LEAD_MS", 39.97938f);   // a phrase-initial nasal's gesture starts this long before it, in the pause (<= 0: the vowel's soft onset instead)
-const float kLineNasalOnsetMs = param("LINE_NASAL_ONSET_MS", 24.98067f);  // ... and its voicing adducts over this long
-const float kLineNasalRelMs = param("LINE_NASAL_REL_MS", 34.96843f);       // a nasal's release into a vowel: the mouth opens over this long
-const float kLineNasalVelMs = param("LINE_NASAL_VEL_MS", 60.0f);       // ... the velum closes over this long
+const float kLineNasalOnsetMs = param("LINE_NASAL_ONSET_MS", 31.0f);  // ... and its voicing adducts over this long
+const float kLineNasalRelMs = param("LINE_NASAL_REL_MS", 44.0f);       // a nasal's release into a vowel: the mouth opens over this long
+const float kLineNasalVelMs = param("LINE_NASAL_VEL_MS", 75.0f);       // ... the velum closes over this long
 const float kLineNasalVelLagMs = param("LINE_NASAL_VEL_LAG_MS", 39.927835f); // ... starting this long after the release
 // The same for n (and ŋ) alone; < 0: as for m. Whisper on the n-initial
 // words (2026-11-04, 40 variants): n wants a longer lead and no velum lag
@@ -927,7 +927,7 @@ const float kLineHGfcMed = param("LINE_H_GFC_MED", -1.0f), kLineHPauseAsp = para
 // the folds start to vibrate this long before the release (as a phrase-initial
 // nasal's lead). 0: off.
 const float kLineVStopLeadMs = param("LINE_VSTOP_LEAD_MS", 0.0f);
-const float kLineNVelMs = param("LINE_N_VEL_MS", 44.9942f);
+const float kLineNVelMs = param("LINE_N_VEL_MS", 56.0f);
 const float kLineNVelLagMs = param("LINE_N_VEL_LAG_MS", 19.992268f);
 const float kLineNLeadMs = param("LINE_N_LEAD_MS", 40.036082f);
 const float kLineNVoiceLagMs = param("LINE_N_VOICE_LAG_MS", -1.0f);
@@ -3783,7 +3783,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
   // sit 3-4 dB lower in 60-400 Hz re the vowels and are 5 dB brighter (1-4 kHz re 60-400 Hz) than deployed163's.
   if (tract_ == Tract::Line) {
     static const float kNasRadCs = param("NAS_WALLRAD_CS", 0.6992668f), kNasHfCs = param("NAS_HF_BW_CS", -1.0f);
-    static const float kNasHfBase = param("LINE_NASAL_HF_BW", 297.14142f);
+    static const float kNasHfBase = param("LINE_NASAL_HF_BW", 100.0f);
     if (kNasRadCs >= 0) {
       const float want = csSpeech ? kNasRadCs : 1.0f;
       if (want != nasRadNow_) e.lineNasRad = nasRadNow_ = want;

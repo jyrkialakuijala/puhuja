@@ -416,7 +416,7 @@ void VocalTractLine::init(float fs, float nasalScale) {
   // nostrils and port to win the level back, 8 of 52. Lightly (300 Hz above
   // 1000), with the slower nasal release, 40 of 70 m words were heard
   // starting with m (24 without it; Whisper, 2026-11-04).
-  static const float kNasalHfBw = param("LINE_NASAL_HF_BW", 297.14142f), kNasalHfFc = param("LINE_NASAL_HF_FC", 1000.0f);
+  static const float kNasalHfBw = param("LINE_NASAL_HF_BW", 100.0f), kNasalHfFc = param("LINE_NASAL_HF_FC", 1000.0f);
   nasal_.setHfLoss(kNasalHfBw, kNasalHfFc);
   nasHfFc_ = kNasalHfFc;
   nasalScale_ = nasalScale;
@@ -435,7 +435,7 @@ void VocalTractLine::init(float fs, float nasalScale) {
   // only 17 dB under its low band, Kokoro 27-45, and "known" was "whole").
   {
     static const float v1 = param("LINE_SINUS1_V", 22.12603f), a1 = param("LINE_SINUS1_A", 0.10478747f), l1 = param("LINE_SINUS1_L", 0.60069922f);
-    static const float v2 = param("LINE_SINUS2_V", 3.8397835f), a2 = param("LINE_SINUS2_A", 0.09755848f), l2 = param("LINE_SINUS2_L", 0.48846771f);
+    static const float v2 = param("LINE_SINUS2_V", 0.0f), a2 = param("LINE_SINUS2_A", 0.09755848f), l2 = param("LINE_SINUS2_L", 0.48846771f);
     static const float q = param("LINE_SINUS_Q", 5.0f);
     // The maxillary pair as two cavities, one LINE_SINUS1_SPLIT times the other's volume (0: one cavity for both).
     // Jyrki 2026-11-10: "make one sinus 12 % larger in volume than the other". Each half gets half the neck, so the
@@ -1105,7 +1105,7 @@ float VocalTractLine::substep(float u0) {
     // at the vowel's level; the nasal line's loss, viscosity, port, cavity and nostril knobs moved it < 1 dB). Only
     // while the velum is open: the port never shuts fully (an_ >= 1e-3), and ungated the leak put a -22 dB copy of
     // every vowel through the nasal walls. Full from LINE_NASAL_RAD_AN of opening (the line's an_, cm^2).
-    static const float tracheaRad = param("LINE_TRACHEA_RADIATE", 0.0f), nasalRad = param("LINE_NASAL_WALL_RADIATE", 19.696524f);
+    static const float tracheaRad = param("LINE_TRACHEA_RADIATE", 0.0f), nasalRad = param("LINE_NASAL_WALL_RADIATE", 0.0f);
     static const float nasalRadAn = param("LINE_NASAL_RAD_AN", 0.10120073f), invNasalRadAn = 1.0f / std::max(nasalRadAn, 1e-4f);
     if (tracheaRad != 0) wall += tracheaRad * sub_.wallFlow();
     if (nasalRad != 0) wall += nasalRad * nasRadScale_ * std::min(1.0f, an_ * invNasalRadAn) * nasal_.wallFlow();
@@ -1137,7 +1137,7 @@ void VocalTractLine::setNasalGeom(float portA, float cavA, float nostA, float en
 
 void VocalTractLine::setSinusScale(float vx1, float vx2, float qx) {  // (NASAL2 agent33; the init's sinus layout)
   const float v1 = param("LINE_SINUS1_V", 22.12603f), a1 = param("LINE_SINUS1_A", 0.10478747f), l1 = param("LINE_SINUS1_L", 0.60069922f);
-  const float v2 = param("LINE_SINUS2_V", 3.8397835f), a2 = param("LINE_SINUS2_A", 0.09755848f), l2 = param("LINE_SINUS2_L", 0.48846771f);
+  const float v2 = param("LINE_SINUS2_V", 0.0f), a2 = param("LINE_SINUS2_A", 0.09755848f), l2 = param("LINE_SINUS2_L", 0.48846771f);
   const float q = param("LINE_SINUS_Q", 5.0f) * qx;
   const float split = param("LINE_SINUS1_SPLIT", 1.12f);
   int i = 0;
