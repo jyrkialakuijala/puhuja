@@ -532,7 +532,7 @@ void VocalTractLine::setShapeAreas(std::vector<float> a, float length, float x, 
     // 8 cm log-area hump is an exponential horn (flare 1.45 / cm, cutoff m c / 4 pi = 4 kHz): above 4-5 kHz nothing
     // reflects at it, the sh's hiss took the whole tract's modes (a comb every c / 2L = 1.05 kHz up to 12 kHz) and its
     // source, at the hump's edge, sat at the lips.
-    static const float kPostChHw = param("LINE_POST_CH_HW", 3.9524796f), kPostChFlat = param("LINE_POST_CH_FLAT", 0.55f);
+    static const float kPostChHw = param("LINE_POST_CH_HW", 0.0f), kPostChFlat = param("LINE_POST_CH_FLAT", 0.55f);
     // (by how far the half-width, which glides, is on its way from 1 cm to the groove's: no step where a sh meets an n)
     static const float kPostHwRef = param("LINE_POST_HW", 3.9524796f);
     const float postW = kPostChHw > 0 && kPostHwRef > 1.0f ? std::clamp((humpHw_ - 1.0f) / (kPostHwRef - 1.0f), 0.0f, 1.0f) : 0.0f;
@@ -879,11 +879,20 @@ float VocalTractLine::substep(float u0) {
         const float mean = (sum + winSumOld_) / (float)((kNb - 1) * kBlk + std::max(winN_, 1));
         reEff = mean + kSoftTrough * (std::min(mn, mean) - mean);
       }
-      const float r = reEff / rcF, r2 = r * r;
-      static const float kSoftGain = param("LINE_NOISE_SOFT_GAIN", 1.0f);  // (the hiss's level under the new law, x)
-      const float target = kSoftGain * slit * fricGain_ * areaGain_ * r2 * r2 / (1.0f + r2);
       const bool opens = noiseKc_ == softK_ && a > softA_ * 1.0005f;
       softA_ = a; softK_ = noiseKc_;
+      // LINE_NOISE_SOFT_REL_RAW (0: off): while the constriction opens (a release) the law takes the jet's Re as it is,
+      // not its mean: a p t k burst starts with its flow (the full-dictionary gate lost ~840 words to the soft law with the
+      // mean: initial t 4.6 %, "Cap" -> tap, "Tucker" -> pucker, "Kate" -> hate).
+      static const bool kSoftRelRaw = param("LINE_NOISE_SOFT_REL_RAW", 1.0f) > 0;
+      if (kSoftRelRaw && opens) reEff = std::max(reEff, reRaw);
+      const float r = reEff / rcF, r2 = r * r;
+      static const float kSoftGain = param("LINE_NOISE_SOFT_GAIN", 1.0f);  // (the hiss's level under the new law, x)
+      // LINE_NOISE_SOFT_KNEE (1: r^4 / (1 + r^2); n: the same in r^n, a sharper knee: less hiss under the threshold, where
+      // an initial r or l got a noise onset: "Rad" -> grad, "Rap" -> crap, "Reads" -> breeds)
+      static const float kSoftKnee = param("LINE_NOISE_SOFT_KNEE", 2.0f);
+      float target = kSoftGain * slit * fricGain_ * areaGain_ * r2 * r2 / (1.0f + r2);
+      if (kSoftKnee != 1.0f) { const float q = std::pow(r2, kSoftKnee); target = kSoftGain * slit * fricGain_ * areaGain_ * r2 * q / (1.0f + q); }
       const float k = target > softEnv_[1] ? (opens ? kRelAtt : kAtt) : kDec;
       softEnv_[0] += k * (target - softEnv_[0]);
       softEnv_[1] += k * (softEnv_[0] - softEnv_[1]);

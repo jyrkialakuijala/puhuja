@@ -883,7 +883,7 @@ const float kLinePRelFric = param("LINE_P_REL_FRIC", 1.0f);  // p's
 const float kLineTRelFric = param("LINE_T_REL_FRIC", 0.24766727f);  // 2026-11-07, Jyrki: "t like in tiger could be 1 db stronger, both t and its associated aspiration", then +0.7, then "a bit softer at 0.5 db": 0.25 -> 0.265
 // ʧ's frication (x LINE_FRIC through its ʃ phase; 1: as ʃ). Kokoro's ʧ hiss is 7-9 dB louder than puhuja's
 // (2.5-5 kHz -10.7 vs -18.3 re the vowel, > 5 kHz -17.4 vs -26.9; "torch has", 2026-11-06).
-const float kLineChFric = param("LINE_CH_FRIC", 4.0f);
+const float kLineChFric = param("LINE_CH_FRIC", 2.0480882f);
 // h after a voiceless consonant (1) or also after a pause (2) is the breathy voiced h of the voiced context (0: the
 // open-glottis hiss). Kokoro's h is breathy voiced in every context (centroid 120-750 Hz, > 5 kHz -25..-47 dB re the
 // vowel); puhuja's after ʧ, s or a pause was a hiss with its centroid at 5-8.5 kHz, > 5 kHz -5..-8 dB ("torch has":
@@ -1052,7 +1052,7 @@ const float kLineFFric = param("LINE_F_FRIC", 1.03746f) /* cost Whisper 897 comp
 // vs Kokoro -3.5 / -5.5 / -13 (centroid 2.8 vs 3.4 kHz). Kokoro's ʃ before a full vowel is bright (centroid 3-3.7 kHz),
 // its -tion ʃ dark (0.4-1.3 kHz), which Jyrki wanted kept dark. LINE_SH_FRIC: every ʃ's gain (x LINE_FRIC); before a
 // vowel other than ə additionally LINE_SH_VOWEL_FRIC, and the place LINE_SH_VOWEL_X (< 0: LINE_SH_X).
-const float kLineShFric = param("LINE_SH_FRIC", 1.5f);
+const float kLineShFric = param("LINE_SH_FRIC", 1.0026843f);
 const float kLineShVowelFric = param("LINE_SH_VOWEL_FRIC", 3.030928f);
 // ... for a ʃ that does not start its word (a word-final ʃ linking into the next word's vowel, "abolish all": Jyrki
 // 2026-11-06 "sounds too sharp"): at 6 it ran 7 dB louder than Kokoro's (level +1.4 vs -3.8 re the vowel, > 5 kHz
