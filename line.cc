@@ -981,7 +981,7 @@ float VocalTractLine::substep(float u0) {
   } else {
     oral_.sink(velumK_, uNasal_);
   }
-  // LINE_EXPAND_PHYS (2026-11-23; 0: off, the servo below): the enlargement behind a voiced closure as a yielding
+  // LINE_EXPAND_PHYS (2026-11-23; on since the owner's "you can turn it on by default, start retune"; 0: the servo below): the enlargement behind a voiced closure as a yielding
   // element at the sink's section, a compliance C behind a resistance R and an inertance M:
   //   M dU/dt = p - R U - V / C,  dV/dt = U,  V >= 0,
   // driven by the section's own pressure. Root cause of the "klumbgn" (Jyrki: "as if the airflow was fully constricted
@@ -993,7 +993,7 @@ float VocalTractLine::substep(float u0) {
   // takes air only while the pressure exceeds what it already holds, so it cannot make a vacuum; M keeps it out of
   // the voice's AC (the servo's low-pass did that), the pressure rises as it fills and the voice bar decays with it.
   // Outside a closure it only gives its volume back, through R x LINE_EXPAND_RET.
-  static const float kExpPhys = param("LINE_EXPAND_PHYS", 0.0f);
+  static const float kExpPhys = param("LINE_EXPAND_PHYS", 1.0f);
   if (kExpPhys > 0) {
     static const float kExpC = param("LINE_EXPAND_C", 3.0e-3f), kExpR = param("LINE_EXPAND_R", 15.0f), kExpM = param("LINE_EXPAND_M", 0.002f),
                        kExpRet = param("LINE_EXPAND_RET", 5.0f), kExpAmin = param("LINE_EXPAND_AMIN", 0.5f), kExpFRef = param("LINE_EXPAND_FREF", 0.0f);
