@@ -872,7 +872,7 @@ const float kLineXSnapArea = param("LINE_X_SNAP_AREA", 0.9959796f);  // the cons
 // 30-50 ms an n's murmur (nasal review 1.2, 2026-11-11). Proposed 8: at 0
 // guards.py found 26 clicks / bangs, at 4 "Napkin" n -> p snapped (snap.py
 // 0 -> 10.9 / 8); at 8 the snap list is 6.33 dB (base 6.55).
-const float kLineXArticOpenArea = param("LINE_X_ARTIC_OPEN_AREA", 0.0f);  // cm^2; 0: off
+const float kLineXArticOpenArea = param("LINE_X_ARTIC_OPEN_AREA", 0.2f);  // cm^2; 0: off
 const float kLineXArticMs = param("LINE_X_ARTIC_MS", 8.0f);
 // LINE_X_SNAP_AREA only for a closure's place (a stop's, a nasal's; 1; 0: every place). The fricatives
 // keep their glide from the vowel: at their own place from the vowel on (the snap), the v of "revolutionary"
