@@ -8916,6 +8916,7 @@ void Synth::emitAffricate(const Token& tok, const Ph* next) {
   twInitPrev_ = false;  // (LINE_TW_W_*: likewise)
   const Ph fric = tok.ph == Ph::CH ? Ph::SH : Ph::ZH;
   jhPos_ = tok.ph != Ph::JH ? -1 : prevWasPause_ ? 0 : (!next || *next == Ph::Stop) ? 2 : 1;  // (the LINE_JH_INIT_* ... knobs)
+  jhNextH_ = tok.ph == Ph::JH && next && *next == Ph::H;  // (LINE_JH_H_AG)
   chInit_ = tok.ph == Ph::CH && (prevWasPause_ || (kChiCtx > 0 && tok.wordStart));  // (LINE_CHI_*)
   Token closure = tok;
   if (jhPos_ >= 0 && closure.shape.ms > 0) closure.shape.ms *= kLineJhPosClose[jhPos_];
@@ -9027,6 +9028,7 @@ void Synth::emitAffricate(const Token& tok, const Ph* next) {
   jhRelFric_ = -1;
   inAffricate_ = false;
   jhPos_ = -1;
+  jhNextH_ = false;
 }
 
 // Coarticulation: the parts of the mouth a consonant does not use take part
@@ -10635,6 +10637,11 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     static const float kVlGVotMs = param("LINE_VL_G_VOT_MS", -1.0f);  // (VELAR-L agent15 round N, lab; < 0: off) an initial gl gɹ's
     if (pi.voiced && vlG && kVlGVotMs >= 0) rel.agMs = kVlGVotMs;
     if (tract_ == Tract::Line && tok.ph == Ph::JH && kLineJhAg >= 0) rel.ag = jhPos_ >= 0 && kLineJhPosAg[jhPos_] >= 0 ? kLineJhPosAg[jhPos_] : kLineJhAg;  // (half-devoiced ʤ)
+    // (LINE_JH_H_AG; < 0: as above) the male voice's glottis for the release of a j before an h: at LINE_JH_AG 0.40 its
+    // hiss ran voiceless into the h ("huge horse": 80-1000 Hz at -31 dB under the hiss; before a vowel -8..-13, 11labs
+    // -15..-20, the female voice -19..-22 as it is)
+    static const float kJhHAg = param("LINE_JH_H_AG", 0.16f);
+    if (tract_ == Tract::Line && tok.ph == Ph::JH && !female_ && jhNextH_ && kJhHAg >= 0) rel.ag = kJhHAg;
     // A voiced stop releasing into a voiceless fricative ("and foo", "and
     // pharaoh"): the glottis opened in kGlottalMs at the release, so the burst
     // came out through an open glottis 20 dB louder than before a vowel
@@ -11003,6 +11010,9 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   if (tract_ == Tract::Line && (tok.ph == Ph::JH || tok.ph == Ph::CH) && rel.lineFricMul < 0) {
     static const float kLineJhRelFric = param("LINE_JH_REL_FRIC", 2.5f);  // 2026-11-07, Jyrki: "pledge-l20vr5.wav is the best" (voiced ʤ, the hiss x5: -8..-15 dB re the s through the frication)
     rel.lineFricMul = tok.ph == Ph::JH && kLineJhOwnRelFric >= 0 ? kLineJhOwnRelFric : kLineJhRelFric;
+    // (LINE_JH_H_REL_FRIC; < 0: as above) ... and its hiss gain there (LINE_JH_H_AG)
+    static const float kJhHRelFric = param("LINE_JH_H_REL_FRIC", 7.0f);
+    if (tok.ph == Ph::JH && !female_ && jhNextH_ && kJhHRelFric >= 0) rel.lineFricMul = kJhHRelFric;
     if (tok.ph == Ph::JH && jhPos_ >= 0) rel.lineFricMul *= kLineJhPosFric[jhPos_];  // (LINE_JH_INIT_FRIC ...)
     if (tok.ph == Ph::JH && jhPos_ >= 0) jhRelFric_ = rel.lineFricMul;  // (LINE_JH_RAMP_MS, LINE_JH_DECAY)
     if (tok.ph == Ph::JH && jhPos_ >= 0 && kLineJhRampMs > 0) rel.lineFricMul *= kLineJhRamp0;
