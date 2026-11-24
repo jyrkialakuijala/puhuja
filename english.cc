@@ -841,7 +841,7 @@ std::vector<std::vector<float>> EnglishReader::durations() const {
           // (EN_PRE_G_VOWEL, G agent 7 round H, lab; < 0: the voiced plosives' 1.2) the vowel before a g of the same word.
           static const float kPreGVowel = param("EN_PRE_G_VOWEL", -1.0f);
           // (EN_PRE_JH_VOWEL: before a ʤ x this instead of the voiced plosives' 1.2; JH agent round H: a final ʤ is heard as ʧ)
-          static const float kPreJhVowel = param("EN_PRE_JH_VOWEL", 1.2075994f);
+          static const float kPreJhVowel = param("EN_PRE_JH_VOWEL", 1.1862446f);
           // (EN_PRE_D_VOWEL: before a d x this instead of the voiced plosives' 1.2; < 0: 1.2. D agent9 round J: the d is
           // heard as t 519 times in the dictionary, "beads" -> beats, "trader" -> traitor: the vowel's length is the
           // listener's voicing cue. EN_PRE_D_VOWEL_VV: only before a d between vowels; EN_PRE_D_VOWEL_DZ: before a d + s/z.)

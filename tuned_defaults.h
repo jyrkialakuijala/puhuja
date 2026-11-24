@@ -24,37 +24,37 @@ inline const std::map<std::string, float>& tunedDefaults() {
     {"LINE_AG_FRIC", 0.314004579f},
     {"LINE_CAV_0_FL", -0.06297732f},
     {"LINE_CAV_10_FA", 0.466760491f},
-    {"LINE_CAV_10_FL", 0.666974254f},
+    {"LINE_CAV_10_FL", 0.657520718f},
     {"LINE_CAV_11_FA", -0.166973007f},
     {"LINE_CAV_11_FL", -0.5827714f},
     {"LINE_CAV_11_HA", 0.214639121f},
     {"LINE_CAV_12_FA", -0.416063333f},
     {"LINE_CAV_12_FL", -0.71321f},
     {"LINE_CAV_12_HA", -0.60543746f},
-    {"LINE_CAV_13_FA", 0.0863563409f},
-    {"LINE_CAV_13_FL", -0.0398597853f},
+    {"LINE_CAV_13_FA", 0.0866993489f},
+    {"LINE_CAV_13_FL", -0.0392321437f},
     {"LINE_CAV_13_HA", -0.20134969f},
     {"LINE_CAV_14_FA", -0.203772389f},
     {"LINE_CAV_14_FL", -0.0179536074f},
-    {"LINE_CAV_14_HL", 0.889334433f},
+    {"LINE_CAV_14_HL", 0.872392214f},
     {"LINE_CAV_16_FA", -0.1660575f},
     {"LINE_CAV_16_FL", -0.8396854f},
     {"LINE_CAV_16_HA", -0.44856977f},
-    {"LINE_CAV_1_FL", 0.17473272f},
+    {"LINE_CAV_1_FL", 0.170468038f},
     {"LINE_CAV_1_HA", -0.0621364918f},
     {"LINE_CAV_2_FL", 1.1130055f},
     {"LINE_CAV_2_HL", -0.289246353f},
     {"LINE_CAV_3_FA", -0.169653351f},
     {"LINE_CAV_3_FL", -0.664475765f},
     {"LINE_CAV_3_HA", -0.639014331f},
-    {"LINE_CAV_3_HL", -0.124465877f},
+    {"LINE_CAV_3_HL", -0.12432881f},
     {"LINE_CAV_4_FA", -0.60531899f},
-    {"LINE_CAV_4_HA", -0.29699495f},
+    {"LINE_CAV_4_HA", -0.302016192f},
     {"LINE_CAV_6_FA", -0.247680408f},
     {"LINE_CAV_6_FL", -0.434329895f},
     {"LINE_CAV_6_HA", 0.6764734f},
     {"LINE_CAV_6_HL", -0.0465760293f},
-    {"LINE_CAV_8_FA", -0.119701309f},
+    {"LINE_CAV_8_FA", -0.118804364f},
     {"LINE_CAV_8_HA", -0.72061518f},
     {"LINE_CAV_8_HL", 0.134713932f},
     {"LINE_CAV_9_FA", 0.118091899f},
@@ -68,7 +68,7 @@ inline const std::map<std::string, float>& tunedDefaults() {
     {"LIQ_LC_LIPL", 1.0065812f},
     {"LIQ_L_APH", 0.99871134f},
     {"LIQ_L_LIPA", 1.01159794f},
-    {"LIQ_L_LIPL", 0.953366486f},
+    {"LIQ_L_LIPL", 0.948792877f},
     {"LIQ_RC_APH", 0.6089756f},
     {"LIQ_RC_LIPA", 1.0014272f},
     {"LIQ_RC_LIPL", 1.00773196f},
@@ -80,14 +80,14 @@ inline const std::map<std::string, float>& tunedDefaults() {
     {"RED_I_N_LAB", 0.599226828f},
     {"RED_I_N_PAL", 1.00386598f},
     {"RED_I_N_VEL", 1.01159794f},
-    {"RED_I_P_L", 0.976889355f},
+    {"RED_I_P_L", 0.973840917f},
     {"RED_I_P_R", 0.808247435f},
     {"RED_I_P_W", 0.50064433f},
     {"RED_S_N_COR", 0.451159782f},
     {"RED_S_N_L", 0.942558033f},
     {"RED_S_N_PAL", 0.349212502f},
     {"RED_S_N_V", 1.02032856f},
-    {"RED_S_N_VEL", 0.0988402072f},
+    {"RED_S_N_VEL", 0.0971154573f},
     {"RED_S_P_COR", 0.297293826f},
     {"RED_S_P_R", 0.097312546f},
     {"RED_S_P_V", 0.493677536f},
@@ -113,14 +113,15 @@ inline const std::map<std::string, float>& tunedDefaults() {
     {"BREATH_PUNCT", 0.299971446f},  // run8
     {"LINE_CAV_0_FA", 0.157638865f},  // run8
     {"LIQ_R_APH", 0.588596656f},  // run11
-    {"LIQ_R_LIPA", 0.967803591f},  // run65
+    {"RED_S_N_LAB", 0.09734539f},  // run122
+    {"LIQ_R_LIPA", 0.991868917f},  // run65
     {"RED_I_N_L", 0.967260062f},  // run60
     {"LINE_CAV_13_HL", 0.499041781f},  // run14
-    {"LINE_CAV_12_HL", -0.299610164f},  // run8
+    {"LINE_CAV_12_HL", -0.296380587f},  // run8
     {"LINE_CAV_14_HA", -0.0261667f},  // run8
     {"LINE_CAV_1_HL", 0.35288771f},  // run8
     {"LINE_CAV_8_FL", -0.19120417f},  // run8
-    {"LIQ_J_LIPA", 0.997956814f},  // run8
+    {"LIQ_J_LIPA", 1.01615672f},  // run8
     {"LIQ_W_MIX", 0.49846286f},  // run8
     {"LINE_CAV_0_HA", 0.432249426f},  // run7
     {"LINE_CAV_10_HA", 0.6265658f},  // run7

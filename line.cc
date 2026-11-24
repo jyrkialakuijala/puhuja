@@ -26,7 +26,7 @@ const float kNoiseLpRatio = param("LINE_NOISE_LPR", 10.3959664f);  // (2.5 -> 10
 const float kNoiseStSmoothGMs = param("LINE_NOISE_ST_SMOOTH_G_MS", 15.001933f);  // 2026-11-05: the glottal jet's corner smoothed over this alone (ms; < 0: LINE_NOISE_ST_SMOOTH_MS). Its corner zips 200 <-> 12000 Hz once per pitch period in every voiced sound.
 const float kNoiseStSmoothFMs = param("LINE_NOISE_ST_SMOOTH_F_MS", -1.0f);  // ... the constriction's jet's
 const float kNoiseFcMax = param("LINE_NOISE_FC_MAX", 8000.0f);  // the corners' ceiling (Hz; a closing constriction sat at the clamp: 8-12 ms pings at 12 kHz in d, t, m)
-const float kNoiseUMax = param("LINE_NOISE_U_MAX", 0.9885841f);  // > 0: the jet speed behind the corners and the constriction's Reynolds number capped at this x the Bernoulli speed sqrt(2 Ps / rho) (the line's flow lags a closing area: 1.3-1.4 x the limit into a p)
+const float kNoiseUMax = param("LINE_NOISE_U_MAX", 1.0248568f);  // > 0: the jet speed behind the corners and the constriction's Reynolds number capped at this x the Bernoulli speed sqrt(2 Ps / rho) (the line's flow lags a closing area: 1.3-1.4 x the limit into a p)
 const float kNoiseAreaExp = param("LINE_NOISE_AREA_EXP", 1.5155573f);  // 2026-11-05: the constriction noise drive x (LINE_NOISE_AREA_REF / area)^this. The Re^2 law (U^2 d^2 ~ u^2 / a) grows as a groove opens on the glottis-limited flow (u ~ a): the s of "save" rose 12 dB over its last 13 ms as its groove opened and its corner fell 8.8 -> 2.1 kHz, then the fade cut it (Kokoro: a 20 dB fade over the last 30 ms). Stevens: the source goes as U^3 / A^2.5. 0: as before.
 const float kNoiseAreaRef = param("LINE_NOISE_AREA_REF", 0.05f);  // cm^2 (an s groove): no change there
 const float kNoiseAreaTarget = param("LINE_NOISE_AREA_TARGET", 0.0009813799f);  // > 0: the reference is instead the constriction's own area (the smaller end of its glide, at least this many cm^2), and the factor never exceeds 1: every steady fricative keeps its level, only the glides out of and into a groove or a closure are damped (the absolute law cut z v ð by 15 dB and lifted f ʃ by 8: Whisper -45)
@@ -357,7 +357,7 @@ const float kHumpReleaseMs = param("LINE_HUMP_RELEASE_MS", 40.0f);  // the const
 // centre sat on a section: in between, 0.028 -> 0.050 cm^2 at the f -> ɹ of "different" (place 0.95 -> 0.68 while the
 // f's 0.03 cm^2 was still shut), the flow under 9 kPa beating 81 -> 124 cm^3/s once per section crossed (~1 kHz,
 // falling): a 300-1500 Hz pulse +27 dB in 1 ms, the "ping-knock at the ff" (Jyrki 2026-11-11, PUHUJA_ENERGY_TRACE).
-const float kHumpNorm = param("LINE_HUMP_NORM", 1.0128866f);
+const float kHumpNorm = param("LINE_HUMP_NORM", 1.0076912f);
 const float kHumpFastTo = param("LINE_HUMP_FAST_TO", 2.0f);  // (2.0: off; 0.4 held F2 low through the vowel and affricated the t puff)        // ... after opening fast (6 ms) to this area (cm^2): the acoustic release
 const float kNoiseDx = param("LINE_NOISE_DX", 0.19959644f);  // the turbulence source this far (cm) past the hump's downstream edge
 const float kNasalCavityArea = param("LINE_NASAL_CAVITY_A", 3.70378914f);  // the main nasal cavity, both sides (cm^2)
@@ -405,7 +405,7 @@ void VocalTractLine::init(float fs, float nasalScale) {
   dt_ = 1.0f / (TransmissionLine::kSubsteps * fs);
   oral_.init(17.5f, fs, kOralSections);
   nasal_.init(nasalScale == 1.0f ? kNasalLength : nasalScale * kNasalLength, fs, kNasalSections);
-  static const float kNasalLoss = param("LINE_NASAL_LOSS", 0.9865122f);
+  static const float kNasalLoss = param("LINE_NASAL_LOSS", 0.98207026f);
   nasal_.setWallLoss(kNasalLoss);  // the nasal walls (mucosa, the sinuses) lose more than the mouth
   // The turbinates split the nose into narrow slits: everything above the
   // murmur's low resonance is damped. With the mouth's losses the n kept its
@@ -434,7 +434,7 @@ void VocalTractLine::init(float fs, float nasalScale) {
   // sphenoid ones near 1-1.5 kHz; without them the line's n carried 1-2 kHz
   // only 17 dB under its low band, Kokoro 27-45, and "known" was "whole").
   {
-    static const float v1 = param("LINE_SINUS1_V", 22.12603f), a1 = param("LINE_SINUS1_A", 0.10478747f), l1 = param("LINE_SINUS1_L", 0.60069922f);
+    static const float v1 = param("LINE_SINUS1_V", 22.097188f), a1 = param("LINE_SINUS1_A", 0.10478747f), l1 = param("LINE_SINUS1_L", 0.60069922f);
     static const float v2 = param("LINE_SINUS2_V", 0.0f), a2 = param("LINE_SINUS2_A", 0.09755848f), l2 = param("LINE_SINUS2_L", 0.48846771f);
     static const float q = param("LINE_SINUS_Q", 5.0f);
     // The maxillary pair as two cavities, one LINE_SINUS1_SPLIT times the other's volume (0: one cavity for both).
@@ -845,7 +845,7 @@ float VocalTractLine::substep(float u0) {
     static const float kSoft = param("LINE_NOISE_SOFT", 1.0f);
     float softDrive = 0.0f;
     if (kSoft > 0) {
-      static const float kSoftReMs = param("LINE_NOISE_SOFT_RE_MS", 8.0f), kSoftAttMs = param("LINE_NOISE_SOFT_ATT_MS", 3.0f),
+      static const float kSoftReMs = param("LINE_NOISE_SOFT_RE_MS", 2.0f), kSoftAttMs = param("LINE_NOISE_SOFT_ATT_MS", 1.0f),
                          kSoftRelAttMs = param("LINE_NOISE_SOFT_REL_ATT_MS", 3.0f), kSoftDecMs = param("LINE_NOISE_SOFT_DEC_MS", 10.0f),
                          kSoftMod = param("LINE_NOISE_SOFT_MOD", 0.5f);
       static const float kRe = 1.0f - std::exp(-dt_ * 1000.0f / kSoftReMs), kAtt = 1.0f - std::exp(-dt_ * 1000.0f / kSoftAttMs),
@@ -1122,7 +1122,7 @@ float VocalTractLine::substep(float u0) {
     // while the velum is open: the port never shuts fully (an_ >= 1e-3), and ungated the leak put a -22 dB copy of
     // every vowel through the nasal walls. Full from LINE_NASAL_RAD_AN of opening (the line's an_, cm^2).
     static const float tracheaRad = param("LINE_TRACHEA_RADIATE", 0.0f), nasalRad = param("LINE_NASAL_WALL_RADIATE", 0.0f);
-    static const float nasalRadAn = param("LINE_NASAL_RAD_AN", 0.10120073f), invNasalRadAn = 1.0f / std::max(nasalRadAn, 1e-4f);
+    static const float nasalRadAn = param("LINE_NASAL_RAD_AN", 0.10156428f), invNasalRadAn = 1.0f / std::max(nasalRadAn, 1e-4f);
     if (tracheaRad != 0) wall += tracheaRad * sub_.wallFlow();
     if (nasalRad != 0) wall += nasalRad * nasRadScale_ * std::min(1.0f, an_ * invNasalRadAn) * nasal_.wallFlow();
   }
@@ -1152,7 +1152,7 @@ void VocalTractLine::setNasalGeom(float portA, float cavA, float nostA, float en
 }
 
 void VocalTractLine::setSinusScale(float vx1, float vx2, float qx) {  // (NASAL2 agent33; the init's sinus layout)
-  const float v1 = param("LINE_SINUS1_V", 22.12603f), a1 = param("LINE_SINUS1_A", 0.10478747f), l1 = param("LINE_SINUS1_L", 0.60069922f);
+  const float v1 = param("LINE_SINUS1_V", 22.097188f), a1 = param("LINE_SINUS1_A", 0.10478747f), l1 = param("LINE_SINUS1_L", 0.60069922f);
   const float v2 = param("LINE_SINUS2_V", 0.0f), a2 = param("LINE_SINUS2_A", 0.09755848f), l2 = param("LINE_SINUS2_L", 0.48846771f);
   const float q = param("LINE_SINUS_Q", 5.0f) * qx;
   const float split = param("LINE_SINUS1_SPLIT", 1.12f);
