@@ -11151,6 +11151,17 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
   static const float kVlNorm = param("LINE_VL_NORM", -1.0f);
   const bool vlNorm = vlInit && kVlNorm >= 0 && !unreleased;
   if (vlNorm) rel.lineHumpNorm = kVlNorm;
+  // (LINE_STOP_DH_*; 1 / -1 / -1 / -1: as before) the th of the / those / that after a stop. Its only event is this release, with
+  // the th's base slit and none of emit()'s connected-speech rules: LINE_STOP_DH_AC x the slit, _AG the glottis, _FRIC the
+  // hiss gain, _AC_MS the opening time.
+  if (tract_ == Tract::Line && next && *next == Ph::DH && !nextIsPause) {
+    static const float kStopDhAc = param("LINE_STOP_DH_AC", 1.5f), kStopDhAg = param("LINE_STOP_DH_AG", 0.05f),
+                       kStopDhFric = param("LINE_STOP_DH_FRIC", 0.25f), kStopDhAcMs = param("LINE_STOP_DH_AC_MS", 10.0f);
+    if (kStopDhAc != 1.0f && rel.ac > 0) rel.ac *= kStopDhAc;
+    if (kStopDhAg >= 0) rel.ag = kStopDhAg;
+    if (kStopDhFric >= 0) rel.lineFricMul = kStopDhFric;
+    if (kStopDhAcMs >= 0) rel.acMs = kStopDhAcMs;
+  }
   addEvent(rel);
   if (pLiqLip) addEventAt(pLiqOpen);
   if (kLiqVel) addEventAt(kLiqOpen);
