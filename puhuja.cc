@@ -1067,6 +1067,10 @@ const float kLineShVowelFric = param("LINE_SH_VOWEL_FRIC", 3.030928f);
 // 2026-11-06 "sounds too sharp"): at 6 it ran 7 dB louder than Kokoro's (level +1.4 vs -3.8 re the vowel, > 5 kHz
 // -8.6 vs -16) while the word-initial ones ("shall") sat at Kokoro's. < 0: LINE_SH_VOWEL_FRIC.
 const float kLineShVowelFricLink = param("LINE_SH_VOWEL_FRIC_LINK", 2.2283506f);
+// A sh after a stop keeps its own gain (LINE_STOP_SH_OWN_FRIC 1; 0: as before). The stop's release wrote its burst gain
+// (1, or LINE_VSTOP_FRIC_REL_GAIN) at the instant the sh set its own, and the release won: the sh of "hardship" and
+// "courtship" ran at 1.0 where the sh of "kinship" runs at LINE_SH_VOWEL_FRIC_LINK 2.23, 7 dB apart.
+const float kStopShOwnFric = param("LINE_STOP_SH_OWN_FRIC", 1.0f);
 const float kLineShVowelX = param("LINE_SH_VOWEL_X", 0.7719587f);
 const float kLineShVowelAc = param("LINE_SH_VOWEL_AC", 1.0f);  // ... and its slit area x this (narrower: a faster jet, a higher band; it only lost level)
 const float kLineFinalPressMs = param("LINE_FINAL_PRESS_MS", 60.0f);  // (2026-11-04: final k heard 4 -> 8 of 80, Whisper; the "uh" after final p t k gone)
@@ -4147,6 +4151,15 @@ void Synth::emit(const Token& tok, const Ph* next) {
     if (kTrLiqAc != 1.0f) e.ac *= kTrLiqAc;
   }
   if (tract_ == Tract::Line && shV && prevWasPause_ && kShVPauseFric != 1.0f) e.lineFricMul *= kShVPauseFric;  // (LINE_SH_V_PAUSE_FRIC)
+  if (tract_ == Tract::Line && kStopShOwnFric > 0 && tok.ph == Ph::SH && prevWasPlosive_ && !inAffricate_ && e.lineFricMul >= 0) {
+    // (LINE_STOP_SH_OWN_FRIC) after the stop's release has written its burst gain (the release comes a few ms after
+    // this token's start): LINE_STOP_SH_OWN_MS from here
+    static const float kStopShOwnMs = param("LINE_STOP_SH_OWN_MS", 14.0f);
+    Event own{e.t + kStopShOwnMs * ms};
+    own.ac = own.ag = own.an = -1;
+    own.lineFricMul = e.lineFricMul;
+    addEventAt(own);
+  }
   // (JH-INITIAL agent15 round N, lab knob; 0: off) the vowel after a word-initial ʤ keeps the ʤ's hiss gain for
   // LINE_JH_TAIL_MS as the slit opens (Kokoro's "Jude": 2-8 kHz still -12..-16 dB re the peak over the first 15-20 ms
   // of voicing; puhuja's falls to -45 before the vowel rises).
@@ -10322,7 +10335,8 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     // The voiced stop's burst into a voiceless fricative at a fraction of the
     // fricative's gain (the 75/25 mix above; 1: as before).
     static const float kVstopFricRelGain = param("LINE_VSTOP_FRIC_REL_GAIN", 1.0167526f);
-    if (kVstopFricRelGain != 1.0f) rel.lineFricMul = (rel.lineFricMul < 0 ? 1.0f : rel.lineFricMul) * kVstopFricRelGain;
+    if (kVstopFricRelGain != 1.0f)
+      rel.lineFricMul = (rel.lineFricMul < 0 ? 1.0f : rel.lineFricMul) * kVstopFricRelGain;
   }
   // On the line a voiced stop opens more slowly than a voiceless one: the
   // lips part softly, the burst keeps all its frequencies but builds over a
