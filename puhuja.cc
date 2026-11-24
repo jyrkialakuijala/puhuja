@@ -4631,11 +4631,11 @@ void Synth::emit(const Token& tok, const Ph* next) {
     {
       static const float kCsF = param("FRIC_CS_FEMALE", 0.0f);
       static const float kFr[5] = {param("FRIC_CS_F_FRIC", 0.9960358f), param("FRIC_CS_V_FRIC", 1.0f), param("FRIC_CS_TH_FRIC", 3.96793325f),
-                                   param("FRIC_CS_DH_FRIC", 1.9959047f), param("FRIC_CS_Z_FRIC", 2.0088067f)};
+                                   param("FRIC_CS_DH_FRIC", 0.5f), param("FRIC_CS_Z_FRIC", 2.0088067f)};
       static const float kAc[5] = {param("FRIC_CS_F_AC", 1.011598f), param("FRIC_CS_V_AC", 1.032463f), param("FRIC_CS_TH_AC", 1.1429974f),
-                                   param("FRIC_CS_DH_AC", 1.9731852f), param("FRIC_CS_Z_AC", 0.99291692f)};
+                                   param("FRIC_CS_DH_AC", 1.97f), param("FRIC_CS_Z_AC", 0.99291692f)};
       static const float kAg[5] = {param("FRIC_CS_F_AG", -1.0f), param("FRIC_CS_V_AG", -1.0f), param("FRIC_CS_TH_AG", -1.0f),
-                                   param("FRIC_CS_DH_AG", 0.2528995f), param("FRIC_CS_Z_AG", 0.14955859f)};
+                                   param("FRIC_CS_DH_AG", 0.08f), param("FRIC_CS_Z_AG", 0.14955859f)};
       static const float kPr[5] = {param("FRIC_CS_F_PRESS", -1.0f), param("FRIC_CS_V_PRESS", -1.0f), param("FRIC_CS_TH_PRESS", -1.0f),
                                    param("FRIC_CS_DH_PRESS", -1.0f), param("FRIC_CS_Z_PRESS", -1.0f)};
       static const float kTheFr = param("FRIC_CS_THE_FRIC", -1.0f), kTheAc = param("FRIC_CS_THE_AC", -1.0f),
@@ -4643,7 +4643,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
       static const float kFJetD = param("FRIC_CS_F_JET_D", -1.0f), kFLpr = param("FRIC_CS_F_LPR", -1.0f);
       // FRIC_CS_<X>_RE (0: off) the jet's Reynolds number x this through X (the hiss threshold: a hiss under a voiced, wider
       // slit), X = DH Z V; FRIC_CS_THE_RE the ð of "the" (< 0: the DH one)
-      static const float kRe[5] = {0.0f, param("FRIC_CS_V_RE", 0.0f), 0.0f, param("FRIC_CS_DH_RE", 1.980508f), param("FRIC_CS_Z_RE", 1.9734808f)};
+      static const float kRe[5] = {0.0f, param("FRIC_CS_V_RE", 0.0f), 0.0f, param("FRIC_CS_DH_RE", 1.0f), param("FRIC_CS_Z_RE", 1.9734808f)};
       static const float kTheRe = param("FRIC_CS_THE_RE", 1.7181312f);
       // FRIC_CS_THE_C_AC / _C_RE / _C_FRIC (< 0: the THE ones): the ð of "the" after an obstruent or a pause (11labs: a
       // weak, stop-like ð, its minimum -33 dB re the vowels where puhuja's is -22)
