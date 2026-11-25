@@ -544,13 +544,13 @@ void VocalTractLine::setShapeAreas(std::vector<float> a, float length, float x, 
       const float gmax = std::cos(0.5f * kPiL * std::min(dmin, 1.0f));
       if (gmax > 1e-3f) gNorm = std::pow(gmax, -humpNorm);
     }
+    const float lnC = std::log(acEff);  // (loop-invariant)
     for (int k = 0; k < oral_.sections(); ++k) {
       float d = ((k + 0.5f) * oral_.dx() - xc) / hwEff;
       if (std::fabs(d) >= 1.0f) continue;
       if (flatEff > 0) d = std::max(0.0f, std::fabs(d) - flatEff) / (1.0f - flatEff);
       const float g = humpNorm > 0 ? std::min(1.0f, std::cos(0.5f * kPiL * d) * gNorm) : std::cos(0.5f * kPiL * d);
       const float lnA = std::log(a[k]);
-      const float lnC = std::log(acEff);
       if (lnC < lnA) a[k] = std::exp(lnA + (lnC - lnA) * g * g * depth);
     }
     // The turbulence source sits where the jet leaves the constriction and
@@ -570,9 +570,10 @@ void VocalTractLine::setShapeAreas(std::vector<float> a, float length, float x, 
     }
     if (lipCap > 0) {
       const float round = depth;
+      const float lnC = std::log(lipCap);  // (loop-invariant)
       for (int k = 0; k < oral_.sections(); ++k) {
         if ((k + 0.5f) * oral_.dx() < shapeLength - 1.5f) continue;
-        const float lnA = std::log(a[k]), lnC = std::log(lipCap);
+        const float lnA = std::log(a[k]);
         if (lnC < lnA) a[k] = std::exp(lnA + (lnC - lnA) * round);
       }
     }
@@ -592,7 +593,8 @@ void VocalTractLine::setShapeAreas(std::vector<float> a, float length, float x, 
   velarG_ = dt_ * an_ * (1.0f / TransmissionLine::kRho) * nasal_.invDx();
   velarInv2A2_ = 1.0f / (2.0f * an_ * an_);
   static int calls = 0;
-  if (std::getenv("PUHUJA_LINE_TRACE") && (calls++ % 50) == 0) {
+  static const bool kShapeTrace = std::getenv("PUHUJA_LINE_TRACE") != nullptr;  // (read once: this runs every 4th sample)
+  if (kShapeTrace && (calls++ % 50) == 0) {
     float mn = 1e9f; int at = 0;
     for (int k = 0; k < oral_.sections(); ++k) if (a[k] < mn) { mn = a[k]; at = k; }
     std::fprintf(stderr, "shape: x %.3f ac %.3f an %.3f  L %.1f  min area %.3f at %d\n", x, ac, an, shapeLength, mn, at);

@@ -12471,7 +12471,8 @@ float Synth::tick() {
       static const float kLineRaiseK1 = kLineRaiseMs > 0 ? 1.0f - std::exp(-4000.0f / (kLineRaiseMs * fs_)) : 1.0f;
       lineRaise_ += (lineRaiseTgt_ - lineRaise_) * kLineRaiseK1;
       if (motion_ == FormantMotion::Planned && shapePlanAt(t_, &sh)) goto lineShapePlanned;
-      if (std::getenv("PUHUJA_LINE_TRACE") && (lineCount_ % 400) == 1)
+      static const bool kLineShapeTrace = std::getenv("PUHUJA_LINE_TRACE") != nullptr;  // (read once: this runs every 4th sample)
+      if (kLineShapeTrace && (lineCount_ % 400) == 1)
         std::fprintf(stderr, "lineshape t %.3f keys %zu first %.3f %s\n", t_ / fs_, lineKeys_.size(), lineKeys_.empty() ? -1.0 : lineKeys_[0].t / fs_,
                      lineKeys_.empty() ? "fallback(formants)" : (lineKeys_.size() == 1 || t_ <= lineKeys_[0].t) ? "hold" : "mix");
       if (lineKeys_.empty()) {
@@ -12757,7 +12758,10 @@ float Synth::tick() {
     // cascade's mouth-pressure estimate (drop) is for the formant tract.
     const float dropForFolds = tract_ == Tract::Line ? 1.0f : drop;
     lc.ps = runFolds ? kLungPressure * lungFactor * dropForFolds * smoothstep(0.0f, 0.5f * kAgVoice, ag) * press_.tick() : 0.0f;
-    if (tract_ == Tract::Line) lc.ps *= std::pow(lineLevel_, kLineLevelExp);  // voice amplitude ~ Ps^1.5: a level factor L needs Ps x L^(1/1.5)
+    if (tract_ == Tract::Line) {  // (the pow only when the level moved: it settles between phrases)
+      if (!(lineLevel_ == lineLevelPowIn_)) { lineLevelPowIn_ = lineLevel_; lineLevelPow_ = std::pow(lineLevel_, kLineLevelExp); }
+      lc.ps *= lineLevelPow_;
+    }  // voice amplitude ~ Ps^1.5: a level factor L needs Ps x L^(1/1.5)
     if (gapPsMul_ != 1.0f) lc.ps *= gapPsMul_;  // (GAP_PS_DB)
     // Kokoro mode: the reference's level track (dB re its voiced median) through the warp, as a pressure factor.
     // Per word by default (Jyrki 2026-11-06: the 5 ms track made the level "bounce" where Kokoro is "continuous and

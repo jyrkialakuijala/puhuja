@@ -39,6 +39,7 @@
 // lookahead. Call finish() at end of input.
 #pragma once
 
+#include <limits>
 #include <cstddef>
 #include <cstdint>
 #include <deque>
@@ -680,6 +681,7 @@ class Synth {
   float lineHBreath_ = 0;
   bool lineHAsp_ = false;  // a voiceless h set lineAspMul: the next sound resets it
   float lineLevel_ = 1.0f, lineLevelTarget_ = 1.0f;  // the prosodic level (shape.level) as a lung-pressure factor on the line
+  float lineLevelPowIn_ = std::numeric_limits<float>::quiet_NaN(), lineLevelPow_ = 1;  // pow(lineLevel_, kLineLevelExp), cached
   float lineAcPrev_ = 0.0f;  // the constriction area a sample ago (LINE_X_ARTIC_OPEN_AREA)
   float lineRaise_ = 0.0f, lineRaiseTgt_ = 0.0f;  // the larynx raised (cm, eased) and its target
   float lineSoft_ = 1.0f, lineExtra_ = 0.0f, lineExpand_ = 0.0f, lineSink_ = 0.0f;
