@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <cstdio>
 #include <cstdlib>
 
@@ -118,17 +119,37 @@ inline float relaxShare(float h, float tauMs) {
   constexpr float kMsToS = 0.001f;
   return std::min(h / (tauMs * kMsToS), 1.0f);
 }
-template <class A>
-void zeroAnchors(A& x) {
-  for (int j = 0; j < L; ++j) x[j][0] = x[j][N - 1] = 0;
-}
 // The weighted mean over the neighbours of each lane; zero at the anchors.
+// Whole 16-lane vectors: the neighbours come from a lane shift inside the register. (The scalar loop over lanes
+// 1..14 read single floats out of rows that had just been stored as whole vectors, and loads at l - 1 / l + 1 cannot
+// be forwarded from such a store: 7 % of a render in this one line, 2026-11-25. The same sums in the same order.)
+typedef float V16 __attribute__((vector_size(64), aligned(4)));
+typedef int I16 __attribute__((vector_size(64)));
+const I16 kInner = {16, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 16};  // the moving lanes, zeros at the anchors
+// (as a whole-vector blend: two single-float stores into a row that the next loop loads whole cannot be forwarded)
 template <class A>
-void neighbourMean(const A& x, float (&mean)[L][N]) {
-  const float norm = 1.0f / (2.0f + kMixLayer);
+inline __attribute__((always_inline)) void zeroAnchors(A& x) {
+  const V16 zero = {};
   for (int j = 0; j < L; ++j) {
-    mean[j][0] = mean[j][N - 1] = 0;
-    for (int l = 1; l + 1 < N; ++l) mean[j][l] = norm * (x[j][l - 1] + x[j][l + 1] + kMixLayer * x[1 - j][l]);
+    V16 r;
+    std::memcpy(&r, x[j], sizeof(V16));
+    r = __builtin_shuffle(r, zero, kInner);
+    std::memcpy(x[j], &r, sizeof(V16));
+  }
+}
+template <class A>
+inline __attribute__((always_inline)) void neighbourMean(const A& x, float (&mean)[L][N]) {
+  static_assert(N == 16, "one 16-float vector per layer");
+  const float norm = 1.0f / (2.0f + kMixLayer);
+  const I16 left = {16, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14};    // lane l - 1 (16: a zero)
+  const I16 right = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};  // lane l + 1
+  const V16 zero = {};
+  V16 r[L];
+  for (int j = 0; j < L; ++j) std::memcpy(&r[j], x[j], sizeof(V16));
+  for (int j = 0; j < L; ++j) {
+    const V16 m = norm * (__builtin_shuffle(r[j], zero, left) + __builtin_shuffle(r[j], zero, right) + kMixLayer * r[1 - j]);
+    const V16 mi = __builtin_shuffle(m, zero, kInner);
+    std::memcpy(mean[j], &mi, sizeof(V16));
   }
 }
 
@@ -190,20 +211,27 @@ float StringFolds::step(float h, const VocalFolds::Input& in) {
   }();
   const auto& mass = masses.mass;
   const auto& invMass = masses.invMass;
-  alignas(64) float kWall[L][N], damp[L][N];
-  float kString[L], kShear[L];
-  for (int j = 0; j < L; ++j) {
-    const float layerMass = kMass * (j == 0 ? 1.0f - kTopMass : kTopMass);
-    const float stiff = j == 0 ? 1.0f : kTopStiff;
-    const float sqrt_stiff = j == 0 ? 1.0f : std::sqrt(kTopStiff);
-    const float meanMass = layerMass * kMovingInv;
-    kString[j] = (1.0f - kWallShare) * meanMass * w0 * w0 * stiff / (4.0f * s1 * s1);
-    kShear[j] = kShearRel * kWallShare * meanMass * w0 * w0 * stiff;
-    for (int l = 0; l < N; ++l) {
-      kWall[j][l] = kWallShare * mass[j][l] * w0 * w0 * stiff;
-      damp[j][l] = 2 * mass[j][l] * w0 * sqrt_stiff;  // x zeta: critical for the lane's total stiffness
+  // The stiffnesses and the damping follow q only: rebuilt when q changes (q is constant over an output sample's
+  // substeps), the same expressions as before.
+  if (q != tabQ_) {
+    tabQ_ = q;
+    for (int j = 0; j < L; ++j) {
+      const float layerMass = kMass * (j == 0 ? 1.0f - kTopMass : kTopMass);
+      const float stiff = j == 0 ? 1.0f : kTopStiff;
+      const float sqrt_stiff = j == 0 ? 1.0f : std::sqrt(kTopStiff);
+      const float meanMass = layerMass * kMovingInv;
+      kStringT_[j] = (1.0f - kWallShare) * meanMass * w0 * w0 * stiff / (4.0f * s1 * s1);
+      kShearT_[j] = kShearRel * kWallShare * meanMass * w0 * w0 * stiff;
+      for (int l = 0; l < N; ++l) {
+        kWallT_[j][l] = kWallShare * mass[j][l] * w0 * w0 * stiff;
+        dampT_[j][l] = 2 * mass[j][l] * w0 * sqrt_stiff;  // x zeta: critical for the lane's total stiffness
+      }
     }
   }
+  const auto& kWall = kWallT_;
+  const auto& damp = dampT_;
+  const float* kString = kStringT_;
+  const float* kShear = kShearT_;
   closedNow_ = false;
   // The slit at each layer and lane: the rest width plus this fold's
   // displacement and its mirror image's.
@@ -212,11 +240,9 @@ float StringFolds::step(float h, const VocalFolds::Input& in) {
     for (int l = 0; l < N; ++l) g[j][l] = restW_[l] + 2.0f * x_[j][l];
   // Areas before the step: each lane channel's narrowest layer.
   alignas(64) float aMin[N];
-  int jMin[N];
   float aOld = 0;
   for (int l = 0; l < N; ++l) {
     aMin[l] = l >= kFirst && l <= kLast ? kSeg * std::min(g[0][l], g[1][l]) : 0.0f;
-    jMin[l] = g[1][l] < g[0][l] ? 1 : 0;
     if (l >= kFirst && l < kMembranousEnd) aOld += std::max(aMin[l], 0.0f);
   }
   area_ = aOld;
@@ -292,21 +318,21 @@ float StringFolds::step(float h, const VocalFolds::Input& in) {
   // above it (separated flow); in a shut lane the full subglottal pressure
   // below the first closed layer, the tract pressure from there up.
   alignas(64) float fAir[L][N];
-  for (int l = 0; l < N; ++l) {
-    for (int j = 0; j < L; ++j) {
-      float p;
-      if (l < kFirst || l > kLast) {
-        p = 0;
-      } else if (aMin[l] <= 0) {
-        const int jClosed = g[0][l] <= 0 ? 0 : 1;
-        p = j < jClosed ? in.ps : in.p1;
-      } else if (j <= jMin[l]) {
-        const float vel = u_[l] / std::max(kSeg * g[j][l], 1e-6f);
-        p = in.ps - 0.5f * kRho * vel * vel;
-      } else {
-        p = in.p1;
-      }
-      fAir[j][l] = (l < kFirst || l > kLast ? 0.0f : p - pRef) * kSeg * kLayer * kKappa;
+  {
+    // Both layers over all 16 lanes without branches (the lane-by-lane form with its division and four-way branch
+    // stayed scalar). Layer 0 is the lower one: under a shut lane it has the subglottal pressure unless it is the
+    // closed layer itself; in an open lane it is always at or below the narrowest layer. Layer 1: the tract pressure
+    // unless it is the narrowest layer of an open lane.
+    for (int l = 0; l < N; ++l) {
+      const bool moving = l >= kFirst && l <= kLast;
+      const bool open = aMin[l] > 0;
+      const float g0 = g[0][l], g1 = g[1][l];
+      const float vel0 = u_[l] / std::max(kSeg * g0, 1e-6f), vel1 = u_[l] / std::max(kSeg * g1, 1e-6f);
+      const float b0 = in.ps - 0.5f * kRho * vel0 * vel0, b1 = in.ps - 0.5f * kRho * vel1 * vel1;
+      const float p0 = open ? b0 : (g0 <= 0 ? in.p1 : in.ps);
+      const float p1 = open && g1 < g0 ? b1 : in.p1;
+      fAir[0][l] = (moving ? p0 - pRef : 0.0f) * kSeg * kLayer * kKappa;
+      fAir[1][l] = (moving ? p1 - pRef : 0.0f) * kSeg * kLayer * kKappa;
     }
   }
   // Forces, lane by lane: the wall spring, the string tension to the two

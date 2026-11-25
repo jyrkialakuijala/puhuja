@@ -55,6 +55,8 @@ class StringFolds {
   alignas(64) float restW_[kLanes] = {};  // rest slit width per lane (cm; both folds together)
   alignas(64) float u_[kLanes] = {}, uOut_[kLanes] = {};  // flow per lane channel, and through the rounded area
   float uSum_ = 0, uOutSum_ = 0;
+  alignas(64) float kWallT_[kLayers][kLanes] = {}, dampT_[kLayers][kLanes] = {};  // the tables of q (tabQ_)
+  float kStringT_[kLayers] = {}, kShearT_[kLayers] = {}, tabQ_ = -1;
   alignas(64) float aHeard_[kLanes] = {};  // the heard channel area per lane, its closing slowed by kCloseMs
   float surface_ = 0;  // volume velocity of the moving surfaces (cm^3/s, both folds)
   float p1Lp_ = 0, p1LpH_ = 0, p1LpA_ = 0;  // the low-passed tract pressure on the superior surface (STRING_P1SUP), its step and share
