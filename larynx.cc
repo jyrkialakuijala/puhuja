@@ -296,17 +296,21 @@ void FoldLarynx::step(const LarynxControl& c, LarynxOutput& out) {
         // y = x + (G - 1) (x - lp(x)): unity below the corner, G above it.
         const float hz1 = c.female && kSrcShelfFHz > 0 ? kSrcShelfFHz : c.female && db1Full == 0.0f && kVqcsShelfFHz > 0 ? kVqcsShelfFHz : kSrcShelfHz;
         const float hz2 = c.female && kSrcShelf2FHz > 0 ? kSrcShelf2FHz : c.female && db2Full == 0.0f && kVqcsShelf2FHz > 0 ? kVqcsShelf2FHz : kSrcShelf2Hz;
-        const float g1 = std::pow(10.0f, db1 / 20.0f) - 1.0f, g2 = std::pow(10.0f, db2 / 20.0f) - 1.0f;
-        const float a1 = 1.0f - std::exp(-2.0f * 3.14159265f * hz1 / (kFoldOversample * fs_));
-        const float a2 = 1.0f - std::exp(-2.0f * 3.14159265f * hz2 / (kFoldOversample * fs_));
+        const auto memo = [](Memo& m, float x, auto f) { if (!(x == m.in)) { m.in = x; m.out = f(x); } return m.out; };
+        const auto p10 = [](float x) { return std::pow(10.0f, x); };
+        const auto ex = [](float x) { return std::exp(x); };
+        const float g1 = memo(mG1_, db1 / 20.0f, p10) - 1.0f, g2 = memo(mG2_, db2 / 20.0f, p10) - 1.0f;
+        const float a1 = 1.0f - memo(mA1_, -2.0f * 3.14159265f * hz1 / (kFoldOversample * fs_), ex);
+        const float a2 = 1.0f - memo(mA2_, -2.0f * 3.14159265f * hz2 / (kFoldOversample * fs_), ex);
         srcLp_ += a1 * (raw - srcLp_);
         const float y1 = raw + g1 * (raw - srcLp_);
         srcLp2_ += a2 * (y1 - srcLp2_);
         float y2 = y1 + g2 * (y1 - srcLp2_);
         if (dbDFull != 0.0f) {
-          const float A = std::pow(10.0f, dbDFull * c.shelfScale / 40.0f);
+          const float A = memo(mDipA_, dbDFull * c.shelfScale / 40.0f, p10);
           const float w0 = 2.0f * 3.14159265f * kSrcDipHz / (kFoldOversample * fs_);
-          const float cs = std::cos(w0), al = std::sin(w0) / (2.0f * kSrcDipQ);
+          if (!(w0 == dipW0In_)) { dipW0In_ = w0; dipCs_ = std::cos(w0); dipSn_ = std::sin(w0); }
+          const float cs = dipCs_, al = dipSn_ / (2.0f * kSrcDipQ);
           const float ia0 = 1.0f / (1.0f + al / A);
           const float b0 = (1.0f + al * A) * ia0, b1 = -2.0f * cs * ia0, b2 = (1.0f - al * A) * ia0;
           const float a1d = -2.0f * cs * ia0, a2d = (1.0f - al / A) * ia0;
@@ -316,15 +320,15 @@ void FoldLarynx::step(const LarynxControl& c, LarynxOutput& out) {
           y2 = o;
         }
         if (csL != 0.0f) {  // (VQCS agent33) the low shelf: y + (G - 1) lp(y)
-          const float aL = 1.0f - std::exp(-2.0f * 3.14159265f * (c.female ? kVqcsLowFHz : kVqcsLowHz) / (kFoldOversample * fs_));
+          const float aL = 1.0f - memo(mAL_, -2.0f * 3.14159265f * (c.female ? kVqcsLowFHz : kVqcsLowHz) / (kFoldOversample * fs_), ex);
           srcLpL_ += aL * (y2 - srcLpL_);
           float lowBand = srcLpL_;
           if (kVqcsLowHpHz > 0.0f) {  // (FEMV agent34) minus the DC / drift below VQCS_LOW_HP_HZ
-            const float aH = 1.0f - std::exp(-2.0f * 3.14159265f * kVqcsLowHpHz / (kFoldOversample * fs_));
+            const float aH = 1.0f - memo(mAH_, -2.0f * 3.14159265f * kVqcsLowHpHz / (kFoldOversample * fs_), ex);
             srcLpLH_ += aH * (y2 - srcLpLH_);
             lowBand -= srcLpLH_;
           }
-          if (c.cs > 0.0f) y2 += (std::pow(10.0f, csL * c.cs * (kVqcsLowOpen > 1.5f ? std::clamp(c.vibDrive, 0.0f, 1.0f) * c.shelfScale : kVqcsLowOpen > 0.0f ? c.shelfScale : 1.0f) / 20.0f) - 1.0f) * lowBand;
+          if (c.cs > 0.0f) y2 += (memo(mCsL_, csL * c.cs * (kVqcsLowOpen > 1.5f ? std::clamp(c.vibDrive, 0.0f, 1.0f) * c.shelfScale : kVqcsLowOpen > 0.0f ? c.shelfScale : 1.0f) / 20.0f, p10) - 1.0f) * lowBand;
         }
         p1_ = line_->substep(y2);
       } else {

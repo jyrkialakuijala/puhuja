@@ -22,6 +22,7 @@
 // line to makeLarynx.
 #pragma once
 
+#include <limits>
 #include <cstdint>
 #include <memory>
 #include <vector>
@@ -216,6 +217,11 @@ class FoldLarynx : public Larynx {
   float srcLpLH_ = 0;  // FEMV agent34: the low shelf's DC-blocking low-pass (VQCS_LOW_HP_HZ)
   float srcLp_ = 0, srcLp2_ = 0;  // LARYNX_SRC_SHELF*_*: the flow's low-passed parts
   float dipZ1_ = 0, dipZ2_ = 0;  // LARYNX_SRC_DIP_*: the peaking filter's state (round AA VQ2)
+  // The source filters' gains and coefficients, recomputed only when their argument changes (the same expressions,
+  // so bit-identical; per oversampled step they cost two pow and four exp).
+  struct Memo { float in = std::numeric_limits<float>::quiet_NaN(), out = 0; };
+  Memo mG1_, mG2_, mA1_, mA2_, mDipA_, mAL_, mAH_, mCsL_;
+  float dipW0In_ = std::numeric_limits<float>::quiet_NaN(), dipCs_ = 0, dipSn_ = 0;
   VocalTractLine* line_ = nullptr;  // the line tract, if attached (p1 comes from it)
   float prevFlow_ = 0;     // glottal flow one sample ago
   float flowMean_ = 0, physVib_ = 0;  // flow mean and fluctuation (~10 ms)
