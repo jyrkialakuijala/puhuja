@@ -12922,6 +12922,9 @@ float Synth::tick() {
   // and the filter is retuned every sample, instead of crossfading between
   // two fixed spectra.
   const float n = noise();
+  // The shaped noise feeds only the cascade (cTract) and the parallel branch (cPar): Line mode uses neither, so its
+  // filter (four pow and a retune per sample while it glides) is skipped there; the noise draw above stays.
+  const bool noiseFilter = tract_ != Tract::Line;
   if (nGlide_ < 1.0f) {
     nGlide_ = std::min(1.0f, nGlide_ + nGlideStep_);
     const float w = nGlide_ * nGlide_ * (3.0f - 2.0f * nGlide_);  // smoothstep
@@ -12929,13 +12932,14 @@ float Synth::tick() {
     auto ln = [w](float a, float b) { return a + w * (b - a); };
     const FricShape& a = nFrom_.shape;
     const FricShape& b = nTo_.shape;
-    nNow_.shape = {lg(a.lo, b.lo), lg(a.hi, b.hi), lg(a.peakF, b.peakF), lg(a.peakBw, b.peakBw),
-                   ln(a.peakGain, b.peakGain)};
+    if (noiseFilter)
+      nNow_.shape = {lg(a.lo, b.lo), lg(a.hi, b.hi), lg(a.peakF, b.peakF), lg(a.peakBw, b.peakBw),
+                     ln(a.peakGain, b.peakGain)};
     nNow_.gain = ln(nFrom_.gain, nTo_.gain);
     nNow_.tract = ln(nFrom_.tract, nTo_.tract);
     nNow_.tractGain = ln(nFrom_.tractGain, nTo_.tractGain);
     nNow_.post = ln(nFrom_.post, nTo_.post);
-    nf_.set(nNow_.shape, fs_);
+    if (noiseFilter) nf_.set(nNow_.shape, fs_);
   }
   float cTract = 0, cPar = 0;
   {
@@ -12944,9 +12948,11 @@ float Synth::tick() {
     const float g = nNow_.gain * fricAmp;
     nLevel_ += (g - nLevel_) * kNoiseLevelFollow_;
     nPeak_ = std::max(nLevel_, nPeak_ * kNoisePeakDecay_);
-    const float v = nf_.process(n) * nNow_.post * g / std::sqrt(1.0f + (g / kNoiseCeiling) * (g / kNoiseCeiling));
-    cTract += v * std::sqrt(nNow_.tract) * nNow_.tractGain;
-    cPar += v * std::sqrt(1.0f - nNow_.tract);
+    if (noiseFilter) {
+      const float v = nf_.process(n) * nNow_.post * g / std::sqrt(1.0f + (g / kNoiseCeiling) * (g / kNoiseCeiling));
+      cTract += v * std::sqrt(nNow_.tract) * nNow_.tractGain;
+      cPar += v * std::sqrt(1.0f - nNow_.tract);
+    }
   }
 
   // Vocal tract: voicing, glottal breath noise, the release transient and
