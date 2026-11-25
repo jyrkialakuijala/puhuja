@@ -9049,6 +9049,30 @@ void Synth::emitAffricate(const Token& tok, const Ph* next) {
       }
     }
   }
+  // ... and into a vowel the hiss may not be loudest at its end (off: LINE_AFFR_OFF_MS 0): from LINE_AFFR_OFF_MS before
+  // the vowel's start the slit opens toward LINE_AFFR_OFF_AC (< 0: stays) and the hiss gain goes x LINE_AFFR_OFF_FRIC
+  // (< 0: stays) in four steps.
+  static const float kAffrOffMs = param("LINE_AFFR_OFF_MS", 30.0f), kAffrOffAc = param("LINE_AFFR_OFF_AC", 0.3f),
+                     kAffrOffFric = param("LINE_AFFR_OFF_FRIC", -1.0f);
+  if (tract_ == Tract::Line && kAffrOffMs > 0 && next && isVowel(*next)) {
+    const float ms = 0.001f * fs_;
+    const double lead = std::min(static_cast<double>(kAffrOffMs) * ms, 0.6 * (timeline_ - tf0));
+    if (kAffrOffAc >= 0) {
+      Event d{timeline_ - lead};
+      d.ag = d.an = -1;
+      d.ac = kAffrOffAc;
+      d.acMs = static_cast<float>(lead / ms);
+      addEventAt(d);
+    }
+    const float g0 = tok.ph == Ph::JH ? jhRelFric_ : chRelFric_;
+    if (kAffrOffFric >= 0 && g0 > 0)
+      for (int k = 1; k <= 4; ++k) {
+        Event r{timeline_ - lead * (4 - k) / 4};
+        r.ac = r.ag = r.an = -1;
+        r.lineFricMul = g0 * (1.0f + (kAffrOffFric - 1.0f) * k / 4.0f);
+        addEventAt(r);
+      }
+  }
   afterChi_ = chInit_;
   lastChiFric_ = chRelFric_;
   chInit_ = false;

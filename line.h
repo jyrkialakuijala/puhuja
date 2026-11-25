@@ -322,6 +322,7 @@ class VocalTractLine {
   float glotSlitScale_ = 1;  // (setGlotFcScale)
   float expandFlow_ = 0, expandLast_ = 0;
   float expV_ = 0, expU_ = 0, expC_ = 1.0e-3f, expOn_ = 0, expPs_ = 0;  // LINE_EXPAND_PHYS: the yielding element's volume (cm^3), flow (cm^3/s) and compliance
+  float expOff_ = 0;  // the yielding element's conductance share after its closure (LINE_EXPAND_PHYS_OFF_MS)
   bool expandOffAllowed_ = true;  // expandLast_: the flow the sink had (LINE_EXPAND_OFF_MS)
   float expandPc_ = 0;  // the cavity pressure the expansion sees, low-passed (LINE_EXPAND_LP)
   bool expandSlow_ = false;

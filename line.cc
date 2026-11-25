@@ -559,9 +559,9 @@ void VocalTractLine::setShapeAreas(std::vector<float> a, float length, float x, 
     // The Reynolds number is the constriction's own (flow through its centre).
     // The lips rounded over the last 1.5 cm (ʃ: its front cavity needs the
     // rounding to sit near 2.5-3.5 kHz; open-lipped the hiss peaked at 10 kHz).
-    // LINE_LIP_CAP_GLIDE_MS (0: at once; 2026-11-23): the rounding comes and goes over this long (in log area). At once,
+    // LINE_LIP_CAP_GLIDE_MS (0: at once; 2026-11-23; 10 since 2026-11-25): the rounding comes and goes over this long (in log area). At once,
     // the lips of a sh went 1.5 -> 5.7 cm^2 in one step where it met an n, under the hiss: a 4 ms full-band click.
-    static const float kLipGlideMs = param("LINE_LIP_CAP_GLIDE_MS", 0.0f);
+    static const float kLipGlideMs = param("LINE_LIP_CAP_GLIDE_MS", 10.0f);
     float lipCap = lipCap_;
     if (kLipGlideMs > 0) {
       const float target = std::log(lipCap_ > 0 ? lipCap_ : 8.0f);
@@ -1036,7 +1036,22 @@ float VocalTractLine::substep(float u0) {
       expPs_ += (pk - expPs_) * std::min(1.0f, dt_ / (0.001f * std::max(kExpRetLpMs, 0.01f)));
       const float pDrive = on || kExpRetLpMs <= 0 ? pk : expPs_;
       float u = (expU_ + dt_ / kExpM * (pDrive - expV_ / expC_)) / (1.0f + dt_ / kExpM * (r + (on ? oral_.cPAt(k) : 0.0f) + dt_ / expC_));
-      if (!on && u > 0) u = 0;
+      // LINE_EXPAND_PHYS_OFF_MS (0: off, the uptake stops at once; 15 since 2026-11-25): at the release the element was still taking the
+      // glottal flow (ʤ: ~200 cm^3/s) and its resistance went x LINE_EXPAND_RET in one substep; the cavity pressure
+      // went 4200 -> 8400 dyn/cm^2 within a millisecond behind the just opening slit: a click of 0.76 ("huge") ..
+      // 1.3 ("an orange") x the vowel's peak. Its conductance now fades over this while it still takes air (it gives
+      // air back as before). LINE_EXPAND_PHYS_OFF_FRIC 1: only a closure released into a fricative.
+      static const float kExpOffMs = param("LINE_EXPAND_PHYS_OFF_MS", 15.0f);
+      static const bool kExpOffFricOnly = param("LINE_EXPAND_PHYS_OFF_FRIC", 1.0f) > 0;
+      if (on) expOff_ = 1.0f;
+      else if (kExpOffMs > 0 && expOff_ > 0) {
+        expOff_ = !kExpOffFricOnly || expandOffAllowed_ ? expOff_ - dt_ / (0.001f * kExpOffMs) : 0.0f;
+        if (expOff_ > 0) {
+          const float uf = (expU_ + dt_ / kExpM * (pk - expV_ / expC_)) / (1.0f + dt_ / kExpM * (kExpR / expOff_ + oral_.cPAt(k) + dt_ / expC_));
+          if (uf > 0) u = uf; else expOff_ = 0.0f;
+        }
+      }
+      if (!on && u > 0 && !(kExpOffMs > 0 && expOff_ > 0)) u = 0;
       expV_ += dt_ * u;
       if (expV_ <= 0) { expV_ = 0; if (u < 0) u = 0; }
       expU_ = u;
