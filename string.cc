@@ -323,17 +323,22 @@ float StringFolds::step(float h, const VocalFolds::Input& in) {
     // stayed scalar). Layer 0 is the lower one: under a shut lane it has the subglottal pressure unless it is the
     // closed layer itself; in an open lane it is always at or below the narrowest layer. Layer 1: the tract pressure
     // unless it is the narrowest layer of an open lane.
+    const float ps = in.ps, pt = in.p1;
+    alignas(64) float p0[N], p1[N];
     for (int l = 0; l < N; ++l) {
-      const bool moving = l >= kFirst && l <= kLast;
-      const bool open = aMin[l] > 0;
-      const float g0 = g[0][l], g1 = g[1][l];
+      const float am = aMin[l], g0 = g[0][l], g1 = g[1][l];
       const float vel0 = u_[l] / std::max(kSeg * g0, 1e-6f), vel1 = u_[l] / std::max(kSeg * g1, 1e-6f);
-      const float b0 = in.ps - 0.5f * kRho * vel0 * vel0, b1 = in.ps - 0.5f * kRho * vel1 * vel1;
-      const float p0 = open ? b0 : (g0 <= 0 ? in.p1 : in.ps);
-      const float p1 = open && g1 < g0 ? b1 : in.p1;
-      fAir[0][l] = (moving ? p0 - pRef : 0.0f) * kSeg * kLayer * kKappa;
-      fAir[1][l] = (moving ? p1 - pRef : 0.0f) * kSeg * kLayer * kKappa;
+      const float b0 = ps - 0.5f * kRho * vel0 * vel0, b1 = ps - 0.5f * kRho * vel1 * vel1;
+      const float shut0 = g0 <= 0 ? pt : ps;
+      const float open1 = g1 < g0 ? b1 : pt;
+      p0[l] = am > 0 ? b0 : shut0;
+      p1[l] = am > 0 ? open1 : pt;
     }
+    for (int l = 0; l < N; ++l) {
+      fAir[0][l] = (p0[l] - pRef) * kSeg * kLayer * kKappa;
+      fAir[1][l] = (p1[l] - pRef) * kSeg * kLayer * kKappa;
+    }
+    zeroAnchors(fAir);
   }
   // Forces, lane by lane: the wall spring, the string tension to the two
   // neighbours (the anchors are zero lanes, so the row shifted by one lane is
