@@ -12350,25 +12350,29 @@ float Synth::tick() {
   // widens (physical source only).
   const float openB1 = runFolds
                            ? kGlottalB1 * std::min(larynx_->area() / 0.1f, 1.5f) : 0.0f;
-  r1_.set(std::clamp(p[kF1] * voice_.formant[0], 100.0f, nyq),
-          std::max(p[kB1] * voice_.bw[0], 20.0f) + openB1, fs_);
-  // The open glottis damps every mode (each has its pressure maximum at the
-  // glottis), so F2 and F3 widen too, a little less than F1.
-  r2_.set(std::clamp(p[kF2] * voice_.formant[1], 100.0f, nyq),
-          std::max(p[kB2] * voice_.bw[1], 20.0f) + kGlottalB23[0] * openB1, fs_);
-  r3_.set(std::clamp(p[kF3] * voice_.formant[2], 100.0f, nyq),
-          std::max(p[kB3] * voice_.bw[2], 20.0f) + kGlottalB23[1] * openB1, fs_);
-  nz_.set(std::clamp(p[kFNZ], 100.0f, nyq), kNasalBw, fs_);
-  {
-    // F4 and F5 follow F3 and the pitch (see kF4FollowF3), kept above F3.
-    const float f3 = std::clamp(p[kF3] / kF3Neutral, 0.6f, 1.4f);
-    const float up = std::pow(std::max(pitch2_, 0.25f), kHighFormantPitch);
-    const float f3Hz = p[kF3] * voice_.formant[2];
-    const float f4 = std::max(voice_.f4 * std::pow(f3, kF4FollowF3) * up, f3Hz + 250.0f);
-    const float f5 = std::max(voice_.f5 * std::pow(f3, kF5FollowF3) * up, f4 + 300.0f);
-    const float s = voice_.highFormants;
-    r4_.set(std::min(f4, nyq), kF4Bw * s, fs_);
-    r5_.set(std::min(f5, nyq), kF5Bw * s, fs_);
+  // The formant cascade's poles and zero: Line mode does not use the cascade (its y is replaced by the line's
+  // output below), so they are not retuned there (six exp + cos and three pow per sample).
+  if (tract_ != Tract::Line) {
+    r1_.set(std::clamp(p[kF1] * voice_.formant[0], 100.0f, nyq),
+            std::max(p[kB1] * voice_.bw[0], 20.0f) + openB1, fs_);
+    // The open glottis damps every mode (each has its pressure maximum at the
+    // glottis), so F2 and F3 widen too, a little less than F1.
+    r2_.set(std::clamp(p[kF2] * voice_.formant[1], 100.0f, nyq),
+            std::max(p[kB2] * voice_.bw[1], 20.0f) + kGlottalB23[0] * openB1, fs_);
+    r3_.set(std::clamp(p[kF3] * voice_.formant[2], 100.0f, nyq),
+            std::max(p[kB3] * voice_.bw[2], 20.0f) + kGlottalB23[1] * openB1, fs_);
+    nz_.set(std::clamp(p[kFNZ], 100.0f, nyq), kNasalBw, fs_);
+    {
+      // F4 and F5 follow F3 and the pitch (see kF4FollowF3), kept above F3.
+      const float f3 = std::clamp(p[kF3] / kF3Neutral, 0.6f, 1.4f);
+      const float up = std::pow(std::max(pitch2_, 0.25f), kHighFormantPitch);
+      const float f3Hz = p[kF3] * voice_.formant[2];
+      const float f4 = std::max(voice_.f4 * std::pow(f3, kF4FollowF3) * up, f3Hz + 250.0f);
+      const float f5 = std::max(voice_.f5 * std::pow(f3, kF5FollowF3) * up, f4 + 300.0f);
+      const float s = voice_.highFormants;
+      r4_.set(std::min(f4, nyq), kF4Bw * s, fs_);
+      r5_.set(std::min(f5, nyq), kF5Bw * s, fs_);
+    }
   }
 
   // Trill (Finnish r): the airflow past the tongue tip makes it tap ~26 times
@@ -13001,61 +13005,65 @@ float Synth::tick() {
   // resonator. Above F3 the cascade output is phase-inverted, so the leak is
   // subtracted: it then adds up with the cascade where it takes over,
   // instead of cancelling it into a notch.
-  const float src = y;
-  y = nz_.process(y);
-  y = np_.process(y);
-  // Both are unity at DC, so with the zero above the pole everything above
-  // them ends up (pole / zero)^2 weaker. Half of that is given back, so the
-  // nasal murmur keeps more of its upper formants.
-  y *= std::pow(std::clamp(p[kFNZ], 100.0f, nyq) / kNasalPoleHz, kNasalZeroComp);
-  // The murmur below ~400 Hz a little lower (-3 dB, as far as the sound is
-  // nasal): with the compensation above, m n boomed.
-  {
-    nasLp_ += kNasLp_ * (y - nasLp_);
-    const float nasal = std::clamp((p[kFNZ] - kNasalPoleHz) / 500.0f, 0.0f, 1.0f);
-    y -= kNasalLowCut * nasal * nasLp_;
-  }
-  if (kUseCavities)
-    for (int i = 0; i < kNumCavities; ++i) y = cavPole_[i].process(cavZero_[i].process(y));
-  if (kUseHighPoles)
-    for (int i = 0; i < kNumTubePoles; ++i) y = tube_[i].process(y);
-  y = r5_.process(y);
-  y = r4_.process(y);
-  y = r3_.process(y);
-  y = r2_.process(y);
-  y = r1_.process(y);
-  y -= leak_ * src;
-  // Chest: part of the voice is heard straight through the chest wall and
-  // the neck, without the mouth's resonances (mostly lows).
-  if (carrier_ == Carrier::Physical)
-    y -= kChestDirect * chestLp_.process((glottalFlow - larynx_->flowMean()) * av * speechEnv_);
-  // Body resonance (see kBodyResonances): voiced sound only. The tract output
-  // is gated by the vibration strength, which is ~0 during bursts and hiss.
-  {
-    const float in = (1.0f - kBodyFollow) * voiced * speechEnv_ + kBodyFollow * y * vibAmp_;
-    float body = 0;
-    for (int i = 0; i < kNumBodyResonances; ++i)
-      body += kBodyResonances[i].gain * body_[i].process(in);
-    y += body;
-  }
-  const float radiation =
-      kWallRadiation + (1.0f - kWallRadiation) *
-                           smoothstep(0.0f, kRadiationOpenArea, ac + kNostrilFactor * an);
-  y *= radiation;
-  // Lip radiation: the radiated pressure rises 6 dB/octave with frequency.
-  // Here flat below kLipRadiationHz and rising above it, so the lows keep
-  // their weight; with the triangle's -12 dB/octave this gives a natural
-  // voice's gentler tilt in the highs.
-  // The physical source's output is already the flow derivative, which is
-  // the lip radiation: there only the head's diffraction is added, a
-  // bounded step of about +5 dB from ~1.5 kHz (radiating into a half space
-  // in front of the head instead of all around).
-  if (runFolds) {
-    y = headShelf_.process(y);
-  } else if (kLipRadiation) {
-    const float d = (y - prevTract_) * lipGain_;
-    prevTract_ = y;
-    y += d;
+  // The cascade itself, the chest, the body and the radiation: none of it is heard in Line mode (y is replaced
+  // there; no noise() is drawn in this block, so skipping it keeps the noise stream and the output bit-identical).
+  if (tract_ != Tract::Line) {
+    const float src = y;
+    y = nz_.process(y);
+    y = np_.process(y);
+    // Both are unity at DC, so with the zero above the pole everything above
+    // them ends up (pole / zero)^2 weaker. Half of that is given back, so the
+    // nasal murmur keeps more of its upper formants.
+    y *= std::pow(std::clamp(p[kFNZ], 100.0f, nyq) / kNasalPoleHz, kNasalZeroComp);
+    // The murmur below ~400 Hz a little lower (-3 dB, as far as the sound is
+    // nasal): with the compensation above, m n boomed.
+    {
+      nasLp_ += kNasLp_ * (y - nasLp_);
+      const float nasal = std::clamp((p[kFNZ] - kNasalPoleHz) / 500.0f, 0.0f, 1.0f);
+      y -= kNasalLowCut * nasal * nasLp_;
+    }
+    if (kUseCavities)
+      for (int i = 0; i < kNumCavities; ++i) y = cavPole_[i].process(cavZero_[i].process(y));
+    if (kUseHighPoles)
+      for (int i = 0; i < kNumTubePoles; ++i) y = tube_[i].process(y);
+    y = r5_.process(y);
+    y = r4_.process(y);
+    y = r3_.process(y);
+    y = r2_.process(y);
+    y = r1_.process(y);
+    y -= leak_ * src;
+    // Chest: part of the voice is heard straight through the chest wall and
+    // the neck, without the mouth's resonances (mostly lows).
+    if (carrier_ == Carrier::Physical)
+      y -= kChestDirect * chestLp_.process((glottalFlow - larynx_->flowMean()) * av * speechEnv_);
+    // Body resonance (see kBodyResonances): voiced sound only. The tract output
+    // is gated by the vibration strength, which is ~0 during bursts and hiss.
+    {
+      const float in = (1.0f - kBodyFollow) * voiced * speechEnv_ + kBodyFollow * y * vibAmp_;
+      float body = 0;
+      for (int i = 0; i < kNumBodyResonances; ++i)
+        body += kBodyResonances[i].gain * body_[i].process(in);
+      y += body;
+    }
+    const float radiation =
+        kWallRadiation + (1.0f - kWallRadiation) *
+                             smoothstep(0.0f, kRadiationOpenArea, ac + kNostrilFactor * an);
+    y *= radiation;
+    // Lip radiation: the radiated pressure rises 6 dB/octave with frequency.
+    // Here flat below kLipRadiationHz and rising above it, so the lows keep
+    // their weight; with the triangle's -12 dB/octave this gives a natural
+    // voice's gentler tilt in the highs.
+    // The physical source's output is already the flow derivative, which is
+    // the lip radiation: there only the head's diffraction is added, a
+    // bounded step of about +5 dB from ~1.5 kHz (radiating into a half space
+    // in front of the head instead of all around).
+    if (runFolds) {
+      y = headShelf_.process(y);
+    } else if (kLipRadiation) {
+      const float d = (y - prevTract_) * lipGain_;
+      prevTract_ = y;
+      y += d;
+    }
   }
 
   // A 2nd-order cut below ~90 Hz on top (the male voice boomed: 63-100 Hz
