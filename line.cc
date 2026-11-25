@@ -120,11 +120,15 @@ void TransmissionLine::setLength(float length) {
 }
 
 void TransmissionLine::setAreas(const std::vector<float>& a, bool glide) {
-  for (int k = 0; k < n_; ++k) {
-    aTarget_[k] = std::min(std::max(k < static_cast<int>(a.size()) ? a[k] : a.back(), kClosureMin), 1e3f);
-    if (glide) {
-      aStep_[k] = std::pow(aTarget_[k] / a_[k], 1.0f / kGlide);
-    } else {
+  const int na = static_cast<int>(a.size());
+  for (int k = 0; k < n_; ++k) aTarget_[k] = std::min(std::max(k < na ? a[k] : a.back(), kClosureMin), 1e3f);
+  if (glide) {
+    // The 16th root as four square roots, all sections at once. (powf per section was 64 libm calls every four
+    // samples, most of the 5 % of a render spent in powf; not the same last bit as powf: a new baseline, 2026-11-25.)
+    static_assert(kGlide == 16, "four square roots");
+    for (int k = 0; k < n_; ++k) aStep_[k] = std::sqrt(std::sqrt(std::sqrt(std::sqrt(aTarget_[k] / a_[k]))));
+  } else {
+    for (int k = 0; k < n_; ++k) {
       a_[k] = aTarget_[k];
       aStep_[k] = 1;
     }
