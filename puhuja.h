@@ -575,7 +575,8 @@ class Synth {
   bool lastZhOwn_ = false;  // the last ʒ was a standalone one, not a ʤ's frication (LINE_ZH_OFF_MS)
   int jhPos_ = -1;  // the ʤ being emitted: 0 after a pause, 1 medial, 2 before a pause (-1: none; LINE_JH_INIT_* ...)
   bool jhNextH_ = false;  // the j in work is followed by an h (LINE_JH_H_AG)
-  double hissFadeEnd_ = -1;  // a final affricate's hiss fades until here (samples; LINE_FRIC_PAUSE_FADE_MS)
+  double hissFadeEnd_ = -1;
+  bool lineXShutGo_ = false;  // a shut closure is on its way to another articulator (LINE_X_ARTIC_SHUT_MS)  // a final affricate's hiss fades until here (samples; LINE_FRIC_PAUSE_FADE_MS)
   float jhRelFric_ = -1;  // the ʤ release's hiss gain (LINE_JH_RAMP_MS, LINE_JH_DECAY)
   int afterJh_ = -1;  // the sound after a ʤ: its jhPos_ (-1: not after a ʤ; LINE_JH_OFF_MS, LINE_JH_ADDUCT_*, LINE_JH_ONSET_DIP)
   float lastJhFric_ = -1;  // the last ʤ release's hiss gain (LINE_JH_TAIL_MS)

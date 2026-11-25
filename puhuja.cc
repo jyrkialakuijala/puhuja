@@ -873,6 +873,12 @@ const float kLineXSnapArea = param("LINE_X_SNAP_AREA", 0.9959796f);  // the cons
 // guards.py found 26 clicks / bangs, at 4 "Napkin" n -> p snapped (snap.py
 // 0 -> 10.9 / 8); at 8 the snap list is 6.33 dB (base 6.55).
 const float kLineXArticOpenArea = param("LINE_X_ARTIC_OPEN_AREA", 0.2f);  // cm^2; 0: off
+// LINE_X_ARTIC_SHUT_AREA (cm^2; 0: off): a closure that changes its articulator moves while it is still shut, at once.
+// "friend and foe" (owner 2026-11-25: "a strange thing close to the beginning of foe"): the d opened into the f's
+// slit at the ridge (LINE_X_ARTIC_OPEN_AREA made it wait there), and the open slit then slid to the lips in 15 ms with
+// the f's air through it: a chirp from 1.7 to 3.1 kHz at 0.57 x the phrase's peak, 12 dB over the f.
+const float kLineXArticShutArea = param("LINE_X_ARTIC_SHUT_AREA", 0.004f);
+const float kLineXArticShutMs = param("LINE_X_ARTIC_SHUT_MS", 4.0f);  // 0: the shut closure jumps; > 0: it glides (time constant), and does not wait
 const float kLineXArticMs = param("LINE_X_ARTIC_MS", 8.0f);
 // LINE_X_SNAP_AREA only for a closure's place (a stop's, a nasal's; 1; 0: every place). The fricatives
 // keep their glide from the vowel: at their own place from the vowel on (the snap), the v of "revolutionary"
@@ -12009,6 +12015,7 @@ float Synth::tick() {
     if (e.lineX >= 0) {
       if (kLineXArticMs >= 0 && (e.lineX >= 0.94f) != (lineX_ >= 0.94f)) lineXArtic_ = true;  // (LINE_X_ARTIC_MS)
       lineXTarget_ = e.lineX;
+      lineXShutGo_ = false;
       lineXSnapOk_ = !kLineXSnapClosures || e.lineXClosure;
       static const bool kXTrace = std::getenv("PUHUJA_X_TRACE") != nullptr;  // the place events as they start
       if (kXTrace) std::fprintf(stderr, "xev t %.3f x %.3f ac %.3f\n", t_ / fs_, e.lineX, e.ac);
@@ -12401,6 +12408,13 @@ float Synth::tick() {
     // the "blib" at the end of "of" in "hand of God" (Jyrki 2026-11-05). Two
     // articulators would release one place and close the other.
     if (kLineXSnapArea > 0 && ac > kLineXSnapArea && lineXSnapOk_) lineX_ = lineXTarget_, lineXArtic_ = false;
+    else if (lineXArtic_ && ac < kLineXArticShutArea && kLineXArticShutMs <= 0) lineX_ = lineXTarget_, lineXArtic_ = false;
+    else if (lineXArtic_ && (ac < kLineXArticShutArea || lineXShutGo_)) {
+      static const float kShutK = 1.0f - std::exp(-1000.0f / (std::max(kLineXArticShutMs, 0.01f) * fs_));
+      lineXShutGo_ = true;
+      lineX_ += (lineXTarget_ - lineX_) * kShutK;
+      if (std::fabs(lineXTarget_ - lineX_) < 0.002f) lineX_ = lineXTarget_, lineXArtic_ = false, lineXShutGo_ = false;
+    }
     else if (lineXArtic_ && kLineXArticOpenArea > 0 && ac < kLineXArticOpenArea && ac > lineAcPrev_) {
       // (LINE_X_ARTIC_OPEN_AREA) a constriction that is opening opens where it is: the place waits until the opening
       // is this wide. An f into an r slid its lip slit back to the palate in 8 ms with the f's air still rushing
