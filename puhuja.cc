@@ -881,14 +881,18 @@ const float kLineXArticShutArea = param("LINE_X_ARTIC_SHUT_AREA", 0.004f);
 // LINE_X_ARTIC_CLOSE_WAIT (0: off): a slit that is closing to a closure of the other articulator shuts where it is
 // and then moves (the rule above). "of God" (owner 2026-11-25: "a chirp between the words"): the v's slit slid from
 // the lips back to the velum over 15 ms while it closed, with the air still through it.
-const bool kLineXArticCloseWait = param("LINE_X_ARTIC_CLOSE_WAIT", 0.0f) > 0;
+// (2: only a slit at the lips, v f into t d k g n. The other direction, s z th into p b m, is left as it was: there the
+// slit first widens before it closes ("wasp": 0.06 -> 0.15 cm^2, a 3.4 kHz burst at the peak of the word) and waiting
+// at the ridge made that burst a little longer, 0.96 -> 1.00 x the word's peak; it needs its own fix.)
+const float kLineXArticCloseWaitV = param("LINE_X_ARTIC_CLOSE_WAIT", 2.0f);
+const bool kLineXArticCloseWait = kLineXArticCloseWaitV > 0;
 // LINE_X_ARTIC_DORSUM (place, 0-1; 0: off): the tongue's back and its tip are two articulators as the lips and the
 // tongue are. "the globe" (owner 2026-11-25: "a lesser chirp between the words or at the G"): the g's hump opened
 // while it slid from the velum to the l's ridge, and its burst was a band at 2.7 kHz sweeping down (the 11labs
 // readers' "globe": a broad burst at 5.5-6.3 kHz). A closure behind this line released into an open sound in front
 // of it keeps its place for LINE_X_REL_HOLD_MS and then goes over (LINE_X_ARTIC_MS).
-const float kLineXArticDorsum = param("LINE_X_ARTIC_DORSUM", 0.0f);
-const float kLineXRelHoldMs = param("LINE_X_REL_HOLD_MS", 0.0f);
+const float kLineXArticDorsum = param("LINE_X_ARTIC_DORSUM", 0.76f);
+const float kLineXRelHoldMs = param("LINE_X_REL_HOLD_MS", 20.0f);
 const float kLineXArticShutMs = param("LINE_X_ARTIC_SHUT_MS", 4.0f);  // 0: the shut closure jumps; > 0: it glides (time constant), and does not wait
 const float kLineXArticMs = param("LINE_X_ARTIC_MS", 8.0f);
 // LINE_X_SNAP_AREA only for a closure's place (a stop's, a nasal's; 1; 0: every place). The fricatives
@@ -12450,7 +12454,8 @@ float Synth::tick() {
       lineX_ += (lineXTarget_ - lineX_) * kShutK;
       if (std::fabs(lineXTarget_ - lineX_) < 0.002f) lineX_ = lineXTarget_, lineXArtic_ = false, lineXShutGo_ = false;
     }
-    else if (lineXArtic_ && kLineXArticCloseWait && lineAcTo_ == 0 && ac >= kLineXArticShutArea && ac < kLineXArticOpenArea) {
+    else if (lineXArtic_ && kLineXArticCloseWait && (kLineXArticCloseWaitV < 2 || lineXTarget_ < 0.94f) && lineAcTo_ == 0 &&
+             ac >= kLineXArticShutArea && ac < kLineXArticOpenArea) {
     }
     else if (lineXArtic_ && kLineXArticOpenArea > 0 && ac < kLineXArticOpenArea && ac > lineAcPrev_ && lineXHoldUntil_ < 0) {
       // (LINE_X_ARTIC_OPEN_AREA) a constriction that is opening opens where it is: the place waits until the opening
