@@ -579,6 +579,7 @@ class Synth {
   bool jhNextH_ = false;  // the j in work is followed by an h (LINE_JH_H_AG)
   double hissFadeEnd_ = -1;
   float lineAcTo_ = -1;  // the constriction area the last event asked for
+  double lineXHoldUntil_ = -1;  // the place stays until this sample (LINE_X_REL_HOLD_MS)
   bool lineXShutGo_ = false;
   bool lineXShutEv_ = false;  // the last place event may move its closure while shut  // a shut closure is on its way to another articulator (LINE_X_ARTIC_SHUT_MS)  // a final affricate's hiss fades until here (samples; LINE_FRIC_PAUSE_FADE_MS)
   float jhRelFric_ = -1;  // the ʤ release's hiss gain (LINE_JH_RAMP_MS, LINE_JH_DECAY)

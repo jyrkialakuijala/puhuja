@@ -883,9 +883,12 @@ const float kLineXArticShutArea = param("LINE_X_ARTIC_SHUT_AREA", 0.004f);
 // the lips back to the velum over 15 ms while it closed, with the air still through it.
 const bool kLineXArticCloseWait = param("LINE_X_ARTIC_CLOSE_WAIT", 0.0f) > 0;
 // LINE_X_ARTIC_DORSUM (place, 0-1; 0: off): the tongue's back and its tip are two articulators as the lips and the
-// tongue are: a place event across this line follows the LINE_X_ARTIC_* rules. "the globe" (owner 2026-11-25: "a
-// lesser chirp between the words or at the G"): the g's hump opened while it slid from the velum to the l's ridge.
+// tongue are. "the globe" (owner 2026-11-25: "a lesser chirp between the words or at the G"): the g's hump opened
+// while it slid from the velum to the l's ridge, and its burst was a band at 2.7 kHz sweeping down (the 11labs
+// readers' "globe": a broad burst at 5.5-6.3 kHz). A closure behind this line released into an open sound in front
+// of it keeps its place for LINE_X_REL_HOLD_MS and then goes over (LINE_X_ARTIC_MS).
 const float kLineXArticDorsum = param("LINE_X_ARTIC_DORSUM", 0.0f);
+const float kLineXRelHoldMs = param("LINE_X_REL_HOLD_MS", 0.0f);
 const float kLineXArticShutMs = param("LINE_X_ARTIC_SHUT_MS", 4.0f);  // 0: the shut closure jumps; > 0: it glides (time constant), and does not wait
 const float kLineXArticMs = param("LINE_X_ARTIC_MS", 8.0f);
 // LINE_X_SNAP_AREA only for a closure's place (a stop's, a nasal's; 1; 0: every place). The fricatives
@@ -12029,7 +12032,12 @@ float Synth::tick() {
     if (e.aspGain >= 0) aspGainTarget_ = e.aspGain;
     if (e.lineX >= 0) {
       if (kLineXArticMs >= 0 && (e.lineX >= 0.94f) != (lineX_ >= 0.94f)) lineXArtic_ = true;  // (LINE_X_ARTIC_MS)
-      if (kLineXArticMs >= 0 && kLineXArticDorsum > 0 && (e.lineX >= kLineXArticDorsum) != (lineX_ >= kLineXArticDorsum)) lineXArtic_ = true;
+      lineXHoldUntil_ = -1;
+      if (kLineXArticMs >= 0 && kLineXArticDorsum > 0 && kLineXRelHoldMs > 0 && e.lineX >= kLineXArticDorsum && lineX_ < kLineXArticDorsum &&
+          lineAcPrev_ < 0.004f && e.ac >= kLineXArticOpenArea) {
+        lineXArtic_ = true;
+        lineXHoldUntil_ = t_ + msToSamples(kLineXRelHoldMs, fs_);
+      }
       lineXTarget_ = e.lineX;
       lineXShutGo_ = false;
       lineXShutEv_ = e.lineXShut;
@@ -12433,7 +12441,8 @@ float Synth::tick() {
     // where it is. Without this "blue" and "brick" released their b at the tongue's place, 252ea2e.)
     static const bool kShutOpen = param("LINE_X_ARTIC_SHUT_OPEN", 0.0f) > 0;
     const bool shutTo = kShutOpen || lineAcTo_ == 0 || (lineXShutEv_ && lineAcTo_ >= 0 && lineAcTo_ < kLineXArticOpenArea);
-    if (kLineXSnapArea > 0 && ac > kLineXSnapArea && lineXSnapOk_) lineX_ = lineXTarget_, lineXArtic_ = false;
+    if (t_ < lineXHoldUntil_) {
+    } else if (kLineXSnapArea > 0 && ac > kLineXSnapArea && lineXSnapOk_) lineX_ = lineXTarget_, lineXArtic_ = false;
     else if (lineXArtic_ && ac < kLineXArticShutArea && shutTo && kLineXArticShutMs <= 0) lineX_ = lineXTarget_, lineXArtic_ = false;
     else if (lineXArtic_ && ((ac < kLineXArticShutArea && shutTo) || lineXShutGo_)) {
       static const float kShutK = 1.0f - std::exp(-1000.0f / (std::max(kLineXArticShutMs, 0.01f) * fs_));
@@ -12443,7 +12452,7 @@ float Synth::tick() {
     }
     else if (lineXArtic_ && kLineXArticCloseWait && lineAcTo_ == 0 && ac >= kLineXArticShutArea && ac < kLineXArticOpenArea) {
     }
-    else if (lineXArtic_ && kLineXArticOpenArea > 0 && ac < kLineXArticOpenArea && ac > lineAcPrev_) {
+    else if (lineXArtic_ && kLineXArticOpenArea > 0 && ac < kLineXArticOpenArea && ac > lineAcPrev_ && lineXHoldUntil_ < 0) {
       // (LINE_X_ARTIC_OPEN_AREA) a constriction that is opening opens where it is: the place waits until the opening
       // is this wide. An f into an r slid its lip slit back to the palate in 8 ms with the f's air still rushing
       // through, the hiss sweeping down from the lips' flat noise to a 2-3 kHz band 17 dB over the f (owner
