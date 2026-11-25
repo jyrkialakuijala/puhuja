@@ -878,6 +878,14 @@ const float kLineXArticOpenArea = param("LINE_X_ARTIC_OPEN_AREA", 0.2f);  // cm^
 // slit at the ridge (LINE_X_ARTIC_OPEN_AREA made it wait there), and the open slit then slid to the lips in 15 ms with
 // the f's air through it: a chirp from 1.7 to 3.1 kHz at 0.57 x the phrase's peak, 12 dB over the f.
 const float kLineXArticShutArea = param("LINE_X_ARTIC_SHUT_AREA", 0.004f);
+// LINE_X_ARTIC_CLOSE_WAIT (0: off): a slit that is closing to a closure of the other articulator shuts where it is
+// and then moves (the rule above). "of God" (owner 2026-11-25: "a chirp between the words"): the v's slit slid from
+// the lips back to the velum over 15 ms while it closed, with the air still through it.
+const bool kLineXArticCloseWait = param("LINE_X_ARTIC_CLOSE_WAIT", 0.0f) > 0;
+// LINE_X_ARTIC_DORSUM (place, 0-1; 0: off): the tongue's back and its tip are two articulators as the lips and the
+// tongue are: a place event across this line follows the LINE_X_ARTIC_* rules. "the globe" (owner 2026-11-25: "a
+// lesser chirp between the words or at the G"): the g's hump opened while it slid from the velum to the l's ridge.
+const float kLineXArticDorsum = param("LINE_X_ARTIC_DORSUM", 0.0f);
 const float kLineXArticShutMs = param("LINE_X_ARTIC_SHUT_MS", 4.0f);  // 0: the shut closure jumps; > 0: it glides (time constant), and does not wait
 const float kLineXArticMs = param("LINE_X_ARTIC_MS", 8.0f);
 // LINE_X_SNAP_AREA only for a closure's place (a stop's, a nasal's; 1; 0: every place). The fricatives
@@ -12014,6 +12022,7 @@ float Synth::tick() {
     if (e.aspGain >= 0) aspGainTarget_ = e.aspGain;
     if (e.lineX >= 0) {
       if (kLineXArticMs >= 0 && (e.lineX >= 0.94f) != (lineX_ >= 0.94f)) lineXArtic_ = true;  // (LINE_X_ARTIC_MS)
+      if (kLineXArticMs >= 0 && kLineXArticDorsum > 0 && (e.lineX >= kLineXArticDorsum) != (lineX_ >= kLineXArticDorsum)) lineXArtic_ = true;
       lineXTarget_ = e.lineX;
       lineXShutGo_ = false;
       lineXSnapOk_ = !kLineXSnapClosures || e.lineXClosure;
@@ -12096,6 +12105,7 @@ float Synth::tick() {
     }
     if (e.aspBurst) aspBurst_ = aspirationGain_ * e.aspBurstGain;
     if (e.ac >= 0) ac_.start(e.ac, msToSamples(e.acMs, fs_), e.acLog);
+    if (e.ac >= 0) lineAcTo_ = e.ac;
     if (e.shFall >= 0) shFallT_ = t_, shFallCls_ = e.shFall;
     if (e.ag >= 0) ag_.start(e.ag, msToSamples(e.agMs, fs_));
     if (e.ag >= 0 && std::getenv("PUHUJA_LINE_TRACE")) std::fprintf(stderr, "agevent t %.3f ag %.3f over %.0f ms\n", t_ / fs_, e.ag, e.agMs);
@@ -12407,13 +12417,19 @@ float Synth::tick() {
     // lips to the velum over 18 ms while closing, a bump racing along the tube,
     // the "blib" at the end of "of" in "hand of God" (Jyrki 2026-11-05). Two
     // articulators would release one place and close the other.
+    // (only into a slit or another closure, LINE_X_ARTIC_SHUT_OPEN 0: a stop released into an l, an r or a vowel opens
+    // where it is. Without this "blue" and "brick" released their b at the tongue's place, 252ea2e.)
+    static const bool kShutOpen = param("LINE_X_ARTIC_SHUT_OPEN", 0.0f) > 0;
+    const bool shutTo = kShutOpen || (lineAcTo_ >= 0 && lineAcTo_ < kLineXArticOpenArea);
     if (kLineXSnapArea > 0 && ac > kLineXSnapArea && lineXSnapOk_) lineX_ = lineXTarget_, lineXArtic_ = false;
-    else if (lineXArtic_ && ac < kLineXArticShutArea && kLineXArticShutMs <= 0) lineX_ = lineXTarget_, lineXArtic_ = false;
-    else if (lineXArtic_ && (ac < kLineXArticShutArea || lineXShutGo_)) {
+    else if (lineXArtic_ && ac < kLineXArticShutArea && shutTo && kLineXArticShutMs <= 0) lineX_ = lineXTarget_, lineXArtic_ = false;
+    else if (lineXArtic_ && ((ac < kLineXArticShutArea && shutTo) || lineXShutGo_)) {
       static const float kShutK = 1.0f - std::exp(-1000.0f / (std::max(kLineXArticShutMs, 0.01f) * fs_));
       lineXShutGo_ = true;
       lineX_ += (lineXTarget_ - lineX_) * kShutK;
       if (std::fabs(lineXTarget_ - lineX_) < 0.002f) lineX_ = lineXTarget_, lineXArtic_ = false, lineXShutGo_ = false;
+    }
+    else if (lineXArtic_ && kLineXArticCloseWait && lineAcTo_ == 0 && ac >= kLineXArticShutArea && ac < kLineXArticOpenArea) {
     }
     else if (lineXArtic_ && kLineXArticOpenArea > 0 && ac < kLineXArticOpenArea && ac > lineAcPrev_) {
       // (LINE_X_ARTIC_OPEN_AREA) a constriction that is opening opens where it is: the place waits until the opening
