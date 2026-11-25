@@ -11240,6 +11240,13 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
     if (kStopDhFric >= 0) rel.lineFricMul = kStopDhFric;
     if (kStopDhAcMs >= 0) rel.acMs = kStopDhAcMs;
   }
+  {  // (LINE_X_ARTIC_SHUT_AREA: only a release without a burst into a fricative may move its closure while shut; a
+     // burst belongs to the stop's own place. The same test as vstopFricNoBurst below.)
+    static const float kVstopFricBurst0 = param("LINE_VSTOP_FRIC_BURST", 0.0f);
+    const bool nf = tract_ == Tract::Line && next && info(*next).cls == Cls::Fricative;
+    if (nf && (unreleased || (pi.voiced && *next != Ph::VV && *next != Ph::Z && *next != Ph::ZH && *next != Ph::DH && kVstopFricBurst0 <= 0)))
+      rel.lineXShut = true;
+  }
   addEvent(rel);
   if (pLiqLip) addEventAt(pLiqOpen);
   if (kLiqVel) addEventAt(kLiqOpen);
@@ -12025,6 +12032,7 @@ float Synth::tick() {
       if (kLineXArticMs >= 0 && kLineXArticDorsum > 0 && (e.lineX >= kLineXArticDorsum) != (lineX_ >= kLineXArticDorsum)) lineXArtic_ = true;
       lineXTarget_ = e.lineX;
       lineXShutGo_ = false;
+      lineXShutEv_ = e.lineXShut;
       lineXSnapOk_ = !kLineXSnapClosures || e.lineXClosure;
       static const bool kXTrace = std::getenv("PUHUJA_X_TRACE") != nullptr;  // the place events as they start
       if (kXTrace) std::fprintf(stderr, "xev t %.3f x %.3f ac %.3f\n", t_ / fs_, e.lineX, e.ac);
@@ -12420,7 +12428,7 @@ float Synth::tick() {
     // (only into a slit or another closure, LINE_X_ARTIC_SHUT_OPEN 0: a stop released into an l, an r or a vowel opens
     // where it is. Without this "blue" and "brick" released their b at the tongue's place, 252ea2e.)
     static const bool kShutOpen = param("LINE_X_ARTIC_SHUT_OPEN", 0.0f) > 0;
-    const bool shutTo = kShutOpen || (lineAcTo_ >= 0 && lineAcTo_ < kLineXArticOpenArea);
+    const bool shutTo = kShutOpen || lineAcTo_ == 0 || (lineXShutEv_ && lineAcTo_ >= 0 && lineAcTo_ < kLineXArticOpenArea);
     if (kLineXSnapArea > 0 && ac > kLineXSnapArea && lineXSnapOk_) lineX_ = lineXTarget_, lineXArtic_ = false;
     else if (lineXArtic_ && ac < kLineXArticShutArea && shutTo && kLineXArticShutMs <= 0) lineX_ = lineXTarget_, lineXArtic_ = false;
     else if (lineXArtic_ && ((ac < kLineXArticShutArea && shutTo) || lineXShutGo_)) {

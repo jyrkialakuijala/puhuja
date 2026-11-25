@@ -158,6 +158,7 @@ struct Event {
   float lineJetFcMin = 0, lineJetFcMax = 0;  // ... and the corner's range for this jet (Hz; 0: the global 200 / LINE_NOISE_FC_MAX), applied with lineJetD
   float lineX = -1;    // the constriction's place for the line tract (share of its length; < 0: keep)
   bool lineXClosure = false;  // the place is a closure's (a stop, a nasal): LINE_X_SNAP_CLOSURES
+  bool lineXShut = false;  // an unburst release into a fricative: the closure moves to the new place while shut
   bool aspBurst = false;  // an aspirated release: the puff's noise starts
   float creak = -1;       // creaky voice from now on (0..1; < 0: unchanged)
   // NASAL agent32: the nasal walls' radiation scale / the nasal HF loss bandwidth from now on; lineNasGeom 1: the
@@ -577,7 +578,8 @@ class Synth {
   bool jhNextH_ = false;  // the j in work is followed by an h (LINE_JH_H_AG)
   double hissFadeEnd_ = -1;
   float lineAcTo_ = -1;  // the constriction area the last event asked for
-  bool lineXShutGo_ = false;  // a shut closure is on its way to another articulator (LINE_X_ARTIC_SHUT_MS)  // a final affricate's hiss fades until here (samples; LINE_FRIC_PAUSE_FADE_MS)
+  bool lineXShutGo_ = false;
+  bool lineXShutEv_ = false;  // the last place event may move its closure while shut  // a shut closure is on its way to another articulator (LINE_X_ARTIC_SHUT_MS)  // a final affricate's hiss fades until here (samples; LINE_FRIC_PAUSE_FADE_MS)
   float jhRelFric_ = -1;  // the ʤ release's hiss gain (LINE_JH_RAMP_MS, LINE_JH_DECAY)
   int afterJh_ = -1;  // the sound after a ʤ: its jhPos_ (-1: not after a ʤ; LINE_JH_OFF_MS, LINE_JH_ADDUCT_*, LINE_JH_ONSET_DIP)
   float lastJhFric_ = -1;  // the last ʤ release's hiss gain (LINE_JH_TAIL_MS)
