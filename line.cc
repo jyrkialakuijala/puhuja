@@ -26,7 +26,7 @@ const float kNoiseLpRatio = param("LINE_NOISE_LPR", 10.3959664f);  // (2.5 -> 10
 const float kNoiseStSmoothGMs = param("LINE_NOISE_ST_SMOOTH_G_MS", 15.001933f);  // 2026-11-05: the glottal jet's corner smoothed over this alone (ms; < 0: LINE_NOISE_ST_SMOOTH_MS). Its corner zips 200 <-> 12000 Hz once per pitch period in every voiced sound.
 const float kNoiseStSmoothFMs = param("LINE_NOISE_ST_SMOOTH_F_MS", -1.0f);  // ... the constriction's jet's
 const float kNoiseFcMax = param("LINE_NOISE_FC_MAX", 8000.0f);  // the corners' ceiling (Hz; a closing constriction sat at the clamp: 8-12 ms pings at 12 kHz in d, t, m)
-const float kNoiseUMax = param("LINE_NOISE_U_MAX", 1.0248568f);  // > 0: the jet speed behind the corners and the constriction's Reynolds number capped at this x the Bernoulli speed sqrt(2 Ps / rho) (the line's flow lags a closing area: 1.3-1.4 x the limit into a p)
+const float kNoiseUMax = param("LINE_NOISE_U_MAX", 1.01498f);  // > 0: the jet speed behind the corners and the constriction's Reynolds number capped at this x the Bernoulli speed sqrt(2 Ps / rho) (the line's flow lags a closing area: 1.3-1.4 x the limit into a p)
 const float kNoiseAreaExp = param("LINE_NOISE_AREA_EXP", 1.5155573f);  // 2026-11-05: the constriction noise drive x (LINE_NOISE_AREA_REF / area)^this. The Re^2 law (U^2 d^2 ~ u^2 / a) grows as a groove opens on the glottis-limited flow (u ~ a): the s of "save" rose 12 dB over its last 13 ms as its groove opened and its corner fell 8.8 -> 2.1 kHz, then the fade cut it (Kokoro: a 20 dB fade over the last 30 ms). Stevens: the source goes as U^3 / A^2.5. 0: as before.
 const float kNoiseAreaRef = param("LINE_NOISE_AREA_REF", 0.05f);  // cm^2 (an s groove): no change there
 const float kNoiseAreaTarget = param("LINE_NOISE_AREA_TARGET", 0.0009813799f);  // > 0: the reference is instead the constriction's own area (the smaller end of its glide, at least this many cm^2), and the factor never exceeds 1: every steady fricative keeps its level, only the glides out of and into a groove or a closure are damped (the absolute law cut z v ð by 15 dB and lifted f ʃ by 8: Whisper -45)
@@ -534,7 +534,7 @@ void VocalTractLine::setShapeAreas(std::vector<float> a, float length, float x, 
     // source, at the hump's edge, sat at the lips.
     static const float kPostChHw = param("LINE_POST_CH_HW", 0.0f), kPostChFlat = param("LINE_POST_CH_FLAT", 0.55f);
     // (by how far the half-width, which glides, is on its way from 1 cm to the groove's: no step where a sh meets an n)
-    static const float kPostHwRef = param("LINE_POST_HW", 3.9524796f);
+    static const float kPostHwRef = param("LINE_POST_HW", 3.9062579f);
     const float postW = kPostChHw > 0 && kPostHwRef > 1.0f ? std::clamp((humpHw_ - 1.0f) / (kPostHwRef - 1.0f), 0.0f, 1.0f) : 0.0f;
     const float hwEff = postW > 0 ? 1.0f + postW * (kPostChHw - 1.0f) : humpHw_, flatEff = postW * kPostChFlat;
     float gNorm = 1.0f;  // LINE_HUMP_NORM: 1 / (the largest sampled cos)^k
