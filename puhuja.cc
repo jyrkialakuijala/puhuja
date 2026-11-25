@@ -12042,9 +12042,24 @@ float Synth::tick() {
         lineXArtic_ = true;
         lineXHoldUntil_ = t_ + msToSamples(kLineXRelHoldMs, fs_);
       }
+      // LINE_X_DORSUM_SLIT (0: off): a closure behind LINE_X_ARTIC_DORSUM released into a slit in front of it (k g into
+      // s z sh zh th dh) is the other articulator too. Owner 2026-11-25: "republics south, something strange happens
+      // between these words": the k's hump opened into the s's 0.043 cm^2 slit and slid, open, from the velum (x 0.63)
+      // to the ridge (0.90) on the 20 ms glide, the s's hiss sweeping up from 2.5 to 4.5 kHz over its first 50 ms (the
+      // 11labs reader: a velar burst, then the s at 4-8 kHz from its start). 1: the closure moves while still shut
+      // (LINE_X_ARTIC_SHUT_MS), the s opens at its own place; 2: the burst keeps the velum for LINE_X_REL_HOLD_MS, then
+      // goes over on LINE_X_ARTIC_MS.
+      static const float kXDorsumSlit = param("LINE_X_DORSUM_SLIT", 0.0f);
+      bool dorsumSlitShut = false;
+      if (kXDorsumSlit > 0 && kLineXArticMs >= 0 && kLineXArticDorsum > 0 && e.lineX >= kLineXArticDorsum && e.lineX < 0.94f &&
+          lineX_ < kLineXArticDorsum && lineAcPrev_ < 0.004f && e.ac > 0 && e.ac < kLineXArticOpenArea) {
+        lineXArtic_ = true;
+        if (kXDorsumSlit >= 2) lineXHoldUntil_ = t_ + msToSamples(kLineXRelHoldMs, fs_);
+        dorsumSlitShut = kXDorsumSlit < 2;
+      }
       lineXTarget_ = e.lineX;
       lineXShutGo_ = false;
-      lineXShutEv_ = e.lineXShut;
+      lineXShutEv_ = e.lineXShut || dorsumSlitShut;
       lineXSnapOk_ = !kLineXSnapClosures || e.lineXClosure;
       static const bool kXTrace = std::getenv("PUHUJA_X_TRACE") != nullptr;  // the place events as they start
       if (kXTrace) std::fprintf(stderr, "xev t %.3f x %.3f ac %.3f\n", t_ / fs_, e.lineX, e.ac);
@@ -12072,8 +12087,8 @@ float Synth::tick() {
     // pop in the ending d": the planner's flag for a fricative (setExpandOffAllowed) was overwritten by the g and b of
     // "globe" before the d sounded, and a pause had no fade at all (steps 0.20-0.80 x the peak RMS at the release).
     static const bool kExpandOffStop = param("LINE_EXPAND_OFF_STOP", 1.0f) > 0;  // 1 since 2026-11-25 (owner: "this is great")
-    static const float kExpandOffAc = param("LINE_EXPAND_OFF_AC", 0.004f);
-    static const bool kExpandOffPause = param("LINE_EXPAND_OFF_PAUSE", 0.0f) > 0;
+    static const float kExpandOffAc = param("LINE_EXPAND_OFF_AC", 0.3f);  // 0.004 until 2026-11-25 (owner: "friend-new is good")
+    static const bool kExpandOffPause = param("LINE_EXPAND_OFF_PAUSE", 1.0f) > 0;  // 0 until 2026-11-25 (owner: "God-new is good")
     if (kExpandOffStop && e.lineSoft >= 0 && e.lineSoft <= 1.0f && lineSoft_ > 1.0f)
       line_.setExpandOffHandover(e.ac >= 0 && (e.ac < kExpandOffAc || (kExpandOffPause && e.ag == 0.0f)));
     if (e.lineSoft >= 0) lineSoft_ = e.lineSoft;
