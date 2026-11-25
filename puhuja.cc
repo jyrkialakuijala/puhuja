@@ -2867,6 +2867,7 @@ void Synth::finish() {
     emit(pending_, nullptr);
     hasPending_ = false;
   }
+  for (int i = 0; i < 20 && hissFadeEnd_ > timeline_; ++i) emit(Token{Ph::Stop, false, false, 0, false, kNoPitch, Shape()}, nullptr);  // (LINE_FRIC_PAUSE_FADE_MS)
   planShapes(timeline_);
   planSentence();
   finished_ = true;
@@ -9018,6 +9019,35 @@ void Synth::emitAffricate(const Token& tok, const Ph* next) {
     TractShape v, j;
     if (kChiPalMix > 0 && next && isVowel(*next) && lineShapeOf(*next, &v) && lineShapeOf(Ph::J, &j))
       addShapeDemand(tf0 - kChiPalLeadMs * ms, timeline_ + kChiPalIntoMs * ms, lineShapeMix(v, j, kChiPalMix), Ph::J, kChiPalW, kJhPalPlaceW);
+  }
+  // A hiss owns its ending (all < 0: off). The affricate's hiss was a held posture: the slit and the
+  // glottis sat still from the release until the next sound overwrote them, so the hiss grew into a vowel, ran flat
+  // through a pause and was cut. From LINE_AFFR_DECAY_AT_MS after the release the slit widens to LINE_AFFR_DECAY_AC
+  // over LINE_AFFR_DECAY_MS (11labs' "pledge,": peak 40-60 ms, then a 60-100 ms fade); before a pause the lung
+  // pressure eases off over LINE_FRIC_PAUSE_FADE_MS from the same moment, and the reading does not end before it.
+  static const float kAffrDecayAtMs = param("LINE_AFFR_DECAY_AT_MS", 50.0f), kAffrDecayMs = param("LINE_AFFR_DECAY_MS", -1.0f),
+                     kAffrDecayAc = param("LINE_AFFR_DECAY_AC", -1.0f), kFricPauseFadeMs = param("LINE_FRIC_PAUSE_FADE_MS", 120.0f);
+  if (tract_ == Tract::Line && kAffrDecayAtMs >= 0) {
+    const float ms = 0.001f * fs_;
+    const bool toPause = !next || *next == Ph::Stop;
+    const double at = tf0 + kAffrDecayAtMs * ms;
+    if (toPause || at < timeline_) {
+      if (kAffrDecayAc >= 0 && kAffrDecayMs >= 0) {
+        Event d{at};
+        d.ag = d.an = -1;
+        d.ac = kAffrDecayAc;
+        d.acMs = kAffrDecayMs;
+        addEventAt(d);
+      }
+      if (toPause && kFricPauseFadeMs >= 0) {
+        Event q{at};
+        q.ac = q.ag = q.an = -1;
+        q.press = 0.0f;
+        q.pressMs = kFricPauseFadeMs;
+        addEventAt(q);
+        hissFadeEnd_ = at + std::max(kFricPauseFadeMs, kAffrDecayMs) * ms;
+      }
+    }
   }
   afterChi_ = chInit_;
   lastChiFric_ = chRelFric_;
