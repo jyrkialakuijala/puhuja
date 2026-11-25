@@ -10604,7 +10604,7 @@ void Synth::emitPlosive(const Token& tok, const Ph* next) {
       if (vlK && kVlKAsp != 1.0f) rel.lineAspMul *= kVlKAsp;
       // (PK-INITIAL agent19, lab; < 0: as above) LINE_K_VOT_UNSTR_INIT for a word-initial k before a vowel only (kl kɹ kw
       // kj unchanged): LINE_KV_VOT_UNSTR.
-      static const float kKvVotUnstr = param("LINE_KV_VOT_UNSTR", 0.99139919f);
+      static const float kKvVotUnstr = param("LINE_KV_VOT_UNSTR", 0.3f);  // 0.99 until 2026-11-25 (Jyrki: "k got better", "are committed": VOT 63 -> 31 ms, 11labs 33)
       // LINE_PV_VOT_UNSTR the same for a word-initial p before a vowel (unstressed initial p heard b 25 %: "Parade" -> bread).
       static const float kPvVotUnstr = param("LINE_PV_VOT_UNSTR", 1.042247f);
       const float unstrHold = tvInit && kTvVotUnstr >= 0 ? kTvVotUnstr : pvInit && kPvVotUnstr >= 0 ? kPvVotUnstr : kvInit && kKvVotUnstr >= 0 ? kKvVotUnstr : tok.ph == Ph::K && tok.wordStart && kKVotUnstrInit >= 0 ? kKVotUnstrInit : kLineVotHoldUnstressed;
