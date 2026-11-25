@@ -12059,8 +12059,25 @@ float Synth::tick() {
     if (e.lineFricReMul >= 0) line_.setFricReMul(e.lineFricReMul);
     if (e.lineFricReSmooth >= 0) line_.setFricReSmooth(e.lineFricReSmooth);
     if (e.lineFricReBoth >= 0) line_.setFricReBoth(e.lineFricReBoth > 0);
+    // LINE_EXPAND_OFF_STOP (0: off, as before 2026-11-25; owner: "the last d has a strange klick-pop" in "are committed
+    // today"): an event that ends a voiced closure's softness while the tract stays shut (the next stop's closure: d -> t,
+    // ac 0) lets the wall behind it go over LINE_EXPAND_PHYS_OFF_MS, as before a fricative. Stopped in one substep, the
+    // sealed cavity went 4000 -> 7700 dyn/cm^2 in 1.5 ms: a low pop at the phrase's peak level in the silent closure
+    // ("and today" 2.1 / 6.6 x the peak RMS in one sample step, male / female). Decided here, as the sound happens: the
+    // planner's flag (setExpandOffAllowed) is overwritten by the next voiced stop it plans. A release (ac > 0) keeps the
+    // cut: fading it there took 3-8 dB from the b d g bursts.
+    // LINE_EXPAND_OFF_AC (cm^2; 0.004: the handover only, as LINE_EXPAND_OFF_STOP alone) the same when the event opens the
+    // tract only to under this (a fricative: d -> ð ac 0.084, d -> f 0.027), and LINE_EXPAND_OFF_PAUSE 1 when it closes
+    // the glottis for a pause (ag 0; ac 2 as into a vowel). Owner 2026-11-25: "around the globe, hand of God -- both have a
+    // pop in the ending d": the planner's flag for a fricative (setExpandOffAllowed) was overwritten by the g and b of
+    // "globe" before the d sounded, and a pause had no fade at all (steps 0.20-0.80 x the peak RMS at the release).
+    static const bool kExpandOffStop = param("LINE_EXPAND_OFF_STOP", 1.0f) > 0;  // 1 since 2026-11-25 (owner: "this is great")
+    static const float kExpandOffAc = param("LINE_EXPAND_OFF_AC", 0.004f);
+    static const bool kExpandOffPause = param("LINE_EXPAND_OFF_PAUSE", 0.0f) > 0;
+    if (kExpandOffStop && e.lineSoft >= 0 && e.lineSoft <= 1.0f && lineSoft_ > 1.0f)
+      line_.setExpandOffHandover(e.ac >= 0 && (e.ac < kExpandOffAc || (kExpandOffPause && e.ag == 0.0f)));
     if (e.lineSoft >= 0) lineSoft_ = e.lineSoft;
-    if (e.lineSoft >= 0 && std::getenv("PUHUJA_LINE_TRACE")) std::fprintf(stderr, "softevent t %.3f soft %.3f\n", t_ / fs_, e.lineSoft);
+    if (e.lineSoft >= 0 && std::getenv("PUHUJA_LINE_TRACE")) std::fprintf(stderr, "softevent t %.3f soft %.3f ac %.3f ag %.3f\n", t_ / fs_, e.lineSoft, e.ac, e.ag);
     if (e.lineExtra >= 0) lineExtra_ = e.lineExtra;
     if (e.lineRaise >= 0) lineRaiseTgt_ = e.lineRaise;
     if (e.lineSqueeze >= 0) line_.setSqueeze(e.lineSqueeze);

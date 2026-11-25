@@ -1052,7 +1052,7 @@ float VocalTractLine::substep(float u0) {
       static const bool kExpOffFricOnly = param("LINE_EXPAND_PHYS_OFF_FRIC", 1.0f) > 0;
       if (on) expOff_ = 1.0f;
       else if (kExpOffMs > 0 && expOff_ > 0) {
-        expOff_ = !kExpOffFricOnly || expandOffAllowed_ ? expOff_ - dt_ / (0.001f * kExpOffMs) : 0.0f;
+        expOff_ = !kExpOffFricOnly || expandOffAllowed_ || expandOffHandover_ ? expOff_ - dt_ / (0.001f * kExpOffMs) : 0.0f;
         if (expOff_ > 0) {
           const float uf = (expU_ + dt_ / kExpM * (pk - expV_ / expC_)) / (1.0f + dt_ / kExpM * (kExpR / expOff_ + oral_.cPAt(k) + dt_ / expC_));
           if (uf > 0) u = uf; else expOff_ = 0.0f;
