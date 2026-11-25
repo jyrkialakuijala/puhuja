@@ -59,6 +59,8 @@ class StringFolds {
   float kStringT_[kLayers] = {}, kShearT_[kLayers] = {}, tabQ_ = -1;
   alignas(64) float aHeard_[kLanes] = {};  // the heard channel area per lane, its closing slowed by kCloseMs
   float surface_ = 0;  // volume velocity of the moving surfaces (cm^3/s, both folds)
+  float hB_ = 0, hCloseMix_ = 0, hVMix_ = 0, hClosedMix_ = 0, hSMix_ = 0;  // quotients of the step h alone (set with p1LpH_)
+  float restIn_ = -1e30f, gapIn_ = -1e30f;  // the inputs restW_ was built from
   float p1Lp_ = 0, p1LpH_ = 0, p1LpA_ = 0;  // the low-passed tract pressure on the superior surface (STRING_P1SUP), its step and share
   unsigned openMask_ = 0;
   float area_ = 0;  // the membranous part's open area (cm^2)

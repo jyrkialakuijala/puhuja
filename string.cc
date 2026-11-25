@@ -140,7 +140,7 @@ inline __attribute__((always_inline)) void zeroAnchors(A& x) {
 template <class A>
 inline __attribute__((always_inline)) void neighbourMean(const A& x, float (&mean)[L][N]) {
   static_assert(N == 16, "one 16-float vector per layer");
-  const float norm = 1.0f / (2.0f + kMixLayer);
+  static const float norm = 1.0f / (2.0f + kMixLayer);  // (once: it was a division per call, three calls per substep)
   const I16 left = {16, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14};    // lane l - 1 (16: a zero)
   const I16 right = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};  // lane l + 1
   const V16 zero = {};
@@ -181,10 +181,15 @@ float StringFolds::step(float h, const VocalFolds::Input& in) {
   const float q = std::max(in.q, 0.2f);
   // Rest slit width per lane (both folds together), plus the posterior chink
   // on the last moving lane.
-  const float restMean = kRestScale * in.rest / kLength;  // area -> width
-  for (int l = 0; l < N; ++l)
-    restW_[l] = restMean * (kRestFront + (kRestBack - kRestFront) * (l - kFirst + 0.5f) * kMovingInv);
-  restW_[kLast] += in.gap / kSeg;
+  // (Only when the rest area or the chink has changed: they are constant over an output sample's substeps. The same
+  // expressions, so the same bits; the two divisions by constants and the ramp are then not redone every substep.)
+  if (in.rest != restIn_ || in.gap != gapIn_) {
+    restIn_ = in.rest, gapIn_ = in.gap;
+    const float restMean = kRestScale * in.rest / kLength;  // area -> width
+    for (int l = 0; l < N; ++l)
+      restW_[l] = restMean * (kRestFront + (kRestBack - kRestFront) * (l - kFirst + 0.5f) * kMovingInv);
+    restW_[kLast] += in.gap / kSeg;
+  }
   // Masses and stiffnesses. Stiffness ~ tension^2 (frequencies ~ tension).
   // Per layer: the lowest mode at w0 = 2 pi f0 q from the wall spring (share
   // kWallShare of m w0^2 per lane) and the string tension (the rest: a string
@@ -247,13 +252,20 @@ float StringFolds::step(float h, const VocalFolds::Input& in) {
   }
   area_ = aOld;
   const float drive = in.ps - in.p1;
-  if (h != p1LpH_) p1LpH_ = h, p1LpA_ = 1.0f - std::exp(-2.0f * kPi * kP1SupHz * h);
+  if (h != p1LpH_) {  // everything that depends on the step alone (h is the same in every call): once
+    p1LpH_ = h, p1LpA_ = 1.0f - std::exp(-2.0f * kPi * kP1SupHz * h);
+    hB_ = kInertance * kMoving / h;
+    hCloseMix_ = kCloseMs > 0 ? relaxShare(h, kCloseMs) : 0.0f;
+    hVMix_ = kVSmoothMs > 0 ? relaxShare(h, kVSmoothMs) : 0.0f;
+    hClosedMix_ = kClosedSmoothMs > 0 ? relaxShare(h, kClosedSmoothMs) : 0.0f;
+    hSMix_ = kSmoothMs > 0 ? relaxShare(h, kSmoothMs) : 0.0f;
+  }
   p1Lp_ += p1LpA_ * (in.p1 - p1Lp_);
   const float pRef = kP1Sup * p1Lp_;  // (0 by default: the layers' pressures as before, bit for bit)
   // Flow per lane channel: implicit step of Lg du/dt = drive - rho/2 u^2 / a^2
   // (u >= 0), each channel with kMoving times the glottal inertance (in
   // parallel they add up to it). The heard flow goes through the rounded area.
-  const float B = kInertance * kMoving / h;
+  const float B = hB_;
   // All lanes at once, branch-free (2026-11-13: the lane-by-lane loop with its sqrt, divisions and branches was
   // ~10 % of a render): no libm calls, the sums in a second loop (no -ffast-math, so a sum in the loop would keep it
   // scalar). The two directions of the implicit step share one form: for C >= 0, 2 C / (B + sqrt(B^2 + 4 A C));
@@ -262,7 +274,7 @@ float StringFolds::step(float h, const VocalFolds::Input& in) {
   // used for 0 < z < 30, with fastmath.h's call-free exp and log1p.)
   constexpr float kLn2 = 0.69314718f;
   const float B2 = B * B, aRound = 30.0f * kRound;
-  const float closeMix = kCloseMs > 0 ? relaxShare(h, kCloseMs) : 0.0f;
+  const float closeMix = hCloseMix_;
   for (int l = 0; l < N; ++l) {  // all 16 lanes (whole vectors); the two anchors keep their zeros
     const bool moving = l >= kFirst && l <= kLast;
     const float a = aMin[l];
@@ -374,7 +386,7 @@ float StringFolds::step(float h, const VocalFolds::Input& in) {
     for (int l = 0; l < N; ++l) v_[j][l] += h * force[j][l] * invMass[j][l];
   // Continuity of the velocities.
   if (kVSmoothMs > 0) {
-    const float mix = relaxShare(h, kVSmoothMs);
+    const float mix = hVMix_;
     alignas(64) float mean[L][N];
     neighbourMean(v_, mean);
     for (int j = 0; j < L; ++j)
@@ -382,7 +394,7 @@ float StringFolds::step(float h, const VocalFolds::Input& in) {
   }
   // Closed lanes share their layer's velocity.
   if (kClosedSmoothMs > 0) {
-    const float mix = relaxShare(h, kClosedSmoothMs);
+    const float mix = hClosedMix_;
     for (int j = 0; j < L; ++j) {
       float sum = 0;
       for (int l = kFirst; l <= kLast; ++l) sum += v_[j][l];
@@ -401,7 +413,7 @@ float StringFolds::step(float h, const VocalFolds::Input& in) {
     }
   // Continuity of the positions.
   if (kSmoothMs > 0) {
-    const float mix = relaxShare(h, kSmoothMs);
+    const float mix = hSMix_;
     alignas(64) float mean[L][N];
     neighbourMean(x_, mean);
     for (int j = 0; j < L; ++j)

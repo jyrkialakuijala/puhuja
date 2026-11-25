@@ -126,6 +126,7 @@ class TransmissionLine {
   float hfK_ = 0, hfA_ = 0;
   float hfF2Bw_ = 0;  // (setHfF2)
   int n_ = 0, blocks_ = 0;
+  float invDt_ = 0, lungDcShare_ = 0, wDen_ = 0, wDenLoss_ = -1;  // 1 / dt, dt / 3 ms, the wall denominator and the wall loss it was built for
   float fs_ = 48000, dt_ = 0, dx_ = 0, invDx_ = 0;  // invDx_ = 1 / dx_ (divisions in the per-substep loops are multiplications)
   alignas(64) float a_[kMaxSections] = {};      // areas (cm^2)
   alignas(64) float p_[kMaxSections + kBlock] = {};  // pressure per section (padded: the momentum loop reads p_[nb])

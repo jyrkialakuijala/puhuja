@@ -90,6 +90,9 @@ void TransmissionLine::setHfLoss(float bandwidthHz, float cornerHz) {
 void TransmissionLine::init(float length, float fs, int sections) {
   fs_ = fs;
   dt_ = 1.0f / (kSubsteps * fs);
+  invDt_ = 1.0f / dt_;            // (the quotients of dt alone, once: they were divisions in every substep)
+  lungDcShare_ = dt_ / 0.003f;
+  wDenLoss_ = -1;
   n_ = std::min(kMaxSections, std::max(2, static_cast<int>(std::floor(length * kCourant / (kC * dt_)))));
   // A fixed count (Jyrki: 64, four AVX-512 blocks) as long as it keeps the
   // Courant number under 0.98: at 48 kHz x 4 and 17.5 cm, 64 sections of
@@ -140,7 +143,8 @@ void TransmissionLine::setAreas(const std::vector<float>& a, bool glide) {
 void TransmissionLine::coefficients() {
   const float viscK = std::sqrt(kPiL * kViscousHz * kRho * kMu);  // sqrt(omega rho mu / 2)
   const float comp = kRho * kC * kC;
-  const float wDen = 1.0f / (1.0f + dt_ * kWallDamp * wallLoss_ * kWallMassInv);
+  if (wallLoss_ != wDenLoss_) wDenLoss_ = wallLoss_, wDen_ = 1.0f / (1.0f + dt_ * kWallDamp * wallLoss_ * kWallMassInv);
+  const float wDen = wDen_;  // (a division per call, and during a glide that is every substep)
   const float dtOverRhoDx = dt_ * invDx_ * (1.0f / kRho);
   const float halfDtOverDx = 0.5f * dt_ * invDx_;
   const float dtComp = dt_ * comp * invDx_;
@@ -218,7 +222,7 @@ float TransmissionLine::substepSubglottal(float lungPressure, float uGlottis) {
   // a sealed mouth: behind a b the cavity reached 1.3x the lung pressure,
   // the folds were blown 0.5 cm^2 open and fell silent, 2026-11-03.)
   const float dp = lungPressure - p_[0];
-  lungDc_ += (dp - lungDc_) * (dt_ / 0.003f);  // the slow (DC) part of the pressure difference
+  lungDc_ += (dp - lungDc_) * lungDcShare_;  // the slow (DC) part of the pressure difference
   u_[0] = lungDc_ * kLungRInv + (dp - lungDc_) * a_[0] * (1.0f / (kRho * kC));
   for (int k = 1; k <= nb; ++k) u_[k] = gU_[k] / (1.0f + oriInv_[k] * std::fabs(u_[k])) * (u_[k] - cU_[k] * (p_[k] - p_[k - 1]));
   hfLoss(nb);
@@ -252,7 +256,7 @@ float TransmissionLine::substep(float u0) {
   // the inertance's stored flow drains.
   uL_ = lipOpen_ * (uL_ + lrInvDt_ * p_[n - 1]);
   uN_ = lipOpen_ * (p_[n - 1] * rrInv_ + uL_);
-  radiated_ = (uN_ - prevUN_) * (1.0f / dt_);
+  radiated_ = (uN_ - prevUN_) * invDt_;
   prevUN_ = uN_;
   u_[n] = uN_;
   // Walls, then continuity, over whole blocks (zero coefficients past n).
