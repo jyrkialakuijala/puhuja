@@ -138,11 +138,14 @@ void TransmissionLine::coefficients() {
   const float dtOverRhoDx = dt_ * invDx_ * (1.0f / kRho);
   const float halfDtOverDx = 0.5f * dt_ * invDx_;
   const float dtComp = dt_ * comp * invDx_;
-  for (int k = 0; k < kMaxSections + kBlock; ++k) { cU_[k] = 0; gU_[k] = 1; oriInv_[k] = 0; }
+  // (This runs every substep while the areas glide, and the oral line always glides: a new shape every 4th sample.
+  // So only the n sections are computed, in loops without branches or carried values that vectorize; the unused
+  // interfaces and sections up to the last whole block keep the neutral values. 2026-11-25: 7 % of a render.)
+  const int n = n_, nb = blocks_ * kBlock;
+  cU_[0] = 0; gU_[0] = 1; oriInv_[0] = 0;
+  for (int k = n; k <= nb; ++k) { cU_[k] = 0; gU_[k] = 1; oriInv_[k] = 0; }
   // Interfaces 1..n-1 (0 is the glottis, n the lips: set each substep).
-  static const float kJetSep = param("LINE_JET_SEP", 0.0f);
-  float jetMin = a_[0];
-  for (int k = 1; k < n_; ++k) {
+  for (int k = 1; k < n; ++k) {
     const float ah = std::min(a_[k], a_[k - 1]);
     const float aw = std::max(a_[k], a_[k - 1]);
     const float s = 2.0f * std::sqrt(kPiL * ah);
@@ -159,31 +162,33 @@ void TransmissionLine::coefficients() {
     // with the section count, review 2026-11-01.)
     const float contraction = 1.0f - ah / aw;
     oriInv_[k] = halfDtOverDx * invAh * contraction * contraction;
-    // LINE_JET_SEP (0: off, 1: full; 2026-11-23): the jet out of a narrowing stays separated while the tract widens, so
-    // an expansion loses (1/Amin - 1/Aend)^2 of rho u^2 / 2 whatever the number of sections it is drawn over: at each
-    // widening interface the difference of (1/Amin - 1/a)^2 across it (it telescopes; the first one after the minimum is
-    // the term above). Step by step the sh's exit (0.07 -> 1.7 cm^2 over ten sections of ratio ~0.75) lost a small part
-    // of one head where the s's (two sections) lost all of it: too much flow through the sh, and so little differential
-    // resistance that the back cavity rang through it (the hiss a comb, notches every 1.05 kHz from 4.8 to 11.4 kHz).
-    if (kJetSep > 0) {
+  }
+  // LINE_JET_SEP (0: off, 1: full; 2026-11-23): the jet out of a narrowing stays separated while the tract widens, so
+  // an expansion loses (1/Amin - 1/Aend)^2 of rho u^2 / 2 whatever the number of sections it is drawn over: at each
+  // widening interface the difference of (1/Amin - 1/a)^2 across it (it telescopes; the first one after the minimum is
+  // the term above). Step by step the sh's exit (0.07 -> 1.7 cm^2 over ten sections of ratio ~0.75) lost a small part
+  // of one head where the s's (two sections) lost all of it: too much flow through the sh, and so little differential
+  // resistance that the back cavity rang through it (the hiss a comb, notches every 1.05 kHz from 4.8 to 11.4 kHz).
+  static const float kJetSep = param("LINE_JET_SEP", 0.0f);
+  if (kJetSep > 0) {
+    float jetMin = a_[0];
+    for (int k = 1; k < n; ++k) {
       if (a_[k] < a_[k - 1]) jetMin = a_[k];
       else if (a_[k] > a_[k - 1] && jetMin > 0) {
+        const float ah = std::min(a_[k], a_[k - 1]);
         const float i0 = 1.0f / jetMin, d1 = i0 - 1.0f / a_[k], d0 = std::max(0.0f, i0 - 1.0f / a_[k - 1]);
         const float sep = halfDtOverDx * ah * (d1 * d1 - d0 * d0);
         oriInv_[k] += kJetSep * (sep - oriInv_[k]);
       }
     }
   }
-  for (int k = 0; k < kMaxSections; ++k) {
-    if (k < n_) {
-      cP_[k] = dtComp / a_[k];
-      sWall_[k] = 2.0f * std::sqrt(kPiL * a_[k]) * dx_;
-      wA_[k] = wDen;
-      wB_[k] = dt_ * kWallMassInv * wDen;
-    } else {
-      cP_[k] = sWall_[k] = wA_[k] = wB_[k] = 0;
-    }
+  for (int k = 0; k < n; ++k) {
+    cP_[k] = dtComp / a_[k];
+    sWall_[k] = 2.0f * std::sqrt(kPiL * a_[k]) * dx_;
+    wA_[k] = wDen;
+    wB_[k] = dt_ * kWallMassInv * wDen;
   }
+  for (int k = n; k < nb; ++k) cP_[k] = sWall_[k] = wA_[k] = wB_[k] = 0;
   // Lips: Flanagan's piston in a baffle, R_r = 128 rho c / (9 pi^2 A) and
   // L_r = 8 rho / (3 pi^2 a) in parallel.
   const float aLip = a_[n_ - 1];

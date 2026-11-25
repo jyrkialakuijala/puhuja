@@ -123,12 +123,28 @@ void zeroAnchors(A& x) {
   for (int j = 0; j < L; ++j) x[j][0] = x[j][N - 1] = 0;
 }
 // The weighted mean over the neighbours of each lane; zero at the anchors.
+// A row of the 16 lanes as one vector (GCC vector extensions: one AVX-512 register, two AVX2 ones). The lane
+// shifts are done in registers: a scalar loop reading x[l - 1] and x[l + 1] from a row just stored as a vector waited
+// for the store (store forwarding), and its 14 lanes kept it scalar (2026-11-25: 8.6 % of a render).
+typedef float V16 __attribute__((vector_size(64)));
+typedef int I16 __attribute__((vector_size(64)));
+static_assert(N == 16, "the lane vectors hold 16 lanes");
+inline V16 loadRow(const float* r) { V16 v; __builtin_memcpy(&v, r, sizeof v); return v; }
+inline void storeRow(float* r, V16 v) { __builtin_memcpy(r, &v, sizeof v); }
+// Lane l gets lane l - 1 (lane 0 gets 0), lane l + 1 (lane 15 gets 0).
+inline V16 fromLeft(V16 x) { return __builtin_shuffle(x, V16{}, I16{16, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14}); }
+inline V16 fromRight(V16 x) { return __builtin_shuffle(x, V16{}, I16{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}); }
+// 1 in the lanes 1..14, 0 at the two anchors.
+inline V16 innerLanes() { return V16{0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0}; }
 template <class A>
 void neighbourMean(const A& x, float (&mean)[L][N]) {
   const float norm = 1.0f / (2.0f + kMixLayer);
+  const V16 x0 = loadRow(x[0]), x1 = loadRow(x[1]);
+  const I16 inner = innerLanes() > 0;
   for (int j = 0; j < L; ++j) {
-    mean[j][0] = mean[j][N - 1] = 0;
-    for (int l = 1; l + 1 < N; ++l) mean[j][l] = norm * (x[j][l - 1] + x[j][l + 1] + kMixLayer * x[1 - j][l]);
+    const V16 xj = j == 0 ? x0 : x1, xo = j == 0 ? x1 : x0;
+    const V16 m = norm * (fromLeft(xj) + fromRight(xj) + kMixLayer * xo);
+    storeRow(mean[j], inner ? m : V16{});
   }
 }
 
@@ -212,11 +228,9 @@ float StringFolds::step(float h, const VocalFolds::Input& in) {
     for (int l = 0; l < N; ++l) g[j][l] = restW_[l] + 2.0f * x_[j][l];
   // Areas before the step: each lane channel's narrowest layer.
   alignas(64) float aMin[N];
-  int jMin[N];
   float aOld = 0;
   for (int l = 0; l < N; ++l) {
     aMin[l] = l >= kFirst && l <= kLast ? kSeg * std::min(g[0][l], g[1][l]) : 0.0f;
-    jMin[l] = g[1][l] < g[0][l] ? 1 : 0;
     if (l >= kFirst && l < kMembranousEnd) aOld += std::max(aMin[l], 0.0f);
   }
   area_ = aOld;
@@ -291,22 +305,22 @@ float StringFolds::step(float h, const VocalFolds::Input& in) {
   // pressure at its own width down to the narrowest layer, the tract pressure
   // above it (separated flow); in a shut lane the full subglottal pressure
   // below the first closed layer, the tract pressure from there up.
+  // (Whole rows, branch-free: the lane-by-lane branches were 7 % of a render, 2026-11-25.)
   alignas(64) float fAir[L][N];
-  for (int l = 0; l < N; ++l) {
+  {
+    const V16 g0 = loadRow(g[0]), g1 = loadRow(g[1]), a = loadRow(aMin), u = loadRow(u_);
+    const V16 ps = V16{} + in.ps, p1 = V16{} + in.p1;
+    const I16 moving = innerLanes() > 0, shut = a <= 0, oneNarrower = g1 < g0;
     for (int j = 0; j < L; ++j) {
-      float p;
-      if (l < kFirst || l > kLast) {
-        p = 0;
-      } else if (aMin[l] <= 0) {
-        const int jClosed = g[0][l] <= 0 ? 0 : 1;
-        p = j < jClosed ? in.ps : in.p1;
-      } else if (j <= jMin[l]) {
-        const float vel = u_[l] / std::max(kSeg * g[j][l], 1e-6f);
-        p = in.ps - 0.5f * kRho * vel * vel;
-      } else {
-        p = in.p1;
-      }
-      fAir[j][l] = (l < kFirst || l > kLast ? 0.0f : p - pRef) * kSeg * kLayer * kKappa;
+      const V16 gj = j == 0 ? g0 : g1;
+      // A shut lane: the subglottal pressure below the first closed layer, the tract's from there up.
+      const V16 pShut = j == 0 ? (g0 <= 0 ? p1 : ps) : p1;
+      const V16 w = kSeg * gj;
+      const V16 vel = u / (w < 1e-6f ? V16{} + 1e-6f : w);
+      const V16 pBelow = ps - 0.5f * kRho * vel * vel;
+      const V16 pOpen = j == 0 ? pBelow : (oneNarrower ? pBelow : p1);  // up to the narrowest layer, then the tract's
+      const V16 p = shut ? pShut : pOpen;
+      storeRow(fAir[j], (moving ? p - pRef : V16{}) * kSeg * kLayer * kKappa);
     }
   }
   // Forces, lane by lane: the wall spring, the string tension to the two
@@ -314,20 +328,18 @@ float StringFolds::step(float h, const VocalFolds::Input& in) {
   // always right), the shear to the other layer, the collision spring with
   // the wall and its extra damping while touching.
   alignas(64) float force[L][N];
-  for (int j = 0; j < L; ++j) {
-    alignas(64) float xl[N], xr[N];
-    xl[0] = xr[N - 1] = 0;
-    for (int l = 1; l < N; ++l) xl[l] = x_[j][l - 1];
-    for (int l = 0; l + 1 < N; ++l) xr[l] = x_[j][l + 1];
-    const float kS = kString[j], kSh = kShear[j];
-    for (int l = 0; l < N; ++l) {
-      const float x = x_[j][l], gap = g[j][l];
-      const float touching = gap < 0 ? 1.0f : 0.0f;
-      const float kTotal = kWall[j][l] + 4.0f * kS * s1 * s1;  // the lane's share of the lowest mode's stiffness
-      const float coll = -kCollision * kTotal * std::min(gap, 0.0f) * 0.5f;
-      const float zeta = kZeta[j] + kZetaClosed * touching;
-      force[j][l] = fAir[j][l] + coll - kWall[j][l] * x - zeta * damp[j][l] * v_[j][l] +
-                    kS * (xl[l] - 2 * x + xr[l]) + kSh * (x_[1 - j][l] - x);
+  {
+    const V16 x0 = loadRow(x_[0]), x1 = loadRow(x_[1]);
+    for (int j = 0; j < L; ++j) {
+      const V16 x = j == 0 ? x0 : x1, xo = j == 0 ? x1 : x0, gap = loadRow(g[j]), kW = loadRow(kWall[j]);
+      const float kS = kString[j], kSh = kShear[j];
+      const I16 touching = gap < 0;
+      const V16 kTotal = kW + 4.0f * kS * s1 * s1;  // the lane's share of the lowest mode's stiffness
+      const V16 coll = -kCollision * kTotal * (0.0f < gap ? V16{} : gap) * 0.5f;  // (std::min(gap, 0.0f))
+      const V16 zeta = touching ? V16{} + (kZeta[j] + kZetaClosed * 1.0f) : V16{} + (kZeta[j] + kZetaClosed * 0.0f);
+      const V16 f = loadRow(fAir[j]) + coll - kW * x - zeta * loadRow(damp[j]) * loadRow(v_[j]) +
+                    kS * (fromLeft(x) - 2 * x + fromRight(x)) + kSh * (xo - x);
+      storeRow(force[j], f);
     }
   }
   zeroAnchors(force);
