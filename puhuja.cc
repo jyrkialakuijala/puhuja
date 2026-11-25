@@ -633,8 +633,8 @@ const float kLineJhPosZag[3] = {param("LINE_JH_INIT_ZAG", -1.0f), param("LINE_JH
 // LINE_JH_HW its constriction width (LINE_POST_HW), LINE_JH_FADE its frication fade (LINE_VFRIC_FADE),
 // LINE_JH_OWN_REL_FRIC its release hiss (LINE_JH_REL_FRIC, shared with ʧ), LINE_JH_PRESS the lung pressure share
 // through its frication, LINE_JH_FINAL_EXPAND x a final ʤ's closure expansion flow (its voice bar).
-const float kLineJhFricX = param("LINE_JH_FRIC_X", 0.7432345f), kLineJhSlit = param("LINE_JH_SLIT", 1.0f),
-            kLineJhLip = param("LINE_JH_LIP", -1.0f), kLineJhJetD = param("LINE_JH_JET_D", -1.0f),
+const float kLineJhFricX = param("LINE_JH_FRIC_X", 0.78f), kLineJhSlit = param("LINE_JH_SLIT", 1.0f),
+            kLineJhLip = param("LINE_JH_LIP", -1.0f), kLineJhJetD = param("LINE_JH_JET_D", 0.04f),
             kLineJhLpr = param("LINE_JH_LPR", -1.0f), kLineJhFcMin = param("LINE_JH_FC_MIN", -1.0f),
             kLineJhHw = param("LINE_JH_HW", -1.0f), kLineJhFade = param("LINE_JH_FADE", -1.0f),
             kLineJhOwnRelFric = param("LINE_JH_OWN_REL_FRIC", -1.0f), kLineJhPress = param("LINE_JH_PRESS", 1.0f),
