@@ -204,12 +204,22 @@ float StringFolds::step(float h, const VocalFolds::Input& in) {
     }
     return t;
   }();
-  const auto& mass = masses.mass;
-  const auto& invMass = masses.invMass;
+  // (pajupilli, singing: CHANGES.md 2026-11-26) lighter folds for a higher voice: every mass x in.mass (the
+  // stiffnesses below follow, so the pitch stays the tension's to set). 1: the table itself, bit for bit.
+  const float massX = in.mass > 0 ? in.mass : 1.0f;
+  Masses scaled;
+  if (massX != 1.0f)
+    for (int j = 0; j < L; ++j)
+      for (int l = 0; l < N; ++l) {
+        scaled.mass[j][l] = masses.mass[j][l] * massX;
+        scaled.invMass[j][l] = masses.invMass[j][l] / massX;
+      }
+  const auto& mass = massX != 1.0f ? scaled.mass : masses.mass;
+  const auto& invMass = massX != 1.0f ? scaled.invMass : masses.invMass;
   alignas(64) float kWall[L][N], damp[L][N];
   float kString[L], kShear[L];
   for (int j = 0; j < L; ++j) {
-    const float layerMass = kMass * (j == 0 ? 1.0f - kTopMass : kTopMass);
+    const float layerMass = massX * kMass * (j == 0 ? 1.0f - kTopMass : kTopMass);
     const float stiff = j == 0 ? 1.0f : kTopStiff;
     const float sqrt_stiff = j == 0 ? 1.0f : std::sqrt(kTopStiff);
     const float meanMass = layerMass * kMovingInv;
@@ -235,9 +245,10 @@ float StringFolds::step(float h, const VocalFolds::Input& in) {
   }
   area_ = aOld;
   const float drive = in.ps - in.p1;
-  if (h != p1LpH_) p1LpH_ = h, p1LpA_ = 1.0f - std::exp(-2.0f * kPi * kP1SupHz * h);
+  const float supHz = in.shield >= 0 ? in.shieldHz : kP1SupHz;  // (Input::shield: a singer's own share and corner)
+  if (h != p1LpH_ || supHz != p1LpHz_) p1LpH_ = h, p1LpHz_ = supHz, p1LpA_ = 1.0f - std::exp(-2.0f * kPi * supHz * h);
   p1Lp_ += p1LpA_ * (in.p1 - p1Lp_);
-  const float pRef = kP1Sup * p1Lp_;  // (0 by default: the layers' pressures as before, bit for bit)
+  const float pRef = (in.shield >= 0 ? in.shield : kP1Sup) * p1Lp_;  // (0 by default: the layers' pressures as before, bit for bit)
   // Flow per lane channel: implicit step of Lg du/dt = drive - rho/2 u^2 / a^2
   // (u >= 0), each channel with kMoving times the glottal inertance (in
   // parallel they add up to it). The heard flow goes through the rounded area.

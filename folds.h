@@ -26,6 +26,10 @@ class VocalFolds {
     float q;        // tension: scales all oscillation frequencies (1 = rest)
     float rest;     // rest area of each slit (cm^2); <= 0 pressed together
     float gap = 0;  // posterior chink (cm^2), for models that place it (the two-mass has it in rest)
+    float mass = 1;  // (pajupilli, singing: CHANGES.md 2026-11-26) the folds' mass x this (the string folds; 1: as built)
+    // (pajupilli, singing: CHANGES.md 2026-11-26, the tract shield) the share of p1, low-passed at shieldHz, taken off
+    // every layer's pressure (the string folds; < 0: STRING_P1SUP and STRING_P1SUP_HZ, as built)
+    float shield = -1, shieldHz = 0;
   };
 
   void reset();

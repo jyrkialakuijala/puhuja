@@ -235,7 +235,70 @@ class Synth {
   // Select a speaker preset (pitch, formant scaling, tempo, breathiness).
   // Call before pushing text; setBaseF0 afterwards overrides the pitch.
   void setVoice(VoicePreset preset);
+  // (pajupilli, singing: CHANGES.md 2026-11-26) A voice between or beyond the two presets: every value of the
+  // preset `woman` of the way from the male's to the female's (0 the male, 1 the female, 1.1 a little past her,
+  // -0.1 a little past him); what is one or the other (the pulse, the per-voice knobs and filters) from the
+  // nearer. 0 and 1 are the presets themselves.
+  void setVoiceBlend(float woman);
   void setBaseF0(float f0) { baseF0_ = f0; }
+  // (pajupilli, singing: CHANGES.md 2026-11-25) The folds' pitch controller for this voice: the share of the pitch
+  // error corrected per cycle, and the flow fluctuation (cm^3/s) from which it learns. A singer holds the pitch
+  // asked; a speaker's loose control (PITCH_CONTROL 0.30, kPitchLearnVib 98) does not engage at sung pitches, where
+  // the folds swing less. < 0: the speaker's.
+  void setPitchControl(float share, float learnVib) { pitchControl_ = share; pitchLearnVib_ = learnVib; }
+  // (pajupilli, singing: CHANGES.md 2026-11-25) What the singer knows of the folds' tension by pitch, so a note
+  // starts near its pitch and the controller (the ear) only trims: x[i] multiplies the tension at loHz x 2^(i/12),
+  // between the entries by the pitch's logarithm, the end ones beyond. Empty: nothing known (1).
+  void setTensionMap(float loHz, std::vector<float> x) { tensionLoHz_ = loHz; tensionMap_ = std::move(x); }
+  // ... and the controller's correction right now (1: none), to learn that map from: sing each pitch, read this
+  // once it has settled.
+  float pitchCorrection() const;
+  // (pajupilli, singing: CHANGES.md 2026-11-25) The larynx's place: lowerCm, the whole tract this much longer (a
+  // singer's low larynx); raiseScale x the consonants' larynx rise (LINE_RAISE_*; 0: it stays where it is through
+  // s k g r). 0 and 1: the speaker's.
+  void setLarynx(float lowerCm, float raiseScale) { larynxLow_ = lowerCm; larynxRaiseX_ = raiseScale; }
+  // (pajupilli, singing: CHANGES.md 2026-11-26) Lighter vocal folds, for a higher voice: their mass x `scale`;
+  // and above `kneeHz` (0: nowhere) also x (kneeHz / pitch)^power, so that with power 2 the folds' stiffness
+  // stops growing with the pitch from there up. The larynx follows a change within 3 ms. 1, 0: as built.
+  // (knee2Hz, power2: a second pivot above the first, from where the mass falls as (knee2Hz / pitch)^power2
+  // instead: the crossover between the two is one law, the head voice above it another. 0: one law throughout.
+  // The first pivot is rounded over a semitone either side, so the mass has no corner there.)
+  void setFoldMass(float scale, float kneeHz = 0, float power = 2, float knee2Hz = 0, float power2 = 2) {
+    foldMass_ = scale; foldKneeHz_ = kneeHz; foldPower_ = power; foldKnee2Hz_ = knee2Hz; foldPower2_ = power2;
+  }
+  // (pajupilli, singing: CHANGES.md 2026-11-26) How firmly the folds are brought together while voicing: their
+  // rest gap and the posterior chink x `rest` (1: the speaker's; less: firmer, the flow shut sharply each
+  // cycle, the overtones stronger; a trained singer's closure against a speaker's).
+  void setAdduction(float rest) { adduction_ = rest; }
+  // (pajupilli, singing: CHANGES.md 2026-11-26, the tract shield) The folds shielded from the tract's sound
+  // pressure: `share` of it, low-passed at `hz`, no longer pushes on the folds' layers. Where the sung pitch meets
+  // the vowel's first resonance the full pressure throws the folds into a rough, flat swing; with half of it taken
+  // off (0.5 at 3000 Hz) they hold. share < 0: as built (STRING_P1SUP).
+  void setTractShield(float share, float hz) { shield_ = share; shieldHz_ = hz; }
+  // (pajupilli, singing: CHANGES.md 2026-11-26, a held pitch) The motion plan's smoothness weight for the pitch line
+  // alone (PLAN_EPS, 0.05, for all four lines otherwise). A speaker's pitch never rests; a singer's note is to hold
+  // still, and with 0.05 a held note wandered 20 to 30 cents around its pitch. < 0: as built.
+  void setPitchSmoothing(float eps) { planPitchEps_ = eps; }
+  // (pajupilli, singing: CHANGES.md 2026-11-26, a held pitch) The speaker's slow random pitch drift (1.2 %, about
+  // 20 cents) x this. 1: as built.
+  void setPitchDrift(float x) { pitchDriftX_ = x; }
+  // Period doubling throughout (0: none): alternate glottal cycles' breath pressure +-x and tension +- a share of
+  // it (LarynxControl::diplo), which puts a partial at half the pitch under the voice.
+  void setDiplo(float x) { diploX_ = x; }
+  // (pajupilli, singing: CHANGES.md 2026-11-26) An expression line over the output's time: at each point (t in s
+  // from the first sample pulled, ascending) the lung pressure x `press`, and a vibrato of `vibCents` (the pitch's
+  // swing either way) at `vibHz`; straight lines between the points, the first and the last held outside them. A
+  // hairpin, a swell, a vibrato beginning late in a note: the singer's, where speech has one level a sound. Empty
+  // (the default): none.
+  // (cents: the pitch itself moved this far, e.g. a brief aim past a note on arriving at it)
+  // (open: the mouth opened for a high note, 0 .. 1: the vowel's shape that far towards "ah"'s, the jaw dropped
+  // and the lips flared, which raises the tract's first resonance; a soprano keeps it at or above her pitch)
+  // (adduct: the folds' rest gap and chink x this at that moment, on top of setAdduction: < 1 pressed together
+  // for a stressed syllable, > 1 let apart for a breathy ghost note)
+  // (neutral: the vowel's shape this far towards the neutral vowel's, 0 .. 1: a quick or unstressed sung
+  // syllable, whose articulators do not reach the vowel)
+  struct Expr { double t; float press, vibCents, vibHz; float cents = 0; float open = 0; float adduct = 1; float neutral = 0; float front = 0; };
+  void setExpression(std::vector<Expr> e) { expr_ = std::move(e); exprI_ = 0; }
   // Kokoro mode: a reference reading's profile guides rhythm, pitch and level (prosody.h); nullptr: puhuja's own.
   void setProsodyGuide(ProsodyGuide* g) { prosodyGuide_ = g; }
   // Kokoro mode: the reference's gap after the given input word (1-based as setWord; 0: before the first word), ms; < 0: none.
@@ -317,6 +380,10 @@ class Synth {
     float pitchDip = 0;  // (PROS2 agent29) semitones: the pitch line dips this far under the vowel's pitch at its onset (EN_ACC_DIP_ST)
     bool redFn = false;  // (REDUCE agent34) a vowel of an unaccented word in connected speech (english.cc; RED_FN)
     float pitchAt = -1;  // (PROS2 agent29) a vowel's pitch anchor as a share of it (english.cc EN_ACC_PITCH_AT; < 0: 0.5)
+    // (pajupilli, singing: CHANGES.md 2026-11-25) a sung vowel with setPitch and setPitchEnd: its pitch is reached at
+    // this share of it and left at that one (< 0: a falling word's, 0.25 and 0.9), so a note holds its pitch from
+    // just after its beginning to just before its end and the move to the next note is in the consonant.
+    float sungAt = -1, sungEndAt = -1;
   };
   void shapeNext(const Shape& s) { nextShape_ = s; }
   bool female() const { return female_; }
@@ -756,6 +823,20 @@ class Synth {
   float aspGainTarget_ = 1, aspGainNow_ = 1;  // smoothed toward the target
   float kAspGainFollow_ = 0;
   double kLookAheadSamples_ = 0;  // how far ahead the targets are read
+  float pitchControl_ = -1, pitchLearnVib_ = -1;  // (setPitchControl; < 0: the speaker's)
+  float tensionLoHz_ = 0;  // (setTensionMap)
+  std::vector<float> tensionMap_;
+  float larynxLow_ = 0, larynxRaiseX_ = 1;  // (setLarynx)
+  float foldMass_ = 1, foldKneeHz_ = 0, foldPower_ = 2, foldKnee2Hz_ = 0, foldPower2_ = 2;  // (setFoldMass)
+  float adduction_ = 1;  // (setAdduction)
+  float shield_ = -1, shieldHz_ = 0;  // (setTractShield)
+  float planPitchEps_ = -1;  // (setPitchSmoothing)
+  float pitchDriftX_ = 1;  // (setPitchDrift)
+  float diploX_ = 0;       // (setDiplo)
+  std::vector<Expr> expr_;  // (setExpression)
+  size_t exprI_ = 0;
+  double exprPhase_ = 0;
+  float exprOpen_ = 0, exprAdduct_ = 1, exprNeutral_ = 0, exprFront_ = 0;
   float creakTarget_ = 0, creakNow_ = 0, kCreakFollow_ = 0;  // creaky irregularity
   float liqShelfNow_ = 0, liqShelfTarget_ = 0;  // LIQ agent31: extra source shelf share in an ɹ / l (LIQ_R_SHELF ...)
   bool liqShelfSet_ = false;

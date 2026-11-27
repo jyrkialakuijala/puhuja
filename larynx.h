@@ -91,6 +91,22 @@ struct LarynxControl {
   float creakJ = 0, creakS = 0;  // round AC CREAK agent31: extra per-cycle tension / pressure deviation (creak; 0: none)
   float cs = 0;  // round AE VQCS agent33: the connected-speech voice quality amount (0..1; VQCS_* knobs in larynx.cc)
   float diplo = 0;  // round AC CREAK agent31: alternate cycles' pressure +-diplo (and tension +-CREAK_DIPLO_Q x diplo): creak's period doubling
+  // (pajupilli, singing: CHANGES.md 2026-11-25) the pitch controller's share per cycle and the flow fluctuation it
+  // learns from, for this voice; < 0: the speaker's (PITCH_CONTROL, kPitchLearnVib). Synth::setPitchControl.
+  float pitchControl = -1, pitchLearnVib = -1;
+  // (pajupilli, singing: CHANGES.md 2026-11-25) what the singer knows of the tension this pitch takes: x the
+  // tension, beside the controller's correction (which then only trims). 1: nothing known. Synth::setTensionMap.
+  float tensionPrior = 1;
+  // (pajupilli, singing: CHANGES.md 2026-11-26) the folds' mass x this, for a higher voice; the larynx follows a
+  // change smoothly (98 % of it in 3 ms). 1: as built. Synth::setFoldMass.
+  float foldMass = 1;
+  // (pajupilli, singing: CHANGES.md 2026-11-26) the folds brought together: their rest gap and the chink while
+  // voicing x this (< 1: firmer closure, a flow that shuts sharply, stronger overtones). 1: as built.
+  float restX = 1;
+  // (pajupilli, singing: CHANGES.md 2026-11-26, the tract shield) the folds shielded from the tract's sound
+  // pressure: this share of it, low-passed at shieldHz, is taken off the pressure on the folds' layers, so they
+  // feel the drop across them more than the tract's resonance. < 0: as built. Synth::setTractShield.
+  float shield = -1, shieldHz = 0;
 };
 
 // What the larynx gives back for this sample.
@@ -121,6 +137,7 @@ class Larynx {
   virtual float flow() const { return 0; }      // the folds' own flow (cm^3/s)
   virtual float flowMean() const { return 0; }  // ~10 ms mean of the flow heard
   virtual float vib() const { return 0; }       // the flow's fluctuation (cm^3/s)
+  virtual float pitchCorrection() const { return 1; }  // (singing) the pitch controller's tension correction now
   virtual float area() const { return 0; }      // glottal area (cm^2), 0 when closed
   virtual float loudness() const { return 0; }  // the folds' radiated sound, ~10 ms envelope
   virtual float cyclePeak() const { return 0; } // its peak in the last cycle
@@ -184,6 +201,7 @@ class FoldLarynx : public Larynx {
   float flow() const override { return core_->flow(); }
   float flowMean() const override { return flowMean_; }
   float vib() const override { return physVib_; }
+  float pitchCorrection() const override { return pitchCorr_; }
   float area() const override { return core_->area(); }
   float loudness() const override { return foldAc_; }
   float cyclePeak() const override { return foldCycleAmp_; }
@@ -208,6 +226,7 @@ class FoldLarynx : public Larynx {
   float cycleJ_ = 0, cycleS_ = 0;  // this cycle's random tension and pressure deviation
   float diploSign_ = 1;  // round AC CREAK: the alternating cycle sign (LarynxControl::diplo)
   float pitchCorr_ = 1, pitchCorrTarget_ = 1;  // pitch controller: tension correction
+  float foldMass_ = 1, foldMassV_ = 0;  // (LarynxControl::foldMass, followed)
   double lastCloseTime_ = 0;  // last fold closure (samples, sub-sample)
   bool belowHalf_ = false;  // the flow has been under half its mean since the last cycle mark
   float kPitchRelax_ = 0, kVibTrack_ = 0;

@@ -2650,6 +2650,43 @@ void Synth::setVoice(VoicePreset preset) {
   setFixedResonances();
 }
 
+void Synth::setVoiceBlend(float woman) {
+  setVoice(woman >= 0.5f ? VoicePreset::Female : VoicePreset::Male);
+  if (woman == 0.0f || woman == 1.0f) return;
+  const Voice &m = kMaleVoice, &f = kFemaleVoice;
+  auto mix = [woman](float a, float b) { return a + woman * (b - a); };
+  Voice v;
+  v.f0 = mix(m.f0, f.f0);
+  for (int i = 0; i < 3; ++i) { v.formant[i] = mix(m.formant[i], f.formant[i]); v.bw[i] = mix(m.bw[i], f.bw[i]); }
+  v.highFormants = mix(m.highFormants, f.highFormants);
+  v.rate = mix(m.rate, f.rate);
+  v.doubledVowel = mix(m.doubledVowel, f.doubledVowel);
+  v.breathiness = std::max(0.0f, mix(m.breathiness, f.breathiness));
+  v.gain = mix(m.gain, f.gain);
+  v.treble = mix(m.treble, f.treble);
+  v.air = std::max(0.0f, mix(m.air, f.air));
+  v.noiseScale = mix(m.noiseScale, f.noiseScale);
+  v.shGain = mix(m.shGain, f.shGain);
+  v.glottalGap = std::max(0.0f, mix(m.glottalGap, f.glottalGap));
+  v.f4 = mix(m.f4, f.f4);
+  v.f5 = mix(m.f5, f.f5);
+  v.microGain = mix(m.microGain, f.microGain);
+  v.cycleJitter = mix(m.cycleJitter, f.cycleJitter);
+  v.cycleShimmer = mix(m.cycleShimmer, f.cycleShimmer);
+  v.sourceTiltDb = mix(m.sourceTiltDb, f.sourceTiltDb);
+  v.sourceUpperCutDb = mix(m.sourceUpperCutDb, f.sourceUpperCutDb);
+  v.sourceMidLiftDb = mix(m.sourceMidLiftDb, f.sourceMidLiftDb);
+  voice_ = v;
+  // (what setVoice derives from the voice, again)
+  baseF0_ = voice_.f0;
+  larynx_->setBaseF0(voice_.f0);
+  trebleShelf_.highShelf(kTrebleShelfHz, voice_.treble, fs_);
+  physUpperCut_.peaking(kPhysUpperCutHz * voice_.formant[2], kPhysUpperCutBw * voice_.formant[2], voice_.sourceUpperCutDb, fs_);
+  physMidLift_.peaking(kPhysMidLiftHz * voice_.formant[1], kPhysMidLiftBw * voice_.formant[1], voice_.sourceMidLiftDb, fs_);
+  physTiltGain_ = std::pow(10.0f, voice_.sourceTiltDb / 20.0f) - 1.0f;
+  setFixedResonances();
+}
+
 // ---------------------------------------------------------------------------
 // Input: UTF-8 text -> phonemes.
 
@@ -2875,6 +2912,8 @@ void Synth::breathPoint(bool sentence, bool paragraph, bool snatched, bool plann
   planVolume_ = kLungMax;
   hasSpoken_ = true;
 }
+
+float Synth::pitchCorrection() const { return larynx_ ? larynx_->pitchCorrection() : 1.0f; }
 
 void Synth::lengthen() {
   if (hasPending_) pending_.isLong = true;
@@ -7542,7 +7581,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
       if (pitched) {
         // A vowel that falls to a second pitch anchors its first early, so
         // the fall spans most of it (see below).
-        const double tc = t0 + (tok.pitchEnd != kNoPitch ? kFallAnchorAt : tok.shape.pitchAt >= 0 ? tok.shape.pitchAt : 0.5) * dur;
+        const double tc = t0 + (tok.pitchEnd != kNoPitch ? (tok.shape.sungAt >= 0 ? tok.shape.sungAt : kFallAnchorAt) : tok.shape.pitchAt >= 0 ? tok.shape.pitchAt : 0.5) * dur;
         const float target = p[kF0Mul];
         // (PROS2 agent29, lab; english.cc EN_ACC_DIP_ST, 0: as before) an accented vowel's rise: a low anchor at
         // EN_ACC_DIP_AT of the vowel, pitchDip semitones under its pitch, then up to its anchor (L+H*), without moving the
@@ -7608,7 +7647,7 @@ void Synth::emit(const Token& tok, const Ph* next) {
         // as steps at a male voice's 70-85 Hz: "now" as "o-o-o-w-w-w-w".)
         if (tok.pitchEnd != kNoPitch) {
           const float end = std::exp2(tok.pitchEnd / 12.0f);
-          const double te = t0 + kFallEndAt * dur;
+          const double te = t0 + (tok.shape.sungEndAt >= 0 ? std::max<double>(tok.shape.sungEndAt, (tc - t0) / dur + 0.01) : kFallEndAt) * dur;
           for (Keyframe& kf : k_) {
             if (kf.t <= tc) continue;
             const float f = kf.t >= te ? 1.0f : static_cast<float>((kf.t - tc) / (te - tc));
@@ -12455,7 +12494,7 @@ float Synth::tick() {
   phase_ += dt;
   if (phase_ >= 1.0f) {
     phase_ -= 1.0f;
-    drift_ += kPitchDriftFollow * (kPitchDrift * noise() - drift_);
+    drift_ += kPitchDriftFollow * (kPitchDrift * pitchDriftX_ * noise() - drift_);  // (setPitchDrift)
     jitter_ = 1.0f + drift_ + kPitchJitter * noise();
     duty_ = carrier_ == Carrier::Triangle ? kTriangleDuty + kTriangleDutyJitter * noise()
                                           : kSquareDuty;
@@ -12537,8 +12576,8 @@ float Synth::tick() {
           // "the teeth stay in their place and the transmission line only
           // extends its length where the lips are"): the lip tube and the
           // length grow by lineExtra_, everything behind stays put.
-          a.lLip += lineExtra_; a.length += lineExtra_ - lineRaise_;
-          b.lLip += lineExtra_; b.length += lineExtra_ - lineRaise_;
+          a.lLip += lineExtra_; a.length += lineExtra_ - larynxRaiseX_ * lineRaise_ + larynxLow_;  // (setLarynx: 1, 0 for speech)
+          b.lLip += lineExtra_; b.length += lineExtra_ - larynxRaiseX_ * lineRaise_ + larynxLow_;
           epilarynx(a, female_);
           epilarynx(b, female_);
           cavity(a, female_, lineX_, ac);
@@ -12552,9 +12591,36 @@ float Synth::tick() {
         sh = lineShapeMix(lineKeys_[0].s, lineKeys_[1].s, w);
       }
     lineShapePlanned:
+      if (exprNeutral_ > 0.001f) {  // (singing, setExpression's neutral: towards the neutral vowel)
+        static const TractShape kSchwa = [] { TractShape a; lineShapeOf(Ph::Schwa, &a); return a; }();
+        const float len = sh.length, o = std::min(exprNeutral_, 1.0f);
+        sh = lineShapeMix(sh, kSchwa, o);
+        sh.length = len + (kSchwa.length - len) * o;
+      }
+      if (exprOpen_ > 0.001f) {  // (singing, setExpression's open: towards "ah", the jaw dropped, the lips flared)
+        static const TractShape kAh = [] { TractShape a; lineShapeOf(Ph::AA, &a); return a; }();
+        const float o = std::min(exprOpen_, 1.0f);
+        const float len = sh.length;
+        sh = lineShapeMix(sh, kAh, 0.7f * o);
+        sh.length = len + (kAh.length - len) * 0.7f * o;
+        sh.aLip *= 1.0f + 1.5f * o;
+        sh.lLip *= 1.0f - 0.5f * o;
+        sh.aOral *= 1.0f + 0.5f * o;
+      }
+      if (std::fabs(exprFront_) > 0.001f) {
+        // (singing, setExpression's front: the tongue's body moved forward (> 0) or back (< 0) with the jaw where
+        // it is. Forward, the pharynx behind it widens and the mouth cavity before it narrows, and the tongue's
+        // constriction moves towards the teeth; back, the reverse. That is the gesture that moves the tract's second
+        // resonance (up when forward, down when back) and the first only a little: a singer's way of bringing the
+        // second resonance onto a partial of the note. At +-1 the two cavities' areas x 1.8 and / 1.8.)
+        static const float kK = param("LINE_FRONT_LOG", 0.5878f), kX = param("LINE_FRONT_X", 0.08f);
+        const float o = std::clamp(exprFront_, -1.0f, 1.0f), k = std::exp(kK * o);
+        sh.aPharynx *= k; sh.aOral /= k;
+        sh.xc = std::clamp(sh.xc + kX * o, 0.15f, 0.92f);
+      }
       // The female voice: a shorter tract in place of the formant multipliers.
       sh.length /= (voice_.formant[0] + voice_.formant[1] + voice_.formant[2]) / 3.0f;
-      sh.lLip += lineExtra_; sh.length += lineExtra_ - lineRaise_;  // (as above; the larynx raised: LINE_RAISE_*)
+      sh.lLip += lineExtra_; sh.length += lineExtra_ - larynxRaiseX_ * lineRaise_ + larynxLow_;  // (as above; the larynx raised: LINE_RAISE_*; setLarynx)
       epilarynx(sh, female_);
       cavity(sh, female_, lineX_, ac);
       static const bool kCavTrace = std::getenv("PUHUJA_CAVITY_TRACE") != nullptr;
@@ -12793,6 +12859,47 @@ float Synth::tick() {
       }
       if (prosodyF0HeldT_ >= 0) lc.f0 = baseF0_ * std::exp2(prosodyF0St_ / 12.0f) * jitter_ * (1.0f + kF0Tension * tension_);
     }
+    float exprPress = 1.0f;
+    if (!expr_.empty()) {  // (singing: the expression line, setExpression)
+      const double ts = static_cast<double>(t_) / fs_;
+      while (exprI_ + 1 < expr_.size() && expr_[exprI_ + 1].t <= ts) ++exprI_;
+      const Expr& a = expr_[exprI_];
+      const Expr& b = expr_[std::min(exprI_ + 1, expr_.size() - 1)];
+      const float x = b.t > a.t ? static_cast<float>(std::clamp((ts - a.t) / (b.t - a.t), 0.0, 1.0)) : 0.0f;
+      exprPress = a.press + x * (b.press - a.press);
+      const float cents = a.vibCents + x * (b.vibCents - a.vibCents), hz = a.vibHz + x * (b.vibHz - a.vibHz);
+      exprPhase_ += 6.283185307179586 * hz / fs_;
+      if (exprPhase_ > 6.283185307179586) exprPhase_ -= 6.283185307179586;
+      if (cents != 0.0f) lc.f0 *= 1.0f + 5.7762265e-4f * cents * static_cast<float>(std::sin(exprPhase_));  // (ln 2 / 1200 a cent)
+      exprOpen_ = a.open + x * (b.open - a.open);
+      exprAdduct_ = a.adduct + x * (b.adduct - a.adduct);
+      exprNeutral_ = a.neutral + x * (b.neutral - a.neutral);
+      exprFront_ = a.front + x * (b.front - a.front);
+      const float off = a.cents + x * (b.cents - a.cents);
+      if (off != 0.0f) lc.f0 *= 1.0f + 5.7762265e-4f * off;
+    }
+    lc.restX = adduction_ * (expr_.empty() ? 1.0f : exprAdduct_);  // (setAdduction, Expr::adduct)
+    lc.shield = shield_, lc.shieldHz = shieldHz_;  // (setTractShield)
+    {  // (setFoldMass)
+      float m = 1.0f;
+      if (foldKneeHz_ > 0 && foldKnee2Hz_ <= 0) {
+        if (lc.f0 > foldKneeHz_) m = std::pow(foldKneeHz_ / lc.f0, foldPower_);
+      } else if (foldKneeHz_ > 0) {
+        // (octaves above the first pivot, its corner rounded over a semitone either side)
+        const float w = 1.0f / 12.0f, o = std::log2(std::max(lc.f0, 1.0f) / foldKneeHz_);
+        const float up = o <= -w ? 0.0f : o >= w ? o : (o + w) * (o + w) / (4 * w);
+        const float o2 = std::log2(foldKnee2Hz_ / foldKneeHz_);
+        m = up <= o2 ? std::exp2(-foldPower_ * up) : std::exp2(-foldPower_ * o2 - foldPower2_ * (up - o2));
+      }
+      lc.foldMass = foldMass_ * m;
+    }
+    lc.pitchControl = pitchControl_;
+    if (!tensionMap_.empty()) {  // (singing: the tension known for this pitch)
+      const float at = std::clamp(12.0f * std::log2(std::max(lc.f0, 1.0f) / tensionLoHz_), 0.0f, static_cast<float>(tensionMap_.size() - 1));
+      const size_t i = std::min(static_cast<size_t>(at), tensionMap_.size() - 1), j = std::min(i + 1, tensionMap_.size() - 1);
+      lc.tensionPrior = tensionMap_[i] + (at - static_cast<float>(i)) * (tensionMap_[j] - tensionMap_[i]);
+    }
+    lc.pitchLearnVib = pitchLearnVib_;
     lc.f0Wave = f0;
     lc.phase = phase_;
     lc.phaseStep = dt;
@@ -12809,6 +12916,7 @@ float Synth::tick() {
       lc.ps *= lineLevelPow_;
     }  // voice amplitude ~ Ps^1.5: a level factor L needs Ps x L^(1/1.5)
     if (gapPsMul_ != 1.0f) lc.ps *= gapPsMul_;  // (GAP_PS_DB)
+    lc.ps *= exprPress;  // (setExpression)
     // Kokoro mode: the reference's level track (dB re its voiced median) through the warp, as a pressure factor.
     // Per word by default (Jyrki 2026-11-06: the 5 ms track made the level "bounce" where Kokoro is "continuous and
     // nicely leveled"), eased over PROSODY_LEVEL_MS; no reference: back to 0 dB.
@@ -12846,6 +12954,7 @@ float Synth::tick() {
       lc.ag *= std::max(0.0f, 1.0f + kCrEndAg * endE_ + kCrOnAg * onO_);
       lc.diplo = kCrEndDiplo * endE_;
     }
+    if (diploX_ > 0) lc.diplo = std::max(lc.diplo, diploX_);  // (setDiplo: a singer's faint subharmonic)
     // (VQCS agent33 round AE, lab; 0: off) connected-speech voice quality, x the eased amount (VQCS_ON): the posterior chink
     // + VQCS_GAP cm^2, the lung pressure x (1 + VQCS_PS), the abduction x (1 + VQCS_AG), per-cycle jitter / shimmer
     // + VQCS_JIT / VQCS_SHIM (as the creak's). _F: the female's (< -900: the male's). The shelves / rest: larynx.cc.
@@ -13456,10 +13565,11 @@ void Synth::planSentence() {
     for (int round = 0; round < W.rounds; ++round) {
       std::vector<double> d(n, 0), e(n, 0), f(n, 0), b(n, 0);
       // Smoothness, everywhere.
+      const double eps = c == 3 && planPitchEps_ >= 0 ? planPitchEps_ : W.eps;  // (setPitchSmoothing: a singer's pitch line)
       for (int i = 1; i + 1 < n; ++i) {
-        d[i - 1] += W.eps; d[i] += 4 * W.eps; d[i + 1] += W.eps;
-        e[i - 1] += -2 * W.eps; e[i] += -2 * W.eps;
-        f[i - 1] += W.eps;
+        d[i - 1] += eps; d[i] += 4 * eps; d[i + 1] += eps;
+        e[i - 1] += -2 * eps; e[i] += -2 * eps;
+        f[i - 1] += eps;
       }
       // Relaxation on free frames (and a tiny anchor everywhere, so the
       // system is never singular).
